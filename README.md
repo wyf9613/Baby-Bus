@@ -1,4 +1,6 @@
-# ai4r_policy
+# Baby Bus · ai4r_policy
+
+团队策略仓库，基于 DREAM 课程框架。先看 [三个子组与代码的对应关系](docs/baby-bus-team.md)。当前保留老师的零动作起始策略，团队算法尚未实现。下文为上游使用说明。
 
 Student ROS 2 policy package for the DREAM robot, targeting Ubuntu 24.04 and
 ROS 2 Jazzy. Version 0.1.0 describes the first source release; its published
