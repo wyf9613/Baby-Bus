@@ -1,0 +1,683 @@
+{
+  "configById": {
+    "Markdown!l2qk5p": {
+      "fontSize": 12,
+      "markdown": "# **MAIN TAB**\r\n\r\n## **Nodes providing data and responding to this panel:**\r\n\r\n* Traxxas Node\r\n* Policy Node\r\n* Cone Detector Node\r\n\r\n## **Description of this tab:**\r\n\r\n* **COLUMN 1**:\r\n  * These butons are for enabling and disabling the Traxxas and Policy nodes.\r\n  * To test run the policy in the POlicy Node, click the buttons from top to bottom, which is:\r\n    1. Make the Policy Node publish \"zero\" values for the actions.\r\n    2. Enable the Traxxas Node to send actions through to the actual car.\r\n    3. Turn on the policy.\r\n    4. Stop the policy from publishing any actions.\r\n    5. Disable the Traxxas node, which means that it send neutral commands to the car regardless of what actions is might receive from the policy.\r\n    6. To enable manual driving, you need to put the Traxxas node into the \"disarmed\" state.\r\n\r\n* **COLUMN 2**:\r\n  * The coloured panels display:\r\n    * The state of the Traxxas Node.\r\n    * The state of the Policy Node.\r\n    * The validity of the signal from the RC remote channels (if this is BAD then mostly likely the car is turned off or the batteries are flat).\r\n\r\n* **COLUMN 3**:\r\n  * First plot: The (x,y) cone location data from the Detector Node. This data is in the coordinate frame of the car.\r\n  * Second plot: the drive and steering  commands that the Traxxas node is sending to the car (in normalized units).\r\n  * Third plot: the drive and steering commands being received as manual input from the RC remote (in normalized units).\r\n",
+      "renderMode": "static"
+    },
+    "Publish!2yrtcns": {
+      "buttonText": "Policy publishing ZERO actions",
+      "buttonTooltip": "",
+      "advancedView": false,
+      "value": "{\n  \"data\": 2\n}",
+      "topicName": "/car/policy_fsm_transition_request",
+      "datatype": "std_msgs/msg/UInt16",
+      "foxglovePanelTitle": "Policy publishing ZERO actions"
+    },
+    "Publish!1eh4xvo": {
+      "buttonText": "Traxxas Request Enable",
+      "buttonTooltip": "",
+      "advancedView": false,
+      "value": "{\n  \"data\": 1\n}",
+      "topicName": "/car/request",
+      "datatype": "std_msgs/msg/UInt8",
+      "foxglovePanelTitle": "Traxxas Request Enable"
+    },
+    "Publish!46yei91": {
+      "buttonText": "Policy publishing actions",
+      "buttonTooltip": "",
+      "advancedView": false,
+      "value": "{\n  \"data\": 3\n}",
+      "topicName": "/car/policy_fsm_transition_request",
+      "datatype": "std_msgs/msg/UInt16",
+      "foxglovePanelTitle": "Policy publishing actions"
+    },
+    "Publish!2ko08g6": {
+      "buttonText": "Policy NOT publishing actions",
+      "buttonTooltip": "",
+      "advancedView": false,
+      "value": "{\n  \"data\": 1\n}",
+      "topicName": "/car/policy_fsm_transition_request",
+      "datatype": "std_msgs/msg/UInt16",
+      "foxglovePanelTitle": "Policy NOT publishing actions"
+    },
+    "Publish!2xyypzo": {
+      "buttonText": "Traxxas Request Disable",
+      "buttonTooltip": "",
+      "advancedView": false,
+      "value": "{\n  \"data\": 0\n}",
+      "topicName": "/car/request",
+      "datatype": "std_msgs/msg/UInt8",
+      "foxglovePanelTitle": "Traxxas Request Disable",
+      "buttonColor": "#ba0000"
+    },
+    "Publish!2o7ja28": {
+      "advancedView": false,
+      "topicName": "/car/request",
+      "datatype": "std_msgs/msg/UInt8",
+      "value": "{\n  \"data\": 4\n}",
+      "buttonText": "Traxxas Request Disarm",
+      "buttonColor": "#3c1717"
+    },
+    "Indicator!33zjc3n": {
+      "path": "/car/traxxas_state_value.data",
+      "style": "background",
+      "fontSize": 18,
+      "fallbackColor": "#a0a0a0",
+      "fallbackLabel": "Unknown",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "0",
+          "color": "#a41c1c",
+          "label": "Disabled"
+        },
+        {
+          "operator": "=",
+          "rawValue": "1",
+          "color": "#1337d3",
+          "label": "Pre-enable"
+        },
+        {
+          "operator": "=",
+          "rawValue": "2",
+          "color": "#40b029",
+          "label": "Enabled"
+        },
+        {
+          "operator": "=",
+          "rawValue": "3",
+          "color": "#36a9b9",
+          "label": "Pre-calibrate"
+        },
+        {
+          "operator": "=",
+          "rawValue": "4",
+          "color": "#8eaa11",
+          "label": "Calibrate"
+        },
+        {
+          "operator": "=",
+          "rawValue": "5",
+          "color": "#301616",
+          "label": "Disarmed"
+        }
+      ]
+    },
+    "Indicator!445jlve": {
+      "path": "/car/policy_fsm_state_value.data",
+      "style": "background",
+      "fontSize": 18,
+      "fallbackColor": "#a0a0a0",
+      "fallbackLabel": "Unknown",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "1",
+          "color": "#c31414",
+          "label": "Policy inactive"
+        },
+        {
+          "operator": "=",
+          "rawValue": "3",
+          "color": "#24b02b",
+          "label": "Policy active"
+        },
+        {
+          "operator": "=",
+          "rawValue": "2",
+          "color": "#293fdf",
+          "label": "Zero actions"
+        }
+      ]
+    },
+    "Publish!4h8fc1d": {
+      "buttonText": "Set steering trim",
+      "buttonTooltip": "",
+      "advancedView": true,
+      "value": "{\n  \"data\": 0.0\n}",
+      "topicName": "/car/steering_trim_set_normalized",
+      "datatype": "std_msgs/msg/Float32",
+      "foxglovePanelTitle": "Set steering trim"
+    },
+    "Publish!1m1g3qy": {
+      "buttonText": "Increment steering trim",
+      "buttonTooltip": "",
+      "advancedView": true,
+      "value": "{\n  \"data\": 0.0\n}",
+      "topicName": "/car/steering_trim_increment_normalized",
+      "datatype": "std_msgs/msg/Float32",
+      "foxglovePanelTitle": "Increment steering trim"
+    },
+    "Table!2c2h1u": {
+      "topicPath": "/car/steering_trim_current_normalized"
+    },
+    "Indicator!qavzah": {
+      "path": "/car/rc_drive_status",
+      "style": "background",
+      "fallbackColor": "#001fff",
+      "fallbackLabel": "UNKNOWN",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "0",
+          "color": "#b90000",
+          "label": "BAD"
+        },
+        {
+          "operator": "=",
+          "rawValue": "1",
+          "color": "#00bf16",
+          "label": "GOOD"
+        }
+      ],
+      "fontSize": 18
+    },
+    "Indicator!2bt4eqw": {
+      "path": "/car/rc_steer_status",
+      "style": "background",
+      "fallbackColor": "#001fff",
+      "fallbackLabel": "UNKNOWN",
+      "rules": [
+        {
+          "operator": "=",
+          "rawValue": "0",
+          "color": "#b90000",
+          "label": "BAD"
+        },
+        {
+          "operator": "=",
+          "rawValue": "1",
+          "color": "#00bf16",
+          "label": "GOOD"
+        }
+      ],
+      "fontSize": 18
+    },
+    "Plot!3ks0p7l": {
+      "paths": [
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/cone_detections.detections[:].position.y",
+          "enabled": true,
+          "color": "#e32525",
+          "showLine": false,
+          "label": "Detected cones",
+          "lineSize": 7.000000000000003,
+          "xValuePath": "/car/cone_detections.detections[:].position.x"
+        }
+      ],
+      "minYValue": -1,
+      "maxYValue": 1,
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "floating",
+      "showPlotValuesInLegend": false,
+      "isSynced": true,
+      "xAxisVal": "currentCustom",
+      "sidebarDimension": 240,
+      "xAxisPath": {
+        "value": "/car/cone_detections.detections[:].position.x"
+      },
+      "foxglovePanelTitle": "Cone locations",
+      "minXValue": 0,
+      "maxXValue": 5,
+      "xAxisLabel": "X [meters] (i.e., positive is forwards from the car)",
+      "yAxisLabel": "Y [meters] (i.e., positive is left of the car)"
+    },
+    "Plot!bqyzge": {
+      "paths": [
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/drive_and_steer_applied_normalized.drive",
+          "enabled": true,
+          "label": "DRIVE applied"
+        },
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/drive_and_steer_applied_normalized.steer",
+          "enabled": true,
+          "label": "STEER applied"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 65,
+      "xAxisPath": {
+        "value": "/cmd_vel.angular.x"
+      },
+      "foxglovePanelTitle": "PWM values for ESC and STEERING",
+      "followingViewWidth": 50
+    },
+    "Plot!2fyd9v9": {
+      "paths": [
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/rc_drive_and_steer_normalized.drive",
+          "enabled": true,
+          "color": "#4e98e2",
+          "label": "DRIVE from RC remote"
+        },
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/rc_drive_and_steer_normalized.steer",
+          "enabled": true,
+          "color": "#f5774d",
+          "id": "0a82850c-0e29-4eb1-a49e-72048d8e43cb",
+          "label": "STEER from RC remote"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 62,
+      "followingViewWidth": 50
+    },
+    "Markdown!9qsjhw": {
+      "fontSize": 12,
+      "markdown": "# **IMAGE STREAMS TAB**\r\n\r\n## **Nodes providing data to this panel:**\r\n\r\n* Cone Detector\r\n\r\n## **Description of this tab:**\r\n\r\n* **IMPORTANT:** You should only stream images for debugging purposes.\r\n* Streaming images clogs up the WiFi bandwidth and makes everything run slower for you and for everyone else in the same room.\r\n* The most useful image for debugging is the \"bounding box image stream\" because it allows you to see what cones are or aren't being detected.\r\n* The \"plain image stream\" comes from the Stream Node.\r\n* The \"bounding box image stream\" and \"depth image stream\" come from the detector node.\r\n* For the \"bounding box image stream\" to work, launch with:\r\n```\r\ndream runtime start oakd_cone_detector --debug-images annotated\r\n```\r\n* For the \"depth image stream\" to work, launch with:\r\n```\r\ndream runtime start oakd_cone_detector --debug-images depth\r\n```\r\n",
+      "renderMode": "static"
+    },
+    "Image!1uziceh": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/car/debug/annotated_image",
+        "flipHorizontal": false
+      },
+      "synchronize": false
+    },
+    "Image!l78gc5": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {},
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/car/debug/depth/image"
+      },
+      "synchronize": false
+    },
+    "Markdown!4aawcqw": {
+      "fontSize": 12,
+      "markdown": "# **Wheel Speed Tab**\r\n\r\n## **Nodes providing data to this panel:**\r\n\r\n* Traxxas Node\r\n\r\n## **Description of this tab:**\r\n\r\n* This tab display the measurements from the wheel speed sensor.\r\n* The top plot is the wheel speed (in meters per second), which is based on an estimate of a wheel diameter of 10.5cm.\r\n* The bottom plot is the period of the encoder measurements (in seconds).\r\n* **Important:** At low speeds the encoder period can be 1 second (or higher), hence:\r\n  * The wheel speed estimator waits 3 seconds with no new encoder data before concluding that the wheels have stopped.\r\n  * At low speed, new measurements come is at approximately half the encoder period, hence, a policy for low-speed cruise-control must take this into account.",
+      "renderMode": "static"
+    },
+    "Gauge!1aqphe8": {
+      "path": "/car/wheel_speed_m_per_sec.data",
+      "minValue": 0,
+      "maxValue": 10,
+      "colorMap": "turbo",
+      "colorMode": "colormap",
+      "gradient": [
+        "#0000ff",
+        "#ff00ff"
+      ],
+      "reverse": false,
+      "style": "dial",
+      "tickInterval": 0.1,
+      "showTicks": false,
+      "reverseDirection": false
+    },
+    "Plot!e70b1g": {
+      "paths": [
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/wheel_speed_m_per_sec.data",
+          "enabled": true,
+          "color": "#4e98e2",
+          "label": "WHEEL SPEED (m/s)",
+          "showLine": true
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 46,
+      "foxglovePanelTitle": "Wheel Speed Plot",
+      "xAxisLabel": "TIME"
+    },
+    "Plot!2zle7oo": {
+      "paths": [
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/encoder_period_seconds.data",
+          "enabled": true,
+          "color": "#4e98e2",
+          "label": "ENCODER PERIOD (seconds)"
+        }
+      ],
+      "showXAxisLabels": true,
+      "showYAxisLabels": true,
+      "showLegend": true,
+      "legendDisplay": "top",
+      "showPlotValuesInLegend": true,
+      "isSynced": true,
+      "xAxisVal": "timestamp",
+      "sidebarDimension": 56,
+      "foxglovePanelTitle": "ENC TIME BETWEEN PULSES",
+      "xAxisLabel": "TIME",
+      "yAxisLabel": ""
+    },
+    "Markdown!z5tmov": {
+      "fontSize": 12,
+      "markdown": "# **2D Lidar Tab**\r\n\r\n## **Nodes providing data to this panel:**\r\n\r\n* Lidar Node\r\n\r\n## **Description of this tab:**\r\n\r\n* This tab display the measurements from the 2D scanning lidar sensor (which is an RPLidar C1).\r\n* The visualisation is a 2D view looking down at the car from above.\r\n* Navigate the visualization with:\r\n  * Left mouse button to pan.\r\n  * Right mouse button to rotate.\r\n  * Scroll to zoom.",
+      "renderMode": "static"
+    },
+    "3D!3k2givz": {
+      "cameraState": {
+        "perspective": false,
+        "distance": 10.807201753242781,
+        "phi": 59.99999999999999,
+        "thetaOffset": -1.963166144192145,
+        "targetOffset": [
+          -0.017017959270379565,
+          0.3181783694556544,
+          0.5929524003431628
+        ],
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {
+        "frame:fsm300_sensor": {
+          "visible": false
+        }
+      },
+      "topics": {
+        "/scan": {
+          "visible": true,
+          "colorField": "intensity",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "pointSize": 9
+        },
+        "/car/scan": {
+          "visible": true,
+          "colorField": "intensity",
+          "colorMode": "colormap",
+          "colorMap": "turbo",
+          "pointSize": 6
+        }
+      },
+      "layers": {
+        "grid": {
+          "visible": true,
+          "drawBehind": false,
+          "frameLocked": true,
+          "label": "Grid",
+          "instanceId": "fa1ed935-e099-4057-ab09-d205df4d58ac",
+          "layerId": "foxglove.Grid",
+          "size": 10,
+          "divisions": 10,
+          "lineWidth": 1,
+          "color": "#248eff",
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "rotation": [
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {},
+      "followTf": "laser",
+      "fixedFrame": "laser",
+      "synchronize": false
+    },
+    "Parameters!29wn3a0": {
+      "title": "Parameters"
+    },
+    "Tab!2rj16mz": {
+      "activeTabIdx": 0,
+      "tabs": [
+        {
+          "title": "Main tab",
+          "layout": {
+            "first": {
+              "first": "Markdown!l2qk5p",
+              "second": {
+                "first": {
+                  "first": {
+                    "first": "Publish!2yrtcns",
+                    "second": "Publish!1eh4xvo",
+                    "direction": "column",
+                    "splitPercentage": 50.814332247557005
+                  },
+                  "second": {
+                    "first": {
+                      "first": "Publish!46yei91",
+                      "second": "Publish!2ko08g6",
+                      "direction": "column",
+                      "splitPercentage": 48.9971346704871
+                    },
+                    "second": {
+                      "first": "Publish!2xyypzo",
+                      "second": "Publish!2o7ja28",
+                      "direction": "column",
+                      "splitPercentage": 43.641618497109825
+                    },
+                    "direction": "column",
+                    "splitPercentage": 50.2158273381295
+                  },
+                  "direction": "column",
+                  "splitPercentage": 30.63872255489022
+                },
+                "second": {
+                  "first": {
+                    "first": "Indicator!33zjc3n",
+                    "second": "Indicator!445jlve",
+                    "direction": "column",
+                    "splitPercentage": 53.529411764705884
+                  },
+                  "second": {
+                    "first": {
+                      "first": "Publish!4h8fc1d",
+                      "second": {
+                        "first": "Publish!1m1g3qy",
+                        "second": "Table!2c2h1u",
+                        "direction": "column",
+                        "splitPercentage": 65.98360655737707
+                      },
+                      "direction": "column",
+                      "splitPercentage": 39.00000000000001
+                    },
+                    "second": {
+                      "first": "Indicator!qavzah",
+                      "second": "Indicator!2bt4eqw",
+                      "direction": "column",
+                      "splitPercentage": 53.37837837837842
+                    },
+                    "direction": "column",
+                    "splitPercentage": 72.992700729927
+                  },
+                  "direction": "column",
+                  "splitPercentage": 24.725274725274726
+                },
+                "direction": "row"
+              },
+              "direction": "row",
+              "splitPercentage": 37.34461548815426
+            },
+            "second": {
+              "first": "Plot!3ks0p7l",
+              "second": {
+                "first": "Plot!bqyzge",
+                "second": "Plot!2fyd9v9",
+                "direction": "column",
+                "splitPercentage": 53.11284046692607
+              },
+              "direction": "column",
+              "splitPercentage": 48.70259481037924
+            },
+            "direction": "row",
+            "splitPercentage": 58.584148968809735
+          }
+        },
+        {
+          "title": "Image streams",
+          "layout": {
+            "first": "Markdown!9qsjhw",
+            "second": {
+              "first": "Image!1uziceh",
+              "second": "Image!l78gc5",
+              "direction": "row"
+            },
+            "direction": "row",
+            "splitPercentage": 20.60353798126951
+          }
+        },
+        {
+          "title": "Wheel Speed",
+          "layout": {
+            "first": {
+              "first": "Markdown!4aawcqw",
+              "second": "Gauge!1aqphe8",
+              "direction": "column",
+              "splitPercentage": 65.38461538461539
+            },
+            "second": {
+              "first": "Plot!e70b1g",
+              "second": "Plot!2zle7oo",
+              "direction": "column"
+            },
+            "direction": "row",
+            "splitPercentage": 28.94002789400279
+          }
+        },
+        {
+          "title": "2D Lidar",
+          "layout": {
+            "first": "Markdown!z5tmov",
+            "second": "3D!3k2givz",
+            "direction": "row",
+            "splitPercentage": 25.787641620291335
+          }
+        },
+        {
+          "title": "Parameters",
+          "layout": "Parameters!29wn3a0"
+        }
+      ]
+    }
+  },
+  "globalVariables": {
+    "": "\"\""
+  },
+  "userNodes": {},
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": "Tab!2rj16mz"
+}
