@@ -1,4 +1,4 @@
-# OAK-D public parameters, documented from the component's 0.1.0 contract:
+# OAK-D public parameters, documented from the component's 0.2.0 contract:
 # https://gitlab.unimelb.edu.au/dream/oakd_cone_detector/-/blob/main/README.md
 # Active entries request ordinary perception/visualization tuning. DREAM must
 # admit these requests when launching its detector service; starting the POLICY
@@ -34,8 +34,22 @@
     publish_annotated_image: false
     publish_depth_image: false
 
+    # Unannotated, calibrated RGB for ArUco: explicit opt-in, independent of
+    # cones and debug images. Enable this before starting the ArUco detector.
+    # Dimensions are startup-only; the rate can be changed live (0 pauses it).
+    publish_rgb_image: false
+    rgb_image_width_px: 1280
+    rgb_image_height_px: 720
+    rgb_image_publish_frequency_hz: 10.0
+
+    # Separately throttled RGB preview for Foxglove. Enabling the processing
+    # stream above does not enable this preview. Rate/scale can change live.
+    publish_rgb_preview_image: false
+    rgb_preview_image_publish_frequency_hz: 1.0
+    rgb_preview_image_scale: 0.5
+
     # Debug-image size relative to source resolution, double [1/640, 1], default
-    # 0.5. Smaller images cost less to display/transmit. One of TWO settings that
+    # 0.5. Smaller images cost less to display/transmit. These debug settings
     # also support explicit live ROS parameter updates on the detector.
     debug_image_scale: 0.5
 
@@ -70,4 +84,4 @@
     # diagnostic_updater:
     #   period: 1.0
     #   use_fqn: false
-    # All entries except the two debug scale/rate settings are startup-only.
+    # All entries except image publication rates and scales are startup-only.

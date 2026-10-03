@@ -1,0 +1,8 @@
+{
+  "package": "dream_interfaces",
+  "roots": [
+    "msg/ConeDetections.msg",
+    "msg/FiducialDetections.msg",
+    "msg/DriveAndSteer.msg"
+  ]
+}

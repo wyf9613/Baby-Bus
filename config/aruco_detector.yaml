@@ -1,0 +1,31 @@
+# ArUco detector source settings example. DREAM validates and admits these
+# settings for the separately managed aruco_detector component.
+/**/aruco_detector:
+  ros__parameters:
+    dictionary_name: DICT_4X4_50
+    default_marker_size_m: 0.25
+
+    # Only these IDs may reach the policy. [] (or an omitted setting) allows
+    # every ID in the selected dictionary. For an exercise with IDs 4 and 5,
+    # change this to [4, 5]. This list is independent of marker-size groups.
+    allowed_marker_ids: []
+
+    # Require this many consecutive processed images containing an ID before
+    # publishing its CURRENT observation. 3 adds about 0.2 s at 10 Hz; 1 turns
+    # confirmation off. A missed detection removes that ID immediately and
+    # restarts confirmation. An acquisition gap over 0.5 s also resets it.
+    # No old pose is replayed. Persistent false IDs can still pass this filter.
+    min_consecutive_frames: 3
+
+    # Both controls belong to aruco_detector, not oakd_cone_detector. After
+    # editing this file, use: dream runtime restart aruco_detector
+
+    # Optional per-ID size overrides. Marker size is the outer black square in
+    # metres. Omit marker_size_groups to use the default for every valid ID.
+    # marker_size_groups:
+    #   small:
+    #     ids: [2, 7, 12]
+    #     size_m: 0.10
+    #   large:
+    #     ids: [20]
+    #     size_m: 0.40

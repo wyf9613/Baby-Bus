@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>ai4r_policy</name>
-  <version>0.1.0</version>
+  <version>0.3.0</version>
   <description>Single-file student policy for the DREAM robot.</description>
   <maintainer email="paul.beuchat@unimelb.edu.au">Paul Beuchat</maintainer>
   <license>MIT</license>

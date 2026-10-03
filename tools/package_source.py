@@ -19,8 +19,6 @@ REQUIRED = ('package.xml', 'CMakeLists.txt', 'README.md', 'LICENSE',
             'docs/release-v0.1.0.md', 'scripts/policy_node.py',
             'launch/ai4r_policy.launch.py', 'config/ai4r_policy.yaml',
             'ci/dependencies.repos')
-INTERFACES_RELEASE = 'v0.1.0'
-INTERFACES_COMMIT = '9b6ef917c0b8bc31efe6ca07b8a3d25f29c35fdd'
 
 
 def dependency_provenance(root):
@@ -30,11 +28,8 @@ def dependency_provenance(root):
                        re.MULTILINE)
     require(url is not None and commit is not None,
             'invalid dream_interfaces source pin')
-    require(commit.group(1) == INTERFACES_COMMIT,
-            'dream_interfaces pin does not identify v0.1.0')
     return {'dream_interfaces': {'url': url.group(1),
-                                 'commit': commit.group(1),
-                                 'release_tag': INTERFACES_RELEASE}}
+                                 'commit': commit.group(1)}}
 
 
 def package(root, output, environment=None):

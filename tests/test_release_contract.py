@@ -75,7 +75,7 @@ class ReleaseContract(unittest.TestCase):
                          {p.name: p.read_bytes() for p in second.iterdir()})
         release = json.loads((first / 'release.json').read_text())
         dependency = release['dependencies']['dream_interfaces']
-        self.assertEqual(dependency['release_tag'], 'v0.1.0')
+        self.assertNotIn('release_tag', dependency)
         self.assertEqual(dependency['commit'],
                          '9b6ef917c0b8bc31efe6ca07b8a3d25f29c35fdd')
 

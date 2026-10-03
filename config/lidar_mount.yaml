@@ -1,0 +1,29 @@
+# Optional DREAM lidar-mount overrides. This is source configuration, not ROS
+# parameters. DREAM reads it when starting/restarting rplidar_c1; launching
+# ai4r_policy alone does not use it. Requires DREAM's lidar-mount support.
+#
+# The shipped {} inherits the robot's DREAM composition defaults. Replace it
+# with any subset of these values, measured at the lidar's scan origin:
+#   forward_from_cg_m: 0.20     # metres; positive forward, negative behind CG
+#   left_from_cg_m: 0.00        # metres; positive left, negative right of CG
+#   height_above_ground_m: 0.12 # metres above nominal ground, >= 0
+#   roll_deg: 0.0
+#   pitch_deg: 0.0
+#   yaw_deg: 180.0
+#
+# All values must be finite numbers (integers or decimals, not strings/bools).
+# Angles are absolute right-handed rotations in degrees, each in [-180, 180],
+# mapping the lidar's laser frame into base_link as Rz(yaw)*Ry(pitch)*Rx(roll).
+# Positive yaw rotates +x toward +y (left); positive roll rotates +y toward +z;
+# positive pitch rotates +x toward -z. These are NOT offsets added to defaults.
+# The default 180-degree yaw is intentional: laser +x points backwards on the
+# standard mounting. Setting yaw_deg to 0 removes that mounting rotation.
+#
+# base_link is at nominal ground directly beneath the CG: +x forward, +y left,
+# +z up when level. The mount is body-fixed, with no terrain/IMU compensation.
+# Only these six keys are admitted; frame names remain system-owned.
+# Missing/omitted keys inherit defaults. Apply edits without rebuilding:
+#   dream runtime restart rplidar_c1
+# DREAM validates before stopping a running lidar. Policy restart alone does
+# not reload the mount. This changes lidar_points_xyz, not raw lidar_ranges.
+{}

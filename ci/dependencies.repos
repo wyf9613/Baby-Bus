@@ -1,7 +1,7 @@
-# Exact units-bearing message contract required by the Traxxas interface.
-# dream_interfaces v0.1.0. Selecting it for the robot underlay belongs to DREAM.
+# Exact shared cone, vehicle and fiducial contracts consumed by this policy.
+# Selects annotated dream_interfaces v0.2.0; robot underlay selection belongs to DREAM.
 repositories:
   dream_interfaces:
     type: git
     url: https://gitlab.unimelb.edu.au/dream/dream_interfaces.git
-    version: 9b6ef917c0b8bc31efe6ca07b8a3d25f29c35fdd
+    version: 5f50902ccee44e8370d6e2be85607b3054ffbf98

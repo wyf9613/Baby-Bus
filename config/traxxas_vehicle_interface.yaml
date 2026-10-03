@@ -1,11 +1,32 @@
-# Traxxas public parameters, documented from its 0.1.0 candidate contract:
+# Traxxas public parameters:
 # https://gitlab.unimelb.edu.au/dream/traxxas_vehicle_interface/-/blob/dev/docs/ros-interface.md
 # ALL application parameters are startup-only: restart the VEHICLE INTERFACE
 # after applying an admitted YAML change. It reconnects Disarmed; restart does
 # not authorize motion. The policy launch itself does not load this file into
-# the vehicle node. DREAM must explicitly map allowed student requests.
+# the vehicle node. DREAM's AI4R composition admits the active settings below.
+# Values are starter defaults; use measured RC calibration and wheel geometry
+# for your car. Omit a setting to inherit DREAM's system/component baseline.
 /**/traxxas_vehicle_interface:
   ros__parameters:
+    # Firmware output mapping and final PWM bounds, integer MICROSECONDS.
+    # Each axis: 0 < pwm_min <= output_min < 1500 < output_max <= pwm_max <= 20000.
+    # Normalized full effort maps to the output endpoints, with neutral fixed at
+    # 1500 us. Final PWM bounds also constrain ESC calibration. These affect host
+    # control AND manual RC fallback; they are different from RC input calibration
+    # and the host's normalized autonomous steering limits below.
+    # MCU settings live in RAM: retained across USB disconnect, reset on Pico
+    # reboot. The vehicle interface reapplies and verifies them on every connection.
+    # Edit related values together, then restart traxxas_vehicle_interface.
+    # Values fitting the PWM period are not necessarily suitable for your actuator.
+    drive_output_min_us: 1100
+    drive_output_max_us: 1750
+    steer_output_min_us: 1000
+    steer_output_max_us: 2000
+    drive_pwm_min_us: 1000
+    drive_pwm_max_us: 2000
+    steer_pwm_min_us: 1000
+    steer_pwm_max_us: 2000
+
     # Maximum drive-command change per second, normalized units/s, positive
     # finite double. Default 50.0. Lower values soften ordinary effort changes;
     # this is not a desired speed or a limit on physical acceleration.
@@ -26,50 +47,50 @@
     # telemetry is different and is never replaced by a measured zero speed.
     encoder_timeout_seconds: 3.0
 
-    # REFERENCE ONLY: the following defaults describe the component, NOT the
-    # effective calibration/identity of your car. Leave these commented unless
-    # DREAM deliberately delegates a particular setting for your exercise.
-
     # Policy-command deadline in seconds, positive and > one 0.01 s control
     # cycle; default 0.5. Missing new actions disables vehicle control. Also
     # bounds the fresh-zero wait after Enable. Keep normal policy intervals
     # comfortably shorter; do not increase this to hide a blocked calculation.
-    # policy_command_timeout_s: 0.5
+    policy_command_timeout_s: 0.5
     # Coherent MCU telemetry deadline, seconds, >= two nominal 0.02 s reports;
     # default 0.1. This does not change the firmware's own deadlines.
-    # telemetry_timeout_s: 0.1
+    telemetry_timeout_s: 0.1
 
     # Autonomous steering interval, normalized: -1 <= minimum < 0 < maximum <= 1.
-    # Student [-1,1] steering is scaled into this interval. Physical per-car
-    # restrictions/trim come from DREAM. Manual RC is not limited by these ROS
-    # endpoints. Set a related pair together, not one endpoint in isolation.
-    # steering_min_normalized: -0.5
-    # steering_max_normalized: 0.5
+    # Student [-1,1] steering is scaled into this interval. These are normalized
+    # commands, not wheel angles. Manual RC is not limited by these ROS endpoints.
+    # Set related limits and trim together; DREAM validates the merged values.
+    steering_min_normalized: -0.5
+    steering_max_normalized: 0.5
     # Initial centre correction, normalized, within the configured interval.
     # Runtime trim uses explicit steering-trim topics, not live parameter edits.
-    # steering_trim_normalized: 0.0
+    steering_trim_normalized: 0.0
 
     # RC receiver calibration in integer MICROSECONDS, minimum < centre < maximum,
-    # all inside the MCU's accepted PWM range. These are physical measurements,
-    # not gains. Incorrect calibration changes what neutral/forward/reverse mean.
-    # rc_drive_min_us: 1000
-    # rc_drive_center_us: 1500
-    # rc_drive_max_us: 2000
-    # rc_steer_min_us: 1000
-    # rc_steer_center_us: 1500
-    # rc_steer_max_us: 2000
+    # each in [400, 2600]. These are measured input values, not steering-output
+    # limits or gains. Incorrect calibration changes the meaning of RC inputs.
+    # Update related values together, including the reverse-stop threshold.
+    rc_drive_min_us: 1000
+    rc_drive_center_us: 1500
+    rc_drive_max_us: 2000
+    rc_steer_min_us: 1000
+    rc_steer_center_us: 1500
+    rc_steer_max_us: 2000
     # Reverse-stop threshold, integer us, strictly between drive minimum/centre.
     # The interface converts it to a normalized threshold for the stop gesture.
-    # rc_stop_threshold_us: 1400
+    rc_stop_threshold_us: 1400
 
     # Wheel geometry/scaling (positive finite doubles). These define what a
     # measured period means physically; copying incorrect values corrupts speed.
     # Same-polarity sensor cycles per revolution of the encoder shaft:
-    # encoder_cycles_per_revolution: 3.0
+    encoder_cycles_per_revolution: 3.0
     # Sensor-shaft revolutions per ONE wheel revolution:
-    # encoder_to_wheel_ratio: 2.72
+    encoder_to_wheel_ratio: 2.72
     # Wheel diameter in METRES (not radius or millimetres):
-    # wheel_diameter_m: 0.105
+    wheel_diameter_m: 0.105
+
+    # REFERENCE ONLY: these remaining settings are not student-delegated.
+    # Leave them commented; DREAM rejects requests to override them here.
 
     # Raw measured pan shaft's JointState name: nonempty string. Its angle is
     # not automatically the camera optical orientation; DREAM supplies kinematics.

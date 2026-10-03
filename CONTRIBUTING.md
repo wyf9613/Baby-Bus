@@ -9,7 +9,9 @@ Do not split it into a framework or create extra example YAML files.
 
 The compatible `dream_interfaces` commit is recorded in
 [ci/dependencies.repos](ci/dependencies.repos). Provision it separately from the
-offline gate; the pin selects the provider's published `v0.1.0` release.
+offline gate. The current feature pin includes the new fiducial messages; until
+published, transfer it from the provider's local repository. Source packaging
+records that exact commit without inferring an unverified release tag.
 From the policy repository on a development machine with ROS Jazzy installed:
 
 ```bash
@@ -17,7 +19,7 @@ mkdir -p .verification/dependencies
 git clone --no-checkout https://gitlab.unimelb.edu.au/dream/dream_interfaces.git \
   .verification/dependencies/dream_interfaces
 git -C .verification/dependencies/dream_interfaces checkout --detach \
-  9b6ef917c0b8bc31efe6ca07b8a3d25f29c35fdd
+  "$(python3 -c 'import yaml; print(yaml.safe_load(open("ci/dependencies.repos"))["repositories"]["dream_interfaces"]["version"])')"
 source /opt/ros/jazzy/setup.bash
 rosdep install --from-paths . .verification/dependencies/dream_interfaces \
   --ignore-src -r -y --rosdistro jazzy
@@ -72,7 +74,8 @@ checks launch/IDL, and retains the deterministic source archive,
 successful final-tag CI and recorded human review, a maintainer publishes the
 exact final-tag files as durable GitLab Release assets. Tools here never create
 or move tags, merge branches, or publish releases. See
-[the v0.1.0 release record](docs/release-v0.1.0.md).
+[the v0.2.0 release preparation](docs/release-v0.2.0.md) and the historical
+[v0.1.0 release record](docs/release-v0.1.0.md).
 
 Keep sensor parameter comments aligned with the selected component contracts.
 Configuration eligibility, robot calibration, component selection and TF belong

@@ -24,7 +24,8 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import Float32, UInt16
-from dream_interfaces.msg import ConeDetection, ConeDetections, DriveAndSteer
+from dream_interfaces.msg import (ConeDetection, ConeDetections, DriveAndSteer,
+                                  FiducialDetection, FiducialDetections)
 import yaml
 
 
@@ -106,8 +107,30 @@ def cones(node, empty=False, **kwargs):
     return msg
 
 
+def fiducials(node, empty=False, pose_valid=True, frame="camera_optical", **kwargs):
+    msg = stamp(node, FiducialDetections(), frame=frame, **kwargs)
+    msg.dictionary_name = "DICT_4X4_50"
+    if not empty:
+        detection = FiducialDetection()
+        detection.id = 7
+        detection.marker_size_m = 0.25
+        for corner, values in zip(detection.corners,
+                                  ((10.0, 20.0), (30.0, 20.0),
+                                   (30.0, 40.0), (10.0, 40.0))):
+            corner.u, corner.v = values
+        detection.pose_valid = pose_valid
+        detection.pose.orientation.w = 1.0
+        detection.reprojection_error_px = 0.4 if pose_valid else math.nan
+        if pose_valid:
+            detection.pose.position.x = 1.0
+            detection.pose.position.z = 2.0
+        msg.detections = [detection]
+    return msg
+
+
 def scan(node, **kwargs):
-    msg = stamp(node, LaserScan(), frame="laser", **kwargs)
+    kwargs.setdefault("frame", "laser")
+    msg = stamp(node, LaserScan(), **kwargs)
     msg.angle_min, msg.angle_max, msg.angle_increment = 0.0, 0.1, 0.1
     msg.range_min, msg.range_max = 0.05, 12.0
     msg.ranges = [1.0, float("inf")]
@@ -152,16 +175,23 @@ def test_startup_zero_and_not_publishing_meanings(make_node):
 
 
 @pytest.mark.parametrize("mode,required", [("cone_detection", ["cone_detections"]),
-                                          ("lidar", ["lidar"]), ("timer", [])])
+                                          ("fiducial_detection", ["fiducial_detections"]),
+                                          ("lidar", ["lidar_scan"]), ("timer", [])])
 def test_only_selected_trigger_executes_policy(make_node, mode, required):
     node = make_node(mode, required)
+    camera_tf = TransformStamped()
+    camera_tf.header.frame_id, camera_tf.child_frame_id = "base_link", "camera_optical"
+    camera_tf.transform.rotation.w = 1.0
+    node.tf_buffer.set_transform_static(camera_tf, "test")
     node.cone_detection_callback(cones(node))
+    node.fiducial_detection_callback(fiducials(node))
     node.lidar_callback(scan(node))
     request(node, 3)
     calls = []
     node.calculate_policy_actions = lambda *args: (calls.append(args) or driving_policy())
     node.test_clock.advance(0.05)
     node.cone_detection_callback(cones(node))
+    node.fiducial_detection_callback(fiducials(node))
     node.lidar_callback(scan(node))
     node.wheel_speed_callback(Float32(data=0.5))
     node.imu_callback(imu(node))
@@ -175,13 +205,146 @@ def test_only_selected_trigger_executes_policy(make_node, mode, required):
     assert calls[0][-3] == 0.0
     # Repeated sensor stamps do not trigger another calculation.
     node.cone_detection_callback(cones(node))
+    node.fiducial_detection_callback(fiducials(node))
     node.lidar_callback(scan(node))
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize("required", [["lidar"], ["wheel_speed"]])
+def test_fiducial_records_transform_and_fresh_empty_batches_trigger(make_node):
+    node = make_node("fiducial_detection", ["fiducial_detections"])
+    camera_tf = TransformStamped()
+    camera_tf.header.frame_id, camera_tf.child_frame_id = "base_link", "camera_optical"
+    camera_tf.transform.translation.x = 1.0
+    camera_tf.transform.translation.y = 2.0
+    camera_tf.transform.translation.z = 3.0
+    camera_tf.transform.rotation.z = math.sin(math.pi / 4)
+    camera_tf.transform.rotation.w = math.cos(math.pi / 4)
+    node.tf_buffer.set_transform_static(camera_tf, "test")
+
+    batch = fiducials(node)
+    duplicate = FiducialDetection()
+    duplicate.id = batch.detections[0].id
+    duplicate.marker_size_m = 0.10
+    for target, source in zip(duplicate.corners, batch.detections[0].corners):
+        target.u, target.v = source.u, source.v
+    duplicate.pose.orientation.w = 1.0
+    duplicate.reprojection_error_px = math.nan
+    batch.detections.append(duplicate)
+    node.fiducial_detection_callback(batch)
+    value = node.observations["fiducial_detections"].value
+    assert value["dictionary_name"] == "DICT_4X4_50"
+    assert value["source_frame_id"] == "camera_optical"
+    assert [record["id"] for record in value["detections"]] == [7, 7]
+    assert value["detections"][0]["corners"] == (
+        (10.0, 20.0), (30.0, 20.0), (30.0, 40.0), (10.0, 40.0))
+    assert value["detections"][0]["position_xyz"] == pytest.approx((1.0, 3.0, 5.0))
+    assert value["detections"][0]["orientation_xyzw"] == pytest.approx(
+        (0.0, 0.0, math.sin(math.pi / 4), math.cos(math.pi / 4)))
+    assert value["detections"][1]["pose_valid"] is False
+    assert value["detections"][1]["position_xyz"] is None
+    assert math.isnan(value["detections"][1]["reprojection_error_px"])
+
+    request(node, 3)
+    calls = []
+    node.calculate_policy_actions = lambda *args: (calls.append(args) or driving_policy())
+    node.test_clock.advance(0.1)
+    node.fiducial_detection_callback(fiducials(node, empty=True))
+    assert node.fsm_state == 3
+    assert len(calls) == 1
+    student_value = calls[0][0]["fiducial_detections"]
+    assert student_value["detections"] == []
+    assert calls[0][1]["fiducial_detections"] == pytest.approx(0.0)
+
+
+def test_bad_fiducial_or_missing_tf_does_not_refresh_observation(make_node):
+    node = make_node(required=["fiducial_detections"])
+    node.fiducial_detection_callback(fiducials(node))
+    assert node.observations["fiducial_detections"] is None
+
+    bad_dictionary = fiducials(node, frame="base_link")
+    bad_dictionary.dictionary_name = "DICT_APRILTAG_36h11"
+    node.fiducial_detection_callback(bad_dictionary)
+    assert node.observations["fiducial_detections"] is None
+
+    out_of_range = fiducials(node, frame="base_link")
+    out_of_range.detections[0].id = 50
+    node.fiducial_detection_callback(out_of_range)
+    assert node.observations["fiducial_detections"] is None
+
+    valid = fiducials(node, frame="base_link")
+    node.fiducial_detection_callback(valid)
+    accepted = node.observations["fiducial_detections"]
+    node.test_clock.advance(0.1)
+    invalid = fiducials(node, frame="base_link")
+    invalid.detections[0].corners[0].u = math.nan
+    node.fiducial_detection_callback(invalid)
+    assert node.observations["fiducial_detections"] is accepted
+
+    node.test_clock.advance(0.4)
+    node.supervision_callback()
+    request(node, 3)
+    assert node.fsm_state == 2
+    assert "missing or stale" in node.state_reason
+
+
+def test_fiducial_transform_overflow_rejects_batch_without_refresh_or_trigger(make_node):
+    node = make_node("fiducial_detection", ["fiducial_detections"])
+    node.fiducial_detection_callback(fiducials(node, frame="base_link"))
+    accepted = node.observations["fiducial_detections"]
+    request(node, 3)
+    calls = []
+    node.calculate_policy_actions = lambda *args: (calls.append(args) or driving_policy())
+    action_count = len(node.action_publisher.messages)
+
+    camera_tf = TransformStamped()
+    camera_tf.header.frame_id, camera_tf.child_frame_id = "base_link", "camera_optical"
+    camera_tf.transform.rotation.w = 1.0
+    camera_tf.transform.translation.x = 1.5e308
+    node.tf_buffer.set_transform_static(camera_tf, "test")
+    node.test_clock.advance(0.1)
+    batch = fiducials(node)
+    overflowing = fiducials(node).detections[0]
+    overflowing.id = 8
+    overflowing.pose.position.x = 1.5e308
+    # The first marker can transform; only the second overflows. Neither may
+    # replace the previously accepted batch or trigger a policy calculation.
+    batch.detections.append(overflowing)
+    node.fiducial_detection_callback(batch)
+    assert node.observations["fiducial_detections"] is accepted
+    assert calls == []
+    assert len(node.action_publisher.messages) == action_count
+
+    node.test_clock.advance(0.401)
+    node.supervision_callback()
+    assert node.fsm_state == 2
+    assert "missing or stale" in node.state_reason
+    assert (node.action_publisher.messages[-1].drive,
+            node.action_publisher.messages[-1].steer) == (0.0, 0.0)
+
+    node.fiducial_detection_callback(fiducials(node, frame="base_link"))
+    assert node.observations["fiducial_detections"] is not accepted
+    assert node.fsm_state == 2  # Fresh data still needs an explicit resume.
+    assert calls == []
+
+
+@pytest.mark.parametrize("change", [
+    lambda detection: setattr(detection, "id", -1),
+    lambda detection: setattr(detection, "marker_size_m", 0.0),
+    lambda detection: setattr(detection.pose.orientation, "w", 2.0),
+    lambda detection: setattr(detection, "reprojection_error_px", math.nan),
+    lambda detection: setattr(detection, "pose_valid", False),
+])
+def test_invalid_fiducial_fields_reject_whole_batch(make_node, change):
+    node = make_node()
+    msg = fiducials(node, frame="base_link")
+    change(msg.detections[0])
+    node.fiducial_detection_callback(msg)
+    assert node.observations["fiducial_detections"] is None
+
+
+@pytest.mark.parametrize("required", [["lidar_scan"], ["wheel_speed"]])
 def test_exercises_need_no_cone_publisher_and_recovery_is_explicit(make_node, required):
-    mode = "lidar" if required == ["lidar"] else "timer"
+    mode = "lidar" if required == ["lidar_scan"] else "timer"
     node = make_node(mode, required)
     feed = (lambda: node.lidar_callback(scan(node))) if mode == "lidar" else (
         lambda: node.wheel_speed_callback(Float32(data=0.0)))
@@ -202,6 +365,174 @@ def test_exercises_need_no_cone_publisher_and_recovery_is_explicit(make_node, re
     assert node.fsm_state == 2
     request(node, 3)
     assert node.fsm_state == 3
+
+
+def lidar_mount(node):
+    transform = TransformStamped()
+    transform.header.frame_id, transform.child_frame_id = "base_link", "laser"
+    transform.transform.translation.x = 0.2
+    transform.transform.translation.z = 0.12
+    transform.transform.rotation.w = 1.0
+    node.tf_buffer.set_transform_static(transform, "test")
+    return transform
+
+
+def test_lidar_conversion_filters_preserves_indices_and_transforms_all_axes(make_node, monkeypatch):
+    node = make_node("lidar", ["lidar_cartesian"])
+    transform = lidar_mount(node)
+    transform.transform.translation.y = -0.1
+    transform.transform.rotation.y = math.sin(math.pi / 4)
+    transform.transform.rotation.w = math.cos(math.pi / 4)
+    node.tf_buffer.set_transform_static(transform, "test")
+    calls = []
+    lookup = node.tf_buffer.lookup_transform
+
+    def record_lookup(*args, **kwargs):
+        calls.append((args, kwargs))
+        return lookup(*args, **kwargs)
+
+    monkeypatch.setattr(node.tf_buffer, "lookup_transform", record_lookup)
+    message = scan(node)
+    message.range_min, message.range_max = 0.5, 2.0
+    message.ranges = [0.5, math.inf, math.nan, -math.inf, 0.1, 3.0, 2.0]
+    message.intensities = [10.0 + i for i in range(7)]
+    message.angle_max = message.angle_min + 6 * message.angle_increment
+    node.lidar_callback(message)
+    raw = node.observations["lidar_scan"]
+    cartesian = node.observations["lidar_cartesian"]
+    assert math.isnan(raw.value["ranges"][2])
+    assert raw.value["ranges"][1] == math.inf
+    assert raw.value["intensities"] == list(message.intensities)
+    assert cartesian.stamp_ns == raw.stamp_ns == node._stamp_ns(message.header)
+    assert cartesian.received_at == raw.received_at
+    assert cartesian.value["frame_id"] == "base_link"
+    assert cartesian.value["scan_indices"] == [0, 6]
+    assert cartesian.value["points_xyz"][0] == pytest.approx((0.2, -0.1, -0.38))
+    angle = 6 * message.angle_increment
+    assert cartesian.value["points_xyz"][1] == pytest.approx(
+        (0.2, -0.1 + 2 * math.sin(angle), 0.12 - 2 * math.cos(angle)))
+    assert len(calls) == 1
+    assert calls[0][0][:2] == ("base_link", "laser")
+    assert calls[0][0][2].nanoseconds == raw.stamp_ns
+    assert calls[0][1] == {}  # No blocking timeout.
+
+
+@pytest.mark.parametrize("mode,required", [
+    ("lidar", ["lidar_scan"]), ("lidar", ["lidar_cartesian"]),
+    ("timer", ["lidar_cartesian"])])
+def test_lidar_conversion_failure_keeps_raw_and_invalidates_points_before_policy(
+        make_node, monkeypatch, mode, required):
+    node = make_node(mode, required)
+    transform = lidar_mount(node)
+    node.lidar_callback(scan(node))
+    request(node, 3)
+    snapshots = []
+    node.calculate_policy_actions = lambda *args: (snapshots.append(args[0]) or driving_policy())
+
+    def missing(*args, **kwargs):
+        raise policy.TransformException("mount unavailable")
+
+    monkeypatch.setattr(node.tf_buffer, "lookup_transform", missing)
+    node.test_clock.advance(0.1)
+    message = scan(node)
+    node.lidar_callback(message)
+    node.supervision_callback()
+    assert node.observations["lidar_scan"].stamp_ns == node._stamp_ns(message.header)
+    assert node.observations["lidar_cartesian"] is None
+    if "lidar_cartesian" in required:
+        assert not snapshots
+        assert node.fsm_state == 2
+        assert node.action_publisher.messages[-1].drive == 0.0
+    else:
+        assert node.fsm_state == 3
+        assert snapshots[-1]["lidar_scan"] is not None
+        assert snapshots[-1]["lidar_cartesian"] is None
+    monkeypatch.setattr(node.tf_buffer, "lookup_transform", lambda *args: transform)
+    node.test_clock.advance(0.1)
+    node.lidar_callback(scan(node))
+    assert node.observations["lidar_cartesian"] is not None
+    if "lidar_cartesian" in required:
+        assert node.fsm_state == 2
+        request(node, 3)
+        assert node.fsm_state == 3
+
+
+@pytest.mark.parametrize("bad_rotation", [False, True])
+def test_lidar_invalid_transform_preserves_raw_but_clears_cartesian(make_node, monkeypatch, bad_rotation):
+    node = make_node()
+    transform = lidar_mount(node)
+    node.lidar_callback(scan(node))
+    if bad_rotation:
+        transform.transform.rotation.w = 0.0
+    else:
+        transform.transform.translation.x = math.nan
+    monkeypatch.setattr(node.tf_buffer, "lookup_transform", lambda *args: transform)
+    node.test_clock.advance(0.1)
+    node.lidar_callback(scan(node))
+    assert node.observations["lidar_scan"] is not None
+    assert node.observations["lidar_cartesian"] is None
+
+
+def test_lidar_empty_converted_scan_is_valid_and_identity_needs_no_tf(make_node, monkeypatch):
+    node = make_node("lidar", ["lidar_cartesian"])
+    monkeypatch.setattr(node.tf_buffer, "lookup_transform",
+                        lambda *args: pytest.fail("identity must not need TF"))
+    message = scan(node, frame="base_link")
+    message.ranges = [math.inf, math.nan]
+    node.lidar_callback(message)
+    request(node, 3)
+    assert node.fsm_state == 3
+    value = node.observations["lidar_cartesian"].value
+    assert value == {"points_xyz": [], "scan_indices": [], "frame_id": "base_link"}
+    node.test_clock.advance(0.1)
+    node.lidar_callback(scan(node, frame="base_link"))
+    assert node.observations["lidar_cartesian"].value["points_xyz"] == [(1.0, 0.0, 0.0)]
+
+
+def test_lidar_rejected_scan_does_not_clear_matching_cartesian_or_retry_conversion(make_node, monkeypatch):
+    node = make_node()
+    lidar_mount(node)
+    node.lidar_callback(scan(node))
+    raw, cartesian = node.observations["lidar_scan"], node.observations["lidar_cartesian"]
+    monkeypatch.setattr(node.tf_buffer, "lookup_transform",
+                        lambda *args: pytest.fail("rejected scan must not convert"))
+    node.lidar_callback(scan(node))  # Same stamp.
+    node.test_clock.advance(0.1)
+    invalid = scan(node)
+    invalid.angle_increment = 0.0
+    node.lidar_callback(invalid)
+    node.lidar_callback(scan(node, offset=-1.0))
+    assert node.observations["lidar_scan"] is raw
+    assert node.observations["lidar_cartesian"] is cartesian
+
+
+@pytest.mark.parametrize("scan_timeout,cartesian_timeout", [(0.2, 0.5), (0.5, 0.2)])
+def test_lidar_cartesian_snapshots_are_copies_and_expire_at_both_deadlines(
+        make_node, scan_timeout, cartesian_timeout):
+    node = make_node(**{"sensor_timeout_s.lidar_scan": scan_timeout,
+                        "sensor_timeout_s.lidar_cartesian": cartesian_timeout})
+    lidar_mount(node)
+    node.lidar_callback(scan(node))
+    request(node, 3)
+    captured = []
+
+    def student(values, ages, stamps, *args):
+        captured.append((values, ages, stamps))
+        if values["lidar_cartesian"] is not None:
+            values["lidar_cartesian"]["points_xyz"].clear()
+            values["lidar_cartesian"]["scan_indices"].clear()
+        return driving_policy()
+
+    node.calculate_policy_actions = student
+    node.run_policy_step()
+    assert len(node.observations["lidar_cartesian"].value["points_xyz"]) == 1
+    assert node.observations["lidar_cartesian"].value["scan_indices"] == [0]
+    assert captured[-1][2]["lidar_cartesian"] == captured[-1][2]["lidar_scan"]
+    node.test_clock.advance(0.201)
+    node.run_policy_step()
+    assert captured[-1][0]["lidar_cartesian"] is None
+    assert (captured[-1][0]["lidar_scan"] is None) == (scan_timeout < cartesian_timeout)
+    assert captured[-1][1]["lidar_cartesian"] == pytest.approx(0.201)
 
 
 def test_empty_cones_and_missing_stream_have_independent_deadlines(make_node):
@@ -232,14 +563,14 @@ def test_empty_cones_and_missing_stream_have_independent_deadlines(make_node):
 
 @pytest.mark.parametrize("offset", [-0.5, 0.051, -100.0])
 def test_rejected_stamps_do_not_refresh_data(make_node, offset):
-    node = make_node("lidar", ["lidar"])
+    node = make_node("lidar", ["lidar_scan"])
     node.lidar_callback(scan(node, offset=offset))
-    assert node.observations["lidar"] is None
+    assert node.observations["lidar_scan"] is None
     node.lidar_callback(scan(node))
-    received = node.observations["lidar"].received_at
+    received = node.observations["lidar_scan"].received_at
     node.test_clock.advance(0.1)
     node.lidar_callback(scan(node, offset=-0.1))
-    assert node.observations["lidar"].received_at == received
+    assert node.observations["lidar_scan"].received_at == received
 
 
 def test_optional_stale_values_are_unavailable_and_snapshots_are_copies(make_node):
@@ -251,19 +582,66 @@ def test_optional_stale_values_are_unavailable_and_snapshots_are_copies(make_nod
 
     def student(values, ages, stamps, *args):
         captured.append((values, ages, stamps))
-        if values["lidar"] is not None:
-            values["lidar"]["ranges"][0] = 99.0
+        if values["lidar_scan"] is not None:
+            values["lidar_scan"]["ranges"][0] = 99.0
         return driving_policy()
 
     node.calculate_policy_actions = student
     node.run_policy_step()
-    assert node.observations["lidar"].value["ranges"][0] == 1.0
+    assert node.observations["lidar_scan"].value["ranges"][0] == 1.0
     node.test_clock.advance(0.5)
     node.run_policy_step()
-    assert captured[-1][0]["lidar"] is None
+    assert captured[-1][0]["lidar_scan"] is None
     assert captured[-1][0]["cone_detections"] is None
-    assert captured[-1][1]["lidar"] == pytest.approx(0.5)
+    assert captured[-1][1]["lidar_scan"] == pytest.approx(0.5)
     assert node.fsm_state == 3
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_cone_publication_latency_is_batch_metadata_not_added_to_age(make_node, empty):
+    node = make_node()
+    message = cones(node, empty=empty, offset=-0.2)
+    message.acquisition_to_publish_latency_s = 0.15
+    node.cone_detection_callback(message)
+    request(node, 3)
+    captured = []
+
+    def student(values, ages, stamps, *args):
+        captured.append((values, ages, stamps))
+        if values["cone_detections"] is not None:
+            assert values["cone_detections"]["acquisition_to_publish_latency_s"] == 0.15
+            values["cone_detections"]["acquisition_to_publish_latency_s"] = 99.0
+        return driving_policy()
+
+    node.calculate_policy_actions = student
+    node.test_clock.advance(0.1)
+    node.run_policy_step()
+    accepted = node.observations["cone_detections"]
+    assert accepted.value["acquisition_to_publish_latency_s"] == 0.15
+    assert bool(accepted.value["detections"]) is not empty
+    assert captured[-1][1]["cone_detections"] == pytest.approx(0.3)
+    assert captured[-1][2]["cone_detections"] == node._stamp_ns(message.header)
+
+    node.test_clock.advance(0.201)
+    node.run_policy_step()
+    assert captured[-1][0]["cone_detections"] is None
+    assert captured[-1][1]["cone_detections"] == pytest.approx(0.501)
+
+
+@pytest.mark.parametrize("latency", [-0.1, math.nan, math.inf])
+def test_invalid_cone_latency_does_not_refresh_or_trigger(make_node, latency):
+    node = make_node("cone_detection", ["cone_detections"])
+    node.cone_detection_callback(cones(node))
+    accepted = node.observations["cone_detections"]
+    request(node, 3)
+    calls = []
+    node.calculate_policy_actions = lambda *args: (calls.append(args) or driving_policy())
+    node.test_clock.advance(0.1)
+    message = cones(node)
+    message.acquisition_to_publish_latency_s = latency
+    node.cone_detection_callback(message)
+    assert node.observations["cone_detections"] is accepted
+    assert calls == []
 
 
 def test_imu_mounting_rotation_and_partial_field_freshness(make_node):
@@ -346,7 +724,7 @@ def test_optional_delayed_heading_does_not_silently_tare(make_node):
     assert not node.heading_publisher.messages
 
 
-@pytest.mark.parametrize("required", [["lidar"], ["wheel_speed"]])
+@pytest.mark.parametrize("required", [["lidar_scan"], ["wheel_speed"]])
 def test_backward_clock_invalidates_stamped_data_only(make_node, required):
     node = make_node(required=required)
     node.lidar_callback(scan(node))
@@ -354,8 +732,8 @@ def test_backward_clock_invalidates_stamped_data_only(make_node, required):
     request(node, 3)
     node.test_clock.ros_ns -= 1_000_000_000
     node.supervision_callback()
-    assert node.observations["lidar"] is None
-    assert node.fsm_state == (2 if "lidar" in required else 3)
+    assert node.observations["lidar_scan"] is None
+    assert node.fsm_state == (2 if "lidar_scan" in required else 3)
 
 
 @pytest.mark.parametrize("result", [(math.nan, 0, None, None, None),
@@ -430,7 +808,9 @@ def test_invalid_sensor_content_and_runtime_parameter_changes(make_node):
 
 @pytest.mark.parametrize("mode,required,extra", [
     ("automatic", [], {}), ("lidar", [], {}), ("cone_detection", [], {}),
-    ("timer", ["unknown"], {}), ("timer", ["lidar", "lidar"], {}),
+    ("fiducial_detection", [], {}),
+    ("timer", ["unknown"], {}), ("timer", ["lidar_scan", "lidar_scan"], {}),
+    ("lidar", ["lidar"], {}),
     ("timer", [], {"supervision_rate_hz": 0.0}),
     ("timer", [], {"timestamp_tolerance_s": -1.0}),
     ("timer", [], {"policy_frame_id": "/base_link"}),
@@ -442,10 +822,17 @@ def test_invalid_startup_settings_fail(make_node, mode, required, extra):
 
 
 def test_installed_configs_and_namespaced_loading(tmp_path):
-    for name in ("ai4r_policy", "traxxas_vehicle_interface", "oakd_cone_detector", "bno08x_imu_interface"):
+    assert yaml.safe_load((SHARE / "config/lidar_mount.yaml").read_text()) == {}
+    for name in ("ai4r_policy", "traxxas_vehicle_interface", "oakd_cone_detector",
+                 "bno08x_imu_interface", "aruco_detector"):
         document = yaml.safe_load((SHARE / "config" / f"{name}.yaml").read_text())
         assert list(document) == [f"/**/{name}"]
         assert isinstance(document[f"/**/{name}"]["ros__parameters"], dict)
+    aruco_parameters = yaml.safe_load(
+        (SHARE / "config/aruco_detector.yaml").read_text())["/**/aruco_detector"]["ros__parameters"]
+    assert aruco_parameters == {
+        "dictionary_name": "DICT_4X4_50", "default_marker_size_m": 0.25,
+        "allowed_marker_ids": [], "min_consecutive_frames": 3}
     context = Context()
     rclpy.init(context=context)
     node = policy.PolicyNode(context=context, namespace="namespaced",
@@ -518,7 +905,7 @@ def test_real_ros_graph_zero_handshake_sensor_qos_and_watchdog(mode):
     """Exercise DDS/timers with synthetic peers, not a simulated physical car."""
     context = Context()
     rclpy.init(context=context)
-    required = "lidar" if mode == "lidar" else "wheel_speed"
+    required = "lidar_scan" if mode == "lidar" else "wheel_speed"
     node = policy.PolicyNode(context=context, namespace="graph_test",
         parameter_overrides=[Parameter("policy_update_mode", value=mode),
                              Parameter("required_sensors", value=[required])])
