@@ -44,10 +44,12 @@ The nominal operator sequence for running this policy on the actual car is:
 
 from copy import deepcopy
 from dataclasses import dataclass
+import json
 import math
 from numbers import Real
 import time
 import traceback
+import uuid
 
 import rclpy
 from rclpy.clock import Clock, ClockType
@@ -156,6 +158,122 @@ def wrap_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
+# Vehicle-identification policy: pure scheduling logic, no ROS or hardware I/O.
+IDENTIFICATION_DEFAULTS = {
+    "mode": "off",                 # off / steering / drive / brake
+    "confirmed": False,            # operator has reviewed this specific sequence
+    "negative_drive_confirmed": False,
+    "durations_s": [1.0],
+    "drive_values": [0.0],
+    "steering_values": [0.0],
+    "drive_min": 0.0,
+    "drive_max": 0.0,
+    "steering_abs_max": 0.0,
+    "speed_limit_mps": 0.0,         # must be selected before enabling a test
+    "start_speed_max_mps": 0.03,
+    "settle_s": 2.0,               # zero requests before and after the sequence
+    "max_dt_s": 0.15,
+    "max_run_s": 30.0,
+}
+
+
+class IdentificationExperiment:
+    """One finite sequence per explicit policy start; limits are requests, not brakes."""
+
+    def __init__(self, config):
+        self.config = dict(config)
+        c = self.config
+        self.mode = c["mode"]
+        if self.mode not in ("off", "steering", "drive", "brake"):
+            raise ValueError("id_test.mode must be off, steering, drive or brake")
+        self.finished = False
+        self.reason = ""
+        self.last_elapsed = None
+        self.ends = []
+        if self.mode == "off":
+            return
+        if c["confirmed"] is not True:
+            raise ValueError("Set id_test.confirmed only after reviewing the test")
+        for key in ("drive_min", "drive_max", "steering_abs_max", "speed_limit_mps",
+                    "start_speed_max_mps", "settle_s", "max_dt_s", "max_run_s"):
+            if not finite_number(c[key]):
+                raise ValueError(f"id_test.{key} must be finite")
+        if not (-1 <= c["drive_min"] <= 0 <= c["drive_max"] <= 1):
+            raise ValueError("Invalid identification drive limits")
+        if not 0 <= c["steering_abs_max"] <= 1:
+            raise ValueError("Invalid identification steering limit")
+        if not (0 <= c["start_speed_max_mps"] < c["speed_limit_mps"]):
+            raise ValueError("Set a positive speed limit above the start-speed threshold")
+        if not (0 < c["max_dt_s"] < c["settle_s"] and
+                2 * c["settle_s"] < c["max_run_s"] <= 120):
+            raise ValueError("Require max_dt < settle and 2*settle < max_run <= 120 s")
+        durations, drives, steers = (c[k] for k in
+                                     ("durations_s", "drive_values", "steering_values"))
+        if not (1 <= len(durations) <= 100 and len(durations) == len(drives) == len(steers)):
+            raise ValueError("Test arrays must have the same length (1..100)")
+        total = c["settle_s"]
+        for duration, drive, steer in zip(durations, drives, steers):
+            if not all(finite_number(v) for v in (duration, drive, steer)):
+                raise ValueError("Test arrays must contain finite numbers")
+            if duration <= c["max_dt_s"]:
+                raise ValueError("Each stage must last longer than max_dt_s")
+            if not c["drive_min"] <= drive <= c["drive_max"]:
+                raise ValueError("Drive request exceeds the reviewed limits")
+            if abs(steer) > c["steering_abs_max"]:
+                raise ValueError("Steering request exceeds the reviewed limit")
+            if self.mode == "steering" and drive != 0:
+                raise ValueError("Steering tests require zero drive throughout")
+            if self.mode in ("drive", "brake") and steer != 0:
+                raise ValueError("Drive/brake tests require zero steering requests")
+            if drive < 0 and (self.mode != "brake" or
+                              c["negative_drive_confirmed"] is not True):
+                raise ValueError("Negative drive requires brake mode and ESC confirmation")
+            total += duration
+            self.ends.append(total)
+        self.total_s = total + c["settle_s"]
+        if self.total_s > c["max_run_s"]:
+            raise ValueError("Sequence including settle periods exceeds max_run_s")
+
+    def step(self, elapsed, dt, speed):
+        c = self.config
+        result = {"drive": 0.0, "steer": 0.0, "stage": -1,
+                  "phase": "off", "terminal": False, "reason": ""}
+        if self.mode == "off":
+            return result
+        if self.finished:
+            return {**result, "phase": "finished", "terminal": True,
+                    "reason": self.reason}
+        reason = ""
+        if not all(finite_number(v) for v in (elapsed, dt, speed)):
+            reason = "Missing or nonfinite time/speed"
+        elif elapsed < 0 or dt < 0 or speed < 0:
+            reason = "Negative time or unsigned speed"
+        elif self.last_elapsed is None and (elapsed > c["max_dt_s"] or
+                                           speed > c["start_speed_max_mps"]):
+            reason = "Start must be timely and stationary within the selected threshold"
+        elif self.last_elapsed is not None and (elapsed < self.last_elapsed or
+                elapsed - self.last_elapsed > c["max_dt_s"] or dt > c["max_dt_s"]):
+            reason = "Policy timing gap: sequence aborted, no catch-up"
+        elif speed >= c["speed_limit_mps"]:
+            reason = "Speed guard reached"
+        elif elapsed < c["settle_s"] and speed > c["start_speed_max_mps"]:
+            reason = "Vehicle moved during pre-test zero interval"
+        elif elapsed >= self.total_s:
+            reason = "Sequence complete; zero request is not proof of physical stopping"
+        if reason:
+            self.finished, self.reason = True, reason
+            return {**result, "phase": "finished", "terminal": True, "reason": reason}
+        self.last_elapsed = elapsed
+        if elapsed < c["settle_s"]:
+            return {**result, "phase": "settle"}
+        for index, end in enumerate(self.ends):
+            if elapsed < end:
+                return {**result, "phase": "stage", "stage": index,
+                        "drive": c["drive_values"][index],
+                        "steer": c["steering_values"][index]}
+        return {**result, "phase": "tail"}
+
+
 class PolicyNode(Node):
     def __init__(self, **kwargs):
         super().__init__("ai4r_policy", **kwargs)
@@ -173,6 +291,8 @@ class PolicyNode(Node):
             "policy_frame_id": "base_link",
         }
         defaults.update({f"sensor_timeout_s.{name}": 0.5 for name in SENSORS})
+        defaults.update({f"id_test.{name}": value
+                         for name, value in IDENTIFICATION_DEFAULTS.items()})
         for name, default in defaults.items():
             # YAML cannot infer a string-array type from []. Allow that startup
             # representation, then check its contents explicitly below.
@@ -195,6 +315,17 @@ class PolicyNode(Node):
         self.sensor_timeout_s = {
             name: self.get_parameter(f"sensor_timeout_s.{name}").value for name in SENSORS}
         self._validate_parameters()
+        self.identification_config = {
+            name: self.get_parameter(f"id_test.{name}").value
+            for name in IDENTIFICATION_DEFAULTS}
+        for name in ("durations_s", "drive_values", "steering_values"):
+            self.identification_config[name] = list(self.identification_config[name])
+        self.identification = IdentificationExperiment(self.identification_config)
+        if self.identification.mode != "off":
+            if self.policy_update_mode != "timer" or "wheel_speed" not in self.required_sensors:
+                raise ValueError("Identification requires timer mode and required wheel_speed")
+            if 1.0 / self.policy_update_rate_hz >= self.identification_config["max_dt_s"]:
+                raise ValueError("Timer interval must be shorter than id_test.max_dt_s")
         self.add_on_set_parameters_callback(self._reject_clock_change)
 
         # TO ADD A STUDENT PARAMETER, follow these THREE steps:
@@ -229,6 +360,7 @@ class PolicyNode(Node):
         self.heading_publisher = self.create_publisher(Float32, "imu_heading_angle", 10)
         self.debug1_publisher = self.create_publisher(Float32, "debug1", 10)
         self.debug2_publisher = self.create_publisher(Float32, "debug2", 10)
+        self.identification_publisher = self.create_publisher(String, "identification_sample", 10)
 
         self.create_subscription(ConeDetections, "cone_detections",
                                  self.cone_detection_callback, reliable_one)
@@ -947,7 +1079,33 @@ class PolicyNode(Node):
         # START OF: INSERT POLICY CODE BELOW HERE
         # =======================================
 
-        # This starter deliberately keeps the drive and steering at zero.
+        # Finite identification sequence; off keeps the zero-action starter.
+        # No disk writes or waits here. The separate recorder logs observations
+        # and actual published requests; this sample describes the planned step.
+        if self.identification.mode != "off":
+            if is_first_policy_step:
+                self.identification = IdentificationExperiment(self.identification_config)
+                self.identification_run_id = uuid.uuid4().hex
+            step = self.identification.step(
+                policy_elapsed_s, dt, wheel_speed_in_meters_per_second)
+            sample = {
+                "schema": 1, "run_id": self.identification_run_id,
+                "policy_monotonic_s": self._monotonic(),
+                "policy_ros_ns": self.get_clock().now().nanoseconds,
+                "elapsed_s": policy_elapsed_s, "dt_s": dt,
+                "mode": self.identification.mode, **step,
+                "speed_mps": wheel_speed_in_meters_per_second,
+                "body_yaw_rate_rad_s": (None if angular_velocity_rad_per_sec is None
+                                        else angular_velocity_rad_per_sec[2]),
+                "sensor_age_s": sensor_age_s, "sensor_stamp_ns": sensor_stamp_ns,
+                "config": self.identification_config if is_first_policy_step else None,
+            }
+            self.identification_publisher.publish(String(data=json.dumps(sample, allow_nan=False)))
+            if step["terminal"]:
+                self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, step["reason"])
+            return step["drive"], step["steer"], None, float(step["stage"]), policy_elapsed_s
+
+        # Below are examples for other policies, not part of the test sequence.
         #
         # Code for a "working" policy is NOT provided because it tend to causing
         # anchoring and minimal changes from the provided code.
