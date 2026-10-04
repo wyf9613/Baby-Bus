@@ -118,6 +118,43 @@
     # is not supported by this initial package or the live vehicle/IMU drivers.
     use_sim_time: false
 
+    # Estimation prototype. Adds tuning to this existing policy settings file;
+    # no vehicle calibration or physical output limits are inferred from it.
+    # The GitHub course framework's inputs/actions/timing/settings take priority.
+    # Only new internal group records follow the Word meeting draft:
+    # state.speed_mps/yaw_rate_rps and road.centerline_xy/boundaries/width.
+    # v_mps/yaw_rate_radps aliases support the supplied planning screenshots.
+    # Internal records are self.estimation_output; normalized actions stay zero
+    # until planning/controller code explicitly consumes those records.
+    estimation:
+      # One-pole filter time constants, seconds. Larger is smoother but slower.
+      # New accepted samples update once; repeated cached samples do not.
+      speed_tau_s: 0.15
+      yaw_rate_tau_s: 0.08
+      # Source age, seconds; cannot relax the framework's sensor deadlines.
+      # Geometry retains its acquisition timestamp (no ego-motion correction yet).
+      max_source_age_s: 0.5
+      # Dimensionless confidence threshold in [0,1]. Colour convention for this
+      # prototype is BLUE left / YELLOW right, as in the supplied course road.
+      min_cone_confidence: 0.5
+      # Local y(x) support and sample spacing, metres. No extrapolation beyond
+      # measured inlier coverage. Sampling is bounded to at most 201 points.
+      road_forward_max_m: 3.0
+      road_min_coverage_m: 0.5
+      road_sample_spacing_m: 0.1
+      road_max_gap_m: 1.5
+      # Huber residual transition, metres; fitting work is bounded, with up to
+      # 64 cones per side and 8 iterations. All values are prototype tuning.
+      huber_delta_m: 0.08
+      # Plausibility limits for local road width, metres, NOT vehicle dimensions.
+      road_width_min_m: 0.4
+      road_width_max_m: 2.0
+      # Maximum abs(dy/dx), dimensionless. Steep/non-function geometry is rejected.
+      road_max_abs_slope: 1.0
+      # 0.0 means unknown: single-sided road is invalid. Set a measured road
+      # width (m), or a known simulation width, before using single-side inference.
+      known_lane_width_m: 0.0
+
     # ADD YOUR OWN PARAMETER: also declare and read it in policy_node.py.
     # Example for the commented controller in that file:
     # speed_kp: 0.2

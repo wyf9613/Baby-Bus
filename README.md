@@ -1,6 +1,6 @@
 # Baby Bus · ai4r_policy
 
-团队策略仓库，基于 DREAM 课程框架。先看 [三个子组与代码的对应关系](docs/baby-bus-team.md)。当前保留老师的零动作起始策略，团队算法尚未实现。下文为上游使用说明。
+团队策略仓库，基于 DREAM 课程框架。当前分工见 [四组项目计划](docs/TEAM_PROJECT_PLAN.md)。接口优先沿用 GitHub 中的课程框架代码和配置；框架未定义的组间数据结构再按 Word 接口会议草案补充。已加入首版车辆状态低通滤波和单帧鲁棒道路估计，新增内部状态采用 `speed_mps`、`yaw_rate_rps` 等草案字段，并提供截图名称别名。结果在 `self.estimation_output`，参数位于现有 `config/ai4r_policy.yaml` 的 `estimation` 节；规划及控制尚未接入，驱动和转向仍为零。算法、字段、调参和联调说明见 [估计模块首版说明](docs/ESTIMATION_V1_CN.md)。离线检查命令为 `python3 -B tests/test_estimation.py -v`；完整 ROS gate 与实车验证见 [验收记录](docs/acceptance.md)。下文为上游使用说明。
 
 Student ROS 2 policy package for the DREAM robot, targeting Ubuntu 24.04 and
 ROS 2 Jazzy. Version 0.2.0 adds ArUco observations to the first source release;

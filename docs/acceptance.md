@@ -13,6 +13,61 @@ not actual sensor/vehicle response.
 Keep revision, command, result and limitations here; retain detailed logs in
 CI artifacts or merge requests rather than a tracked evidence directory.
 
+## Team estimation prototype, 2026-10-03
+
+The initial implementation based on Baby-Bus `be46dc3` adds causal, sample-aware
+low-pass filters for unsigned wheel speed and body yaw rate, and bounded Huber
+road-boundary fitting in the existing single policy file. GitHub course framework
+contracts take priority over the Word meeting draft. Only additional internal
+group records use draft state names `speed_mps` and `yaw_rate_rps`;
+`v_mps` and `yaw_rate_radps` are additive screenshot aliases. Settings are added
+under `estimation` in the existing policy YAML. Physical vehicle parameters stay
+unmeasured/invalid. The policy still returns zero drive/steering and pan hold.
+
+The submission branch is based on GitHub main `4e86a43` (2026-10-04); that newer
+baseline only adds course materials. Team-readable implementation/interface/
+tuning notes are in [ESTIMATION_V1_CN.md](ESTIMATION_V1_CN.md).
+
+Read-only comparison against GitHub main on 2026-10-03 confirmed that all
+original policy parameter lines and the entire vehicle interface YAML are
+unchanged. All original PolicyNode method signatures and 22 complete framework
+methods match; estimator initialization, reset and calculation preserve the
+original statements in their original order. This static comparison does not
+replace the ROS gate. The outer-workspace evidence is
+`tmp/project_review/framework_contract_check.json`.
+
+On the local Windows workspace, bundled Python 3.12.14 ran
+`python -B tests/test_estimation.py -v`: 15 checks passed. Checks cover duplicate
+source assimilation, irregular timing/reset, noise versus lag, missing versus
+zero/stale data, draft fields and YAML defaults, offset/sloped/curved roads,
+outlier resistance, single-sided normal offsets, support/gap/width failures,
+empty versus unavailable lidar, finite outputs and the actual student entry.
+AST-based offline loading executes the estimator from policy_node.py; in a ROS
+gate the same test selects the installed script. CMake registers these checks
+alongside the existing ROS framework suite; one framework test additionally
+asserts that absent wheel speed does not become a measured zero.
+
+A synthetic single-frame comparison used five seeds (0-4), 20 frames each,
+0.03 m lateral Gaussian noise and one +/-0.8 m misplaced cone per frame.
+All 100 robust frames were valid. Mean per-frame centreline RMSE was 0.0115 m
+versus 0.0668 m for ordinary quadratic least squares at the same sample points.
+Windows fitting time median/p95/max was approximately 0.445/0.543/0.701 ms;
+these are short local measurements, not Jetson or worst-case timing bounds.
+Reproduce the numerical study with `python -B tools/study_estimation.py` from
+the repository root; it prints a JSON report including the exact source hash.
+The original local report remains in the outer workspace's
+`tmp/project_review/estimation_study.json`. Runtime varies between runs.
+
+The CONTRIBUTING synthetic ROS fast gate was **not run**: this Windows workspace
+has no ROS/colcon/rclpy and WSL is not installed. ROS parameter loading, installed
+package execution, DDS/watchdogs and the modified framework test remain to be
+verified on Ubuntu 24.04 / ROS 2 Jazzy with the pinned interfaces revision.
+No real-car, Gym closed-loop, or powered-actuator experiment ran. Geometry keeps
+its original source-frame stamp; current-frame ego-motion compensation and
+cross-frame/Kalman fusion are subsequent investigations. Single-sided estimates
+require an explicitly supplied road width, unknown by default. Road-relative
+errors and unimplemented single-side curvature remain None, not fabricated.
+
 ## Student-facing review, 2026-09-28
 
 The owner reviewed `scripts/policy_node.py`, `config/ai4r_policy.yaml` and

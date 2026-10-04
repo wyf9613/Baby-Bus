@@ -789,6 +789,11 @@ def test_shipped_student_calculation_is_zero_and_handles_missing_observations(ma
     assert node.action_publisher.messages[-1].drive == 0.0
     assert node.action_publisher.messages[-1].steer == 0.0
     assert not node.pan_publisher.messages
+    assert node.estimation_output is not None
+    assert not node.estimation_output["state"]["valid"]
+    # Missing wheel speed is represented as None even though actuator output
+    # is zero. This must not manufacture a stopped-state measurement.
+    assert node.estimation_output["state"]["speed_mps"] is None
 
 
 def test_invalid_sensor_content_and_runtime_parameter_changes(make_node):

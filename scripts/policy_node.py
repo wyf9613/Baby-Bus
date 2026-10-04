@@ -156,6 +156,338 @@ def wrap_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
+@dataclass(frozen=True)
+class EstimationSettings:
+    """Prototype tuning, not a calibration or permission to drive.
+
+    Course framework contracts take priority; the Word meeting draft only
+    supplies additional internal EstimatedState/RoadState records.
+    Screenshot names v_mps/yaw_rate_radps are additive aliases. Distances are
+    metres, angles radians, and all output stamps use the node's ROS clock.
+    Parameters live in the EXISTING ai4r_policy.yaml under estimation.*.
+    """
+    speed_tau_s: float = 0.15
+    yaw_rate_tau_s: float = 0.08
+    max_source_age_s: float = 0.5
+    min_cone_confidence: float = 0.5
+    road_forward_max_m: float = 3.0
+    road_min_coverage_m: float = 0.5
+    road_sample_spacing_m: float = 0.1
+    road_max_gap_m: float = 1.5
+    huber_delta_m: float = 0.08
+    road_width_min_m: float = 0.4
+    road_width_max_m: float = 2.0
+    road_max_abs_slope: float = 1.0
+    # 0 means unknown: single-sided geometry stays invalid until measured or
+    # explicitly supplied for a known simulated road. Never guess a lane width.
+    known_lane_width_m: float = 0.0
+
+    def __post_init__(self):
+        for name, value in vars(self).items():
+            if not finite_number(value):
+                raise ValueError(f"estimation.{name} must be finite")
+            if name == "min_cone_confidence":
+                if not 0.0 <= value <= 1.0:
+                    raise ValueError("min_cone_confidence must be in [0,1]")
+            elif name == "known_lane_width_m":
+                if value != 0.0 and not self.road_width_min_m <= value <= self.road_width_max_m:
+                    raise ValueError("known width must be 0 (unknown) or inside width bounds")
+            elif value <= 0.0:
+                raise ValueError(f"estimation.{name} must be positive")
+        if self.road_width_min_m >= self.road_width_max_m:
+            raise ValueError("road width bounds must increase")
+        if self.road_min_coverage_m > self.road_forward_max_m:
+            raise ValueError("road coverage exceeds the forward range")
+        if self.road_sample_spacing_m > self.road_min_coverage_m:
+            raise ValueError("road spacing exceeds minimum coverage")
+        if self.road_forward_max_m / self.road_sample_spacing_m > 200:
+            raise ValueError("road sampling is limited to 201 points")
+
+
+class FirstOrderSampleFilter:
+    """Causal low-pass; a cached sample is assimilated exactly once.
+
+    sample_key identifies an accepted source message, not its numerical value.
+    sample_time_s is ROS sample time for gyro, monotonic receipt for wheel speed;
+    each filter stays in its own time domain. Source freshness is checked by the
+    caller. New runs and discontinuities reset rather than bridge stale history.
+    """
+    def __init__(self, tau_s, reset_gap_s):
+        self.tau_s = tau_s
+        self.reset_gap_s = reset_gap_s
+        self.clear()
+
+    def clear(self):
+        self.value = self.sample_key = self.sample_time_s = None
+
+    def update(self, value, sample_key, sample_time_s):
+        if not finite_number(value) or sample_key is None or not finite_number(sample_time_s):
+            self.clear()
+            return None
+        if sample_key == self.sample_key:
+            return self.value
+        elapsed = None if self.sample_time_s is None else sample_time_s - self.sample_time_s
+        if self.value is None or elapsed is None or elapsed <= 0 or elapsed >= self.reset_gap_s:
+            self.value = float(value)
+        else:
+            alpha = -math.expm1(-elapsed / self.tau_s)
+            self.value += alpha * (value - self.value)
+        self.sample_key, self.sample_time_s = sample_key, sample_time_s
+        return self.value
+
+
+def _estimation_median(values):
+    ordered = sorted(values)
+    n = len(ordered)
+    return ordered[n // 2] if n % 2 else (ordered[n // 2 - 1] + ordered[n // 2]) / 2.0
+
+
+def _estimation_solve(matrix, rhs):
+    """Pivoted solve of a maximum 3x3 scaled normal system; no extra runtime dependency."""
+    rows = [list(row) + [value] for row, value in zip(matrix, rhs)]
+    n = len(rows)
+    for i in range(n):
+        pivot = max(range(i, n), key=lambda j: abs(rows[j][i]))
+        rows[i], rows[pivot] = rows[pivot], rows[i]
+        divisor = rows[i][i]
+        if abs(divisor) < 1e-10 or not math.isfinite(divisor):
+            return None
+        rows[i] = [v / divisor for v in rows[i]]
+        for j in range(n):
+            if j != i:
+                factor = rows[j][i]
+                rows[j] = [a - factor*b for a, b in zip(rows[j], rows[i])]
+    result = [row[-1] for row in rows]
+    return result if all(math.isfinite(v) for v in result) else None
+
+
+def _estimation_fit_boundary(points, settings):
+    """Finite, bounded Huber IRLS followed by an inlier refit.
+
+    Fits y(x) only for modest local slopes. Ordered points, measured support and
+    gaps determine validity. This reconstructs a road, not a driving reference.
+    """
+    points = sorted(points)
+    # Keep bounded work, retaining points across the visible range.
+    if len(points) > 64:
+        points = [points[round(i*(len(points)-1)/63)] for i in range(64)]
+    if len(points) < 2:
+        return None
+    x0, x1 = points[0][0], points[-1][0]
+    if x1 - x0 < settings.road_min_coverage_m:
+        return None
+    origin, scale = (x0+x1)/2.0, (x1-x0)/2.0
+    degree = 2 if len(points) >= 5 and len({p[0] for p in points}) >= 3 else 1
+    basis = [[((p[0]-origin)/scale)**j for j in range(degree+1)] for p in points]
+    slopes = [(b[1]-a[1])/(b[0]-a[0]) for i, a in enumerate(points)
+              for b in points[i+1:] if b[0]-a[0] > 1e-6]
+    if not slopes:
+        return None
+    slope = _estimation_median(slopes)
+    intercept = _estimation_median([p[1]-slope*p[0] for p in points])
+    coeffs = [intercept+slope*origin, slope*scale] + ([0.0] if degree == 2 else [])
+    residuals = []
+    for _ in range(8):
+        residuals = [sum(c*b for c, b in zip(coeffs, row))-p[1]
+                     for row, p in zip(basis, points)]
+        weights = [p[2]*min(1.0, settings.huber_delta_m/max(abs(r), 1e-12))
+                   for p, r in zip(points, residuals)]
+        matrix = [[sum(w*row[i]*row[j] for w, row in zip(weights, basis))
+                   for j in range(degree+1)] for i in range(degree+1)]
+        rhs = [sum(w*row[i]*p[1] for w, row, p in zip(weights, basis, points))
+               for i in range(degree+1)]
+        coeffs = _estimation_solve(matrix, rhs)
+        if coeffs is None:
+            return None
+    residuals = [sum(c*b for c, b in zip(coeffs, row))-p[1] for row, p in zip(basis, points)]
+    inliers = [i for i, r in enumerate(residuals) if abs(r) <= 2*settings.huber_delta_m]
+    if len(inliers) < degree+1 or len(inliers) < 0.6*len(points):
+        return None
+    # Restrict support to a near contiguous inlier segment; never bridge a large gap.
+    segment = []
+    for i in inliers:
+        if segment and points[i][0]-points[segment[-1]][0] > settings.road_max_gap_m:
+            break
+        segment.append(i)
+    if len(segment) < degree+1:
+        return None
+    inliers = segment
+    matrix = [[sum(points[k][2]*basis[k][i]*basis[k][j] for k in inliers)
+               for j in range(degree+1)] for i in range(degree+1)]
+    rhs = [sum(points[k][2]*basis[k][i]*points[k][1] for k in inliers)
+           for i in range(degree+1)]
+    coeffs = _estimation_solve(matrix, rhs)
+    if coeffs is None:
+        return None
+    lo, hi = points[inliers[0]][0], points[inliers[-1]][0]
+    if hi-lo < settings.road_min_coverage_m:
+        return None
+    c2 = coeffs[2] if degree == 2 else 0.0
+    a2 = c2/(scale*scale)
+    a1 = coeffs[1]/scale - 2*a2*origin
+    a0 = coeffs[0] - coeffs[1]*origin/scale + a2*origin*origin
+    if max(abs(a1+2*a2*x) for x in (lo, hi)) > settings.road_max_abs_slope:
+        return None
+    rms = math.sqrt(sum((a0+a1*points[i][0]+a2*points[i][0]**2-points[i][1])**2
+                        for i in inliers)/len(inliers))
+    if rms > settings.huber_delta_m:
+        return None
+    return {"coeffs": (a0, a1, a2), "range": (lo, hi), "rms_m": rms,
+            "inlier_fraction": len(inliers)/len(points)}
+
+
+class EstimationPipeline:
+    """Single-frame road estimator and measured-state low-pass prototype.
+
+    Draft names remain canonical; aliases support the two supplied screenshots.
+    No SLAM, no long-term coordinate averaging, no actuator requests. Geometry
+    stays at its SOURCE frame time: current-frame motion compensation is a
+    subsequent investigation, never faked by refreshing the timestamp.
+    """
+    def __init__(self, settings, frame_id="base_link", left_colour=2, right_colour=1):
+        self.settings, self.frame_id = settings, frame_id
+        self.left_colour, self.right_colour = left_colour, right_colour
+        self.speed = FirstOrderSampleFilter(settings.speed_tau_s, settings.max_source_age_s)
+        self.yaw_rate = FirstOrderSampleFilter(settings.yaw_rate_tau_s, settings.max_source_age_s)
+
+    def _fresh(self, value, age):
+        return value is not None and finite_number(age) and 0 <= age < self.settings.max_source_age_s
+
+    def road(self, batch, stamp_ns, age):
+        timestamp = stamp_ns/1e9 if stamp_ns is not None and stamp_ns > 0 else None
+        output = {"timestamp_s": timestamp, "frame_id": self.frame_id, "valid": False,
+                  "centerline_xy": [], "left_boundary_xy": None, "right_boundary_xy": None,
+                  "lane_width_m": None, "local_curvature_1pm": None, "x_range_m": None,
+                  "confidence": 0.0, "visibility": "none", "status": "unavailable",
+                  "source_age_s": age, "motion_compensated": False,
+                  "boundary_source": {"left": "absent", "right": "absent"}}
+        if not self._fresh(batch, age) or timestamp is None:
+            return output
+        sides = {self.left_colour: [], self.right_colour: []}
+        for x, y, z, colour, confidence in batch["detections"]:
+            if (all(finite_number(v) for v in (x, y, z, confidence))
+                    and 0 <= x <= self.settings.road_forward_max_m
+                    and abs(y) <= self.settings.road_width_max_m + self.settings.road_forward_max_m*self.settings.road_max_abs_slope
+                    and self.settings.min_cone_confidence <= confidence <= 1.0
+                    and confidence > 0 and colour in sides):
+                sides[colour].append((x, y, confidence))
+        left = _estimation_fit_boundary(sides[self.left_colour], self.settings)
+        right = _estimation_fit_boundary(sides[self.right_colour], self.settings)
+        output["status"] = "insufficient_geometry"
+        if left is None and right is None:
+            return output
+        if left is None or right is None:
+            output["visibility"] = "left_only" if left is not None else "right_only"
+            if self.settings.known_lane_width_m == 0:
+                output["status"] = "single_side_width_unknown"
+                return output
+        fits = [fit for fit in (left, right) if fit is not None]
+        lo, hi = max(f["range"][0] for f in fits), min(f["range"][1] for f in fits)
+        if hi-lo < self.settings.road_min_coverage_m:
+            output["status"] = "insufficient_common_range"
+            return output
+        count = min(200, math.ceil((hi-lo)/self.settings.road_sample_spacing_m))
+        center, widths, samples = [], [], {"left": [], "right": []}
+        for i in range(count+1):
+            x = lo+(hi-lo)*i/count
+            evaluated = []
+            for side, fit in (("left", left), ("right", right)):
+                if fit is None:
+                    evaluated.append(None)
+                    continue
+                a0, a1, a2 = fit["coeffs"]
+                y, slope = a0+a1*x+a2*x*x, a1+2*a2*x
+                samples[side].append((x, y))
+                evaluated.append((y, slope))
+            if all(v is not None for v in evaluated):
+                (yl, sl), (yr, sr) = evaluated
+                slope = (sl+sr)/2
+                width = (yl-yr)/math.hypot(1, slope)
+                center.append((x, (yl+yr)/2))
+            else:
+                y, slope = next(v for v in evaluated if v is not None)
+                width = self.settings.known_lane_width_m
+                # Offset along the local normal, not simply along body y.
+                direction = -1 if left is not None else 1
+                half = direction*width/2/math.hypot(1, slope)
+                center.append((x-half*slope, y+half))
+            widths.append(width)
+        if (any(not self.settings.road_width_min_m <= w <= self.settings.road_width_max_m for w in widths)
+                or any(b[0] <= a[0] for a, b in zip(center, center[1:]))
+                or center[0][0] < 0
+                or center[-1][0]-center[0][0] < self.settings.road_min_coverage_m):
+            output["status"] = "invalid_width_or_order"
+            return output
+        output.update(valid=True, centerline_xy=center, lane_width_m=_estimation_median(widths),
+                      x_range_m=[center[0][0], center[-1][0]],
+                      confidence=min(f["inlier_fraction"] for f in fits) * (1.0 if len(fits) == 2 else 0.5),
+                      visibility="both" if len(fits) == 2 else output["visibility"],
+                      status="observed" if len(fits) == 2 else "single_side_inferred",
+                      fit_rms_m=max(f["rms_m"] for f in fits))
+        for side, fit in (("left", left), ("right", right)):
+            output[f"{side}_boundary_xy"] = samples[side] if fit is not None else None
+            output["boundary_source"][side] = "observed" if fit is not None else "absent"
+        if len(fits) == 2:
+            a1 = (left["coeffs"][1]+right["coeffs"][1])/2
+            a2 = (left["coeffs"][2]+right["coeffs"][2])/2
+            slope = a1+2*a2*lo
+            output["local_curvature_1pm"] = 2*a2/(1+slope*slope)**1.5
+        # For an offset curve, do not publish its boundary curvature as the
+        # centreline's curvature. None is honest until that derivation is added.
+        return output
+
+    def update(self, observations, ages, stamps, sample_receipts, now_s):
+        def filtered(name, filter_, component=None):
+            value = observations.get(name)
+            if not self._fresh(value, ages.get(name)):
+                filter_.clear()
+                return None
+            if component is not None:
+                value = value[component]
+            stamp = stamps.get(name)
+            key = stamp if stamp is not None else sample_receipts.get(name)
+            sample_time = stamp/1e9 if stamp is not None else sample_receipts.get(name)
+            return filter_.update(value, key, sample_time)
+
+        speed = filtered("wheel_speed", self.speed)
+        if speed is not None and speed < 0:
+            self.speed.clear()
+            speed = None
+        yaw_rate = filtered("imu_angular_velocity", self.yaw_rate, 2)
+        state = {"timestamp_s": now_s, "frame_id": self.frame_id,
+                 "speed_mps": speed, "yaw_rate_rps": yaw_rate,
+                 "v_mps": speed, "yaw_rate_radps": yaw_rate,
+                 "speed_valid": speed is not None, "yaw_rate_valid": yaw_rate is not None,
+                 "valid": speed is not None and yaw_rate is not None,
+                 "confidence": 1.0 if speed is not None and yaw_rate is not None else 0.0,
+                 "lateral_error_m": None, "heading_error_rad": None,
+                 "road_relative_valid": False, "mode": "filtered_zero_order_hold",
+                 "source_age_s": {k: ages.get(k) for k in ("wheel_speed", "imu_angular_velocity")},
+                 "source_stamp_ns": {k: stamps.get(k) for k in ("wheel_speed", "imu_angular_velocity")}}
+        road = self.road(observations.get("cone_detections"), stamps.get("cone_detections"),
+                         ages.get("cone_detections"))
+        lidar = observations.get("lidar_cartesian")
+        lidar_stamp = stamps.get("lidar_cartesian")
+        available = self._fresh(lidar, ages.get("lidar_cartesian")) and lidar_stamp is not None
+        obstacle = {"timestamp_s": lidar_stamp/1e9 if available else None,
+                    "frame_id": self.frame_id, "available": available,
+                    "source_age_s": ages.get("lidar_cartesian"),
+                    "points_xyz_m": deepcopy(lidar["points_xyz"]) if available else [],
+                    "scan_indices": list(lidar["scan_indices"]) if available else [],
+                    "motion_compensated": False}
+        # Physical calibration is not present in the project. Expose missing
+        # values rather than copy simulation parameters into real-car limits.
+        params = {"valid": False, "source": "unmeasured", "effective_wheelbase_m": None,
+                  "steering_offset": None, "steering_map": None, "steering_limit": None,
+                  "drive_response": None, "actuation_delay_s": None}
+        limits = {"valid": False, "source": "unmeasured", "footprint_xy_m": None,
+                  "wheelbase_m": None, "rear_axle_x_m": None, "curvature_limit_1pm": None,
+                  "speed_max_mps": None, "acceleration_max_mps2": None,
+                  "braking_deceleration_mps2": None, "safety_margin_m": None}
+        return {"state": state, "road": road, "obstacles": obstacle,
+                "vehicle_params": params, "vehicle_limits": limits}
+
+
 class PolicyNode(Node):
     def __init__(self, **kwargs):
         super().__init__("ai4r_policy", **kwargs)
@@ -205,6 +537,15 @@ class PolicyNode(Node):
         # self.speed_kp = self.get_parameter('speed_kp').value
         # YAML alone does not declare a parameter. A value such as 0.2 is a
         # floating-point number; 0 is an integer, which is a different ROS type.
+
+        estimation_defaults = EstimationSettings()
+        estimation_values = {}
+        for name, default in vars(estimation_defaults).items():
+            parameter_name = f"estimation.{name}"
+            self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
+            estimation_values[name] = self.get_parameter(parameter_name).value
+        self.estimation_settings = EstimationSettings(**estimation_values)
+        self.estimation_output = None
 
         self.fsm_state = FSM_STATE_PUBLISHING_ZERO_ACTIONS
         self.state_reason = "Startup: waiting for an explicit policy request"
@@ -947,6 +1288,22 @@ class PolicyNode(Node):
         # START OF: INSERT POLICY CODE BELOW HERE
         # =======================================
 
+        # Preserve course framework inputs/actions/timing. The Word draft fills
+        # internal group-record gaps only; screenshot spellings are aliases.
+        # Downstream code may consume self.estimation_output["state"/"road"/
+        # "obstacles"/"vehicle_params"/"vehicle_limits"]. Geometry has its original
+        # source timestamp; consumer must respect source age/frame time. No
+        # ReferenceTrajectory or target speed is generated by the estimator.
+        if is_first_policy_step or not hasattr(self, "estimator"):
+            self.estimator = EstimationPipeline(
+                self.estimation_settings, self.policy_frame_id,
+                ConeDetection.COLOR_BLUE, ConeDetection.COLOR_YELLOW)
+        sample_receipts = {name: None if obs is None else obs.received_at
+                           for name, obs in self.observations.items()}
+        self.estimation_output = self.estimator.update(
+            observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
+            self.get_clock().now().nanoseconds / 1e9)
+
         # This starter deliberately keeps the drive and steering at zero.
         #
         # Code for a "working" policy is NOT provided because it tend to causing
@@ -1016,6 +1373,9 @@ class PolicyNode(Node):
     def _change_state(self, state, reason):
         self.fsm_state = state
         self.state_reason = reason
+        # An internal consumer must not mistake the previous run's estimate
+        # for an active result after a stop, source expiry, or explicit restart.
+        self.estimation_output = None
         if state == FSM_STATE_PUBLISHING_ZERO_ACTIONS:
             self.publish_zero_actions()
         self.get_logger().info(f"{STATE_NAMES[state]}: {reason}")
