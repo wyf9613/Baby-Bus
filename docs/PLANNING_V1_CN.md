@@ -1,5 +1,15 @@
 # V1 直线中心线规划器
 
+同日控制接入更新：`scripts/policy_node.py` 已消费本模块的参考并计算限幅后的
+归一化动作，支持一次至五次 y(x)，没有改变本 V1 的直线规划算法。YAML 选择
+20 Hz timer，由估计器每轮把缓存道路对齐到当前状态。当前 `control.mode=mvp`
+使 planner 使用 `mvp=True`：保留道路、反馈、坐标、时间、覆盖和直线域检查，
+跳过车辆轮廓/制动模型检查，目标速度 0.2 m/s。不宣称具备车辆模型验证。
+原始轮速累计达到 3 m、30 s 运行截止、无效或过期参考均通过状态 2 锁存停止。
+显式恢复才可重置里程。下文车辆参数要求仅针对可选 calibrated 模式。
+以下原始 V1 说明中的“动作继续为零/控制未接入”描述规划提交时的状态；当前
+控制实现和测试边界见 policy 注释、YAML 和 acceptance.md。
+
 实现依据：外层 Materials/PLANNING_MODULE_TECHNICAL_DESIGN.md 的 V1 与通用参考接口。
 所有运行算法保留在 scripts/policy_node.py；配置在现有 YAML 的 planning 节。
 2026-10-05 完善后已通过 16 项规划与 28 项估计离线测试及 100 帧合成回放。
@@ -7,7 +17,7 @@ ROS gate 因当前 Windows 缺少 Bash/ROS Jazzy/colcon 未能启动，未做控
 
 ## 输入、算法与输出
 
-`CenterlinePlanner.plan(road, state, obstacles, vehicle_limits, now_s, source_timeout_s=None)`
+`CenterlinePlanner.plan(road, state, obstacles, vehicle_limits, now_s, source_timeout_s=None, mvp=False)`
 直接读取当前估计字典，返回 `(reference, diagnostics)`。不做候选搜索、障碍响应、
 Frenet 回中曲线或旧路径复用。仅支持双侧边界、受限偏移/航向的近直线低速场景。
 单侧输入明确失败，后续版本再扩展已知宽度推断。
@@ -53,9 +63,9 @@ stop 请求本身不会制动车辆，恢复也不能绕过框架显式状态 3 
 默认 `planning.vehicle_limits_source=upstream`。vehicle_limits 必须包含 valid=True、明确 source、
 vehicle_reference_point='cg_ground_projection'、footprint_xy_m、speed_max_mps、
 braking_deceleration_mps2、actuation_delay_s、safety_margin_m。
-当前估计器仍输出未标定限制，因此默认节点内规划输出会保持 INVALID_INPUT；
-需要标定组提供限制后才能得到可消费参考，不能把测试轮廓当实车数据。
-默认 YAML 仅给算法阈值，不声明已标定巡航速度或车辆能力。
+当前估计器仍输出未标定限制，因此 calibrated 模式的规划输出会保持 INVALID_INPUT；
+该模式需要标定组提供限制后才能得到可消费参考，不能把测试轮廓当实车数据。
+当前 YAML 的 MVP 跳过这些模型检查，给出 0.2 m/s 目标，不声明已标定车辆能力。
 
 离线可显式选择 `planning.vehicle_limits_source=course_simulation`，无需覆盖或修改
 估计器的未标定限制。几何引用课程笔记：轴距 0.33 m、前伸 0.297 m、后伸 0.198 m、

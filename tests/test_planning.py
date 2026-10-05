@@ -35,6 +35,22 @@ def fixture(offset=0.0, slope=0.0):
 
 
 class PlanningChecks(unittest.TestCase):
+    def test_mvp_reference_without_calibration_keeps_geometry_and_freshness_checks(self):
+        args = list(fixture(0.1, 0.05))
+        args[3] = {"valid": False, "source": "unmeasured"}
+        ref, diag = Planner(Settings()).plan(*args, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertEqual(ref["operating_profile"], "mvp_low_speed")
+        self.assertFalse(ref["simulation_only"])
+        self.assertEqual(ref["target_speed_mps"], 0.2)
+        self.assertFalse(diag["calibration_required"])
+        self.assertFalse(diag["stopping_model_enabled"])
+        args[0]["source_age_s"] = 0.2
+        self.assertFalse(Planner(Settings()).plan(*args, mvp=True)[0]["valid"])
+        args = list(fixture(0.3))
+        args[3] = {"valid": False}
+        self.assertFalse(Planner(Settings()).plan(*args, mvp=True)[0]["valid"])
+
     def test_offset_and_linear_coefficients_are_preserved(self):
         for offset in (-0.15, 0.0, 0.15):
             args = fixture(offset, 0.05)

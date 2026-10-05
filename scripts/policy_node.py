@@ -687,7 +687,7 @@ class PlanningSettings:
     must be supplied by calibration or an explicitly labelled offline fixture.
     Constant-twist compensation is opt-in and is a short-time approximation.
     """
-    cruise_speed_mps: float = 0.3
+    cruise_speed_mps: float = 0.2
     max_source_age_s: float = 0.2
     reference_lifetime_s: float = 0.1
     max_near_x_m: float = 0.5
@@ -810,7 +810,7 @@ class CenterlinePlanner:
         return a[1] + (b[1]-a[1])*(x-a[0])/(b[0]-a[0])
 
     def plan(self, road, state, obstacles, vehicle_limits, now_s,
-             source_timeout_s=None):
+             source_timeout_s=None, mvp=False):
         self.sequence += 1
         cfg = self.settings
         diagnostics = {"obstacle_response_enabled": False,
@@ -927,6 +927,22 @@ class CenterlinePlanner:
             return fail("not_straight_enough")
         if abs(a0) > cfg.max_lateral_offset_m or abs(math.atan(a1)) > cfg.max_heading_error_rad:
             return fail("outside_v1_offset_or_heading_domain")
+        if mvp:
+            # Student first-run profile: geometry/freshness/domain checks above
+            # remain, but a short low-speed run does not require a measured car
+            # footprint, steering-angle map or braking model to generate a path.
+            # This is NOT a footprint/stopping-distance qualification.
+            diagnostics.update(operating_profile="mvp_low_speed", simulation_only=False, calibration_required=False,
+                               footprint_check_enabled=False, stopping_model_enabled=False)
+            reference.update(valid=True, status="TRACK", reason="mvp_centerline_available",
+                             operating_profile="mvp_low_speed", simulation_only=False,
+                             valid_for_s=min(cfg.reference_lifetime_s, *deadlines),
+                             path={"type": "CARTESIAN_Y_OF_X", "independent_variable": "x_m",
+                                   "origin": 0.0, "scale": 1.0,
+                                   "coeffs_low_to_high": [a0, a1], "range": [lo, hi]},
+                             target_speed_mps=cfg.cruise_speed_mps,
+                             stop_requested=False, stop_reason=None)
+            return reference, diagnostics
         limits = planning_vehicle_limits(vehicle_limits, cfg)
         diagnostics["vehicle_limits_source"] = limits.get("source")
         diagnostics["simulation_only"] = limits.get("simulation_only", False)
@@ -1002,6 +1018,386 @@ class CenterlinePlanner:
         return reference, diagnostics
 
 
+@dataclass
+class ControlSettings:
+    """Forward-only candidate with direct MVP and optional calibrated profiles.
+
+    enabled defaults false for bare-node teaching exercises; the shipped YAML
+    selects the integrated policy. Gains are the offline selected candidates,
+    not physical tuning evidence. Negative effort is never issued by this node.
+    """
+    enabled: bool = False
+    mode: str = "calibrated"
+    vehicle_params_source: str = "upstream"
+    speed_kp: float = 1.4
+    speed_ki: float = 0.6
+    speed_kd: float = 0.0
+    lateral_kp: float = 1.2
+    lateral_ki: float = 0.1
+    lateral_kd: float = 0.0
+    heading_kp: float = 0.8
+    derivative_tau_s: float = 0.15
+    drive_max: float = 0.15
+    steering_max_normalized: float = 0.5
+    max_dt_s: float = 0.2
+    startup_grace_s: float = 0.5
+    # Per explicit policy run, wheel-speed odometry (metres), not road lookahead.
+    max_distance_m: float = 3.0
+    max_run_time_s: float = 30.0
+    # Direct normalized steering for the first-run MVP, no wheel-angle model.
+    mvp_lateral_kp: float = 1.0
+    mvp_lateral_ki: float = 0.0
+    mvp_heading_kp: float = 0.5
+    mvp_steering_direction: float = 1.0
+
+    def __post_init__(self):
+        if not isinstance(self.enabled, bool):
+            raise ValueError("control.enabled must be bool")
+        if self.mode not in ("mvp", "calibrated"):
+            raise ValueError("control.mode must be mvp or calibrated")
+        if self.vehicle_params_source not in ("upstream", "course_simulation"):
+            raise ValueError("control.vehicle_params_source must be upstream or course_simulation")
+        for name in ("speed_kp", "speed_ki", "speed_kd", "lateral_kp", "lateral_ki",
+                     "lateral_kd", "heading_kp", "mvp_lateral_kp", "mvp_lateral_ki", "mvp_heading_kp"):
+            if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
+                raise ValueError(f"control.{name} must be finite and nonnegative")
+        for name in ("derivative_tau_s", "drive_max", "steering_max_normalized",
+                     "max_dt_s", "startup_grace_s", "max_distance_m", "max_run_time_s"):
+            if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
+                raise ValueError(f"control.{name} must be finite and positive")
+        if self.drive_max > 1 or self.steering_max_normalized > 1:
+            raise ValueError("control action limits must not exceed 1")
+        if not finite_number(self.mvp_steering_direction) or self.mvp_steering_direction not in (-1.0, 1.0):
+            raise ValueError("control.mvp_steering_direction must be -1.0 or 1.0")
+
+
+class PolicyStopRequest(Exception):
+    """Student code requests a normal stop; the framework owns publication/FSM."""
+
+
+class RunDistanceLimiter:
+    """Unsigned raw-wheel-speed odometry, trapezoidal integration on monotonic time.
+
+    Active only in policy state 3. Start resets the per-run budget; stopping
+    keeps the final estimate visible. Frequent supervisor/policy checks share
+    one integration clock, so a cached sample is never double-counted. Encoder
+    scale, slip, slew/coasting and sampling errors affect physical stop distance.
+    """
+    def __init__(self, maximum_m, max_gap_s):
+        self.maximum_m, self.max_gap_s = maximum_m, max_gap_s
+        self.reset()
+
+    def reset(self, now_s=None, speed_mps=None):
+        self.distance_m = 0.0
+        self.previous_time_s, self.previous_speed_mps = now_s, speed_mps
+
+    def advance(self, speed_mps, now_s):
+        if not all(finite_number(v) for v in (speed_mps, now_s)) or speed_mps < 0:
+            return "Invalid wheel-speed distance input"
+        if self.previous_time_s is not None:
+            dt = now_s-self.previous_time_s
+            if not 0 <= dt <= self.max_gap_s+1e-9:
+                return "Wheel-speed distance clock/gap invalid"
+            self.distance_m += 0.5*(self.previous_speed_mps+speed_mps)*dt
+        self.previous_time_s, self.previous_speed_mps = now_s, speed_mps
+        if not finite_number(self.distance_m):
+            return "Wheel-speed distance estimate invalid"
+        if self.distance_m+1e-9 >= self.maximum_m:
+            return f"Distance limit reached: {self.distance_m:.3f} m / {self.maximum_m:.3f} m; explicit resume required"
+        return None
+
+
+@dataclass
+class VehicleCalibrationSettings:
+    """Measured candidate inputs in the existing YAML; no inferred car facts.
+
+    Steering angle is the wheel angle reached at policy steer=+/-1 AFTER the
+    vehicle interface's configured scaling. direction=+1 means a positive
+    policy request turns left, -1 means right. Geometry uses the CG ground point.
+    valid=True requires a source label and all physical fields; untouched zero
+    defaults stay unavailable. No vehicle-interface settings are modified here.
+    """
+    valid: bool = False
+    source: str = "unmeasured"
+    wheelbase_m: float = 0.0
+    rear_axle_from_cg_m: float = 0.0
+    steering_limit_rad: float = 0.0
+    steering_direction: float = 1.0
+    front_extent_m: float = 0.0
+    rear_extent_m: float = 0.0
+    width_m: float = 0.0
+    speed_max_mps: float = 0.0
+    braking_deceleration_mps2: float = 0.0
+    actuation_delay_s: float = 0.0
+    safety_margin_m: float = 0.0
+
+    def __post_init__(self):
+        if not isinstance(self.valid, bool) or not isinstance(self.source, str) or not self.source.strip():
+            raise ValueError("vehicle calibration requires a boolean valid and a source label")
+        numeric = [v for k, v in vars(self).items() if k not in ("valid", "source")]
+        if not all(finite_number(v) for v in numeric):
+            raise ValueError("vehicle calibration values must be finite")
+        if self.steering_direction not in (-1.0, 1.0):
+            raise ValueError("vehicle.steering_direction must be -1.0 or 1.0")
+        if any(v < 0 for k, v in vars(self).items() if k not in ("valid", "source", "steering_direction")):
+            raise ValueError("vehicle dimensions and limits must be nonnegative")
+        if not self.valid:
+            return
+        if self.source in ("unmeasured", "course_simulation", "offline_test_assumption"):
+            raise ValueError("valid vehicle calibration requires a measured source label")
+        for name in ("wheelbase_m", "rear_axle_from_cg_m", "steering_limit_rad", "front_extent_m",
+                     "rear_extent_m", "width_m", "speed_max_mps", "braking_deceleration_mps2"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"vehicle.{name} must be positive when calibration is valid")
+        if (not self.rear_axle_from_cg_m < self.wheelbase_m or self.steering_limit_rad >= math.pi/2
+                or self.rear_extent_m < self.rear_axle_from_cg_m
+                or self.front_extent_m < self.wheelbase_m-self.rear_axle_from_cg_m):
+            raise ValueError("vehicle geometry or steering range is inconsistent")
+
+    def records(self):
+        params = {"valid": self.valid, "source": self.source,
+                  "vehicle_reference_point": "cg_ground_projection",
+                  "effective_wheelbase_m": self.wheelbase_m,
+                  "rear_axle_from_cg_m": self.rear_axle_from_cg_m,
+                  "steering_limit_rad": self.steering_limit_rad,
+                  "steering_direction": self.steering_direction}
+        limits = {"valid": self.valid, "source": self.source,
+                  "vehicle_reference_point": "cg_ground_projection",
+                  "footprint_xy_m": [(-self.rear_extent_m, -self.width_m/2),
+                                     (self.front_extent_m, -self.width_m/2),
+                                     (self.front_extent_m, self.width_m/2),
+                                     (-self.rear_extent_m, self.width_m/2)],
+                  "speed_max_mps": self.speed_max_mps,
+                  "braking_deceleration_mps2": self.braking_deceleration_mps2,
+                  "actuation_delay_s": self.actuation_delay_s,
+                  "safety_margin_m": self.safety_margin_m}
+        return params, limits
+
+
+class ControlPID:
+    """Derivative on measurement, filtered; conditional anti-windup."""
+    def __init__(self, kp, ki, kd, tau):
+        self.kp, self.ki, self.kd, self.tau = kp, ki, kd, tau
+        self.integral = self.derivative = 0.0
+        self.previous = None
+
+    def update(self, error, measurement, dt, low, high, feedforward=0.0):
+        increment = error*dt
+        if dt > 0 and self.previous is not None:
+            self.derivative += dt/(self.tau+dt)*((measurement-self.previous)/dt-self.derivative)
+        self.previous = measurement
+        base = feedforward+self.kp*error-self.kd*self.derivative
+        proposed = base+self.ki*(self.integral+increment)
+        if low <= proposed <= high or proposed > high and error < 0 or proposed < low and error > 0:
+            self.integral += increment
+        result = base+self.ki*self.integral
+        if not all(finite_number(v) for v in (result, self.integral, self.derivative)):
+            raise ValueError("nonfinite_control_state")
+        return max(low, min(high, result))
+
+
+def _control_poly_eval(coeffs, x):
+    result = 0.0
+    for coefficient in reversed(coeffs):
+        result = result*x+coefficient
+    return result
+
+
+def _control_poly_roots(coeffs):
+    """All real roots on [-1,1], using derivative isolation + bounded bisection.
+
+    The caller supplies degree <= 9. Each derivative has smaller degree; there
+    are at most degree monotone intervals and 60 bisections per interval. Handles
+    repeated roots at derivative roots. No NumPy or external offline imports.
+    """
+    coeffs = list(coeffs)
+    while len(coeffs) > 1 and coeffs[-1] == 0:
+        coeffs.pop()
+    size = max(abs(v) for v in coeffs)
+    if not finite_number(size):
+        raise ValueError("nonfinite_path_geometry")
+    if size == 0 or len(coeffs) == 1:
+        return []
+    coeffs = [v/size for v in coeffs]
+    if len(coeffs) == 2:
+        root = -coeffs[0]/coeffs[1]
+        return [root] if -1 <= root <= 1 else []
+    critical = _control_poly_roots([i*v for i, v in enumerate(coeffs) if i])
+    knots = sorted(set([-1.0, *critical, 1.0]))
+    roots = [x for x in knots if abs(_control_poly_eval(coeffs, x)) <= 1e-12]
+    for low, high in zip(knots, knots[1:]):
+        f_low, f_high = _control_poly_eval(coeffs, low), _control_poly_eval(coeffs, high)
+        if (f_low > 0) == (f_high > 0) or f_low == 0 or f_high == 0:
+            continue
+        for _ in range(60):
+            mid = low/2+high/2
+            f_mid = _control_poly_eval(coeffs, mid)
+            if f_mid == 0:
+                low = high = mid
+                break
+            if (f_low > 0) == (f_mid > 0):
+                low, f_low = mid, f_mid
+            else:
+                high = mid
+        roots.append(low/2+high/2)
+    return sorted(set(roots))
+
+
+def control_path_geometry(path):
+    """Bounded closest observed point for y(x), up to fifth degree.
+
+    u=(x-origin)/scale, low-to-high coefficients, physical range in metres.
+    Front-only support is retained; endpoint tangent error is an approximation,
+    not evidence of observed road at the car origin. No path extrapolation.
+    """
+    if (not isinstance(path, dict) or path.get("type") != "CARTESIAN_Y_OF_X"
+            or path.get("independent_variable") != "x_m"):
+        raise ValueError("unsupported_path_encoding")
+    coeffs, bounds = path.get("coeffs_low_to_high"), path.get("range")
+    origin, scale = path.get("origin"), path.get("scale")
+    if (not isinstance(coeffs, (list, tuple)) or not 1 <= len(coeffs) <= 6
+            or not all(finite_number(v) for v in coeffs)):
+        raise ValueError("invalid_polynomial")
+    if (not isinstance(bounds, (list, tuple)) or len(bounds) != 2
+            or not all(finite_number(v) for v in bounds)
+            or not bounds[0] < bounds[1] or bounds[1] <= 0
+            or not finite_number(origin) or not finite_number(scale) or scale <= 0):
+        raise ValueError("invalid_path_range_or_normalization")
+    mid, half = bounds[0]/2+bounds[1]/2, bounds[1]/2-bounds[0]/2
+    offset, factor = (mid-origin)/scale, half/scale
+    # Compose y(mid+half*t), t in [-1,1], with <= 6 coefficients.
+    y = [0.0]*len(coeffs)
+    for i, coefficient in enumerate(coeffs):
+        for j in range(i+1):
+            y[j] += coefficient*math.comb(i, j)*offset**(i-j)*factor**j
+    dy = [i*v for i, v in enumerate(y) if i] or [0.0]
+    stationary = [mid*half, half*half]+[0.0]*max(0, 2*len(y)-4)
+    for i, a in enumerate(y):
+        for j, b in enumerate(dy):
+            stationary[i+j] += a*b
+    candidates = [-1.0, 1.0, *_control_poly_roots(stationary)]
+    costs = [(mid+half*t)**2+_control_poly_eval(y, t)**2 for t in candidates]
+    if not all(finite_number(v) for v in costs):
+        raise ValueError("nonfinite_path_geometry")
+    t = candidates[min(range(len(costs)), key=costs.__getitem__)]
+    x, value = mid+half*t, _control_poly_eval(y, t)
+    slope = _control_poly_eval(dy, t)/half
+    ddy = [i*v for i, v in enumerate(dy) if i] or [0.0]
+    second = _control_poly_eval(ddy, t)/half**2
+    heading = math.atan(slope)
+    geometry = {"path_error_m": -x*math.sin(heading)+value*math.cos(heading),
+                "path_heading_rad": heading, "curvature_1pm": second/math.hypot(1, slope)**3,
+                "closest_x_m": x, "closest_y_m": value, "path_degree": len(coeffs)-1,
+                "closest_at_range_end": t in (-1.0, 1.0)}
+    if not all(finite_number(v) for k, v in geometry.items() if k != "closest_at_range_end"):
+        raise ValueError("nonfinite_path_geometry")
+    return geometry
+
+
+class PolicyController:
+    """Single-file forward-only control; failures request the framework stop.
+
+    Does not implement ESC negative-drive brake/hold, physical enabling, frame
+    propagation or automatic resume. All those concerns stay explicit.
+    """
+    def __init__(self, settings, frame_id="base_link"):
+        self.settings, self.frame_id = settings, frame_id
+        self.clear()
+
+    def clear(self):
+        cfg = self.settings
+        self.speed = ControlPID(cfg.speed_kp, cfg.speed_ki, cfg.speed_kd, cfg.derivative_tau_s)
+        self.lateral = ControlPID(cfg.lateral_kp, cfg.lateral_ki, cfg.lateral_kd, cfg.derivative_tau_s)
+        self.mvp_lateral = ControlPID(cfg.mvp_lateral_kp, cfg.mvp_lateral_ki, 0.0, cfg.derivative_tau_s)
+
+    def calculate(self, reference, state, vehicle_params, now_s, dt):
+        try:
+            if (not isinstance(reference, dict) or reference.get("valid") is not True
+                    or not isinstance(state, dict) or state.get("speed_valid") is not True):
+                raise ValueError("invalid_planning_or_speed")
+            stamp, lifetime = reference.get("timestamp_s"), reference.get("valid_for_s")
+            if (not all(finite_number(v) for v in (stamp, lifetime, now_s, dt))
+                    or lifetime <= 0 or not 0 <= dt <= self.settings.max_dt_s
+                    or not stamp <= now_s < stamp+lifetime):
+                raise ValueError("reference_expired_or_control_gap")
+            if (reference.get("frame_id") != self.frame_id or state.get("frame_id") != self.frame_id
+                    or reference.get("vehicle_reference_point") != "cg_ground_projection"
+                    or not finite_number(state.get("timestamp_s"))
+                    or abs(state["timestamp_s"]-stamp) > 1e-6):
+                raise ValueError("control_frame_or_time_mismatch")
+            # now_s may be slightly later due to computation, but state and path
+            # must come from the SAME cycle. This caller never replays a reference.
+            target, speed = reference.get("target_speed_mps"), state.get("speed_mps")
+            if not all(finite_number(v) and v >= 0 for v in (target, speed)):
+                raise ValueError("invalid_speed")
+            stop = reference.get("stop_requested")
+            if not isinstance(stop, bool):
+                raise ValueError("invalid_stop_request")
+            if stop or target == 0:
+                self.clear()
+                return 0.0, 0.0, {"valid": True, "stop_requested": True, "reason": "planning_stop_request"}
+            if self.settings.mode == "mvp":
+                if reference.get("simulation_only"):
+                    raise ValueError("simulation_reference_rejected_for_mvp")
+                geometry = control_path_geometry(reference.get("path"))
+                cfg = self.settings
+                heading = geometry["path_heading_rad"]
+                # Direct normalized PI + heading P, no degree-to-servo map or
+                # curvature feedforward borrowed from the bicycle simulation.
+                steer = self.mvp_lateral.update(geometry["path_error_m"], -geometry["path_error_m"], dt,
+                    -cfg.steering_max_normalized, cfg.steering_max_normalized,
+                    cfg.mvp_heading_kp*heading)
+                drive = self.speed.update(target-speed, speed, dt, 0.0, cfg.drive_max)
+                return drive, cfg.mvp_steering_direction*steer, {
+                    **geometry, "valid": True, "stop_requested": False, "reason": "mvp_tracking",
+                    "heading_error_rad": heading, "speed_error_mps": target-speed,
+                    "operating_profile": "mvp_low_speed", "simulation_only": False}
+            params = vehicle_params
+            simulated = self.settings.vehicle_params_source == "course_simulation"
+            if simulated:
+                if reference.get("simulation_only") is not True:
+                    raise ValueError("simulation_control_requires_simulation_reference")
+                params = {"valid": True, "source": "course_simulation",
+                          "vehicle_reference_point": "cg_ground_projection",
+                          "effective_wheelbase_m": 0.33, "rear_axle_from_cg_m": 0.132,
+                          "steering_limit_rad": math.pi/4, "steering_direction": 1.0}
+            elif reference.get("simulation_only"):
+                raise ValueError("simulation_reference_rejected_for_live_control")
+            if (not simulated and isinstance(params, dict) and
+                    (params.get("simulation_only") or params.get("source") in
+                     ("course_simulation", "offline_test_assumption"))):
+                raise ValueError("simulation_geometry_rejected_for_live_control")
+            if (not isinstance(params, dict) or params.get("valid") is not True
+                    or params.get("source") in (None, "", "unmeasured")
+                    or params.get("vehicle_reference_point") != "cg_ground_projection"):
+                raise ValueError("vehicle_control_geometry_unavailable")
+            wheelbase, rear, limit, direction = (params.get(k) for k in
+                ("effective_wheelbase_m", "rear_axle_from_cg_m", "steering_limit_rad", "steering_direction"))
+            if (not all(finite_number(v) for v in (wheelbase, rear, limit, direction))
+                    or not 0 < rear < wheelbase or not 0 < limit < math.pi/2 or direction not in (-1, 1)):
+                raise ValueError("invalid_vehicle_control_geometry")
+            geometry = control_path_geometry(reference.get("path"))
+            ey, curvature = geometry["path_error_m"], geometry["curvature_1pm"]
+            if abs(rear*curvature) >= 1:
+                raise ValueError("curvature_outside_vehicle_geometry")
+            beta = math.asin(rear*curvature)
+            feedforward = math.atan(wheelbase*curvature/math.cos(beta))
+            heading = wrap_angle(geometry["path_heading_rad"]-beta)
+            cfg = self.settings
+            delta_limit = limit*cfg.steering_max_normalized
+            delta = self.lateral.update(ey, -ey, dt, -delta_limit, delta_limit,
+                                        feedforward+cfg.heading_kp*heading)
+            drive = self.speed.update(target-speed, speed, dt, 0.0, cfg.drive_max)
+            return drive, direction*delta/limit, {
+                **geometry, "valid": True, "stop_requested": False, "reason": "tracking",
+                "heading_error_rad": heading, "speed_error_mps": target-speed,
+                "steering_ff_rad": feedforward, "vehicle_params_source": params["source"],
+                "simulation_only": simulated}
+        except (ValueError, TypeError, ArithmeticError) as error:
+            self.clear()
+            return 0.0, 0.0, {"valid": False, "stop_requested": True, "reason": str(error)}
+
+
 class PolicyNode(Node):
     def __init__(self, **kwargs):
         super().__init__("ai4r_policy", **kwargs)
@@ -1070,6 +1466,29 @@ class PolicyNode(Node):
         self.planning_settings = PlanningSettings(**planning_values)
         self.planning_output = None
         self.planning_diagnostics = None
+
+        for prefix, settings_type in (("control", ControlSettings), ("vehicle", VehicleCalibrationSettings)):
+            values = {}
+            for name, default in vars(settings_type()).items():
+                parameter_name = f"{prefix}.{name}"
+                self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
+                values[name] = self.get_parameter(parameter_name).value
+            setattr(self, f"{prefix}_settings", settings_type(**values))
+        if self.control_settings.enabled:
+            if not {"cone_detections", "wheel_speed", "imu_angular_velocity"}.issubset(self.required_sensors):
+                raise ValueError("Integrated control requires cones, wheel_speed and imu_angular_velocity")
+            simulation_planning = self.planning_settings.vehicle_limits_source == "course_simulation"
+            simulation_control = self.control_settings.vehicle_params_source == "course_simulation"
+            if self.control_settings.mode == "calibrated" and simulation_planning != simulation_control:
+                raise ValueError("Planning and control simulation profiles must be selected together")
+            if (self.policy_update_mode == "timer" and
+                    1.0/self.policy_update_rate_hz >= self.planning_settings.reference_lifetime_s):
+                raise ValueError("Integrated control timer period must be shorter than the planning reference lifetime")
+        self.controller = PolicyController(self.control_settings, self.policy_frame_id)
+        self.distance_limiter = RunDistanceLimiter(self.control_settings.max_distance_m, self.control_settings.max_dt_s)
+        self.control_diagnostics = None
+        self.last_control_reference_deadline_s = None
+        self.control_has_run = False
 
         self.fsm_state = FSM_STATE_PUBLISHING_ZERO_ACTIONS
         self.state_reason = "Startup: waiting for an explicit policy request"
@@ -1497,7 +1916,7 @@ class PolicyNode(Node):
         now, ros_now = self._times()
         if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
             return
-        problem = self.health_problem(now, ros_now)
+        problem = self.health_problem(now, ros_now) or self._control_problem(now, ros_now)
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
@@ -1529,6 +1948,9 @@ class PolicyNode(Node):
                 self._warn("saturation", "Clipping policy action to normalized [-1, 1]")
             drive, steer = max(-1.0, min(1.0, drive)), max(-1.0, min(1.0, steer))
             pan = None if pan is None else max(-1.0, min(1.0, pan))
+        except PolicyStopRequest as stop:
+            self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, str(stop))
+            return
         except Exception:
             self.get_logger().error("Student policy failed:\n" + traceback.format_exc())
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, "Policy calculation or output was invalid")
@@ -1540,6 +1962,10 @@ class PolicyNode(Node):
         if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
             return
         problem = self.health_problem(now, ros_now)
+        if problem:
+            self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
+            return
+        problem = self._control_problem(now, ros_now)
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
@@ -1839,6 +2265,14 @@ class PolicyNode(Node):
             observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
             self.get_clock().now().nanoseconds / 1e9, receipt_ros_ns)
 
+        # Supply explicit car calibration at the integration boundary without
+        # changing the estimator or substituting simulation for missing facts.
+        calibration = getattr(self, "vehicle_settings", VehicleCalibrationSettings())
+        if calibration.valid:
+            params, limits = calibration.records()
+            self.estimation_output["vehicle_params"] = params
+            self.estimation_output["vehicle_limits"] = limits
+
         if is_first_policy_step or not hasattr(self, "planner"):
             self.planner = CenterlinePlanner(self.planning_settings, self.policy_frame_id)
         estimates = self.estimation_output
@@ -1852,43 +2286,40 @@ class PolicyNode(Node):
                                                        self.sensor_timeout_s["imu_angular_velocity"])}
         self.planning_output, self.planning_diagnostics = self.planner.plan(
             estimates["road"], estimates["state"], estimates["obstacles"],
-            estimates["vehicle_limits"], estimates["state"]["timestamp_s"], source_timeouts)
+            estimates["vehicle_limits"], estimates["state"]["timestamp_s"], source_timeouts,
+            mvp=getattr(self, "control_settings", ControlSettings()).mode == "mvp")
 
-        # This starter deliberately keeps the drive and steering at zero.
-        #
-        # Code for a "working" policy is NOT provided because it tend to causing
-        # anchoring and minimal changes from the provided code.
-        #
-        # The following comments are example for how the observation variables
-        # available in this function can be used to implement various aspects
-        # of a policy.
-        #
-        # Example: a state variable for a speed controller (uncomment to use):
-        # if is_first_policy_step:
-        #     self.speed_error_integral = 0.0
-        # if wheel_speed_in_meters_per_second is not None and dt > 0.0:
-        #     speed_error = 0.5 - wheel_speed_in_meters_per_second  # target: m/s
-        #     self.speed_error_integral += speed_error * dt
-        #     drive_action = self.speed_kp * speed_error  # declare speed_kp above
-        #     debug1 = wheel_speed_in_meters_per_second
-        #     debug2 = drive_action
-        #
-        # Example: examine yellow cones without assuming a cone always exists:
-        # yellow_indices = [i for i in range(num_cones)
-        #                   if cone_colour[i] == ConeDetection.COLOR_YELLOW]
-        #
-        # Example: retain only usable lidar returns:
-        # if lidar_scan_available:
-        #     hits = [(lidar_scan['angle_min'] + i * lidar_scan['angle_increment'], distance)
-        #             for i, distance in enumerate(lidar_ranges)
-        #             if math.isfinite(distance)
-        #             and lidar_scan['range_min'] <= distance <= lidar_scan['range_max']]
-        #
-        # Example: inspect body-frame points and their original ranges:
-        # if lidar_cartesian_available:
-        #     for (x, y, z), ray_index in zip(lidar_points_xyz, lidar_scan_indices):
-        #         distance_from_lidar = lidar_ranges[ray_index]
-        #         # Your algorithm can use x/y/z, distance_from_lidar, or both.
+        control = getattr(self, "control_settings", ControlSettings())
+        if control.enabled:
+            if is_first_policy_step or not hasattr(self, "controller"):
+                self.controller = PolicyController(control, self.policy_frame_id)
+                self.control_has_run = False
+            # Delayed camera data may predate the reset motion history at start.
+            # Bounded neutral priming is allowed only BEFORE the first valid
+            # control step; any fault after tracking requires explicit resume.
+            if (not self.planning_output["valid"] and not self.control_has_run
+                    and estimates["state"]["valid"]
+                    and estimates["road"]["status"] == "missing_motion_history"
+                    and policy_elapsed_s < control.startup_grace_s):
+                self.control_diagnostics = {"valid": False, "stop_requested": False,
+                                            "reason": "priming_motion_history"}
+                return 0.0, 0.0, None, None, None
+            if not self.planning_output["valid"]:
+                reason = "Planning: " + str(self.planning_output["reason"])
+                raise PolicyStopRequest(reason)
+            drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
+                self.planning_output, estimates["state"], estimates["vehicle_params"],
+                self.get_clock().now().nanoseconds/1e9, dt)
+            if not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]:
+                reason = "Control: " + self.control_diagnostics["reason"]
+                raise PolicyStopRequest(reason)
+            self.control_has_run = True
+            self.last_control_reference_deadline_s = (
+                self.planning_output["timestamp_s"]+self.planning_output["valid_for_s"])
+            # Existing debug topics: lateral error (m), per-run distance (m).
+            # The existing state string reports planning/control stop reasons.
+            debug1 = self.control_diagnostics["path_error_m"]
+            debug2 = self.distance_limiter.distance_m
 
         # =====================================
         # END OF: INSERT POLICY CODE ABOVE HERE
@@ -1929,15 +2360,46 @@ class PolicyNode(Node):
         self.motion_history.clear()
         self.planning_output = None
         self.planning_diagnostics = None
+        self.controller.clear()
+        self.control_diagnostics = None
+        self.last_control_reference_deadline_s = None
+        self.control_has_run = False
+        if state == FSM_STATE_PUBLISHING_POLICY_ACTION:
+            wheel = self.observations.get("wheel_speed")
+            speed = wheel.value if wheel is not None else None
+            self.distance_limiter.reset(self._monotonic(), speed)
         if state == FSM_STATE_PUBLISHING_ZERO_ACTIONS:
+            if self.control_settings.enabled:
+                self.debug2_publisher.publish(Float32(data=float(self.distance_limiter.distance_m)))
             self.publish_zero_actions()
         self.get_logger().info(f"{STATE_NAMES[state]}: {reason}")
         self.publish_state()
 
+    def _control_problem(self, monotonic_now, ros_now_ns):
+        """Distance/time budgets and reference expiry need no sensor callback."""
+        if not self.control_settings.enabled:
+            return None
+        wheel = self.observations.get("wheel_speed")
+        if wheel is None or not self._fresh("wheel_speed", monotonic_now, ros_now_ns):
+            return "Wheel speed unavailable for distance limit"
+        problem = self.distance_limiter.advance(wheel.value, monotonic_now)
+        if problem:
+            return problem
+        if (self.policy_started_at is not None and
+                monotonic_now-self.policy_started_at >= self.control_settings.max_run_time_s):
+            return "Run time limit reached; explicit resume required"
+        deadline = self.last_control_reference_deadline_s
+        if deadline is not None and ros_now_ns/1e9 >= deadline:
+            return "Control reference expired; explicit resume required"
+        if (not self.control_has_run and self.policy_started_at is not None
+                and monotonic_now-self.policy_started_at >= self.control_settings.startup_grace_s):
+            return "Control startup history deadline exceeded; explicit resume required"
+        return None
+
     def supervision_callback(self):
         now, ros_now = self._times()
         if self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION:
-            problem = self.health_problem(now, ros_now)
+            problem = self.health_problem(now, ros_now) or self._control_problem(now, ros_now)
             if problem:
                 self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
         elif self.fsm_state == FSM_STATE_PUBLISHING_ZERO_ACTIONS:

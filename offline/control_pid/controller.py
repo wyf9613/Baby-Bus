@@ -1,6 +1,7 @@
 """Hardware-free candidate. Nothing here publishes ROS or enables a vehicle."""
 from dataclasses import dataclass
 import math
+from numbers import Real
 
 import numpy as np
 
@@ -49,33 +50,123 @@ class PID:
         return float(np.clip(base + self.ki * self.integral, low, high))
 
 
-def path_errors(coeffs: list[float], bounds: list[float]) -> tuple[float, float, float]:
-    """Closest point on y(x); positive error requests motion to the left.
+def _finite(value: object) -> bool:
+    return isinstance(value, Real) and not isinstance(value, (bool, np.bool_)) and math.isfinite(value)
 
-    A small bounded grid initializes Newton refinement. This is local geometry,
-    not a world-frame y error. Coefficients are in ascending power order.
+
+class ReferenceError(ValueError):
+    """A rejected upstream contract; the message is a diagnostic reason."""
+
+
+@dataclass(frozen=True)
+class ControlReference:
+    coeffs: tuple[float, ...]
+    bounds: tuple[float, float]
+    origin: float
+    scale: float
+    target_speed_mps: float
+    stop_requested: bool
+    structured: bool
+
+
+def read_reference(reference: dict, now_s: float, max_age_s: float) -> ControlReference:
+    """Consume upstream Cartesian geometry unchanged, plus the legacy mock.
+
+    y(x) = sum(a_i * ((x-origin)/scale)**i), with physical x bounds in metres.
+    Structured references describe a fixed body frame: this offline consumer
+    requires same-cycle geometry instead of silently reusing it after motion.
+    Source-age/stop/lifetime checks remain owned by the producer and consumer.
     """
-    a = np.asarray(coeffs, dtype=float)
-    d1 = np.polynomial.polynomial.polyder(a)
-    d2 = np.polynomial.polynomial.polyder(d1)
-    xs = np.linspace(*bounds, 31)
-    ys = np.polynomial.polynomial.polyval(xs, a)
-    x = float(xs[np.argmin(xs * xs + ys * ys)])
-    for _ in range(5):
-        y = float(np.polynomial.polynomial.polyval(x, a))
-        slope = float(np.polynomial.polynomial.polyval(x, d1))
-        second = float(np.polynomial.polynomial.polyval(x, d2))
-        denominator = 1 + slope * slope + y * second
-        if abs(denominator) < 1e-8:
-            break
-        x = float(np.clip(x - (x + y * slope) / denominator, *bounds))
-    y = float(np.polynomial.polynomial.polyval(x, a))
-    slope = float(np.polynomial.polynomial.polyval(x, d1))
-    second = float(np.polynomial.polynomial.polyval(x, d2))
+    if not isinstance(reference, dict) or reference.get('valid') is not True:
+        raise ReferenceError('invalid_reference')
+    if not _finite(now_s) or not _finite(max_age_s) or max_age_s <= 0:
+        raise ReferenceError('invalid_clock_or_age_limit')
+    stamp = reference.get('timestamp_s')
+    if not _finite(stamp) or not 0 <= now_s - stamp <= max_age_s:
+        raise ReferenceError('stale_or_future_reference')
+    structured = 'path' in reference
+    lifetime = reference.get('valid_for_s')
+    if structured or 'valid_for_s' in reference:
+        if not _finite(lifetime) or lifetime <= 0 or now_s - stamp >= lifetime:
+            raise ReferenceError('expired_reference')
+    if (reference.get('frame_id', 'base_link') != 'base_link'
+            or reference.get('vehicle_reference_point', 'cg_ground_projection') != 'cg_ground_projection'):
+        raise ReferenceError('unsupported_frame_or_reference_point')
+    if structured:
+        if ('frame_id' not in reference or 'vehicle_reference_point' not in reference):
+            raise ReferenceError('missing_frame_or_reference_point')
+        if abs(now_s - stamp) > 1e-6:
+            raise ReferenceError('reference_frame_not_current')
+        path = reference['path']
+        if (not isinstance(path, dict) or path.get('type') != 'CARTESIAN_Y_OF_X'
+                or path.get('independent_variable') != 'x_m'):
+            raise ReferenceError('unsupported_path_encoding')
+        coeffs, bounds = path.get('coeffs_low_to_high'), path.get('range')
+        origin, scale = path.get('origin'), path.get('scale')
+    else:
+        coeffs, bounds = reference.get('path_coeffs'), reference.get('x_range_m')
+        origin, scale = 0.0, 1.0
+    if (not isinstance(coeffs, (list, tuple)) or not 1 <= len(coeffs) <= 6
+            or not all(_finite(v) for v in coeffs)):
+        raise ReferenceError('invalid_polynomial')
+    if (not isinstance(bounds, (list, tuple)) or len(bounds) != 2
+            or not all(_finite(v) for v in bounds)
+            or not bounds[0] < bounds[1] or bounds[1] <= 0):
+        raise ReferenceError('invalid_path_range')
+    if not _finite(origin) or not _finite(scale) or scale <= 0:
+        raise ReferenceError('invalid_path_normalization')
+    target = reference.get('target_speed_mps')
+    stop = reference.get('stop_requested', False)
+    if not _finite(target) or target < 0 or not isinstance(stop, bool):
+        raise ReferenceError('invalid_speed_or_stop_request')
+    return ControlReference(tuple(float(v) for v in coeffs), tuple(float(v) for v in bounds),
+                            float(origin), float(scale), 0.0 if stop else float(target),
+                            stop, structured)
+
+
+def closest_path_geometry(coeffs: tuple[float, ...], bounds: tuple[float, float],
+                          origin: float = 0.0, scale: float = 1.0) -> dict:
+    """Minimize x*x+y(x)*y(x) on the supplied range, including both ends.
+
+    Quintics can have multiple local minima. Evaluate all real stationary
+    points of the distance polynomial (degree <= 9), rather than one Newton
+    seed. Normalize the search interval to [-1,1] for the root solve. No path
+    extension to x=0 is made for front-only observations. Endpoint errors use
+    the tangent at that observed endpoint, an explicit near-field approximation.
+    """
+    polynomial = np.polynomial.Polynomial
+    midpoint = bounds[0]/2 + bounds[1]/2
+    half_range = bounds[1]/2 - bounds[0]/2
+    x_poly = polynomial([midpoint, half_range])
+    y_poly = polynomial(coeffs)(polynomial([(midpoint-origin)/scale, half_range/scale]))
+    stationary = (x_poly*x_poly + y_poly*y_poly).deriv()
+    candidates = [-1.0, 1.0]
+    for root in stationary.roots():
+        if abs(root.imag) <= 1e-8 and -1.0 <= root.real <= 1.0:
+            candidates.append(float(root.real))
+    costs = [float(x_poly(t)**2 + y_poly(t)**2) for t in candidates]
+    if not all(math.isfinite(cost) for cost in costs):
+        raise ReferenceError('nonfinite_path_geometry')
+    t = candidates[int(np.argmin(costs))]
+    x, y = float(x_poly(t)), float(y_poly(t))
+    slope = float(y_poly.deriv()(t)/half_range)
+    second = float(y_poly.deriv(2)(t)/half_range**2)
     heading = math.atan(slope)
-    error = -x * math.sin(heading) + y * math.cos(heading)
-    curvature = second / (1 + slope * slope) ** 1.5
-    return error, heading, curvature
+    curvature = second / math.hypot(1.0, slope)**3
+    error = -x*math.sin(heading) + y*math.cos(heading)
+    if not all(math.isfinite(v) for v in (x, y, slope, second, heading, curvature, error)):
+        raise ReferenceError('nonfinite_path_geometry')
+    return {'path_error_m': error, 'path_heading_rad': heading,
+            'curvature_1pm': curvature, 'closest_x_m': x, 'closest_y_m': y,
+            'closest_at_range_end': t in (-1.0, 1.0),
+            'path_degree': len(coeffs)-1}
+
+
+def path_errors(coeffs: list[float], bounds: list[float], origin: float = 0.0,
+                scale: float = 1.0) -> tuple[float, float, float]:
+    """Legacy three-value helper, with support through fifth order."""
+    geometry = closest_path_geometry(tuple(coeffs), tuple(bounds), origin, scale)
+    return geometry['path_error_m'], geometry['path_heading_rad'], geometry['curvature_1pm']
 
 
 class Controller:
@@ -92,22 +183,18 @@ class Controller:
     def calculate(self, reference: dict, speed_mps: float, now_s: float,
                   dt: float, max_age_s: float = 0.15) -> tuple[float, float, dict]:
         try:
-            age = now_s - reference['timestamp_s']
-            coeffs, bounds = reference['path_coeffs'], reference['x_range_m']
-            target = reference['target_speed_mps']
-            valid = (reference['valid'] is True and 0 <= age <= max_age_s
-                     and len(coeffs) == 4 and len(bounds) == 2
-                     and bounds[0] <= 0 < bounds[1]
-                     and target >= 0 and speed_mps >= 0 and dt >= 0
-                     and all(math.isfinite(v) for v in
-                             [*coeffs, *bounds, target, speed_mps, dt, now_s, age]))
-        except (KeyError, TypeError, ValueError):
-            valid = False
-        if not valid:
+            if not _finite(speed_mps) or speed_mps < 0 or not _finite(dt) or dt < 0:
+                raise ReferenceError('invalid_feedback_or_dt')
+            parsed = read_reference(reference, now_s, max_age_s)
+            with np.errstate(over='raise', invalid='raise', divide='raise'):
+                geometry = closest_path_geometry(parsed.coeffs, parsed.bounds, parsed.origin, parsed.scale)
+        except (ValueError, TypeError, ArithmeticError, np.linalg.LinAlgError) as error:
             self.__init__(self.gains)
-            return 0.0, 0.0, {'valid': False}
+            return 0.0, 0.0, {'valid': False, 'reason': str(error), 'stop_requested': True}
 
-        ey, heading, curvature = path_errors(coeffs, bounds)
+        ey, heading, curvature = (geometry['path_error_m'], geometry['path_heading_rad'],
+                                  geometry['curvature_1pm'])
+        target = parsed.target_speed_mps
         g = self.gains
         # CG-path curvature: beta = asin(l_r * kappa), not rear-axle curvature.
         beta = math.asin(float(np.clip(g.rear_axle_from_cg_m * curvature, -0.95, 0.95)))
@@ -129,6 +216,7 @@ class Controller:
             drive = self.speed.update(target - speed_mps, speed_mps, dt,
                                       g.drive_min, g.drive_max)
         return drive, delta / g.steering_limit_rad, {
-            'valid': True, 'path_error_m': ey, 'heading_error_rad': heading_error,
-            'curvature_1pm': curvature, 'steering_ff_rad': delta_ff,
+            **geometry, 'valid': True, 'heading_error_rad': heading_error,
+            'steering_ff_rad': delta_ff, 'stop_requested': parsed.stop_requested or target == 0,
+            'reference_format': 'planning_path' if parsed.structured else 'legacy_mock',
         }

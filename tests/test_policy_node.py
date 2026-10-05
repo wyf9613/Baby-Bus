@@ -155,6 +155,107 @@ def driving_policy(*args):
     return 0.4, -0.2, None, None, None
 
 
+def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.vehicle_params_source": "course_simulation",
+           "planning.vehicle_limits_source": "course_simulation"})
+
+    def feed_road(empty=False):
+        node.wheel_speed_callback(Float32(data=0.0))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        batch.acquisition_to_publish_latency_s = 0.0
+        if not empty:
+            for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
+                for i in range(9):
+                    cone = ConeDetection()
+                    cone.position.x, cone.position.y = 0.1+0.3*i, y
+                    cone.color, cone.classification_confidence = colour, 0.95
+                    batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    feed_road()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    assert 0 < node.action_publisher.messages[-1].drive <= 0.15
+    assert 0 < node.action_publisher.messages[-1].steer <= 0.5
+    assert node.pan_publisher.messages == []
+    node.test_clock.advance(0.05)
+    feed_road(empty=True)
+    node.run_policy_step()
+    assert node.fsm_state == 2
+    assert node.action_publisher.messages[-1].drive == 0
+    assert node.controller.speed.integral == 0
+    node.test_clock.advance(0.05)
+    feed_road()
+    node.run_policy_step()
+    assert node.fsm_state == 2
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    node.test_clock.advance(0.1)
+    node.supervision_callback()
+    assert node.fsm_state == 2
+    assert "reference expired" in node.state_reason
+    assert node.action_publisher.messages[-1].drive == 0
+
+
+def test_integrated_control_requires_feedback_and_matching_profiles(make_node):
+    with pytest.raises(ValueError, match="requires cones"):
+        make_node(required=("cone_detections",), **{"control.enabled": True})
+    with pytest.raises(ValueError, match="profiles must be selected together"):
+        make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+                  **{"control.enabled": True, "planning.vehicle_limits_source": "course_simulation"})
+
+
+def test_mvp_real_ros_callbacks_distance_stop_and_restart(make_node):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp"})
+
+    def feed_road(speed=0.2):
+        node.wheel_speed_callback(Float32(data=speed))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
+            for i in range(9):
+                cone = ConeDetection()
+                cone.position.x, cone.position.y = 0.1+0.3*i, y
+                cone.color, cone.classification_confidence = colour, 0.95
+                batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    assert node.vehicle_settings.valid is False
+    feed_road()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    assert node.planning_output["target_speed_mps"] == 0.2
+    assert node.control_diagnostics["operating_profile"] == "mvp_low_speed"
+    node.distance_limiter.distance_m = 2.995
+    node.test_clock.advance(0.05)
+    node.supervision_callback()
+    assert node.fsm_state == 2
+    assert "Distance limit reached" in node.state_reason
+    assert node.action_publisher.messages[-1].drive == 0
+    assert node.action_publisher.messages[-1].steer == 0
+    node.test_clock.advance(0.05)
+    feed_road(speed=0.0)
+    node.run_policy_step()
+    node.supervision_callback()
+    assert node.fsm_state == 2
+    request(node, 3)
+    assert node.distance_limiter.distance_m == 0
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    assert node.action_publisher.messages[-1].drive > 0
+    assert node.pan_publisher.messages == []
+
+
 def test_startup_zero_and_not_publishing_meanings(make_node):
     node = make_node()
     assert node.fsm_state == 2
@@ -884,8 +985,15 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         cli_args=["--ros-args", "--params-file", str(SHARE / "config/ai4r_policy.yaml")])
     try:
         assert node.get_fully_qualified_name() == "/namespaced/ai4r_policy"
-        assert node.policy_update_mode == "cone_detection"
-        assert node.required_sensors == ["cone_detections"]
+        assert node.policy_update_mode == "timer"
+        assert node.policy_update_rate_hz == 20.0
+        assert node.required_sensors == ["cone_detections", "wheel_speed", "imu_angular_velocity"]
+        assert node.control_settings.enabled is True
+        assert node.control_settings.mode == "mvp"
+        assert node.control_settings.max_distance_m == 3.0
+        assert node.control_settings.max_run_time_s == 30.0
+        assert node.vehicle_settings.valid is False
+        assert node.fsm_state == 2
     finally:
         node.destroy_node()
         context.shutdown()
@@ -917,7 +1025,7 @@ def test_installed_launch_starts_executable_and_shuts_down(tmp_path):
             cwd=tmp_path, env=environment, stdout=output_file, stderr=subprocess.STDOUT,
             text=True, start_new_session=True)
         try:
-            marker = "Policy update source: cone_detection"
+            marker = "Policy update source: timer"
             deadline = time.monotonic() + 10.0
             output = ""
             while time.monotonic() < deadline:

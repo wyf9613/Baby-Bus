@@ -11,14 +11,17 @@
     #   timer:          a timer at policy_update_rate_hz, using cached sensors.
     # Other callbacks only store observations. There is no automatic fallback
     # to timer mode if the chosen sensor stops, and no simultaneous triggers.
-    policy_update_mode: cone_detection
+    # Integrated control uses ONE 20 Hz timer. Cones are still measured at the
+    # detector's rate; estimation re-aligns the cached geometry using motion
+    # history. This leaves margin under the planner's 0.1 s reference deadline.
+    policy_update_mode: timer
 
     # Timer-mode frequency in Hz (positive finite double; default 50.0).
     # Ignored outside timer mode. More steps do NOT mean more sensor measurements.
     # Use the measured dt supplied to your policy, not 1/frequency.
     # Your action interval must leave margin below the VEHICLE command timeout
     # (normally 0.5 s); a very slow policy can cause the vehicle to disable.
-    policy_update_rate_hz: 50.0
+    policy_update_rate_hz: 20.0
 
     # Which observations MUST be present and fresh before/during your policy?
     # Valid names: cone_detections, fiducial_detections, lidar_scan,
@@ -35,7 +38,7 @@
     # Conversion always runs: this list selects requirements, not processing.
     # The old sensor name lidar is now lidar_scan; the update mode stays lidar.
     # Timer mode may use [] for a deliberate open-loop experiment.
-    required_sensors: [cone_detections]
+    required_sensors: [cone_detections, wheel_speed, imu_angular_velocity]
 
     # COPYABLE EXERCISES: replace the active settings above; do not add a second
     # active copy of the same key. A sensor-driven mode needs no rate setting.
@@ -124,8 +127,8 @@
     # Only new internal group records follow the Word meeting draft:
     # state.speed_mps/yaw_rate_rps and road.centerline_xy/boundaries/width.
     # v_mps/yaw_rate_radps aliases support the supplied planning screenshots.
-    # Internal records are self.estimation_output; normalized actions stay zero
-    # until planning/controller code explicitly consumes those records.
+      # Internal records are self.estimation_output; the integrated controller
+      # below consumes the planner reference only after all validity checks.
     estimation:
       # One-pole filter time constants, seconds. Larger is smoother but slower.
       # New accepted samples update once; repeated cached samples do not.
@@ -160,13 +163,13 @@
       # width (m), or a known simulation width, before using single-side inference.
       known_lane_width_m: 0.0
 
-    # V1 straight-centerline reference only; drive/steering remain zero.
+    # V1 straight-centerline reference, consumed by the controller below.
     # self.planning_output / planning_diagnostics are internal records, no topic.
-    # These are operating-domain settings, NOT vehicle calibration. Unknown
-    # vehicle_limits produce INVALID_INPUT until supplied by the estimation /
-    # calibration integration. V1 deliberately has no obstacle response.
+    # MVP mode checks current road/state geometry and freshness, and does not
+    # require the calibrated footprint/braking profile. V1 has no obstacle
+    # response; use a short straight corridor with both cone boundaries.
     planning:
-      cruise_speed_mps: 0.3
+      cruise_speed_mps: 0.2
       max_source_age_s: 0.2
       reference_lifetime_s: 0.1
       # Actual supported x range, metres; do not extrapolate to the car origin.
@@ -192,6 +195,53 @@
       simulation_braking_deceleration_mps2: 0.5
       simulation_actuation_delay_s: 0.1
       simulation_safety_margin_m: 0.05
+
+    # Single-file control integration. Bare node defaults remain the teaching
+    # starter (disabled); this supplied configuration selects closed-loop code.
+    # Startup is still state 2, with separate vehicle Enable and policy state 3.
+    # MVP mode directly computes normalized steering; it does not claim a
+    # calibrated steering/footprint/braking model and uses no simulation fallback.
+    control:
+      enabled: true
+      mode: mvp
+      # Optional calibrated mode only: must match planning's simulation profile.
+      # MVP uses direct normalized steering and ignores this geometry selector.
+      vehicle_params_source: upstream
+      # Distance is raw-wheel-speed integration per explicit policy run. At
+      # >=3 m the framework enters continuous-zero state 2; state 3 must be
+      # requested explicitly to reset the budget and run again. Coasting/slip
+      # and encoder scaling affect the physical final stopping position.
+      max_distance_m: 3.0
+      # Backup cutoff if the wheel estimator reports fresh zero throughout.
+      max_run_time_s: 30.0
+      # Direct normalized/m and normalized/rad gains, no angle-to-servo mapping.
+      mvp_lateral_kp: 1.0
+      mvp_lateral_ki: 0.0
+      mvp_heading_kp: 0.5
+      # Assumes positive policy steering turns left; reverse after checking the
+      # actual small-angle response if the particular car has the opposite sign.
+      mvp_steering_direction: 1.0
+      # Offline selected candidate gains, not measured real-car tuning.
+      speed_kp: 1.4
+      speed_ki: 0.6
+      speed_kd: 0.0
+      lateral_kp: 1.2
+      lateral_ki: 0.1
+      lateral_kd: 0.0
+      heading_kp: 0.8
+      derivative_tau_s: 0.15
+      # Forward-only effort. Stop/invalid/expired reference transitions to
+      # continuous zero actions; the simulated negative-drive hold is NOT used.
+      drive_max: 0.15
+      steering_max_normalized: 0.5
+      max_dt_s: 0.2
+      # Before FIRST control only: neutral priming of delayed camera history.
+      # Once tracking, any invalid path stops and needs an explicit resume.
+      startup_grace_s: 0.5
+
+    # The optional measured vehicle.* inlet is used only by the later calibrated
+    # profile; MVP does not require completing that record. No hardware-node
+    # configuration is changed by this policy.
 
     # ADD YOUR OWN PARAMETER: also declare and read it in policy_node.py.
     # Example for the commented controller in that file:
