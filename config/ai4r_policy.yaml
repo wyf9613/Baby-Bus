@@ -118,6 +118,26 @@
     # is not supported by this initial package or the live vehicle/IMU drivers.
     use_sim_time: false
 
+    # Vehicle identification: startup-only, one sequence per explicit state-3 request.
+    # Set policy_update_mode: timer and required_sensors: [wheel_speed] above.
+    # Optional IMU remains per-field valid/fresh; require imu_angular_velocity
+    # as well if the experiment needs yaw data. Record before requesting state 3.
+    id_test:
+      mode: "off"                   # off / steering / drive / brake (keep off quoted)
+      confirmed: false              # review the sequence and limits on site first
+      negative_drive_confirmed: false # brake mode only, after confirming ESC rules
+      durations_s: [1.0]            # one duration per stage; all three arrays align
+      drive_values: [0.0]           # normalized motor effort, NOT target speed
+      steering_values: [0.0]        # normalized request, NOT wheel angle
+      drive_min: 0.0               # reviewed working limits; no motion defaults
+      drive_max: 0.0
+      steering_abs_max: 0.0
+      speed_limit_mps: 0.0         # must be > start_speed_max_mps for an active test
+      start_speed_max_mps: 0.03    # measured unsigned speed threshold, not proof of rest
+      settle_s: 2.0               # zeros before/after sequence, NOT active braking
+      max_dt_s: 0.15              # larger scheduling gap aborts rather than skipping ahead
+      max_run_s: 30.0             # includes both settle intervals; at most 120 s
+
     # ADD YOUR OWN PARAMETER: also declare and read it in policy_node.py.
     # Example for the commented controller in that file:
     # speed_kp: 0.2
