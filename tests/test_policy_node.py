@@ -4,6 +4,7 @@ Run through tools/verify_fast.sh on Ubuntu/ROS Jazzy. No sensor driver, serial
 device, vehicle process, or physical actuator is started by these tests.
 """
 import importlib.util
+import json
 import math
 import os
 from pathlib import Path
@@ -1011,3 +1012,71 @@ def test_real_ros_graph_zero_handshake_sensor_qos_and_watchdog(mode):
         peer.destroy_node()
         executor.shutdown()
         context.shutdown()
+
+
+def identification_node(make_node, **changes):
+    settings = {"id_test.mode": "drive", "id_test.confirmed": True,
+                "id_test.durations_s": [0.5], "id_test.drive_values": [0.1],
+                "id_test.steering_values": [0.0], "id_test.drive_max": 0.2,
+                "id_test.speed_limit_mps": 0.5, "id_test.settle_s": 0.5,
+                "id_test.max_run_s": 5.0, **changes}
+    node = make_node(required=("wheel_speed",), **settings)
+    node.identification_publisher = Recorder()
+    return node
+
+
+def identification_tick(node, speed=0.0, advance=0.05):
+    node.test_clock.advance(advance)
+    node.wheel_speed_callback(Float32(data=float(speed)))
+    node.run_policy_step()
+
+
+def test_identification_completes_zero_and_requires_explicit_restart(make_node):
+    node = identification_node(make_node)
+    node.wheel_speed_callback(Float32(data=0.0))
+    request(node, 3)
+    node.run_policy_step()
+    for _ in range(31):
+        identification_tick(node)
+    assert any(m.drive > 0 for m in node.action_publisher.messages)
+    assert node.fsm_state == 2
+    assert node.action_publisher.messages[-1].drive == 0
+    first_id = json.loads(node.identification_publisher.messages[0].data)["run_id"]
+    sample_count = len(node.identification_publisher.messages)
+    identification_tick(node)
+    assert len(node.identification_publisher.messages) == sample_count
+    request(node, 3)
+    node.run_policy_step()
+    restarted = json.loads(node.identification_publisher.messages[-1].data)
+    assert restarted["run_id"] != first_id
+    assert restarted["drive"] == 0 and restarted["phase"] == "settle"
+    assert not node.pan_publisher.messages
+
+
+def test_identification_speed_and_timing_abort_without_nonzero_publication(make_node):
+    for speed, advance in ((0.6, 0.05), (0.0, 0.3)):
+        node = identification_node(make_node)
+        node.wheel_speed_callback(Float32(data=0.0))
+        request(node, 3)
+        node.run_policy_step()
+        identification_tick(node, speed, advance)
+        assert node.fsm_state == 2
+        assert all(m.drive == 0 for m in node.action_publisher.messages)
+        assert json.loads(node.identification_publisher.messages[-1].data)["terminal"]
+
+
+def test_identification_stale_wheel_data_requires_operator_resume(make_node):
+    node = identification_node(make_node)
+    node.wheel_speed_callback(Float32(data=0.0))
+    request(node, 3)
+    node.run_policy_step()
+    for _ in range(11):
+        identification_tick(node)
+    assert node.action_publisher.messages[-1].drive > 0
+    node.test_clock.advance(0.6)
+    node.supervision_callback()
+    assert node.fsm_state == 2
+    assert node.action_publisher.messages[-1].drive == 0
+    identification_tick(node)
+    assert node.fsm_state == 2
+    assert not node.pan_publisher.messages
