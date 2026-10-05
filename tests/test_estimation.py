@@ -24,20 +24,23 @@ else:
     # framework suite, rather than accidentally testing a different source copy.
     SOURCE = Path(get_package_prefix("ai4r_policy")) / "lib" / "ai4r_policy" / "policy_node.py"
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
-names = {"finite_number", "EstimationSettings", "FirstOrderSampleFilter",
+names = {"finite_number", "Observation", "EstimationSettings", "FirstOrderSampleFilter", "EstimationMotionHistory",
          "_estimation_median", "_estimation_solve", "_estimation_fit_boundary", "EstimationPipeline"}
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in names]
 policy_class = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
 policy_method = next(item for item in policy_class.body if isinstance(item, ast.FunctionDef)
                      and item.name == "calculate_policy_actions")
+store_method = next(item for item in policy_class.body if isinstance(item, ast.FunctionDef)
+                    and item.name == "_store")
 namespace = {"dataclass": dataclass, "math": math, "deepcopy": deepcopy,
              "Real": __import__("numbers").Real,
              "ConeDetection": SimpleNamespace(COLOR_BLUE=2, COLOR_YELLOW=1)}
-exec(compile(ast.Module(body=definitions+[policy_method], type_ignores=[]), str(SOURCE), "exec"), namespace)
+exec(compile(ast.Module(body=definitions+[policy_method, store_method], type_ignores=[]), str(SOURCE), "exec"), namespace)
 Settings = namespace["EstimationSettings"]
 Filter = namespace["FirstOrderSampleFilter"]
 Pipeline = namespace["EstimationPipeline"]
+Motion = namespace["EstimationMotionHistory"]
 
 
 def cones(left, right):
@@ -111,9 +114,12 @@ class EstimationChecks(unittest.TestCase):
         self.assertEqual(state["speed_mps"], state["v_mps"])
         self.assertEqual(state["yaw_rate_rps"], state["yaw_rate_radps"])
         self.assertIsNone(state["source_stamp_ns"]["wheel_speed"])
-        self.assertEqual(road["timestamp_s"], 10.0)
+        self.assertEqual(state["timestamp_s"], road["timestamp_s"])
+        self.assertEqual(road["timestamp_s"], 10.05)
+        self.assertEqual(road["measurement_timestamp_s"], 10.0)
         self.assertEqual(road["source_age_s"], 0.05)
-        self.assertFalse(road["motion_compensated"])
+        self.assertTrue(road["motion_compensated"])
+        self.assertTrue(out["alignment"]["valid"])
         self.assertFalse(out["vehicle_limits"]["valid"])
         self.assertFalse(out["vehicle_params"]["valid"])
         json.dumps(out, allow_nan=False)
@@ -219,7 +225,9 @@ class EstimationChecks(unittest.TestCase):
             obs[key] = None
         node = SimpleNamespace(estimation_settings=Settings(), policy_frame_id="base_link",
                                heading_reference=None,
-                               observations={k: SimpleNamespace(received_at=receipts.get(k)) for k in obs},
+                               motion_history=Motion(Settings()),
+                               observations={k: SimpleNamespace(received_at=receipts.get(k),
+                                                               received_ros_ns=10_000_000_000) for k in obs},
                                get_clock=lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_050_000_000)))
         method = namespace["calculate_policy_actions"]
         result = method(node, obs, ages, stamps, 0.0, 0.0, True)
@@ -228,6 +236,171 @@ class EstimationChecks(unittest.TestCase):
         obs["wheel_speed"] = None
         method(node, obs, ages, stamps, 0.05, 0.05, False)
         self.assertFalse(node.estimation_output["state"]["valid"])
+
+    def test_delayed_straight_road_moves_into_current_body_frame(self):
+        pipeline = Pipeline(Settings())
+        args = input_record(speed=0.5, yaw=0.0)
+        raw = pipeline.road(args[0]["cone_detections"], args[2]["cone_detections"], 0.05)
+        out = pipeline.update(*args, 10.05)
+        self.assertTrue(out["alignment"]["valid"])
+        self.assertEqual(out["road"]["timestamp_s"], out["state"]["timestamp_s"])
+        for old, new in zip(raw["centerline_xy"], out["road"]["centerline_xy"]):
+            self.assertAlmostEqual(new[0], old[0]-0.025)
+            self.assertAlmostEqual(new[1], old[1])
+
+    def test_left_turn_uses_inverse_rigid_transform(self):
+        motion = Motion(Settings())
+        motion.observe("wheel_speed", 1.0, 1, 1.0, 10.0)
+        motion.observe("imu_angular_velocity", 0.5, 10_000_000_000, 10.0, 10.0)
+        pose, reason = motion.pose_between(10.0, 10.1)
+        self.assertIsNone(reason)
+        self.assertAlmostEqual(pose["dx_m"], math.sin(0.05)/0.5)
+        self.assertAlmostEqual(pose["dy_m"], (1-math.cos(0.05))/0.5)
+        x, y = motion.transform_xy((2.0, 0.0), pose)
+        self.assertAlmostEqual(x, math.cos(0.05)*(2-pose["dx_m"])-math.sin(0.05)*pose["dy_m"])
+        self.assertAlmostEqual(y, -math.sin(0.05)*(2-pose["dx_m"])-math.cos(0.05)*pose["dy_m"])
+        self.assertLess(y, 0)
+
+    def test_asynchronous_motion_knots_are_integrated_causally(self):
+        settings = Settings(speed_tau_s=1e-6, yaw_rate_tau_s=1e-6)
+        motion = Motion(settings)
+        motion.observe("wheel_speed", 1.0, 1, 1.0, 10.0)
+        motion.observe("imu_angular_velocity", 0.0, 10_000_000_000, 10.0, 10.0)
+        motion.observe("wheel_speed", 2.0, 2, 1.05, 10.05)
+        motion.observe("imu_angular_velocity", 0.0, 10_080_000_000, 10.08, 10.08)
+        pose, reason = motion.pose_between(10.0, 10.1)
+        self.assertIsNone(reason)
+        self.assertAlmostEqual(pose["dx_m"], 0.15)
+        self.assertAlmostEqual(pose["dy_m"], 0.0)
+        # A future speed sample must not alter an earlier interval.
+        motion.observe("wheel_speed", 20.0, 3, 1.2, 10.2)
+        earlier, reason = motion.pose_between(10.0, 10.1)
+        self.assertIsNone(reason)
+        self.assertEqual(earlier, pose)
+
+    def test_fresh_latest_motion_does_not_fill_missing_history(self):
+        args = input_record(speed=0.5, yaw=0.3)
+        args[1].update(cone_detections=0.2, wheel_speed=0.04, imu_angular_velocity=0.02)
+        args[2]["imu_angular_velocity"] = 10_180_000_000
+        out = Pipeline(Settings()).update(*args, 10.2)
+        self.assertTrue(out["state"]["valid"])
+        self.assertFalse(out["road"]["valid"])
+        self.assertFalse(out["alignment"]["valid"])
+        self.assertEqual(out["road"]["status"], "missing_motion_history")
+        self.assertIsNone(out["road"]["timestamp_s"])
+        self.assertEqual(out["road"]["measurement_timestamp_s"], 10.0)
+        self.assertEqual(out["road"]["centerline_xy"], [])
+
+    def test_accepted_samples_between_camera_triggers_align_delayed_road(self):
+        settings = Settings()
+        motion = Motion(settings)
+        node = SimpleNamespace(motion_history=motion,
+            sensor_timeout_s={"wheel_speed": 0.5, "imu_angular_velocity": 0.5},
+            timestamp_tolerance_s=0.05,
+            observations={"wheel_speed": None, "imu_angular_velocity": None},
+            _warn=lambda *_: None)
+        store = namespace["_store"]
+        # Actual _store entry is used at each accepted telemetry callback;
+        # there is no policy calculation between these motion measurements.
+        for dt in (0.0, 0.05, 0.1, 0.15):
+            stamp = round((10.0+dt)*1e9)
+            self.assertTrue(store(node, "wheel_speed", 0.5, None, 1.0+dt, stamp))
+            self.assertTrue(store(node, "imu_angular_velocity", (0, 0, 0.3), stamp, 1.0+dt, stamp))
+        self.assertTrue(store(node, "wheel_speed", 0.5, None, 1.16, 10_160_000_000))
+        self.assertTrue(store(node, "imu_angular_velocity", (0, 0, 0.3), 10_180_000_000, 1.18, 10_180_000_000))
+        self.assertEqual(node.observations["wheel_speed"].received_ros_ns, 10_160_000_000)
+        count = len(motion.samples["imu_angular_velocity"])
+        self.assertFalse(store(node, "imu_angular_velocity", (0, 0, 99), 10_180_000_000, 1.19, 10_190_000_000))
+        self.assertEqual(len(motion.samples["imu_angular_velocity"]), count)
+        args = input_record(speed=0.5, yaw=0.3)
+        args[1].update(cone_detections=0.2, wheel_speed=0.04, imu_angular_velocity=0.02)
+        args[2]["imu_angular_velocity"] = 10_180_000_000
+        args[3]["wheel_speed"] = 1.16
+        pipeline = Pipeline(settings, motion_history=motion)
+        raw = pipeline.road(args[0]["cone_detections"], 10_000_000_000, 0.2)
+        out = pipeline.update(*args, 10.2, {"wheel_speed": 10_160_000_000})
+        self.assertTrue(out["alignment"]["valid"])
+        self.assertEqual(out["road"]["timestamp_s"], 10.2)
+        self.assertEqual(out["state"]["timestamp_s"], 10.2)
+        self.assertEqual(out["road"]["measurement_timestamp_s"], 10.0)
+        # Independent analytic constant-turn reference, not a copied integrator.
+        angle = 0.3*0.2
+        dx, dy = 0.5/0.3*math.sin(angle), 0.5/0.3*(1-math.cos(angle))
+        for (x, y), transformed in zip(raw["centerline_xy"], out["road"]["centerline_xy"]):
+            self.assertAlmostEqual(transformed[0], math.cos(angle)*(x-dx)+math.sin(angle)*(y-dy))
+            self.assertAlmostEqual(transformed[1], -math.sin(angle)*(x-dx)+math.cos(angle)*(y-dy))
+
+    def test_stop_reset_removes_previous_run_history(self):
+        motion = Motion(Settings())
+        motion.observe("wheel_speed", 1.0, 1, 1.0, 10.0)
+        motion.observe("imu_angular_velocity", 0.0, 1, 10.0, 10.0)
+        motion.clear()
+        pose, reason = motion.pose_between(10.0, 10.05)
+        self.assertIsNone(pose)
+        self.assertEqual(reason, "missing_motion_history")
+
+    def test_transformed_road_behind_vehicle_is_rejected(self):
+        args = input_record(speed=30.0, yaw=0.0)
+        args[1].update(cone_detections=0.1, wheel_speed=0.1, imu_angular_velocity=0.1)
+        out = Pipeline(Settings()).update(*args, 10.1)
+        self.assertFalse(out["road"]["valid"])
+        self.assertEqual(out["road"]["status"], "motion_transformed_geometry_invalid")
+
+    def test_future_camera_stamp_cannot_be_retrospectively_aligned(self):
+        args = input_record(speed=0.5, yaw=0.0)
+        args[2]["cone_detections"] = 10_080_000_000
+        args[1]["cone_detections"] = 0.0
+        out = Pipeline(Settings()).update(*args, 10.05)
+        self.assertFalse(out["road"]["valid"])
+        self.assertEqual(out["road"]["status"], "invalid_motion_time")
+
+    def test_motion_gap_is_not_hidden_by_new_samples(self):
+        motion = Motion(Settings())
+        for name in ("wheel_speed", "imu_angular_velocity"):
+            motion.observe(name, 0.5 if name == "wheel_speed" else 0.0, 1, 1.0, 10.0)
+            motion.observe(name, 0.5 if name == "wheel_speed" else 0.0, 2, 1.2, 10.2)
+        pose, reason = motion.pose_between(10.0, 10.25)
+        self.assertIsNone(pose)
+        self.assertEqual(reason, "motion_history_gap")
+
+    def test_clock_rollback_clears_motion_and_future_data_is_not_used(self):
+        motion = Motion(Settings())
+        motion.check_clock(10.0)
+        motion.observe("wheel_speed", 0.5, 1, 1.0, 10.0)
+        motion.observe("imu_angular_velocity", 0.1, 1, 10.0, 10.0)
+        motion.check_clock(9.0)
+        self.assertIsNone(motion.current("wheel_speed", 9.0))
+        motion.observe("wheel_speed", 0.5, 2, 2.0, 9.1)
+        self.assertIsNone(motion.current("wheel_speed", 9.0))
+
+    def test_interval_limit_and_negative_speed_reject_motion(self):
+        motion = Motion(Settings())
+        self.assertEqual(motion.pose_between(10.0, 10.4)[1], "motion_interval_too_long")
+        motion.observe("wheel_speed", -0.5, 1, 1.0, 10.0)
+        self.assertIsNone(motion.current("wheel_speed", 10.0))
+        self.assertEqual(motion.pose_between(10.1, 10.0)[1], "invalid_motion_time")
+
+    def test_lidar_points_share_epoch_and_keep_scan_metadata(self):
+        out = Pipeline(Settings()).update(*input_record(speed=0.5, yaw=0.0,
+            lidar={"points_xyz": [(1.0, 0.0, 0.12)], "scan_indices": [7]}), 10.05)
+        obstacle = out["obstacles"]
+        self.assertTrue(obstacle["available"])
+        self.assertEqual(obstacle["timestamp_s"], out["state"]["timestamp_s"])
+        self.assertEqual(obstacle["measurement_timestamp_s"], 10.0)
+        self.assertAlmostEqual(obstacle["points_xyz_m"][0][0], 0.975)
+        self.assertEqual(obstacle["points_xyz_m"][0][2], 0.12)
+        self.assertEqual(obstacle["scan_indices"], [7])
+        self.assertFalse(obstacle["deskewed"])
+
+    def test_cached_motion_has_bounded_memory_and_no_duplicate_samples(self):
+        motion = Motion(Settings())
+        motion.observe("wheel_speed", 0.5, 1, 1.0, 10.0)
+        for _ in range(20):
+            motion.observe("wheel_speed", 0.5, 1, 1.0, 10.0)
+        self.assertEqual(len(motion.samples["wheel_speed"]), 1)
+        for index in range(1, 800):
+            motion.observe("wheel_speed", 0.5, index+1, 1+index*0.001, 10+index*0.001)
+        self.assertLessEqual(len(motion.samples["wheel_speed"]), 512)
 
 
 if __name__ == "__main__":

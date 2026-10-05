@@ -796,6 +796,46 @@ def test_shipped_student_calculation_is_zero_and_handles_missing_observations(ma
     assert node.estimation_output["state"]["speed_mps"] is None
 
 
+@pytest.mark.parametrize("buffer_history", [True, False])
+def test_student_geometry_aligns_to_state_only_with_motion_history(make_node, buffer_history):
+    node = make_node()
+    request(node, 3)
+    first_stamp = node.test_clock.ros_ns
+    for index in range(3):
+        if index:
+            node.test_clock.advance(0.05)
+        if not buffer_history and index != 2:
+            continue
+        node.wheel_speed_callback(Float32(data=0.5))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        gyro.angular_velocity.z = 0.0
+        node.imu_callback(gyro)
+    batch = stamp(node, ConeDetections(), offset=-0.1)
+    batch.acquisition_to_publish_latency_s = 0.08
+    for colour, lateral in ((ConeDetection.COLOR_BLUE, 0.5), (ConeDetection.COLOR_YELLOW, -0.5)):
+        for x in (0.5, 0.8, 1.1, 1.4, 1.7):
+            cone = ConeDetection()
+            cone.position.x, cone.position.y = x, lateral
+            cone.color, cone.classification_confidence = colour, 0.95
+            batch.detections.append(cone)
+    node.cone_detection_callback(batch)
+    node.run_policy_step()
+    out = node.estimation_output
+    assert out["state"]["valid"]
+    assert out["road"]["measurement_timestamp_s"] == first_stamp/1e9
+    assert out["alignment"]["valid"] == buffer_history
+    if buffer_history:
+        assert out["road"]["timestamp_s"] == out["state"]["timestamp_s"]
+        assert out["road"]["centerline_xy"][0][0] == pytest.approx(0.45)
+    else:
+        assert not out["road"]["valid"]
+        assert out["road"]["timestamp_s"] is None
+        assert out["road"]["status"] == "missing_motion_history"
+    assert node.action_publisher.messages[-1].drive == 0.0
+    assert node.action_publisher.messages[-1].steer == 0.0
+
+
 def test_invalid_sensor_content_and_runtime_parameter_changes(make_node):
     node = make_node()
     bad_cone = cones(node)

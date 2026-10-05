@@ -68,6 +68,44 @@ cross-frame/Kalman fusion are subsequent investigations. Single-sided estimates
 require an explicitly supplied road width, unknown by default. Road-relative
 errors and unimplemented single-side curvature remain None, not fabricated.
 
+## Estimation time-alignment fix, 2026-10-05
+
+The original draft paired current-time filtered state with acquisition-time
+road geometry. A fresh frame could be valid despite belonging to an older body
+frame. The fix records every accepted wheel/gyro sample in bounded history,
+including those between camera triggers. Filtered motion is integrated causally
+over the source-to-output interval and its inverse planar rigid transform is
+applied to road/boundary and lidar points. Valid geometry and state now share
+`timestamp_s`; `measurement_timestamp_s` and source ages retain original timing.
+
+The model assumes forward, planar, no-slip motion. Wheel acquisition time is
+unknown; its ROS receipt is a proxy, explicitly exposed in alignment metadata.
+The low-pass and encoder delay have not been calibrated away. Wheel speed is
+approximated as base_link forward speed with zero lateral speed; the CG/rear-axle
+offset is unmeasured and can add turning error. Missing coverage, history gaps,
+excessive interval, future geometry, unavailable motion state or
+invalid transformed support reject geometry rather than merely relabel it.
+Current state is a causal filtered hold. Stop/restart and ROS clock rollback
+clear motion history. Lidar uses its first-ray stamp for a whole-scan rigid
+approximation and is **not** individually deskewed.
+
+Defaults add `motion_max_gap_s=0.15` and `motion_max_interval_s=0.3`; neither can
+exceed `max_source_age_s`. Each source retains at most 512 motion samples. The
+original framework input/action signatures, selected trigger, required-sensor
+settings, supervisor and vehicle YAML are preserved. Internal acceptance hooks
+record motion and clear it on clock/state resets; no driving controller is added.
+Static comparison against framework baseline `4e86a43` confirms all original
+PolicyNode signatures, 20 complete framework methods, original policy settings
+and the entire vehicle YAML are preserved. All seven Python files parse.
+
+Local Python 3.12.14: `python -B tests/test_estimation.py -v` passed 28 checks.
+New checks use the actual `_store` and student calculation entry; verify analytic
+straight/turn geometry, asynchronous causal motion, a 0.2 s delayed road with
+and without history, gaps, future data, ROS rollback, stop reset, lidar metadata,
+clipping and bounded history. A new two-case ROS callback regression is included
+in test_policy_node.py but **not run** in this Windows environment. The full
+CONTRIBUTING ROS gate and physical accuracy tests remain unperformed.
+
 ## Student-facing review, 2026-09-28
 
 The owner reviewed `scripts/policy_node.py`, `config/ai4r_policy.yaml` and

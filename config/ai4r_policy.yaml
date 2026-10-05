@@ -132,8 +132,13 @@
       speed_tau_s: 0.15
       yaw_rate_tau_s: 0.08
       # Source age, seconds; cannot relax the framework's sensor deadlines.
-      # Geometry retains its acquisition timestamp (no ego-motion correction yet).
+      # Original acquisition/receipt metadata remains after time alignment.
       max_source_age_s: 0.5
+      # Align geometry using bounded wheel/gyro history on the ROS clock.
+      # Forward no-slip planar model; wheel time is receipt, NOT acquisition.
+      # Missing/old motion or a gap rejects geometry instead of retimestamping.
+      motion_max_gap_s: 0.15
+      motion_max_interval_s: 0.3
       # Dimensionless confidence threshold in [0,1]. Colour convention for this
       # prototype is BLUE left / YELLOW right, as in the supplied course road.
       min_cone_confidence: 0.5

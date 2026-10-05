@@ -2,6 +2,8 @@
 
 团队策略仓库，基于 DREAM 课程框架。当前分工见 [四组项目计划](docs/TEAM_PROJECT_PLAN.md)。接口优先沿用 GitHub 中的课程框架代码和配置；框架未定义的组间数据结构再按 Word 接口会议草案补充。已加入首版车辆状态低通滤波和单帧鲁棒道路估计，新增内部状态采用 `speed_mps`、`yaw_rate_rps` 等草案字段，并提供截图名称别名。结果在 `self.estimation_output`，参数位于现有 `config/ai4r_policy.yaml` 的 `estimation` 节；规划及控制尚未接入，驱动和转向仍为零。算法、字段、调参和联调说明见 [估计模块首版说明](docs/ESTIMATION_V1_CN.md)。离线检查命令为 `python3 -B tests/test_estimation.py -v`；完整 ROS gate 与实车验证见 [验收记录](docs/acceptance.md)。下文为上游使用说明。
 
+2026-10-05 更新：有效道路/雷达点通过轮速与偏航率历史补偿到自车状态的参考时刻，并保留原测量时间；历史不足或断档时拒绝使用。该补偿采用前进、平面无侧滑近似，轮速时间为接收时刻代理，未完成实车精度验证。详情见上方模块说明。
+
 Student ROS 2 policy package for the DREAM robot, targeting Ubuntu 24.04 and
 ROS 2 Jazzy. Version 0.2.0 adds ArUco observations to the first source release;
 a published annotated tag and successful release CI establish release identity.

@@ -86,6 +86,7 @@ class Observation:
     value: object
     received_at: float             # monotonic seconds, not a ROS timestamp
     stamp_ns: int | None = None     # wheel-speed messages have no header
+    received_ros_ns: int | None = None  # receipt proxy, NOT wheel acquisition time
 
 
 def finite_number(value):
@@ -169,6 +170,8 @@ class EstimationSettings:
     speed_tau_s: float = 0.15
     yaw_rate_tau_s: float = 0.08
     max_source_age_s: float = 0.5
+    motion_max_gap_s: float = 0.15
+    motion_max_interval_s: float = 0.3
     min_cone_confidence: float = 0.5
     road_forward_max_m: float = 3.0
     road_min_coverage_m: float = 0.5
@@ -202,6 +205,8 @@ class EstimationSettings:
             raise ValueError("road spacing exceeds minimum coverage")
         if self.road_forward_max_m / self.road_sample_spacing_m > 200:
             raise ValueError("road sampling is limited to 201 points")
+        if max(self.motion_max_gap_s, self.motion_max_interval_s) > self.max_source_age_s:
+            raise ValueError("motion timing limits cannot exceed the source-age limit")
 
 
 class FirstOrderSampleFilter:
@@ -234,6 +239,113 @@ class FirstOrderSampleFilter:
             self.value += alpha * (value - self.value)
         self.sample_key, self.sample_time_s = sample_key, sample_time_s
         return self.value
+
+
+class EstimationMotionHistory:
+    """Bounded, causal filtered wheel/gyro history on the ROS clock.
+
+    Wheel time is ROS receipt (its message has no acquisition stamp). Motion
+    assumes FORWARD, no-slip planar driving; unsigned wheel speed cannot support
+    reverse compensation. Never substitute missing history with current speed.
+    """
+    def __init__(self, settings):
+        self.settings = settings
+        self.filters = {
+            "wheel_speed": FirstOrderSampleFilter(settings.speed_tau_s, settings.max_source_age_s),
+            "imu_angular_velocity": FirstOrderSampleFilter(settings.yaw_rate_tau_s, settings.max_source_age_s)}
+        self.clear()
+
+    def clear(self):
+        self.samples = {name: [] for name in self.filters}
+        for filter_ in self.filters.values():
+            filter_.clear()
+        self.last_ros_now = None
+
+    def check_clock(self, now_s):
+        if not finite_number(now_s):
+            self.clear()
+            return False
+        if self.last_ros_now is not None and now_s < self.last_ros_now:
+            self.clear()
+        self.last_ros_now = now_s
+        return True
+
+    def clear_source(self, name):
+        self.samples[name] = []
+        self.filters[name].clear()
+
+    def observe(self, name, value, key, sample_time_s, ros_time_s):
+        filter_ = self.filters[name]
+        if (not finite_number(value) or not finite_number(ros_time_s)
+                or (name == "wheel_speed" and value < 0)):
+            self.clear_source(name)
+            return
+        if key == filter_.sample_key and key is not None:
+            return
+        if self.samples[name] and ros_time_s <= self.samples[name][-1][0]:
+            self.clear_source(name)
+        filtered = filter_.update(value, key, sample_time_s)
+        if not finite_number(filtered):
+            self.clear_source(name)
+            return
+        samples = self.samples[name]
+        samples.append((ros_time_s, filtered))
+        # Bounded memory, retaining enough history for the admitted interval.
+        cutoff = ros_time_s - 2*self.settings.max_source_age_s
+        while len(samples) > 2 and samples[1][0] < cutoff:
+            samples.pop(0)
+        del samples[:-512]
+
+    def sample_at(self, name, time_s):
+        return next((item for item in reversed(self.samples[name]) if item[0] <= time_s), None)
+
+    def current(self, name, now_s):
+        sample = self.sample_at(name, now_s)
+        return (None if sample is None or now_s-sample[0] > self.settings.motion_max_gap_s
+                else sample[1])
+
+    def pose_between(self, start_s, end_s):
+        if not all(finite_number(v) for v in (start_s, end_s)) or end_s < start_s:
+            return None, "invalid_motion_time"
+        if end_s-start_s > self.settings.motion_max_interval_s + 1e-9:
+            return None, "motion_interval_too_long"
+        x = y = yaw = 0.0
+        knots = sorted({start_s, end_s} | {
+            t for samples in self.samples.values() for t, _ in samples if start_s < t < end_s})
+        indices = {name: -1 for name in self.samples}
+        for begin, end in zip(knots, knots[1:]):
+            held = {}
+            for name, samples in self.samples.items():
+                index = indices[name]
+                while index+1 < len(samples) and samples[index+1][0] <= begin:
+                    index += 1
+                indices[name] = index
+                held[name] = samples[index] if index >= 0 else None
+            speed, rate = held["wheel_speed"], held["imu_angular_velocity"]
+            if speed is None or rate is None:
+                return None, "missing_motion_history"
+            if max(end-speed[0], end-rate[0]) > self.settings.motion_max_gap_s + 1e-9:
+                return None, "motion_history_gap"
+            dt = end-begin
+            angle, distance = rate[1]*dt, speed[1]*dt
+            if not all(math.isfinite(v) for v in (angle, distance)):
+                return None, "nonfinite_motion"
+            if abs(angle) < 1e-6:
+                dx = distance*(1-angle*angle/6)
+                dy = distance*(angle/2-angle**3/24)
+            else:
+                dx, dy = distance*math.sin(angle)/angle, distance*(1-math.cos(angle))/angle
+            c, s = math.cos(yaw), math.sin(yaw)
+            x, y, yaw = x+c*dx-s*dy, y+s*dx+c*dy, yaw+angle
+            if not all(math.isfinite(v) for v in (x, y, yaw)):
+                return None, "nonfinite_motion"
+        return {"dx_m": x, "dy_m": y, "yaw_rad": yaw, "interval_s": end_s-start_s}, None
+
+    @staticmethod
+    def transform_xy(point, pose):
+        x, y = point[0]-pose["dx_m"], point[1]-pose["dy_m"]
+        c, s = math.cos(pose["yaw_rad"]), math.sin(pose["yaw_rad"])
+        return (c*x+s*y, -s*x+c*y)
 
 
 def _estimation_median(values):
@@ -337,18 +449,18 @@ def _estimation_fit_boundary(points, settings):
 
 
 class EstimationPipeline:
-    """Single-frame road estimator and measured-state low-pass prototype.
+    """Local geometry aligned to the state epoch with bounded planar odometry.
 
-    Draft names remain canonical; aliases support the two supplied screenshots.
-    No SLAM, no long-term coordinate averaging, no actuator requests. Geometry
-    stays at its SOURCE frame time: current-frame motion compensation is a
-    subsequent investigation, never faked by refreshing the timestamp.
+    Draft names remain canonical; aliases support the supplied screenshots.
+    Raw road() reconstructs acquisition-frame geometry. update() transports it
+    to the current body frame, or rejects it if historical motion is missing.
+    This is approximate forward odometry, not SLAM or calibrated localization.
     """
-    def __init__(self, settings, frame_id="base_link", left_colour=2, right_colour=1):
+    def __init__(self, settings, frame_id="base_link", left_colour=2, right_colour=1,
+                 motion_history=None):
         self.settings, self.frame_id = settings, frame_id
         self.left_colour, self.right_colour = left_colour, right_colour
-        self.speed = FirstOrderSampleFilter(settings.speed_tau_s, settings.max_source_age_s)
-        self.yaw_rate = FirstOrderSampleFilter(settings.yaw_rate_tau_s, settings.max_source_age_s)
+        self.motion = motion_history or EstimationMotionHistory(settings)
 
     def _fresh(self, value, age):
         return value is not None and finite_number(age) and 0 <= age < self.settings.max_source_age_s
@@ -436,24 +548,78 @@ class EstimationPipeline:
         # centreline's curvature. None is honest until that derivation is added.
         return output
 
-    def update(self, observations, ages, stamps, sample_receipts, now_s):
-        def filtered(name, filter_, component=None):
+    def _align_road(self, road, now_s, state_valid):
+        source_time = road["timestamp_s"]
+        road.update(measurement_timestamp_s=source_time, timestamp_s=None,
+                    time_aligned=False, motion_compensation=None)
+        if not road["valid"]:
+            return road
+        pose, problem = self.motion.pose_between(source_time, now_s)
+        if not state_valid:
+            problem = "motion_state_unavailable"
+        if problem is None:
+            points = [self.motion.transform_xy(p, pose) for p in road["centerline_xy"]]
+            selected = [i for i, p in enumerate(points)
+                        if all(math.isfinite(v) for v in p)
+                        and 0 <= p[0] <= self.settings.road_forward_max_m]
+            center = [points[i] for i in selected]
+            if (any(not all(math.isfinite(v) for v in p) for p in points)
+                    or len(center) < 2
+                    or center[-1][0]-center[0][0] < self.settings.road_min_coverage_m
+                    or any(b[0] <= a[0] or abs(b[1]-a[1]) > self.settings.road_max_abs_slope*(b[0]-a[0])
+                           for a, b in zip(center, center[1:]))):
+                problem = "motion_transformed_geometry_invalid"
+            else:
+                road["centerline_xy"] = center
+                road["x_range_m"] = [center[0][0], center[-1][0]]
+                for side in ("left", "right"):
+                    key = f"{side}_boundary_xy"
+                    if road[key] is not None:
+                        boundary = [self.motion.transform_xy(p, pose) for p in road[key]]
+                        road[key] = [p for p in boundary if 0 <= p[0] <= self.settings.road_forward_max_m]
+                        if any(not all(math.isfinite(v) for v in p) for p in boundary):
+                            problem = "motion_transformed_geometry_invalid"
+                # Rigid motion preserves curvature at the SAME physical point.
+                # If clipping removes that first point, do not relabel its value.
+                if selected[0] != 0:
+                    road["local_curvature_1pm"] = None
+                road.update(timestamp_s=now_s, time_aligned=True,
+                            motion_compensated=pose["interval_s"] > 0,
+                            motion_compensation=pose)
+        if problem is not None:
+            road.update(valid=False, status=problem, timestamp_s=None,
+                        time_aligned=False, motion_compensated=False,
+                        centerline_xy=[], left_boundary_xy=None, right_boundary_xy=None,
+                        lane_width_m=None, x_range_m=None, local_curvature_1pm=None,
+                        confidence=0.0, motion_compensation=None)
+        return road
+
+    def update(self, observations, ages, stamps, sample_receipts, now_s,
+               sample_receipt_ros_ns=None):
+        clock_valid = self.motion.check_clock(now_s)
+        receipt_stamps = sample_receipt_ros_ns or {}
+        for name, component in (("wheel_speed", None), ("imu_angular_velocity", 2)):
             value = observations.get(name)
-            if not self._fresh(value, ages.get(name)):
-                filter_.clear()
-                return None
+            if not clock_valid or not self._fresh(value, ages.get(name)):
+                self.motion.clear_source(name)
+                continue
             if component is not None:
                 value = value[component]
             stamp = stamps.get(name)
+            if name == "imu_angular_velocity" and (stamp is None or stamp <= 0):
+                self.motion.clear_source(name)
+                continue
             key = stamp if stamp is not None else sample_receipts.get(name)
             sample_time = stamp/1e9 if stamp is not None else sample_receipts.get(name)
-            return filter_.update(value, key, sample_time)
+            # Production uses the ROS receipt saved by _store; standalone
+            # numerical snapshots can map receipt age onto their supplied clock.
+            receipt = receipt_stamps.get(name)
+            ros_time = (stamp/1e9 if stamp is not None else
+                        receipt/1e9 if receipt is not None else now_s-ages[name])
+            self.motion.observe(name, value, key, sample_time, ros_time)
 
-        speed = filtered("wheel_speed", self.speed)
-        if speed is not None and speed < 0:
-            self.speed.clear()
-            speed = None
-        yaw_rate = filtered("imu_angular_velocity", self.yaw_rate, 2)
+        speed = self.motion.current("wheel_speed", now_s) if clock_valid else None
+        yaw_rate = self.motion.current("imu_angular_velocity", now_s) if clock_valid else None
         state = {"timestamp_s": now_s, "frame_id": self.frame_id,
                  "speed_mps": speed, "yaw_rate_rps": yaw_rate,
                  "v_mps": speed, "yaw_rate_radps": yaw_rate,
@@ -461,20 +627,39 @@ class EstimationPipeline:
                  "valid": speed is not None and yaw_rate is not None,
                  "confidence": 1.0 if speed is not None and yaw_rate is not None else 0.0,
                  "lateral_error_m": None, "heading_error_rad": None,
-                 "road_relative_valid": False, "mode": "filtered_zero_order_hold",
+                 "road_relative_valid": False, "mode": "causal_filtered_hold",
+                 "sample_time_basis": {"wheel_speed": "ros_receipt_proxy",
+                                       "imu_angular_velocity": "ros_acquisition"},
                  "source_age_s": {k: ages.get(k) for k in ("wheel_speed", "imu_angular_velocity")},
                  "source_stamp_ns": {k: stamps.get(k) for k in ("wheel_speed", "imu_angular_velocity")}}
         road = self.road(observations.get("cone_detections"), stamps.get("cone_detections"),
                          ages.get("cone_detections"))
+        road = self._align_road(road, now_s, state["valid"])
         lidar = observations.get("lidar_cartesian")
         lidar_stamp = stamps.get("lidar_cartesian")
         available = self._fresh(lidar, ages.get("lidar_cartesian")) and lidar_stamp is not None
-        obstacle = {"timestamp_s": lidar_stamp/1e9 if available else None,
+        source_time = lidar_stamp/1e9 if available else None
+        pose, problem = (self.motion.pose_between(source_time, now_s) if available
+                         else (None, "unavailable"))
+        available = available and state["valid"] and problem is None
+        points = []
+        if available:
+            for point in lidar["points_xyz"]:
+                x, y = self.motion.transform_xy(point, pose)
+                if not all(finite_number(v) for v in (x, y, point[2])):
+                    available, points = False, []
+                    break
+                points.append((x, y, point[2]))
+        obstacle = {"timestamp_s": now_s if available else None,
+                    "measurement_timestamp_s": source_time,
                     "frame_id": self.frame_id, "available": available,
                     "source_age_s": ages.get("lidar_cartesian"),
-                    "points_xyz_m": deepcopy(lidar["points_xyz"]) if available else [],
+                    "points_xyz_m": points,
                     "scan_indices": list(lidar["scan_indices"]) if available else [],
-                    "motion_compensated": False}
+                    "time_aligned": available,
+                    "motion_compensated": available and pose["interval_s"] > 0,
+                    "motion_compensation": pose if available else None,
+                    "deskewed": False}
         # Physical calibration is not present in the project. Expose missing
         # values rather than copy simulation parameters into real-car limits.
         params = {"valid": False, "source": "unmeasured", "effective_wheelbase_m": None,
@@ -484,7 +669,13 @@ class EstimationPipeline:
                   "wheelbase_m": None, "rear_axle_x_m": None, "curvature_limit_1pm": None,
                   "speed_max_mps": None, "acceleration_max_mps2": None,
                   "braking_deceleration_mps2": None, "safety_margin_m": None}
-        return {"state": state, "road": road, "obstacles": obstacle,
+        alignment = {"valid": state["valid"] and road["valid"] and road["time_aligned"],
+                     "timestamp_s": now_s,
+                     "method": "forward_planar_filtered_odometry",
+                     "wheel_time_basis": "ros_receipt_proxy",
+                     "wheel_acquisition_time_known": False,
+                     "assumptions": ["forward_motion", "planar_no_slip", "causal_filtered_hold"]}
+        return {"state": state, "road": road, "obstacles": obstacle, "alignment": alignment,
                 "vehicle_params": params, "vehicle_limits": limits}
 
 
@@ -546,6 +737,7 @@ class PolicyNode(Node):
             estimation_values[name] = self.get_parameter(parameter_name).value
         self.estimation_settings = EstimationSettings(**estimation_values)
         self.estimation_output = None
+        self.motion_history = EstimationMotionHistory(self.estimation_settings)
 
         self.fsm_state = FSM_STATE_PUBLISHING_ZERO_ACTIONS
         self.state_reason = "Startup: waiting for an explicit policy request"
@@ -647,6 +839,7 @@ class PolicyNode(Node):
     def _times(self):
         monotonic_now = self._monotonic()
         ros_now_ns = self.get_clock().now().nanoseconds
+        self.motion_history.check_clock(ros_now_ns/1e9)
         if self._last_ros_time_ns is not None and ros_now_ns < self._last_ros_time_ns:
             for name in STAMPED_SENSORS:
                 self.observations[name] = None
@@ -677,7 +870,15 @@ class PolicyNode(Node):
                     or (previous is not None and stamp_ns <= previous.stamp_ns)):
                 self._warn(name, f"Ignoring stale, future, repeated, or out-of-order {name} sample")
                 return False
-        self.observations[name] = Observation(value, monotonic_now, stamp_ns)
+        self.observations[name] = Observation(value, monotonic_now, stamp_ns, ros_now_ns)
+        # Record EVERY accepted wheel/gyro sample, including those between
+        # camera triggers. Current snapshots cannot reconstruct past motion.
+        if name in ("wheel_speed", "imu_angular_velocity"):
+            scalar = value if name == "wheel_speed" else value[2]
+            self.motion_history.observe(
+                name, scalar, stamp_ns if stamp_ns is not None else monotonic_now,
+                stamp_ns/1e9 if stamp_ns is not None else monotonic_now,
+                stamp_ns/1e9 if stamp_ns is not None else ros_now_ns/1e9)
         return True
 
     def _fresh(self, name, monotonic_now, ros_now_ns):
@@ -1291,18 +1492,20 @@ class PolicyNode(Node):
         # Preserve course framework inputs/actions/timing. The Word draft fills
         # internal group-record gaps only; screenshot spellings are aliases.
         # Downstream code may consume self.estimation_output["state"/"road"/
-        # "obstacles"/"vehicle_params"/"vehicle_limits"]. Geometry has its original
-        # source timestamp; consumer must respect source age/frame time. No
+        # "obstacles"/"vehicle_params"/"vehicle_limits"]. Valid geometry is aligned
+        # to state.timestamp_s; measurement_timestamp_s keeps source time. No
         # ReferenceTrajectory or target speed is generated by the estimator.
         if is_first_policy_step or not hasattr(self, "estimator"):
             self.estimator = EstimationPipeline(
                 self.estimation_settings, self.policy_frame_id,
-                ConeDetection.COLOR_BLUE, ConeDetection.COLOR_YELLOW)
+                ConeDetection.COLOR_BLUE, ConeDetection.COLOR_YELLOW, self.motion_history)
         sample_receipts = {name: None if obs is None else obs.received_at
                            for name, obs in self.observations.items()}
+        receipt_ros_ns = {name: None if obs is None else obs.received_ros_ns
+                          for name, obs in self.observations.items()}
         self.estimation_output = self.estimator.update(
             observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
-            self.get_clock().now().nanoseconds / 1e9)
+            self.get_clock().now().nanoseconds / 1e9, receipt_ros_ns)
 
         # This starter deliberately keeps the drive and steering at zero.
         #
@@ -1376,6 +1579,7 @@ class PolicyNode(Node):
         # An internal consumer must not mistake the previous run's estimate
         # for an active result after a stop, source expiry, or explicit restart.
         self.estimation_output = None
+        self.motion_history.clear()
         if state == FSM_STATE_PUBLISHING_ZERO_ACTIONS:
             self.publish_zero_actions()
         self.get_logger().info(f"{STATE_NAMES[state]}: {reason}")

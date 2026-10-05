@@ -11,7 +11,7 @@
 | `cone_detections` | 单帧筛选、左右分组、Huber 鲁棒边界拟合 | 局部道路中心线、边界、宽度和质量信息 |
 | `lidar_cartesian` | 复制框架已转换的车体点集及扫描索引 | 障碍物观测，尚不判断是否阻挡行驶 |
 
-当前是各传感器分别处理后统一封装，没有 KF/EKF、加速度积分、全局定位、锥桶跨帧关联、道路跨帧融合或车辆运动补偿。默认按新锥桶批次触发，检测器请求频率为 10 Hz，实际频率需要测量；不把策略 timer 的 50 Hz 当成相机测量频率。
+当前各传感器分别过滤，并用轮速与偏航率的历史做道路/雷达参考坐标的时间补偿；没有 KF/EKF、加速度积分、全局定位、锥桶跨帧关联或道路跨帧融合。默认按新锥桶批次触发，检测器请求频率为 10 Hz，实际频率需要测量；不把策略 timer 的 50 Hz 当成相机测量频率。
 
 框架和估计器均检查有效性及年龄；数据缺失、过期不能当成零。缓存里的同一测量不会重复更新低通滤波。新一轮策略和中断后的滤波状态重新初始化。
 
@@ -19,7 +19,21 @@
 
 一阶低通更新为 `filtered += alpha * (measurement - filtered)`，其中 `alpha = 1 - exp(-sample_dt/tau)`。采用实际样本间隔，而不是假定固定频率。时间常数大则平滑程度高、响应滞后大；时间常数小则响应快、噪声保留更多。
 
-轮速没有原始采样时间戳，用框架的单调接收时间识别新样本和计算间隔；陀螺仪用 ROS 采样时间。两种时间域不相减。状态在当前 ROS 输出时刻保持最近的滤波结果，未做运动预测；各源时间和年龄独立保留。
+轮速没有原始采样时间戳，用框架的单调接收时间识别新样本和计算滤波间隔，同时保存真实的 ROS 接收时刻作为运动历史的近似时间；陀螺仪用 ROS 采样时间。两种时间域不相减。状态在当前 ROS 输出时刻因果保持最近的滤波结果，各源时间和年龄独立保留。滤波及轮速传感器本身的延迟没有通过标定消除。
+
+### 2026-10-05 时间对齐修复
+
+原首版的状态使用计算时刻，道路使用拍照时刻，虽记录了时间却未对齐。本次在每次被框架接受的轮速/陀螺仪观测处记录历史，包括相机两帧之间的传感器更新；每源最多 512 条，按时间裁剪。只使用目标时刻之前的测量，按各源新样本时间分段，在小段中保持过滤后的速度和偏航率并积分平面运动。
+
+设拍照时刻到当前输出时刻的车辆运动为 `(dx, dy, d_yaw)`，旧车体坐标点 `p_old` 转到当前车体坐标使用 `p_now = R(-d_yaw) * (p_old - [dx,dy])`。该模型假设前进、平面运动、无侧滑；无符号轮速不能支持倒车补偿。不能将时间标签一致解释为真实物理误差已经消除。
+
+本版将轮速近似为 base_link 原点的前向速度，并将该原点侧向速度设为零。重心与后轴的偏置、编码器测量延迟尚未标定，转弯时可能产生额外补偿误差；这不是已辨识的车辆运动模型。
+
+有效道路的 `timestamp_s` 与 `state.timestamp_s` 相同，表示补偿后的参考时刻；`measurement_timestamp_s` 保留相机原采样时刻，`source_age_s` 保留原测量年龄，`time_aligned=True`。`motion_compensation` 提供本次使用的运动量和时间跨度。仅当跨度为零时无需运动变换，此时也可 time_aligned，但 motion_compensated 为 False。
+
+启动/恢复后需要足够历史覆盖拍照至当前的区间。缺少任一源历史、区间存在过大间隔、跨度过长、未来采样时间或变换后前向有效范围不足时，道路 `valid=False`、`timestamp_s=None`、点集清空；拒绝原因在 `status`，不把当前速度直接外推填补过去的缺失历史。停止或 ROS 时钟回退会清理历史。
+
+顶层 `alignment.valid=True` 表示自车状态和道路都可用、参考时刻一致。它还提供 `timestamp_s`、`method`、`wheel_time_basis`、`wheel_acquisition_time_known=False` 和运动模型假设。下游应检查此标记，以及各对象有效性和源年龄。
 
 默认 `base_link` 为名义地面上、车辆重心正下方的参考原点，x 向前、y 向左、z 向上。它不是后轴原点。轮速是无符号值，不能识别前进或倒车。正常车体轴下偏航角速度左转为正。
 
@@ -51,7 +65,8 @@
 | `source_age_s`, `source_stamp_ns` | 分别保留轮速和陀螺仪年龄/采样时间；轮速采样 stamp 为 None |
 | `confidence` | 当前仅是两个运动字段有效性指示，不是准确率或校准概率 |
 | `lateral_error_m`, `heading_error_rad` | 尚未实现，均为 None；`road_relative_valid=False` |
-| `mode` | `filtered_zero_order_hold`，没有运动预测 |
+| `mode` | `causal_filtered_hold`，按当前参考时刻保持最近有效滤波值 |
+| `sample_time_basis` | 轮速使用 ROS 接收时刻近似，陀螺仪使用 ROS 采样时刻 |
 
 ### `road`
 
@@ -60,17 +75,18 @@
 | `centerline_xy` | 按前向顺序排列的道路中心线点，m；无效时为空 |
 | `left_boundary_xy`, `right_boundary_xy` | 有效的实际可见边界采样；缺失侧为 None |
 | `lane_width_m`, `x_range_m` | 道路宽度与中心线可用前向范围，m |
-| `local_curvature_1pm` | 双侧中心线在有效范围起点处的局部曲率，1/m；单侧为 None |
+| `local_curvature_1pm` | 双侧中心线起点处的局部曲率，1/m；单侧或补偿后裁掉原起点时为 None |
 | `valid`, `status`, `visibility` | 有效性、无效/推断原因，以及单双侧可见情况 |
 | `boundary_source` | 每侧为 `observed` 或 `absent` |
 | `confidence` | 保留点比例形成的质量指标；单侧降低权重，不是校准概率 |
 | `fit_rms_m` | 有效拟合时的残差指标，不等于真实道路误差 |
-| `timestamp_s`, `source_age_s`, `frame_id` | 几何采样时刻、年龄和参考坐标系 |
-| `motion_compensated` | False，几何未补偿到当前车体时刻 |
+| `timestamp_s`, `frame_id` | 有效时为当前车体参考时刻/坐标系，与 state 一致；无法对齐时 timestamp 为 None |
+| `measurement_timestamp_s`, `source_age_s` | 原几何采样时刻及测量年龄，补偿后仍保留 |
+| `time_aligned`, `motion_compensated`, `motion_compensation` | 对齐标记、是否使用非零时长变换及采用的运动量 |
 
 ### 其他输出
 
-`obstacles` 含 `points_xyz_m`、`scan_indices`、`available`、`timestamp_s`、`source_age_s`、`frame_id` 和 `motion_compensated=False`。可用但无点与雷达不可用是不同状态；障碍聚类、通道相关性及停车意图由规划负责。
+`obstacles` 含 `points_xyz_m`、`scan_indices`、`available`、`timestamp_s`、`measurement_timestamp_s`、`source_age_s`、`frame_id` 和时间补偿信息。可用点集同样用历史运动变换到 state 的参考时刻，z 和扫描索引保留。缺少历史时 available=False；可用但无点与不可用不同。整帧雷达以第一束采样时刻作刚体近似，`deskewed=False`，尚未逐束去畸变。障碍聚类、通道相关性及停车意图由规划负责。
 
 `vehicle_params` 与 `vehicle_limits` 的轴距、转向映射、延迟、车身轮廓、速度及加减速限制目前未测量，保持 None、`valid=False`、`source=unmeasured`。不将仿真参数复制为实车标定。
 
@@ -85,6 +101,8 @@
 | `speed_tau_s` | 0.15 s | 速度滤波平滑程度和响应滞后 |
 | `yaw_rate_tau_s` | 0.08 s | 偏航率滤波平滑程度和响应滞后 |
 | `max_source_age_s` | 0.5 s | 最大源年龄，也用于中断后滤波重置；不能放宽框架期限 |
+| `motion_max_gap_s` | 0.15 s | 历史积分中每个源允许的最大保持间隔，以及当前状态最大保持年龄 |
+| `motion_max_interval_s` | 0.3 s | 从几何采样到当前参考时刻的最大补偿跨度 |
 | `min_cone_confidence` | 0.5 | 最低可用检测置信度 |
 | `road_forward_max_m` | 3.0 m | 使用的前向点范围上限 |
 | `road_min_coverage_m` | 0.5 m | 边界及中心线最低有效覆盖 |
@@ -106,8 +124,8 @@ python3 -B tests/test_estimation.py -v
 python3 -B tools/study_estimation.py
 ```
 
-15 项离线检查已通过，覆盖实际策略入口、重复样本、滤波时序、缺失/零值、道路拟合/异常点/单侧/退化、雷达可用性和 YAML 参数。合成比较为 5 个种子各 20 帧，0.03 m 横向噪声及每帧一个 ±0.8 m 异常点：100/100 帧有效，平均逐帧中心线 RMSE 约 0.0115 m，普通二次最小二乘约 0.0668 m。它仅验证该合成单帧场景，不代表实车或完整闭环表现；脚本打印包含源文件哈希的 JSON，可保存至 PR/CI 附件。
+原首版 15 项离线检查通过。本次扩展检查包含真实策略/接受观测入口、直行与转弯的解析几何对照、异步历史积分、0.2 秒延迟、有无历史的区别、历史断档、未来样本、时钟回退、停止重置、雷达坐标变换、前向裁剪及内存上限；当前检查结果见 acceptance.md。合成比较为 5 个种子各 20 帧，0.03 m 横向噪声及每帧一个 ±0.8 m 异常点：100/100 帧有效，平均逐帧中心线 RMSE 约 0.0115 m，普通二次最小二乘约 0.0668 m。该脚本只评估原始采样时刻的单帧拟合，不评估时间补偿、实车或完整闭环表现。
 
 Ubuntu 24.04 / ROS 2 Jazzy 的完整 gate 按 `CONTRIBUTING.md` 和固定接口依赖版本执行。本次 Windows 环境缺少 ROS/colcon/rclpy 和已安装 WSL，完整 gate、修改过的 ROS 框架测试、Gym 闭环及实车实验均未运行；历史上游 gate 结果不算本版通过。
 
-接入前需要规划、控制组核对字段、单侧/无效数据处理、几何采样时刻与车辆参考点。后续工作包括车辆参数辨识、实测探测范围、运动补偿、跨帧融合调查及联合验证。本分支提交首版模块供审阅，不包含这些尚未验证的功能。
+接入前需要规划、控制组核对字段、单侧/无效数据处理、共同参考时刻与车辆参考点。后续工作包括车辆参数辨识、实测探测范围、运动补偿实测误差、轮速真实测量延迟、跨帧融合调查及联合验证。时间补偿目前是前进平面运动近似，未证明实车精度。
