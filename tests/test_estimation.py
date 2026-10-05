@@ -25,7 +25,8 @@ else:
     SOURCE = Path(get_package_prefix("ai4r_policy")) / "lib" / "ai4r_policy" / "policy_node.py"
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 names = {"finite_number", "Observation", "EstimationSettings", "FirstOrderSampleFilter", "EstimationMotionHistory",
-         "_estimation_median", "_estimation_solve", "_estimation_fit_boundary", "EstimationPipeline"}
+         "_estimation_median", "_estimation_solve", "_estimation_fit_boundary", "EstimationPipeline",
+         "PlanningSettings", "CenterlinePlanner", "evaluate_planning_path", "planning_vehicle_limits"}
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in names]
 policy_class = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
@@ -224,6 +225,8 @@ class EstimationChecks(unittest.TestCase):
         for key in ("fiducial_detections", "lidar_scan", "imu_orientation", "imu_specific_force"):
             obs[key] = None
         node = SimpleNamespace(estimation_settings=Settings(), policy_frame_id="base_link",
+                               planning_settings=namespace["PlanningSettings"](),
+                               sensor_timeout_s={key: 0.5 for key in obs},
                                heading_reference=None,
                                motion_history=Motion(Settings()),
                                observations={k: SimpleNamespace(received_at=receipts.get(k),

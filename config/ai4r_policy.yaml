@@ -160,6 +160,39 @@
       # width (m), or a known simulation width, before using single-side inference.
       known_lane_width_m: 0.0
 
+    # V1 straight-centerline reference only; drive/steering remain zero.
+    # self.planning_output / planning_diagnostics are internal records, no topic.
+    # These are operating-domain settings, NOT vehicle calibration. Unknown
+    # vehicle_limits produce INVALID_INPUT until supplied by the estimation /
+    # calibration integration. V1 deliberately has no obstacle response.
+    planning:
+      cruise_speed_mps: 0.3
+      max_source_age_s: 0.2
+      reference_lifetime_s: 0.1
+      # Actual supported x range, metres; do not extrapolate to the car origin.
+      max_near_x_m: 0.5
+      min_forward_x_m: 1.5
+      max_fit_error_m: 0.03
+      max_curvature_1pm: 0.05
+      max_lateral_offset_m: 0.2
+      max_heading_error_rad: 0.15
+      max_sample_gap_m: 0.25
+      max_alignment_dt_s: 0.1
+      # Explicit approximate constant speed/body yaw integration. Default false:
+      # source geometry must already have the current frame timestamp. Enabling
+      # is an experiment assumption; it does not establish measured odometry.
+      compensate_constant_twist: false
+      # Default consumes measured upstream limits. Selecting course_simulation
+      # is explicit and marks references simulation_only; do not select on a car.
+      # Notebook geometry: wheelbase 0.33 m, CG front/rear extent 0.297/0.198 m,
+      # width 0.25 m. The following motion limits are OFFLINE assumptions, not
+      # notebook measurements, PWM limits, or identified physical capabilities.
+      vehicle_limits_source: upstream
+      simulation_speed_max_mps: 0.5
+      simulation_braking_deceleration_mps2: 0.5
+      simulation_actuation_delay_s: 0.1
+      simulation_safety_margin_m: 0.05
+
     # ADD YOUR OWN PARAMETER: also declare and read it in policy_node.py.
     # Example for the commented controller in that file:
     # speed_kp: 0.2

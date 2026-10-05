@@ -13,6 +13,41 @@ not actual sensor/vehicle response.
 Keep revision, command, result and limitations here; retain detailed logs in
 CI artifacts or merge requests rather than a tracked evidence directory.
 
+## V1 planning implementation, 2026-10-05
+
+Latest follow-up: V1 now has an explicit `course_simulation` limits profile,
+with geometry from the course notebook and separately labelled configurable
+motion assumptions. Default `upstream` remains invalid without calibration;
+references mark simulation-only provenance. Near observed coverage is checked
+before footprint support trimming, and motion-source expiry caps reference life.
+Local Python: 16 planning tests and 28 estimation tests passed. A 100-frame
+noisy/delayed straight-road replay yielded 100 valid frames, mean/max frame
+path RMSE 0.000922/0.002202 m, planning median/p95/max 0.496/0.658/1.367 ms.
+Final tested policy SHA-256:
+`9e95275ee8fb12ed6ed1a5d368ae267dd6ace16f0cd668c48bf50b82aec1680d`.
+These synthetic timings exclude estimation and ROS. Reports/logs are in ignored
+`.verification`, and `tools/study_planning.py` reproduces the study with hashes.
+The required fast gate was attempted but could not start because Bash, ROS
+Jazzy and colcon are unavailable here; model/controller closed-loop and physical
+checks remain not run. Earlier no-test notes below describe the initial request.
+
+The single-file policy now includes a straight-centerline planner, internal
+reference/diagnostics, startup-only planning settings and a shared evaluator.
+It checks freshness, limited time alignment, straightness, coverage, body
+clearance and model stopping distance. Constant-twist alignment is explicitly
+opt-in; unknown vehicle limits remain invalid. Actions remain zero.
+Offline cases and CMake registration are supplied, but **no tests were run**
+for this change at the user's request. ROS gate, controller/model closed-loop
+and physical-car evidence are also **not run**. Earlier estimation passes do
+not verify this change. See [PLANNING_V1_CN.md](PLANNING_V1_CN.md).
+
+Remote estimation commit `144ab8a` was fast-forwarded locally and the uncommitted
+V1 changes restored on top. Conflict resolution preserves motion-history reset
+and planning-output reset together, plus both offline loaders' definitions.
+Static inspection confirms aligned road/state timestamps bypass the planner's
+optional fallback compensation and retain original source age. An integration
+regression is supplied, but no tests were run during this integration.
+
 ## Team estimation prototype, 2026-10-03
 
 The initial implementation based on Baby-Bus `be46dc3` adds causal, sample-aware
