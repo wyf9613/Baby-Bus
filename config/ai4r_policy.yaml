@@ -193,6 +193,62 @@
       simulation_actuation_delay_s: 0.1
       simulation_safety_margin_m: 0.05
 
+    # Minimal lateral MPC prototype (straight road only), OFF unless an overlay enables it:
+    #   ros2 launch ai4r_policy ai4r_policy.launch.py params_file:=<share>/config/ai4r_policy_mpc_prototype.yaml
+    # The overlay also requires wheel speed and yaw rate and selects the explicitly labelled
+    # simulation vehicle limits for the planner (references then carry simulation_only).
+    # Everything marked PLACEHOLDER must be replaced by a measurement before shadow: false.
+    mpc:
+      enabled: false
+      # true: compute and log candidates, always apply zero drive/steer, never stop on rejection.
+      shadow: true
+      # shadow: false is refused until all three are set on purpose after the G3 checks.
+      mapping_verified: false
+      limits_verified: false
+      v_exec_max_mps: 0.0          # execution speed cap; must be > 0 for shadow: false
+      horizon_n: 10
+      dt_pred_s: 0.1               # fixed prediction step; measured dt is only range-checked
+      dt_max_s: 0.2
+      q_ey: 20.0
+      q_epsi: 5.0
+      r_delta: 1.0
+      r_ddelta: 2.0
+      terminal_scale: 5.0
+      # Course notebook values, recorded as model assumptions (not identified).
+      wheelbase_m: 0.33
+      rear_axle_from_cg_m: 0.132
+      # PLACEHOLDER mapping: delta = sign * gain * steering_action + offset (rad).
+      steering_gain_rad_per_action: 0.3
+      steering_offset_rad: 0.0
+      steering_sign: 1.0
+      steering_limit_rad: 0.35
+      steering_rate_limit_rad_s: 1.0   # PLACEHOLDER; bound by Traxxas steering slew * gain
+      max_clip_count: 5
+      v_steer_min_mps: 0.05
+      max_backward_extension_m: 0.6
+      reference_spacing_m: 0.05
+      max_step_time_s: 0.05
+      solver_time_limit_s: 0.03
+      solver_max_iter: 400
+      constraint_tolerance: 0.0001
+      # Temporary longitudinal PI (copy of the baseline branch PID); PLACEHOLDER gains.
+      speed_kp: 1.0
+      speed_ki: 0.4
+      drive_min: 0.0
+      drive_max: 0.15
+      # planning: use the Planning V1 reference (straight roads only).
+      # estimation_centerline: BYPASS Planning, quadratic fit of the estimator centerline (bends
+      # allowed, no body-clearance/stopping-distance checks); needs bypass_acknowledged to execute.
+      reference_source: planning
+      bypass_acknowledged: false
+      bypass_target_speed_mps: 0.2
+      bypass_max_curvature_1pm: 0.8
+      bypass_max_fit_error_m: 0.04
+      bypass_min_forward_m: 1.0
+      bypass_fit_max_x_m: 1.5
+      bypass_max_source_age_s: 0.2
+      bypass_valid_for_s: 0.1
+
     # ADD YOUR OWN PARAMETER: also declare and read it in policy_node.py.
     # Example for the commented controller in that file:
     # speed_kp: 0.2

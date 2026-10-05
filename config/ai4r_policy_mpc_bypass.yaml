@@ -1,0 +1,10 @@
+# Overlay: minimal lateral MPC on the estimator centerline, BYPASSING Planning (allows bends).
+# Shadow mode by default. Planning's body-clearance and stopping-distance checks do not apply;
+# executing (shadow: false) additionally requires mpc.bypass_acknowledged: true.
+/**/ai4r_policy:
+  ros__parameters:
+    required_sensors: [cone_detections, wheel_speed, imu_angular_velocity]
+    mpc:
+      enabled: true
+      shadow: true
+      reference_source: estimation_centerline

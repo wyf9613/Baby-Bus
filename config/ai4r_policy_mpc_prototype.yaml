@@ -1,0 +1,13 @@
+# Overlay for the minimal lateral MPC prototype (shadow mode by default).
+# Passed after the shipped file, so only the differences are listed.
+/**/ai4r_policy:
+  ros__parameters:
+    # MPC needs the filtered speed and yaw rate for estimation/planning.
+    required_sensors: [cone_detections, wheel_speed, imu_angular_velocity]
+    planning:
+      # Explicit offline vehicle limits: references are marked simulation_only.
+      # Braking/speed values here are NOT measured on the car.
+      vehicle_limits_source: course_simulation
+    mpc:
+      enabled: true
+      shadow: true
