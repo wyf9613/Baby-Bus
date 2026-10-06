@@ -7,6 +7,9 @@ process on the PID experiment's scenarios, oracle reference, noise seeds and met
 - MPC weights (tuned on the PID training scenarios, same score and grid size): `{'q_v': 30.0, 'r_drive': 0.3, 'r_ddrive': 0.5, 'q_ey': 40.0, 'q_epsi': 2.0, 'r_ddelta': 0.5}`
 - PID gains (PID subteam's selection, unchanged): speed 1.4/0.6/0.0, lateral 1.2/0.1/0.0, heading 0.8
 
+**Architecture comparison:** the MPC optimises drive and steering jointly, while the baseline is a
+lateral PID plus a longitudinal PI. Differences cannot be attributed to the lateral controller alone.
+
 ## Matched comparison (mean over seeds 101/202/303; max for maximum offset)
 
 | Scenario | Ctrl | Done | Cross-track RMSE [m] | Max offset [m] | Steady speed RMSE [m/s] | Steer rate RMS [1/s] | Min clearance [m] | MPC step p95 [ms] | MPC stops |

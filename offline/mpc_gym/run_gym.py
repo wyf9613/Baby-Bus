@@ -196,6 +196,9 @@ def write_comparison(rows, studies, weights, gains):
              f"- PID gains (PID subteam's selection, unchanged): speed {gains.speed_kp}/{gains.speed_ki}/"
              f"{gains.speed_kd}, lateral {gains.lateral_kp}/{gains.lateral_ki}/{gains.lateral_kd}, "
              f"heading {gains.heading_kp}", "",
+             "**Architecture comparison:** the MPC optimises drive and steering jointly, while the baseline is a",
+             "lateral PID plus a longitudinal PI. Differences cannot be attributed to the lateral controller alone.",
+             "",
              "## Matched comparison (mean over seeds 101/202/303; max for maximum offset)", "",
              "| Scenario | Ctrl | Done | Cross-track RMSE [m] | Max offset [m] | Steady speed RMSE [m/s] "
              "| Steer rate RMS [1/s] | Min clearance [m] | MPC step p95 [ms] | MPC stops |",
