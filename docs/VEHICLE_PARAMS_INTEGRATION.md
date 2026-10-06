@@ -66,4 +66,6 @@ python -B offline/vehicle_identification/test_vehicle_identification.py
 python offline/mpc_prediction_model/validate_vehicle_model.py   # 需要 Dream Gym，对照仿真器开环验证
 ```
 
+Dream Gym 中与 PID 基线的条件一致对比（仿真器参数，不是实车值）见 [offline/mpc_gym/](../offline/mpc_gym/README.md)。
+
 `tests/test_policy_node.py` 需要 ROS Jazzy，要通过 `tools/verify_fast.sh` 在 CI 或 Jetson 上运行。

@@ -29,6 +29,8 @@ Topic `mpc_debug` (String, JSON), one message for every branch, including early 
 
 ## Release gates
 
+Simulation evidence (M6): the same MPC code against the PID baseline in Dream Gym under the PID experiment's exact scenarios, reference, seeds and metrics is in [offline/mpc_gym/](../offline/mpc_gym/README.md) (`results/comparison.md`).
+
 | Gate | Content | Evidence |
 |---|---|---|
 | G0 | `python -m unittest tests/test_mpc.py tests/test_planning.py tests/test_estimation.py`, `python offline/mpc_prediction_model/test_vehicle_model.py`, `python -B offline/vehicle_identification/test_vehicle_identification.py` | All pass (laptop, Python 3.12 / osqp 1.1.3) |
