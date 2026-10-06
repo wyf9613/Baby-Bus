@@ -1,0 +1,15 @@
+{
+  "time_unix_s": 1791250718.2896602,
+  "counts": {
+    "vehicle": 38,
+    "policy": 8
+  },
+  "vehicle_states": [
+    "Disarmed"
+  ],
+  "policy_states": [
+    2
+  ],
+  "max_abs_wheel": 999,
+  "all_applied_zero": false
+}

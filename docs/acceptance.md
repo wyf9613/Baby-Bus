@@ -47,9 +47,9 @@ Verification:
   a vehicle reconnection, so that later probe alone does not prove a physical
   stop. The final six-second check after restoring confidence 0.75 recorded
   Disabled/state 2, 271 zero wheel samples, 270 zero applied commands, and 88
-  zero requested commands. Curated results and gate logs are archived in
-  `docs/experiments/2026-10-06/`; full telemetry and original backups remain in
-  `diagnostics/newcar-27-20261006/` in the parent project workspace.
+  zero requested commands. Recorded results, sampled telemetry, profiles and gate logs are archived in
+  `docs/experiments/2026-10-06/`; original rollback backups remain in the parent
+  project workspace.
 - The runtime-runner CPU problem is not claimed fully resolved.
 
 ## Evidence ownership
