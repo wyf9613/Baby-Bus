@@ -113,6 +113,33 @@ def start(node):
 
 
 class ControlChecks(unittest.TestCase):
+    def test_mvp_sustaining_effort_keeps_fault_and_operator_stops_neutral(self):
+        node = make_node(simulated=False, mvp=True)
+        node.control_settings = ns["ControlSettings"](
+            enabled=True, mode="mvp", drive_max=0.35, mvp_drive_feedforward=0.30)
+        node.controller = ns["PolicyController"](node.control_settings)
+        feed(node, center=0.0, speed=node.planning_settings.cruise_speed_mps)
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3)
+        self.assertGreaterEqual(node.action_publisher.messages[-1].drive, 0.25)
+        node.test_clock.advance(0.05)
+        feed(node, empty=True)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        node.test_clock.advance(0.05)
+        feed(node, center=0.0, speed=0.0)
+        start(node)
+        node.run_policy_step()
+        self.assertLessEqual(node.action_publisher.messages[-1].drive, 0.35)
+        node.fsm_transition_request_callback(SimpleNamespace(data=2))
+        node.supervision_callback()
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        for invalid in (-0.01, 0.36, math.nan):
+            with self.assertRaises(ValueError):
+                ns["ControlSettings"](drive_max=0.35, mvp_drive_feedforward=invalid)
+
     def test_actual_policy_entry_produces_limited_actions_and_debug(self):
         for center in (-0.1, 0.1):
             node = make_node()

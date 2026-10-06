@@ -1,0 +1,803 @@
+Starting >>> dream_interfaces
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 2.5.6 (/opt/ros/jazzy/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Found geometry_msgs: 5.3.8 (/opt/ros/jazzy/share/geometry_msgs/cmake)
+-- Found rosidl_generator_c: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+-- Found rosidl_generator_cpp: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+-- Found rosidl_default_generators: 1.6.1 (/opt/ros/jazzy/share/rosidl_default_generators/cmake)
+-- Found rosidl_adapter: 4.6.9 (/opt/ros/jazzy/share/rosidl_adapter/cmake)
+-- Found ament_cmake_ros: 0.12.1 (/opt/ros/jazzy/share/ament_cmake_ros/cmake)
+-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+-- Found python_cmake_module: 0.11.1 (/opt/ros/jazzy/share/python_cmake_module/cmake)
+-- Found PythonExtra: /usr/bin/python3  
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter Development NumPy Development.Module Development.Embed 
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+-- Found ament_lint_auto: 0.17.5 (/opt/ros/jazzy/share/ament_lint_auto/cmake)
+-- Added test 'flake8' to check Python code syntax and style conventions
+-- Configured 'flake8' exclude dirs and/or files: 
+-- Added test 'lint_cmake' to check CMake code style
+-- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257
+-- Added test 'xmllint' to check XML markup files
+-- Configuring done (13.1s)
+-- Generating done (0.2s)
+-- Build files have been written to: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/dream_interfaces
+[  0%] Generating Rust code for ROS interfaces
+[  0%] Built target dream_interfaces__rs
+[  0%] Generating type hashes for ROS interfaces
+[  0%] Built target dream_interfaces__rosidl_generator_type_description
+[  0%] Generating C code for ROS interfaces
+[  1%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/cone_detection__description.c.o
+[  1%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/cone_detection__functions.c.o
+[  2%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/cone_detection__type_support.c.o
+[  3%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/cone_detections__description.c.o
+[  3%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/cone_detections__functions.c.o
+[  4%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/cone_detections__type_support.c.o
+[  4%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/drive_and_steer__description.c.o
+[  5%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/drive_and_steer__functions.c.o
+[  5%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/drive_and_steer__type_support.c.o
+[  6%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/pixel_point__description.c.o
+[  7%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/pixel_point__functions.c.o
+[  7%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/pixel_point__type_support.c.o
+[  8%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/fiducial_detection__description.c.o
+[  8%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/fiducial_detection__functions.c.o
+[  9%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/fiducial_detection__type_support.c.o
+[  9%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/fiducial_detections__description.c.o
+[ 10%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/fiducial_detections__functions.c.o
+[ 11%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/fiducial_detections__type_support.c.o
+[ 11%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/imu_sensor__description.c.o
+[ 12%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/imu_sensor__functions.c.o
+[ 12%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/imu_sensor__type_support.c.o
+[ 13%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__description.c.o
+[ 13%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__functions.c.o
+[ 14%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__type_support.c.o
+[ 15%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_float32__description.c.o
+[ 15%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_float32__functions.c.o
+[ 16%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_float32__type_support.c.o
+[ 16%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_int32__description.c.o
+[ 17%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_int32__functions.c.o
+[ 17%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_int32__type_support.c.o
+[ 18%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__description.c.o
+[ 19%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__functions.c.o
+[ 19%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__type_support.c.o
+[ 20%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/pulse_width_and_channel__description.c.o
+[ 20%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/pulse_width_and_channel__functions.c.o
+[ 21%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/pulse_width_and_channel__type_support.c.o
+[ 21%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/pulse_width_and_channel_array__description.c.o
+[ 22%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/pulse_width_and_channel_array__functions.c.o
+[ 23%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/pulse_width_and_channel_array__type_support.c.o
+[ 23%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/tof_multizone_sensor__description.c.o
+[ 24%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/tof_multizone_sensor__functions.c.o
+[ 24%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/msg/detail/tof_multizone_sensor__type_support.c.o
+[ 25%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/action/detail/set_servo_pulse_widths__description.c.o
+[ 25%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/action/detail/set_servo_pulse_widths__functions.c.o
+[ 26%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_c.dir/rosidl_generator_c/dream_interfaces/action/detail/set_servo_pulse_widths__type_support.c.o
+[ 27%] Linking C shared library libdream_interfaces__rosidl_generator_c.so
+[ 27%] Built target dream_interfaces__rosidl_generator_c
+[ 27%] Generating C type support for eProsima Fast-RTPS
+[ 28%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/cone_detection__type_support_c.cpp.o
+[Processing: dream_interfaces]
+[ 28%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/cone_detections__type_support_c.cpp.o
+[ 29%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/drive_and_steer__type_support_c.cpp.o
+[ 30%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/pixel_point__type_support_c.cpp.o
+[ 30%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/fiducial_detection__type_support_c.cpp.o
+[ 31%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/fiducial_detections__type_support_c.cpp.o
+[ 31%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/imu_sensor__type_support_c.cpp.o
+[ 32%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__type_support_c.cpp.o
+[ 32%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/left_right_float32__type_support_c.cpp.o
+[ 33%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/left_right_int32__type_support_c.cpp.o
+[ 34%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__type_support_c.cpp.o
+[ 34%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/pulse_width_and_channel__type_support_c.cpp.o
+[ 35%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/pulse_width_and_channel_array__type_support_c.cpp.o
+[ 35%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/msg/detail/tof_multizone_sensor__type_support_c.cpp.o
+[ 36%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/dream_interfaces/action/detail/set_servo_pulse_widths__type_support_c.cpp.o
+[ 36%] Linking CXX shared library libdream_interfaces__rosidl_typesupport_fastrtps_c.so
+[ 36%] Built target dream_interfaces__rosidl_typesupport_fastrtps_c
+[ 36%] Generating C++ code for ROS interfaces
+[ 36%] Built target dream_interfaces__cpp
+[ 37%] Generating C++ type support for eProsima Fast-RTPS
+[ 38%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/cone_detection__type_support.cpp.o
+[ 38%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/cone_detections__type_support.cpp.o
+[ 39%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/drive_and_steer__type_support.cpp.o
+[ 39%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/pixel_point__type_support.cpp.o
+[Processing: dream_interfaces]
+[ 40%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/fiducial_detection__type_support.cpp.o
+[ 40%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/fiducial_detections__type_support.cpp.o
+[ 41%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/imu_sensor__type_support.cpp.o
+[ 42%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/left_right_duty_cycle_and_rate_limit__type_support.cpp.o
+[ 42%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/left_right_float32__type_support.cpp.o
+[ 43%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/left_right_int32__type_support.cpp.o
+[ 43%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/left_right_speed_and_rate_limit__type_support.cpp.o
+[ 44%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/pulse_width_and_channel__type_support.cpp.o
+[ 44%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/pulse_width_and_channel_array__type_support.cpp.o
+[ 45%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/msg/detail/dds_fastrtps/tof_multizone_sensor__type_support.cpp.o
+[ 46%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/dream_interfaces/action/detail/dds_fastrtps/set_servo_pulse_widths__type_support.cpp.o
+[ 46%] Linking CXX shared library libdream_interfaces__rosidl_typesupport_fastrtps_cpp.so
+[ 46%] Built target dream_interfaces__rosidl_typesupport_fastrtps_cpp
+[ 47%] Generating C introspection for ROS interfaces
+[ 47%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/cone_detection__type_support.c.o
+[ 48%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/cone_detections__type_support.c.o
+[ 48%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/drive_and_steer__type_support.c.o
+[ 49%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/pixel_point__type_support.c.o
+[ 50%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/fiducial_detection__type_support.c.o
+[ 50%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/fiducial_detections__type_support.c.o
+[ 51%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/imu_sensor__type_support.c.o
+[ 51%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__type_support.c.o
+[ 52%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/left_right_float32__type_support.c.o
+[ 52%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/left_right_int32__type_support.c.o
+[ 53%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__type_support.c.o
+[ 54%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/pulse_width_and_channel__type_support.c.o
+[ 54%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/pulse_width_and_channel_array__type_support.c.o
+[ 55%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/msg/detail/tof_multizone_sensor__type_support.c.o
+[ 55%] Building C object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/dream_interfaces/action/detail/set_servo_pulse_widths__type_support.c.o
+[ 56%] Linking C shared library libdream_interfaces__rosidl_typesupport_introspection_c.so
+[ 56%] Built target dream_interfaces__rosidl_typesupport_introspection_c
+[ 57%] Generating C type support dispatch for ROS interfaces
+[ 57%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/cone_detection__type_support.cpp.o
+[ 58%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/cone_detections__type_support.cpp.o
+[ 59%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/drive_and_steer__type_support.cpp.o
+[ 59%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/pixel_point__type_support.cpp.o
+[ 60%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/fiducial_detection__type_support.cpp.o
+[ 60%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/fiducial_detections__type_support.cpp.o
+[ 61%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/imu_sensor__type_support.cpp.o
+[ 61%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/left_right_duty_cycle_and_rate_limit__type_support.cpp.o
+[ 62%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/left_right_float32__type_support.cpp.o
+[ 63%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/left_right_int32__type_support.cpp.o
+[ 63%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/left_right_speed_and_rate_limit__type_support.cpp.o
+[ 64%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/pulse_width_and_channel__type_support.cpp.o
+[ 64%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/pulse_width_and_channel_array__type_support.cpp.o
+[ 65%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/msg/tof_multizone_sensor__type_support.cpp.o
+[ 65%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_c.dir/rosidl_typesupport_c/dream_interfaces/action/set_servo_pulse_widths__type_support.cpp.o
+[ 66%] Linking CXX shared library libdream_interfaces__rosidl_typesupport_c.so
+[ 66%] Built target dream_interfaces__rosidl_typesupport_c
+[ 66%] Generating C++ introspection for ROS interfaces
+[ 67%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/cone_detection__type_support.cpp.o
+[ 68%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/cone_detections__type_support.cpp.o
+[Processing: dream_interfaces]
+[ 68%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/drive_and_steer__type_support.cpp.o
+[ 69%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/pixel_point__type_support.cpp.o
+[ 69%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/fiducial_detection__type_support.cpp.o
+[ 70%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/fiducial_detections__type_support.cpp.o
+[ 70%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/imu_sensor__type_support.cpp.o
+[ 71%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__type_support.cpp.o
+[ 72%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/left_right_float32__type_support.cpp.o
+[ 72%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/left_right_int32__type_support.cpp.o
+[ 73%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__type_support.cpp.o
+[ 73%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/pulse_width_and_channel__type_support.cpp.o
+[ 74%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/pulse_width_and_channel_array__type_support.cpp.o
+[ 74%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/msg/detail/tof_multizone_sensor__type_support.cpp.o
+[ 75%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/dream_interfaces/action/detail/set_servo_pulse_widths__type_support.cpp.o
+[ 76%] Linking CXX shared library libdream_interfaces__rosidl_typesupport_introspection_cpp.so
+[ 76%] Built target dream_interfaces__rosidl_typesupport_introspection_cpp
+[ 77%] Generating C++ type support dispatch for ROS interfaces
+[ 77%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/cone_detection__type_support.cpp.o
+[ 78%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/cone_detections__type_support.cpp.o
+[ 78%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/drive_and_steer__type_support.cpp.o
+[ 79%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/pixel_point__type_support.cpp.o
+[ 79%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/fiducial_detection__type_support.cpp.o
+[ 80%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/fiducial_detections__type_support.cpp.o
+[ 81%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/imu_sensor__type_support.cpp.o
+[ 81%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/left_right_duty_cycle_and_rate_limit__type_support.cpp.o
+[ 82%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/left_right_float32__type_support.cpp.o
+[ 82%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/left_right_int32__type_support.cpp.o
+[ 83%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/left_right_speed_and_rate_limit__type_support.cpp.o
+[ 83%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/pulse_width_and_channel__type_support.cpp.o
+[ 84%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/pulse_width_and_channel_array__type_support.cpp.o
+[ 85%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/msg/tof_multizone_sensor__type_support.cpp.o
+[ 85%] Building CXX object CMakeFiles/dream_interfaces__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/dream_interfaces/action/set_servo_pulse_widths__type_support.cpp.o
+[ 86%] Linking CXX shared library libdream_interfaces__rosidl_typesupport_cpp.so
+[ 86%] Built target dream_interfaces__rosidl_typesupport_cpp
+[Processing: dream_interfaces]
+[ 86%] Built target dream_interfaces
+[ 86%] Built target ament_cmake_python_symlink_dream_interfaces
+running egg_info
+creating dream_interfaces.egg-info
+writing dream_interfaces.egg-info/PKG-INFO
+writing dependency_links to dream_interfaces.egg-info/dependency_links.txt
+writing top-level names to dream_interfaces.egg-info/top_level.txt
+writing manifest file 'dream_interfaces.egg-info/SOURCES.txt'
+reading manifest file 'dream_interfaces.egg-info/SOURCES.txt'
+writing manifest file 'dream_interfaces.egg-info/SOURCES.txt'
+[ 86%] Built target ament_cmake_python_build_dream_interfaces_egg
+[ 87%] Generating Python code for ROS interfaces
+[ 87%] Built target dream_interfaces__py
+[ 87%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_cone_detection_s.c.o
+[ 88%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_cone_detections_s.c.o
+[ 88%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_drive_and_steer_s.c.o
+[ 89%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_pixel_point_s.c.o
+[ 89%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_fiducial_detection_s.c.o
+[ 90%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_fiducial_detections_s.c.o
+[ 91%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_imu_sensor_s.c.o
+[ 91%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_left_right_duty_cycle_and_rate_limit_s.c.o
+[ 92%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_left_right_float32_s.c.o
+[ 92%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_left_right_int32_s.c.o
+[ 93%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_left_right_speed_and_rate_limit_s.c.o
+[ 93%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_pulse_width_and_channel_s.c.o
+[ 94%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_pulse_width_and_channel_array_s.c.o
+[ 95%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/msg/_tof_multizone_sensor_s.c.o
+[ 95%] Building C object CMakeFiles/dream_interfaces__rosidl_generator_py.dir/rosidl_generator_py/dream_interfaces/action/_set_servo_pulse_widths_s.c.o
+[ 96%] Linking C shared library libdream_interfaces__rosidl_generator_py.so
+[ 96%] Built target dream_interfaces__rosidl_generator_py
+[ 97%] Building C object CMakeFiles/dream_interfaces_s__rosidl_typesupport_fastrtps_c.dir/rosidl_generator_py/dream_interfaces/_dream_interfaces_s.ep.rosidl_typesupport_fastrtps_c.c.o
+[ 97%] Linking C shared module rosidl_generator_py/dream_interfaces/dream_interfaces_s__rosidl_typesupport_fastrtps_c.so
+[ 97%] Built target dream_interfaces_s__rosidl_typesupport_fastrtps_c
+[ 98%] Building C object CMakeFiles/dream_interfaces_s__rosidl_typesupport_introspection_c.dir/rosidl_generator_py/dream_interfaces/_dream_interfaces_s.ep.rosidl_typesupport_introspection_c.c.o
+[ 99%] Linking C shared module rosidl_generator_py/dream_interfaces/dream_interfaces_s__rosidl_typesupport_introspection_c.so
+[ 99%] Built target dream_interfaces_s__rosidl_typesupport_introspection_c
+[100%] Building C object CMakeFiles/dream_interfaces_s__rosidl_typesupport_c.dir/rosidl_generator_py/dream_interfaces/_dream_interfaces_s.ep.rosidl_typesupport_c.c.o
+[100%] Linking C shared module rosidl_generator_py/dream_interfaces/dream_interfaces_s__rosidl_typesupport_c.so
+[100%] Built target dream_interfaces_s__rosidl_typesupport_c
+-- Install configuration: ""
+-- Execute custom install script
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/ament_index/resource_index/rosidl_interfaces/dream_interfaces
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/ConeDetection.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/ConeDetections.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/DriveAndSteer.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/PixelPoint.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/FiducialDetection.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/FiducialDetections.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/ImuSensor.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightDutyCycleAndRateLimit.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightFloat32.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightInt32.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightSpeedAndRateLimit.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/PulseWidthAndChannel.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/PulseWidthAndChannelArray.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/TofMultizoneSensor.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/action/SetServoPulseWidths.json
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/set_servo_pulse_widths.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/cone_detection.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/cone_detections.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__functions.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__struct.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__type_support.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/drive_and_steer.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/fiducial_detection.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/fiducial_detections.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/imu_sensor.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/left_right_duty_cycle_and_rate_limit.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/left_right_float32.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/left_right_int32.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/left_right_speed_and_rate_limit.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/pixel_point.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/pulse_width_and_channel.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/pulse_width_and_channel_array.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/rosidl_generator_c__visibility_control.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/tof_multizone_sensor.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/environment/library_path.sh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/environment/library_path.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/rosidl_typesupport_fastrtps_c__visibility_control.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/set_servo_pulse_widths.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/cone_detection.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/cone_detections.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__builder.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__struct.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__traits.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__type_support.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/drive_and_steer.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/fiducial_detection.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/fiducial_detections.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/imu_sensor.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/left_right_duty_cycle_and_rate_limit.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/left_right_float32.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/left_right_int32.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/left_right_speed_and_rate_limit.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/pixel_point.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/pulse_width_and_channel.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/pulse_width_and_channel_array.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/rosidl_generator_cpp__visibility_control.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/tof_multizone_sensor.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__rosidl_typesupport_introspection_c.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/rosidl_typesupport_introspection_c__visibility_control.h
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/action/detail/set_servo_pulse_widths__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detection__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/cone_detections__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/drive_and_steer__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detection__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/fiducial_detections__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/imu_sensor__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_duty_cycle_and_rate_limit__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_float32__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_int32__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/left_right_speed_and_rate_limit__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pixel_point__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/pulse_width_and_channel_array__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/include/dream_interfaces/dream_interfaces/msg/detail/tof_multizone_sensor__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/environment/pythonpath.sh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/environment/pythonpath.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces-0.2.0-py3.12.egg-info/PKG-INFO
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces-0.2.0-py3.12.egg-info/SOURCES.txt
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces-0.2.0-py3.12.egg-info/dependency_links.txt
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces-0.2.0-py3.12.egg-info/top_level.txt
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/__init__.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/_dream_interfaces_s.ep.rosidl_typesupport_c.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/_dream_interfaces_s.ep.rosidl_typesupport_fastrtps_c.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/_dream_interfaces_s.ep.rosidl_typesupport_introspection_c.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/action/__init__.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/action/_set_servo_pulse_widths.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/action/_set_servo_pulse_widths_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/dream_interfaces_s__rosidl_typesupport_c.so
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/dream_interfaces_s__rosidl_typesupport_fastrtps_c.so
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/dream_interfaces_s__rosidl_typesupport_introspection_c.so
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/__init__.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_cone_detection.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_cone_detection_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_cone_detections.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_cone_detections_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_drive_and_steer.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_drive_and_steer_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_fiducial_detection.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_fiducial_detection_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_fiducial_detections.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_fiducial_detections_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_imu_sensor.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_imu_sensor_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_duty_cycle_and_rate_limit.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_duty_cycle_and_rate_limit_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_float32.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_float32_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_int32.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_int32_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_speed_and_rate_limit.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_speed_and_rate_limit_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_pixel_point.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_pixel_point_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_pulse_width_and_channel.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_pulse_width_and_channel_array.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_pulse_width_and_channel_array_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_pulse_width_and_channel_s.c
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_tof_multizone_sensor.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_tof_multizone_sensor_s.c
+-- Up-to-date symlink: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/dream_interfaces_s__rosidl_typesupport_fastrtps_c.so
+-- Up-to-date symlink: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/dream_interfaces_s__rosidl_typesupport_introspection_c.so
+-- Up-to-date symlink: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/dream_interfaces_s__rosidl_typesupport_c.so
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/rust/Cargo.toml
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/rust/build.rs
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/rust/src/action.rs
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/rust/src/action/rmw.rs
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/rust/src/lib.rs
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/rust/src/msg.rs
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/rust/src/msg/rmw.rs
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/ConeDetection.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/ConeDetections.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/DriveAndSteer.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/PixelPoint.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/FiducialDetection.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/FiducialDetections.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/ImuSensor.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightDutyCycleAndRateLimit.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightFloat32.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightInt32.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightSpeedAndRateLimit.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/PulseWidthAndChannel.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/PulseWidthAndChannelArray.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/TofMultizoneSensor.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/action/SetServoPulseWidths.idl
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/ConeDetection.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/ConeDetections.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/DriveAndSteer.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/PixelPoint.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/FiducialDetection.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/FiducialDetections.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/ImuSensor.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightDutyCycleAndRateLimit.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightFloat32.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightInt32.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/LeftRightSpeedAndRateLimit.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/PulseWidthAndChannel.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/PulseWidthAndChannelArray.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/msg/TofMultizoneSensor.msg
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/action/SetServoPulseWidths.action
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/ament_index/resource_index/package_run_dependencies/dream_interfaces
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/ament_index/resource_index/parent_prefix_path/dream_interfaces
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/environment/ament_prefix_path.sh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/environment/ament_prefix_path.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/environment/path.sh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/environment/path.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/local_setup.bash
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/local_setup.sh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/local_setup.zsh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/local_setup.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/package.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/ament_index/resource_index/packages/dream_interfaces
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/rosidl_cmake-extras.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/ament_cmake_export_dependencies-extras.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/ament_cmake_export_include_directories-extras.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/ament_cmake_export_libraries-extras.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/ament_cmake_export_targets-extras.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/rosidl_cmake_aggregate_target-extras.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfacesConfig.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfacesConfig-version.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/package.xml
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_generator_c.so
+-- Set non-toolchain portion of runtime path of "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_generator_c.so" to ""
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_fastrtps_c.so
+-- Set non-toolchain portion of runtime path of "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_fastrtps_c.so" to ""
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_fastrtps_cpp.so
+-- Set non-toolchain portion of runtime path of "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_fastrtps_cpp.so" to ""
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_introspection_c.so
+-- Set non-toolchain portion of runtime path of "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_introspection_c.so" to ""
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_c.so
+-- Set non-toolchain portion of runtime path of "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_c.so" to ""
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_introspection_cpp.so
+-- Set non-toolchain portion of runtime path of "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_introspection_cpp.so" to ""
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_cpp.so
+-- Set non-toolchain portion of runtime path of "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_typesupport_cpp.so" to ""
+Listing '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/__init__.py'...
+Listing '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/action'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/action/__init__.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/action/_set_servo_pulse_widths.py'...
+Listing '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/__init__.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_cone_detection.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_cone_detections.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_drive_and_steer.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_fiducial_detection.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_fiducial_detections.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_imu_sensor.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_duty_cycle_and_rate_limit.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_float32.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_int32.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_left_right_speed_and_rate_limit.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_pixel_point.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_pulse_width_and_channel.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_pulse_width_and_channel_array.py'...
+Compiling '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/python3.12/site-packages/dream_interfaces/msg/_tof_multizone_sensor.py'...
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_generator_py.so
+-- Set non-toolchain portion of runtime path of "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/lib/libdream_interfaces__rosidl_generator_py.so" to ""
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/export_dream_interfaces__rosidl_generator_cExport.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/export_dream_interfaces__rosidl_generator_cExport-noconfig.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/export_dream_interfaces__rosidl_typesupport_fastrtps_cExport.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/export_dream_interfaces__rosidl_typesupport_fastrtps_cExport-noconfig.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/export_dream_interfaces__rosidl_generator_cppExport.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/export_dream_interfaces__rosidl_typesupport_fastrtps_cppExport.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/export_dream_interfaces__rosidl_typesupport_fastrtps_cppExport-noconfig.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfaces__rosidl_typesupport_introspection_cExport.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfaces__rosidl_typesupport_introspection_cExport-noconfig.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfaces__rosidl_typesupport_cExport.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfaces__rosidl_typesupport_cExport-noconfig.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfaces__rosidl_typesupport_introspection_cppExport.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfaces__rosidl_typesupport_introspection_cppExport-noconfig.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfaces__rosidl_typesupport_cppExport.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/dream_interfaces__rosidl_typesupport_cppExport-noconfig.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/export_dream_interfaces__rosidl_generator_pyExport.cmake
+-- Installing: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/dream_interfaces/share/dream_interfaces/cmake/export_dream_interfaces__rosidl_generator_pyExport-noconfig.cmake
+Finished <<< dream_interfaces [2min 24s]
+Starting >>> ai4r_policy
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 2.5.6 (/opt/ros/jazzy/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Found ament_cmake_pytest: 2.5.6 (/opt/ros/jazzy/share/ament_cmake_pytest/cmake)
+-- Configuring done (6.7s)
+-- Generating done (0.0s)
+-- Build files have been written to: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy
+-- Install configuration: ""
+-- Execute custom install script
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/lib/ai4r_policy/policy_node.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/launch/ai4r_policy.launch.py
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/config/aruco_detector.yaml
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/config/bno08x_imu_interface.yaml
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/config/camera_mount.yaml
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/config/lidar_mount.yaml
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/config/oakd_cone_detector.yaml
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/config/traxxas_vehicle_interface.yaml
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ament_index/resource_index/package_run_dependencies/ai4r_policy
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ament_index/resource_index/parent_prefix_path/ai4r_policy
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/environment/ament_prefix_path.sh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/environment/ament_prefix_path.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/environment/path.sh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/environment/path.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/local_setup.bash
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/local_setup.sh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/local_setup.zsh
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/local_setup.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/package.dsv
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ament_index/resource_index/packages/ai4r_policy
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/cmake/ai4r_policyConfig.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/cmake/ai4r_policyConfig-version.cmake
+-- Symlinking: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/install/ai4r_policy/share/ai4r_policy/package.xml
+Finished <<< ai4r_policy [7.73s]
+
+Summary: 2 packages finished [2min 33s]
+Starting >>> ai4r_policy
+UpdateCTestConfiguration  from :/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/CTestConfiguration.ini
+Parse Config file:/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/CTestConfiguration.ini
+   Site: localhost.localdomain
+   Build name: (empty)
+ Add coverage exclude regular expressions.
+Create new tag: 20261006-0134 - Experimental
+UpdateCTestConfiguration  from :/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/CTestConfiguration.ini
+Parse Config file:/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/CTestConfiguration.ini
+Test project /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
+    Start 1: policy_node
+
+1: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/policy_node.xunit.xml" "--package-name" "ai4r_policy" "--output-file" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/policy_node.txt" "--command" "/usr/bin/python3" "-u" "-m" "pytest" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/src/ai4r_policy/tests/test_policy_node.py" "-o" "cache_dir=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/policy_node/.cache" "--junit-xml=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/policy_node.xunit.xml" "--junit-prefix=ai4r_policy"
+1: Working Directory: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy
+1: Test timeout computed to be: 60
+1: -- run_test.py: invoking following command in '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy':
+1:  - /usr/bin/python3 -u -m pytest /tmp/newcar-policy-gate-20261006-ff/.verification/ws/src/ai4r_policy/tests/test_policy_node.py -o cache_dir=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/policy_node/.cache --junit-xml=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/policy_node.xunit.xml --junit-prefix=ai4r_policy
+1: ============================= test session starts ==============================
+1: platform linux -- Python 3.12.3, pytest-7.4.4, pluggy-1.4.0
+1: cachedir: build/ai4r_policy/ament_cmake_pytest/policy_node/.cache
+1: rootdir: /tmp/newcar-policy-gate-20261006-ff/.verification/ws
+1: plugins: ament-copyright-0.17.5, ament-xmllint-0.17.5, launch-testing-3.4.11, ament-pep257-0.17.5, launch-testing-ros-0.26.12, ament-lint-0.17.5, ament-flake8-0.17.5, colcon-core-0.21.3, cov-4.1.0
+1: collected 69 items
+1: 
+1: ../../src/ai4r_policy/tests/test_policy_node.py ........................ [ 34%]
+1: .............................................                            [100%]
+1: 
+1: - generated xml file: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/policy_node.xunit.xml -
+1: ============================= 69 passed in 12.81s ==============================
+1: -- run_test.py: return code 0
+1: -- run_test.py: verify result file '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/policy_node.xunit.xml'
+1/4 Test #1: policy_node ......................   Passed   14.66 sec
+test 2
+    Start 2: estimation
+
+2: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/estimation.xunit.xml" "--package-name" "ai4r_policy" "--output-file" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/estimation.txt" "--command" "/usr/bin/python3" "-u" "-m" "pytest" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/src/ai4r_policy/tests/test_estimation.py" "-o" "cache_dir=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/estimation/.cache" "--junit-xml=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/estimation.xunit.xml" "--junit-prefix=ai4r_policy"
+2: Working Directory: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy
+2: Test timeout computed to be: 30
+2: -- run_test.py: invoking following command in '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy':
+2:  - /usr/bin/python3 -u -m pytest /tmp/newcar-policy-gate-20261006-ff/.verification/ws/src/ai4r_policy/tests/test_estimation.py -o cache_dir=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/estimation/.cache --junit-xml=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/estimation.xunit.xml --junit-prefix=ai4r_policy
+2: ============================= test session starts ==============================
+2: platform linux -- Python 3.12.3, pytest-7.4.4, pluggy-1.4.0
+2: cachedir: build/ai4r_policy/ament_cmake_pytest/estimation/.cache
+2: rootdir: /tmp/newcar-policy-gate-20261006-ff/.verification/ws
+2: plugins: ament-copyright-0.17.5, ament-xmllint-0.17.5, launch-testing-3.4.11, ament-pep257-0.17.5, launch-testing-ros-0.26.12, ament-lint-0.17.5, ament-flake8-0.17.5, colcon-core-0.21.3, cov-4.1.0
+2: collected 28 items
+2: 
+2: ../../src/ai4r_policy/tests/test_estimation.py ......................... [ 89%]
+2: ...                                                                      [100%]
+2: 
+2: - generated xml file: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/estimation.xunit.xml -
+2: ============================== 28 passed in 0.35s ==============================
+2: -- run_test.py: return code 0
+2: -- run_test.py: verify result file '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/estimation.xunit.xml'
+2/4 Test #2: estimation .......................   Passed    2.21 sec
+test 3
+    Start 3: planning
+
+3: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/planning.xunit.xml" "--package-name" "ai4r_policy" "--output-file" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/planning.txt" "--command" "/usr/bin/python3" "-u" "-m" "pytest" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/src/ai4r_policy/tests/test_planning.py" "-o" "cache_dir=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/planning/.cache" "--junit-xml=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/planning.xunit.xml" "--junit-prefix=ai4r_policy"
+3: Working Directory: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy
+3: Test timeout computed to be: 30
+3: -- run_test.py: invoking following command in '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy':
+3:  - /usr/bin/python3 -u -m pytest /tmp/newcar-policy-gate-20261006-ff/.verification/ws/src/ai4r_policy/tests/test_planning.py -o cache_dir=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/planning/.cache --junit-xml=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/planning.xunit.xml --junit-prefix=ai4r_policy
+3: ============================= test session starts ==============================
+3: platform linux -- Python 3.12.3, pytest-7.4.4, pluggy-1.4.0
+3: cachedir: build/ai4r_policy/ament_cmake_pytest/planning/.cache
+3: rootdir: /tmp/newcar-policy-gate-20261006-ff/.verification/ws
+3: plugins: ament-copyright-0.17.5, ament-xmllint-0.17.5, launch-testing-3.4.11, ament-pep257-0.17.5, launch-testing-ros-0.26.12, ament-lint-0.17.5, ament-flake8-0.17.5, colcon-core-0.21.3, cov-4.1.0
+3: collected 17 items
+3: 
+3: ../../src/ai4r_policy/tests/test_planning.py .................           [100%]
+3: 
+3: - generated xml file: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/planning.xunit.xml -
+3: ============================== 17 passed in 0.30s ==============================
+3: -- run_test.py: return code 0
+3: -- run_test.py: verify result file '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/planning.xunit.xml'
+3/4 Test #3: planning .........................   Passed    1.90 sec
+test 4
+    Start 4: control
+
+4: Test command: /usr/bin/python3 "-u" "/opt/ros/jazzy/share/ament_cmake_test/cmake/run_test.py" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/control.xunit.xml" "--package-name" "ai4r_policy" "--output-file" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/control.txt" "--command" "/usr/bin/python3" "-u" "-m" "pytest" "/tmp/newcar-policy-gate-20261006-ff/.verification/ws/src/ai4r_policy/tests/test_control.py" "-o" "cache_dir=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/control/.cache" "--junit-xml=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/control.xunit.xml" "--junit-prefix=ai4r_policy"
+4: Working Directory: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy
+4: Test timeout computed to be: 30
+4: -- run_test.py: invoking following command in '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy':
+4:  - /usr/bin/python3 -u -m pytest /tmp/newcar-policy-gate-20261006-ff/.verification/ws/src/ai4r_policy/tests/test_control.py -o cache_dir=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/ament_cmake_pytest/control/.cache --junit-xml=/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/control.xunit.xml --junit-prefix=ai4r_policy
+4: ============================= test session starts ==============================
+4: platform linux -- Python 3.12.3, pytest-7.4.4, pluggy-1.4.0
+4: cachedir: build/ai4r_policy/ament_cmake_pytest/control/.cache
+4: rootdir: /tmp/newcar-policy-gate-20261006-ff/.verification/ws
+4: plugins: ament-copyright-0.17.5, ament-xmllint-0.17.5, launch-testing-3.4.11, ament-pep257-0.17.5, launch-testing-ros-0.26.12, ament-lint-0.17.5, ament-flake8-0.17.5, colcon-core-0.21.3, cov-4.1.0
+4: collected 21 items
+4: 
+4: ../../src/ai4r_policy/tests/test_control.py .....................        [100%]
+4: 
+4: - generated xml file: /tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/control.xunit.xml -
+4: ============================== 21 passed in 3.23s ==============================
+4: -- run_test.py: return code 0
+4: -- run_test.py: verify result file '/tmp/newcar-policy-gate-20261006-ff/.verification/ws/build/ai4r_policy/test_results/ai4r_policy/control.xunit.xml'
+4/4 Test #4: control ..........................   Passed    5.05 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Label Time Summary:
+pytest    =  23.81 sec*proc (4 tests)
+
+Total Test time (real) =  23.82 sec
+Finished <<< ai4r_policy [24.1s]
+
+Summary: 1 package finished [24.6s]
+Summary: 139 tests, 0 errors, 0 failures, 0 skipped
+Arguments (pass arguments as '<name>:=<value>'):
+
+    'namespace':
+        Robot ROS namespace
+        (default: '')
+
+    'params_file':
+        Optional policy YAML overlay
+        (default: '')
+verify-fast: PASS (synthetic ROS only; no physical hardware)

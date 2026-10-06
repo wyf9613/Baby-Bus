@@ -13,7 +13,7 @@
     # to timer mode if the chosen sensor stops, and no simultaneous triggers.
     # Integrated control uses ONE 20 Hz timer. Cones are still measured at the
     # detector's rate; estimation re-aligns the cached geometry using motion
-    # history. This leaves margin under the planner's 0.1 s reference deadline.
+    # history. This leaves margin under the planner's 0.2 s reference deadline.
     policy_update_mode: timer
 
     # Timer-mode frequency in Hz (positive finite double; default 50.0).
@@ -141,10 +141,10 @@
       # Forward no-slip planar model; wheel time is receipt, NOT acquisition.
       # Missing/old motion or a gap rejects geometry instead of retimestamping.
       motion_max_gap_s: 0.15
-      motion_max_interval_s: 0.3
+      motion_max_interval_s: 0.4
       # Dimensionless confidence threshold in [0,1]. Colour convention for this
       # prototype is BLUE left / YELLOW right, as in the supplied course road.
-      min_cone_confidence: 0.5
+      min_cone_confidence: 0.75
       # Local y(x) support and sample spacing, metres. No extrapolation beyond
       # measured inlier coverage. Sampling is bounded to at most 201 points.
       road_forward_max_m: 3.0
@@ -170,15 +170,15 @@
     # response; use a short straight corridor with both cone boundaries.
     planning:
       cruise_speed_mps: 0.2
-      max_source_age_s: 0.2
-      reference_lifetime_s: 0.1
+      max_source_age_s: 0.4
+      reference_lifetime_s: 0.2
       # Actual supported x range, metres; do not extrapolate to the car origin.
-      max_near_x_m: 0.5
-      min_forward_x_m: 1.5
-      max_fit_error_m: 0.03
-      max_curvature_1pm: 0.05
+      max_near_x_m: 0.9
+      min_forward_x_m: 1.0
+      max_fit_error_m: 0.06
+      max_curvature_1pm: 0.25
       max_lateral_offset_m: 0.2
-      max_heading_error_rad: 0.15
+      max_heading_error_rad: 0.25
       max_sample_gap_m: 0.25
       max_alignment_dt_s: 0.1
       # Explicit approximate constant speed/body yaw integration. Default false:
@@ -208,25 +208,24 @@
       # MVP uses direct normalized steering and ignores this geometry selector.
       vehicle_params_source: upstream
       # Distance is raw-wheel-speed integration per explicit policy run. At
-      # >=3 m the framework enters continuous-zero state 2; state 3 must be
+      # >=0.5 m the framework enters continuous-zero state 2; state 3 must be
       # requested explicitly to reset the budget and run again. Coasting/slip
       # and encoder scaling affect the physical final stopping position.
       max_distance_m: 3.0
       # Backup cutoff if the wheel estimator reports fresh zero throughout.
       max_run_time_s: 30.0
       # Direct normalized/m and normalized/rad gains, no angle-to-servo mapping.
-      mvp_lateral_kp: 1.0
+      mvp_lateral_kp: 1.5
       mvp_lateral_ki: 0.0
-      mvp_heading_kp: 0.5
+      mvp_heading_kp: 1.0
       # Assumes positive policy steering turns left; reverse after checking the
       # actual small-angle response if the particular car has the opposite sign.
-      mvp_steering_direction: 1.0
-      # Optional measured low-speed sustaining effort, normalized [0, drive_max].
-      # Zero preserves the original feedback-only behavior. A stop still sends zero.
-      mvp_drive_feedforward: 0.0
+      mvp_steering_direction: -1.0
+      # New-car measured candidate sustaining effort; stop still sends zero.
+      mvp_drive_feedforward: 0.30
       # Offline selected candidate gains, not measured real-car tuning.
-      speed_kp: 1.4
-      speed_ki: 0.6
+      speed_kp: 0.35
+      speed_ki: 0.08
       speed_kd: 0.0
       lateral_kp: 1.2
       lateral_ki: 0.1
@@ -235,7 +234,7 @@
       derivative_tau_s: 0.15
       # Forward-only effort. Stop/invalid/expired reference transitions to
       # continuous zero actions; the simulated negative-drive hold is NOT used.
-      drive_max: 0.15
+      drive_max: 0.35
       steering_max_normalized: 0.5
       max_dt_s: 0.2
       # Before FIRST control only: neutral priming of delayed camera history.

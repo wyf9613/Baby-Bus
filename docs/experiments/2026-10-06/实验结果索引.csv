@@ -1,0 +1,30 @@
+source,result,reason,run_seconds,distance_wheel_integral_m,peak_wheel_speed_mps,peak_requested_drive,final_policy_state,final_vehicle_state,alias_or_copy
+evidence/runner-fix-20261006/mvp-run-result.json,stopped,Publishing zero actions: Control reference expired; explicit resume required,0.4412604280000778,0.0,0.0,0.15000000596046448,2,Disabled,False
+evidence/timing-fix-20261006/dry-curvature-failure.json,stopped,Publishing zero actions: Planning: unsupported_road_curvature,0.2349083670001164,0.0,0.0,0.0,2,Disabled,False
+evidence/timing-fix-20261006/dry-managed-pass.json,completed,Dry run completed 12 seconds,12.001155288999826,0.0,0.0,0.15000000596046448,2,Disabled,False
+evidence/timing-fix-20261006/dry-profile-pass.json,completed,Dry run completed 12 seconds,12.001616194000007,0.0,0.0,0.15000000596046448,2,Disabled,False
+evidence/timing-fix-20261006/mvp-run-result.json,aborted,MVP bounds not confirmed,,0.0,0.0,0.0,2,Disabled,False
+evidence/timing-fix-20261006/real-drive015-full-result.json,stopped,No wheel motion after 3 seconds,3.001771256999973,0.0,0.0,0.15000000596046448,2,Disabled,False
+evidence/timing-fix-20261006/real-drive015-result.json,stopped,No wheel motion after 3 seconds,3.009580910000068,0.0,0.0,0.15000000596046448,2,Disabled,False
+evidence/timing-fix-20261006/real-drive025-result.json,stopped,Publishing zero actions: Planning: invalid_estimates,0.022421206999979404,0.0,0.0,0.0,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/attempt1-result.json,stopped,Publishing zero actions: Planning: not_straight_enough,0.4448617259999992,0.0,0.0,0.15000000596046448,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/attempt2-result.json,stopped,No wheel motion after 3 seconds,3.0037864589999117,0.0,0.0,0.15000000596046448,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/attempt3-result.json,stopped,No wheel motion after 3 seconds,3.0069563370000196,0.0,0.0,0.25,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/attempt4-result.json,stopped,Publishing zero actions: Planning: outside_v1_offset_or_heading_domain,0.8331073179999748,0.0,0.0,0.34598308801651,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/attempt5-success-result.json,completed,Publishing zero actions: Distance limit reached: 0.505 m / 0.500 m; explicit resume required,5.035199981000005,0.5052302479743958,0.274133563041687,0.3499999940395355,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/attempt6-confirmed-motion-result.json,stopped,Publishing zero actions: Run time limit reached; explicit resume required,5.038617129000045,0.485324889421463,0.26667550206184387,0.3499999940395355,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/compensated-curvature-stop-result.json,stopped,Publishing zero actions: Planning: unsupported_road_curvature,4.07642566100003,0.7254928946495056,0.33304107189178467,0.3499999940395355,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/compensated-repeat-result.json,stopped,Publishing zero actions: Planning: unsupported_road_curvature,6.073936460000368,1.1146186590194702,0.31237056851387024,0.3499999940395355,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/compensated-start-coverage-result.json,stopped,Publishing zero actions: Planning: insufficient_near_or_far_coverage,0.3357523110000784,0.0,0.0,0.0,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/confidence85-coverage-result.json,stopped,Publishing zero actions: Planning: insufficient_near_or_far_coverage,2.7235722770001303,0.4245398938655853,0.3177250623703003,0.3499999940395355,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/confidence85-imu-refused-result.json,stopped,Publishing zero actions: Policy start refused: Required sensor imu_angular_velocity is missing or stale,0.25878588400019,0.0,0.0,0.0,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/confirmed-result.json,stopped,Publishing zero actions: Run time limit reached; explicit resume required,5.038617129000045,0.485324889421463,0.26667550206184387,0.3499999940395355,2,Disabled,True
+evidence/newcar-27-20261006/newcar-test-evidence/dry-fit-pass-result.json,completed,Dry run completed 4 seconds,4.001816556999984,0.0,0.0,0.15000000596046448,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/dry-pass-result.json,completed,Dry run completed 4 seconds,4.0049567249999996,0.0,0.0,0.15000000596046448,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/dry-steering-diag-result.json,completed,Dry run completed 4 seconds,4.001368330999867,0.0,0.0,0.3499999940395355,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/extended-2m-result.json,stopped,Publishing zero actions: Planning: invalid_estimates,10.540031711999745,2.0147619247436523,0.33272823691368103,0.3499999940395355,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/main-3m-before-steering-fix-result.json,stopped,Publishing zero actions: Planning: insufficient_near_or_far_coverage,9.130485733000114,1.0237127542495728,0.26279696822166443,0.3499999940395355,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/main-3m-result.json,stopped,Publishing zero actions: Planning: insufficient_near_or_far_coverage,2.7235722770001303,0.4245398938655853,0.3177250623703003,0.3499999940395355,2,Disabled,True
+evidence/newcar-27-20261006/newcar-test-evidence/main-3m-steering-fix-attempt1-result.json,stopped,Publishing zero actions: Planning: invalid_estimates,11.14356369799998,1.3336249589920044,0.2880359888076782,0.3499999940395355,2,Disabled,False
+evidence/newcar-27-20261006/newcar-test-evidence/mvp-run-result.json,stopped,Publishing zero actions: Run time limit reached; explicit resume required,5.038617129000045,0.485324889421463,0.26667550206184387,0.3499999940395355,2,Disabled,True
+evidence/newcar-27-20261006/newcar-test-evidence/steering-sign-result.json,completed,,,,,,,,False
