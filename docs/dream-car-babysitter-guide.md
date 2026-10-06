@@ -1,6 +1,6 @@
 # DREAM 小车 Babysitter Guide：从连接到 MPC Shadow 验证
 
-整理日期：2026-10-05（Australia/Sydney）。适用本机：Windows PowerShell、WSL Ubuntu 24.04 / ROS Jazzy；目标设备：课程 DREAM 小车的 Jetson Orin Nano。
+整理日期：2026-10-05（Australia/Sydney），2026-10-07 按纵横向联合 MPC 和 `vehicle.*` 参数更新。适用本机：Windows PowerShell、WSL Ubuntu 24.04 / ROS Jazzy；目标设备：课程 DREAM 小车的 Jetson Orin Nano。
 
 本指南依据用户提供的课程页面全文，结合当前 Baby-Bus 源码和 [MPC prototype 文档](MPC_PROTOTYPE.md) 整理。课程页面是本次提供的快照，没有重新验证 Canvas 或车上软件的最新状态。课程第 3 页本身注明了 draft；实际命令可用性要由 `dream runtime catalog`、`--help` 和 demonstrator 确认。
 
@@ -162,7 +162,7 @@ git rev-parse HEAD
 git status --short
 ```
 
-核对部署源与通过验证的源码一致。当前已知 MPC 分支为 `control-mpc-v0`，MPC 实现提交为 `54bc3a9`；以后有新提交时，以本次验证的完整 SHA 为准。
+核对部署源与通过验证的源码一致。当前已知 MPC 分支为 `control-mpc-v0`，纵横向联合 MPC 自 `430f998` 起，WSL ROS 门禁通过的提交为 `1578021`（2026-10-06）；以后有新提交时，以本次验证的完整 SHA 为准。
 
 同一分支名不代表同一版本，未提交改动也不能由 SHA 唯一标识。不要为了让 status 干净覆盖 Notebook 或他人的改动。
 
@@ -178,7 +178,7 @@ git status --short
 
 用户在本会话报告已完成离线测试、ROS gate 和 WSL shadow 参数加载。完整日志仍应保留，不能把参数查询结果当成全部测试通过的唯一证据。
 
-本机复跑与解释器排查见 [ROS verification babysitter](ros-verification-babysitter.md)。当前 CMake 没有注册 `tests/test_mpc.py`，需要单独运行 MPC 离线套件。
+本机复跑与解释器排查见 [ROS verification babysitter](ros-verification-babysitter.md)。当前 CMake 没有注册 `tests/test_mpc.py`，需要单独运行 MPC 离线套件；它还会导入 `offline/mpc_prediction_model/` 和 `offline/vehicle_identification/`。WSL 一键检查脚本为 `.verification/run_ros_check.sh`（本机，不进 git）。
 
 此前遇到的错误：能导入 `ament_index_python`，但当前终端只加载了 `/opt/ros/jazzy`，测试因此去找安装版 `ai4r_policy` 并失败。工作区离线检查可临时清除单条命令的 `PYTHONPATH`；实际 ROS gate 则应构建并加载正确 overlay。
 
@@ -207,7 +207,7 @@ git status --short
 
 1. **颜色。** 不复制 notebook 的裸数字筛选条件，否则蓝/黄边界可能反转。当前接收逻辑遇到不支持颜色会拒绝整批锥桶。
 2. **动作。** `drive_action` 是归一化电机努力量，不是 m/s；`steering_action` 不是轮角 rad。赋值后交给框架，别把 notebook 的 `return np.array(...)` 塞进插入区。
-3. **转角映射。** 课程教学示例用“rad 除以自选转角限值”演示归一化。当前 MPC 有 gain / offset / sign 映射，必须沿用并实测，不能额外再归一化一次。零 action 映射到 offset；软件零命令不证明车轮物理零角。
+3. **转角映射。** 课程教学示例用“rad 除以自选转角限值”演示归一化。当前 MPC 使用 `vehicle.*` 的 gain（带符号，左正）/ offset / min / max 映射，必须沿用并实测，不能额外再归一化一次。零 action 映射到 offset；软件零命令不证明车轮物理零角。
 4. **LiDAR。** 原始第 i 束角度是 `angle_min + i * angle_increment`，在雷达原始 frame；中间索引不保证向前。当前源码已增加车体 Cartesian 点，若用它做决策，应检查 `lidar_cartesian_available` 并声明对应 required sensor。
 5. **时间和状态。** 首步不能除以 0；积分器和控制器要在显式启动/恢复时重置。不能在一次策略 step 内 sleep、等待或运行无界循环。普通有限次数数值循环与阻塞等待不同。
 6. **物理响应。** 仿真 `drive=-1` 的刹车/方向锁行为和无 dead zone 假设不能直接移植。负 drive、死区、滑行距离和轮速延迟要实测；当前 MPC shadow 不进行这些动力试验。
@@ -330,13 +330,13 @@ python3 -B -c "import sys, numpy, scipy, osqp, yaml; print('Python:', sys.execut
 ```powershell
 $taskRemoteCheck = "ai4r_mpc_check/$taskStamp"
 ssh "ai4r@$taskCarIp" "mkdir -p ~/$taskRemoteCheck"
-scp -r scripts config tests "ai4r@${taskCarIp}:~/$taskRemoteCheck/"
+scp -r scripts config tests offline "ai4r@${taskCarIp}:~/$taskRemoteCheck/"
 $taskSourceSha | Set-Content -Encoding utf8 -LiteralPath (Join-Path $taskEvidenceDir 'snapshot-sha.txt')
 scp (Join-Path $taskEvidenceDir 'snapshot-sha.txt') "ai4r@${taskCarIp}:~/$taskRemoteCheck/source-sha.txt"
 Write-Host "车上测试目录：~/$taskRemoteCheck"
 ```
 
-这里的 `config/` 只进入测试快照，不进入活动 student workspace，不改变驱动配置。不传 `.git`、Windows venv、`.verification/ws`、build/install/log。
+这里的 `config/` 和 `offline/` 只进入测试快照，不进入活动 student workspace，不改变驱动配置。`offline/` 必须带上：`test_mpc.py` 要用其中的预测模型和 VehicleParams 做一致性检查。不传 `.git`、Windows venv、`.verification/ws`、build/install/log。
 
 **车上 SSH：**把下一行的 `<本次时间戳>` 替换为 PowerShell 刚输出的目录名：
 
@@ -504,7 +504,7 @@ ros2 param get /car/ai4r_policy vehicle.valid
 ros2 param get /car/ai4r_policy mpc.v_exec_max_mps
 ```
 
-预期：恰好一个动作发布者；三项 required sensors；MPC enabled=true、shadow=true、source=planning、limits source=course_simulation；两项 verified=false，执行速度 cap=0.0。
+预期：恰好一个动作发布者；三项 required sensors；MPC enabled=true、shadow=true、source=planning、limits source=course_simulation；`mpc.vehicle_params_source=course_simulation`、`vehicle.valid=false`，执行速度 cap=0.0。
 
 两个发布者时先定位并消除重复策略进程。课程使用 DREAM 管理，本次不同时再开手动 `ros2 launch`。
 
@@ -741,15 +741,15 @@ Copy-Item -LiteralPath (Join-Path $taskDeployDir 'policy_node.py') -Destination 
 
 | 项目 | 结果写入/记录 |
 |---|---|
-| 小范围左右 steering action 与真实轮角，含方向和零点 | gain、offset、sign、steering limit |
-| 转向步进耗时/速率 | steering rate limit，并与 Traxxas slew 约束兼容 |
-| 测试速度对应 drive、dead zone、速度环响应 | drive_max、执行速度 cap、PI/PID 参数 |
-| state 2 后滑行距离和停稳时间 | 保守制动/停车能力、轮速衰减延迟 |
+| 小范围左右 steering action 与真实轮角，含方向和零点 | `vehicle.steering_gain_rad`（带符号）、`steering_offset_rad`、`steering_min_rad`/`steering_max_rad` |
+| 转向步进耗时/速率 | `vehicle.steering_rate_limit_rad_s`、`steering_delay_s`，并与 Traxxas slew 约束兼容 |
+| 直道固定 drive 的起步/稳态速度、dead zone | `vehicle.mass_kg`（称重）、`motor_gain_n`、`drag_kg_per_m`、`drive_min`/`drive_max`、`drive_delay_s`；执行速度 cap `mpc.v_exec_max_mps` |
+| state 2 后滑行距离和停稳时间 | `vehicle.braking_deceleration_mps2`、`braking_behavior`、轮速衰减延迟 |
 | 约 0.5 s command timeout 的实际效果 | 单独的现场记录，不当作正常停车 |
 
-prototype 提到 vehicle-identification 分支的 `id_test`。该分支及 README 不在本次用户提供的课程附件里；不能凭本指南补造其参数和执行步骤。向团队获取经过确认的识别流程；识别策略替代当前策略，不并行运行。
+这些测量归参数辨识组负责，流程见 [vehicle-params-test-plan.md](vehicle-params-test-plan.md) 和 `offline/vehicle_identification/README.md`。`id_test` 已合入同一节点：测量时设 `id_test.mode` 并保持 `mpc.enabled: false`（两者同时开启节点拒绝启动），测完改回 `"off"`。全部字段实测并复测后，填写 `vehicle.*`、设置 `valid: true` 和可追溯的 `source`。
 
-原型明确尚无“转向保持零的速度 PI 单独测试”入口。该验证缺口要记录和解决/获得现场认可，不能把未实施项目写成通过。
+MPC 同时输出驱动和转向，没有单独的速度 PI；纵向表现依赖实测的 m、k、c。首次执行前先用实测参数再跑一次 shadow，检查 `candidate_drive` 与目标速度是否合理。
 
 ### 12.2 执行门槛
 
@@ -763,7 +763,7 @@ prototype 提到 vehicle-identification 分支的 `id_test`。该分支及 READM
 2. 本机准备执行配置，传输、build、restart；复查实际参数。
 3. 确认策略 state 2 持续发送新鲜零动作。
 4. Foxglove **Vehicle Request Enable**，看清 **Enabled** 后再继续。
-5. **Policy publishing actions** / state 3，先做一次方向和速度环检查。
+5. **Policy publishing actions** / state 3，先做一次方向和驱动（速度）检查。MPC 只能滑行停车，路线长度按实测滑行距离预留。
 6. 若检查正常，做文档要求的三次连续运行；干预、碰锥或离路记失败，保留全部尝试。
 7. 正常停止：**Policy publishing ZERO actions → Vehicle Request Disable**；必要时 RC 接管。
 8. 执行模式拒绝会锁回 state 2。查明原因后显式重启 state 3，控制器重新建立，不自动恢复。
