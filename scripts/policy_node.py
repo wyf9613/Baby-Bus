@@ -1189,6 +1189,9 @@ class MPCSettings:
     vehicle_params_source: str = "vehicle"
     v_exec_max_mps: float = 0.0       # execution speed cap; must be > 0 for shadow: false
     overspeed_margin_mps: float = 0.1
+    # Execution only: a reference rejection shorter than this coasts (drive 0, steering
+    # held) instead of locking; a longer or any other rejection still locks. 0 = lock at once.
+    reference_dropout_tolerance_s: float = 0.0
     horizon_n: int = 10
     dt_pred_s: float = 0.1            # fixed prediction step; measured dt is only range-checked
     dt_max_s: float = 0.2
@@ -1248,6 +1251,8 @@ class MPCSettings:
                 raise ValueError(f"mpc.{name} must be positive")
         if self.dt_max_s < self.dt_pred_s:
             raise ValueError("mpc.dt_max_s must not be below dt_pred_s")
+        if not 0.0 <= self.reference_dropout_tolerance_s <= 0.5:
+            raise ValueError("mpc.reference_dropout_tolerance_s must be in [0, 0.5] s")
         if self.v_exec_max_mps < 0:
             raise ValueError("mpc.v_exec_max_mps must be nonnegative")
 
@@ -1659,6 +1664,7 @@ class MPCController:
         self.clock_s = 0.0
         self.history = []          # (issue time on clock_s, drive, steer) actually applied
         self.nominal = None
+        self.invalid_since = None  # clock_s of the first rejected reference in a row
 
     def command_at(self, time_s):
         """Applied command in force at time_s; zero before the run, held after the last."""
@@ -1720,7 +1726,7 @@ class MPCController:
              "applied_steer_action": 0.0, "applied_drive": 0.0, "path_id": None, "ref_age_s": None,
              "simulation_only": None, "status": None, "iterations": None, "solve_s": None,
              "step_s": None, "delta_est_rad": None, "pred_e_y_end_m": None, "pred_v_end_mps": None,
-             "vehicle_source": self.vehicle.source, "vehicle_valid": self.vehicle.valid,
+             "vehicle_source": self.vehicle.source, "vehicle_valid": self.vehicle.valid, "dropout_s": None,
              "reference_source": None, "planning_bypassed": None}
         self.last_debug = d
         if isinstance(traj, dict):
@@ -1738,11 +1744,21 @@ class MPCController:
                 self.history.pop(0)
             d.update(applied_steer_action=steer, applied_drive=drive)
 
-        def reject(branch, reason):
+        def reject(branch, reason, tolerable=False):
             d["branch"], d["reject_reason"] = branch, reason
             d["step_s"] = time.perf_counter()-t0
-            record(0.0, 0.0)
             self.nominal = None
+            if tolerable and not cfg.shadow and cfg.reference_dropout_tolerance_s > 0:
+                if self.invalid_since is None:
+                    self.invalid_since = self.clock_s
+                d["dropout_s"] = self.clock_s - self.invalid_since
+                if d["dropout_s"] < cfg.reference_dropout_tolerance_s:
+                    # Short reference dropout: coast with the steering held, no new plan.
+                    d["branch"] = "ref_hold"
+                    held = self.applied_steer
+                    record(0.0, held)
+                    return {"drive": 0.0, "steer": held, "debug": d}
+            record(0.0, 0.0)
             if not cfg.shadow:
                 raise MPCStop(f"{branch}:{reason}")
             return {"drive": 0.0, "steer": 0.0, "debug": d}
@@ -1753,6 +1769,7 @@ class MPCController:
             if d["step_s"] > cfg.max_step_time_s:
                 return reject("over_budget", f"step {d['step_s']:.4f}s")
             steer, out_drive = (0.0, 0.0) if cfg.shadow else (steer_action, drive)
+            self.invalid_since = None
             record(out_drive, steer)
             return {"drive": out_drive, "steer": steer, "debug": d}
 
@@ -1768,19 +1785,19 @@ class MPCController:
             return reject("ref_invalid", "speed_invalid")
         d["dt"] = dt if not is_first else 0.0
         if not isinstance(traj, dict) or traj.get("schema") != "reference_trajectory_v0.1":
-            return reject("ref_invalid", "ref_missing")
+            return reject("ref_invalid", "ref_missing", tolerable=True)
         stamp, lifetime = traj.get("timestamp_s"), traj.get("valid_for_s")
         if not traj.get("valid"):
-            return reject("ref_invalid", traj.get("reason") or "ref_invalid")
+            return reject("ref_invalid", traj.get("reason") or "ref_invalid", tolerable=True)
         if traj.get("stop_required"):
             return reject("stop", traj.get("reason") or "stop_required")
         if (not finite_number(stamp) or not finite_number(lifetime) or not finite_number(now_s)
                 or not stamp-1e-6 <= now_s < stamp+lifetime):
-            return reject("ref_invalid", "ref_expired_or_future")
+            return reject("ref_invalid", "ref_expired_or_future", tolerable=True)
         info, reason = mpc_reference_errors(traj, cfg.horizon_n, cfg.dt_pred_s, 0.0,
                                             cfg.max_backward_extension_m)
         if info is None:
-            return reject("ref_invalid", reason)
+            return reject("ref_invalid", reason, tolerable=True)
         d.update(e_y_m=info["e_y_m"], e_psi_rad=info["e_psi_rad"], v_ref_mps=info["v_ref_mps"])
         if not cfg.shadow and speed_mps > cfg.v_exec_max_mps + cfg.overspeed_margin_mps:
             return reject("stop", "overspeed")
@@ -1797,7 +1814,7 @@ class MPCController:
         except Exception as exc:
             return reject("solver_fail", f"solver_exception:{type(exc).__name__}")
         if solution is None:
-            return reject("ref_invalid", reason)
+            return reject("ref_invalid", reason, tolerable=True)
         drive, steer = solution["drive0"], solution["steer0"]
         if not (finite_number(drive) and finite_number(steer) and abs(steer) <= 1.0 + 1e-6
                 and -1e-6 <= drive <= 1.0 + 1e-6):

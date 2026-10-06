@@ -73,5 +73,46 @@ class Adapters(unittest.TestCase):
         self.assertTrue(math.isfinite(row["lateral_rmse_m"]))
 
 
+@unittest.skipIf(harness is None, "Dream Gym environment not available")
+class PipelineFlow(unittest.TestCase):
+    """Gym camera cones -> the real estimation/planning/MPC chain, execution mode."""
+
+    @classmethod
+    def setUpClass(cls):
+        import yaml
+        import pipeline_sim
+        cls.sim = pipeline_sim
+        key = "/**/ai4r_policy"
+        base = yaml.safe_load((harness.ROOT / "config/ai4r_policy.yaml").read_text(encoding="utf-8"))[key]
+        overlay = yaml.safe_load((harness.ROOT / "config/ai4r_policy_mpc_prototype.yaml")
+                                 .read_text(encoding="utf-8"))[key]
+        params = base["ros__parameters"]
+        for section in ("planning", "mpc"):
+            params[section].update(overlay["ros__parameters"][section])
+        api = harness.load_mpc()
+        vehicle = harness.notebook_vehicle(api, drive_max=0.2)
+        params["vehicle"] = {k: v for k, v in vars(vehicle).items()}
+        params["planning"].update(vehicle_limits_source="upstream", cruise_speed_mps=0.2)
+        params["mpc"].update(shadow=False, vehicle_params_source="vehicle", v_exec_max_mps=0.2,
+                             reference_dropout_tolerance_s=0.3)
+        cls.params = params
+
+    def test_executes_the_course_straight_without_a_locked_stop(self):
+        for kwargs in ({}, {"offset": 0.15}, {"offset": -0.15, "heading": 0.08}, {"noise": 0.02, "seed": 2}):
+            result = self.sim.run(self.params, duration=10.0, **kwargs)
+            self.assertIsNone(result["locked_stop"], (kwargs, result["locked_stop"]))
+            self.assertGreater(result["final_x_m"], 1.5, kwargs)
+            self.assertLess(abs(result["final_y_m"]), 0.05, kwargs)
+
+    def test_original_near_coverage_and_extension_lock_on_the_first_frame(self):
+        import copy
+        params = copy.deepcopy(self.params)
+        params["planning"]["max_near_x_m"] = 0.5
+        params["mpc"]["max_backward_extension_m"] = 0.6
+        result = self.sim.run(params, duration=1.0)
+        self.assertIsNotNone(result["locked_stop"])
+        self.assertIn("insufficient_near_or_far_coverage", result["locked_stop"]["reason"])
+
+
 if __name__ == "__main__":
     unittest.main()

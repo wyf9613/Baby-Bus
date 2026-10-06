@@ -8,9 +8,19 @@
       # Explicit offline vehicle limits: references are marked simulation_only.
       # Braking/speed values here are NOT measured on the car.
       vehicle_limits_source: course_simulation
+      # Camera alignment, found with offline/mpc_gym/pipeline_sim.py (80 deg FOV, 1 m lane):
+      # lane-edge cones are first visible at ~0.6-1.3 m (0.5 m rejected every frame), and
+      # 2 cm cone noise exceeds the 0.05 1/m curvature and 3 cm fit-error gates.
+      # Operating-domain settings of the Planning subteam: agree before relying on them.
+      max_near_x_m: 1.45
+      max_curvature_1pm: 0.3
+      max_fit_error_m: 0.06
     mpc:
       enabled: true
       shadow: true
       # Course notebook vehicle for the prediction (shadow only); switch to "vehicle", and
       # planning back to upstream, once vehicle.* holds a measured, valid record.
       vehicle_params_source: course_simulation
+      # Planning V1 starts its straight reference behind-body-supported (up to ~1.5 m
+      # ahead); extending that straight line back to the car is exact.
+      max_backward_extension_m: 2.0

@@ -415,6 +415,34 @@ class ControllerBranches(unittest.TestCase):
         self.step(ctrl)
         self.assertGreater(seen[-1][4], 0.0)                     # the first command has now arrived
 
+    def test_short_reference_dropout_coasts_then_locks(self):
+        ctrl = verified(reference_dropout_tolerance_s=0.25)
+        self.step(ctrl, first=True, dt=0.0)
+        steer = ctrl.applied_steer
+        bad = {"schema": "reference_trajectory_v0.1", "valid": False, "reason": "not_straight_enough"}
+        for _ in range(2):                                  # 0.0 s and 0.1 s into the dropout
+            out = self.step(ctrl, traj=bad)
+            self.assertEqual(out["debug"]["branch"], "ref_hold")
+            self.assertEqual((out["drive"], out["steer"]), (0.0, steer))
+        self.assertEqual(self.step(ctrl)["debug"]["branch"], "solved")   # a valid frame resets the window
+        for _ in range(3):
+            self.step(ctrl, traj=bad)                        # 0.0, 0.1, 0.2 s
+        with self.assertRaises(Stop):
+            self.step(ctrl, traj=bad)                        # 0.3 s >= 0.25 s: locked
+        self.assertEqual(ctrl.last_debug["branch"], "ref_invalid")
+
+    def test_dropout_tolerance_never_covers_unsafe_rejections(self):
+        for reason, call in (("overspeed", lambda c: c.step(straight_trajectory(), 0.45, 0.1, self.NOW, False)),
+                             ("dt_out_of_range", lambda c: c.step(straight_trajectory(), 0.3, 0.5, self.NOW, False)),
+                             ("stop_required", lambda c: c.step(dict(straight_trajectory(), stop_required=True),
+                                                                0.3, 0.1, self.NOW, False))):
+            ctrl = verified(reference_dropout_tolerance_s=0.5)
+            self.step(ctrl, first=True, dt=0.0)
+            with self.assertRaises(Stop, msg=reason):
+                call(ctrl)
+        with self.assertRaises(ValueError):
+            Settings(reference_dropout_tolerance_s=0.8)
+
     def test_over_budget_result_is_not_executed(self):
         ctrl = verified(max_step_time_s=1e-9)
         with self.assertRaises(Stop):
@@ -767,8 +795,12 @@ class ConfigChecks(unittest.TestCase):
     def test_prototype_overlay_enables_shadow_only(self):
         overlay = self.load("ai4r_policy_mpc_prototype.yaml")
         self.assertEqual(overlay["mpc"], {"enabled": True, "shadow": True,
-                                          "vehicle_params_source": "course_simulation"})
-        self.assertEqual(overlay["planning"], {"vehicle_limits_source": "course_simulation"})
+                                          "vehicle_params_source": "course_simulation",
+                                          "max_backward_extension_m": 2.0})
+        self.assertEqual(overlay["planning"], {"vehicle_limits_source": "course_simulation",
+                                               "max_near_x_m": 1.45, "max_curvature_1pm": 0.3,
+                                               "max_fit_error_m": 0.06})
+        PlanSettings(**dict(self.load("ai4r_policy.yaml")["planning"], **overlay["planning"]))
         self.assertEqual(set(overlay["required_sensors"]),
                          {"cone_detections", "wheel_speed", "imu_angular_velocity"})
         merged = dict(self.load("ai4r_policy.yaml")["mpc"], **overlay["mpc"])

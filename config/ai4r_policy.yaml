@@ -241,6 +241,9 @@
       vehicle_params_source: "vehicle"
       v_exec_max_mps: 0.0          # execution speed cap; must be > 0 for shadow: false
       overspeed_margin_mps: 0.1    # execution stops above v_exec_max_mps + this margin
+      # Execution only: reference rejections shorter than this coast (drive 0, steering held)
+      # instead of locking at once; anything longer, or any other rejection, still locks. 0 = off.
+      reference_dropout_tolerance_s: 0.0
       horizon_n: 10
       dt_pred_s: 0.1               # fixed prediction step; measured dt is only range-checked
       dt_max_s: 0.2
