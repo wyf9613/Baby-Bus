@@ -22,6 +22,11 @@
 | `braking_behavior` | 按已确认的 ESC 规则，低速验证前进→零、前进→制动、停止→后续请求；记录滑行、制动、倒车及是否需要回中立。 |
 | `steering_delay_s` | 同步测请求变化到实际前轮角开始持续变化的时间差；不使用完成整个转向所需的时间。 |
 | `drive_delay_s` | 分别记录静止起步和低速行驶时请求变化到运动响应的时间差；区分死区、静摩擦和轮速滤波，不能将表观延迟直接当成纯执行器延迟。 |
+| `mass_kg` | 与轴荷称重同时称整车质量（同一载荷、电池）。 |
+| `motor_gain_n`、`drag_kg_per_m` | 用 `drive_response_model` 的直行数据按 `m*dv/dt = motor_gain_n*drive - drag_kg_per_m*v*|v|` 拟合：稳态速度给出 `k*drive = c*v^2`，起步加速度给出 k/m；死区或静摩擦明显时在 `drive_response_model` 中写明适用的请求范围，不强行用单一方程。 |
+| `speed_max_mps` | 按场地、停止空间和 `drive_max` 选定的工作速度上限，写明依据；不是满油门极速。 |
+| `braking_deceleration_mps2` | 由 `braking_behavior` 的停车实验取保守值（约 v²/2d，d 为请求零/制动到静止的距离），附测试速度。 |
+| `safety_margin_m` | 与 Planning 组商定的车身外附加余量，写明依据；不并入 `body_*` 尺寸。 |
 
 转向使用自行车模型的等效前轮角，不能直接取单侧轮角。在理想 Ackermann 几何、两轮同向且远离零角时，可用 `cot(delta) = [cot(delta_left)+cot(delta_right)]/2`；近零或几何不一致时需结合低速轨迹复核。近似无侧滑时，可用后轴中心转弯半径核对 `|delta| = atan(L/R_rear)`，左右方向确定符号。
 
@@ -36,3 +41,5 @@
 每项参数交付数值或行为规则、单位、测量/拟合方法、适用范围、重复测量变动和独立复测结果；驱动限幅附选择依据，响应模型附方程与系数单位。
 
 确认后填写 `vehicle_params.py`，未确认项保留 `None`。仅有滤波观测、无法分离的延迟需明确注明；不能用仿真假设或 0 补齐。
+
+运行时由 `config/ai4r_policy.yaml` 的 `vehicle.*` 承载同名字段（ROS 参数没有 None）：全部字段确认后再设置 `vehicle.valid: true` 和标明记录来源的 `vehicle.source`，节点会检查一致性；`valid: false` 时这些值不会被任何模块当作实测值。接入方式和仍未解决的建模问题见 [VEHICLE_PARAMS_INTEGRATION.md](VEHICLE_PARAMS_INTEGRATION.md)。

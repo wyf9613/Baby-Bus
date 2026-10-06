@@ -273,8 +273,9 @@ def merge(target, changes):
 merge(base, overlay)
 p = base[key]['ros__parameters']
 p['mpc'].update(enabled=True, shadow=True, reference_source='planning',
-                mapping_verified=False, limits_verified=False,
+                vehicle_params_source='course_simulation',
                 v_exec_max_mps=0.0, bypass_acknowledged=False)
+assert p['vehicle']['valid'] is False
 assert p['required_sensors'] == ['cone_detections', 'wheel_speed', 'imu_angular_velocity']
 assert p['planning']['vehicle_limits_source'] == 'course_simulation'
 assert p['mpc']['shadow'] is True
@@ -284,7 +285,7 @@ out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(yaml.safe_dump(base, sort_keys=False), encoding='utf-8')
 print('Generated:', out)
 print('MPC:', {n: p['mpc'][n] for n in ('enabled', 'shadow', 'reference_source',
-      'mapping_verified', 'limits_verified', 'v_exec_max_mps')})
+      'vehicle_params_source', 'v_exec_max_mps')}, 'vehicle.valid:', p['vehicle']['valid'])
 PY
 ```
 
@@ -498,8 +499,8 @@ ros2 param get /car/ai4r_policy mpc.enabled
 ros2 param get /car/ai4r_policy mpc.shadow
 ros2 param get /car/ai4r_policy mpc.reference_source
 ros2 param get /car/ai4r_policy planning.vehicle_limits_source
-ros2 param get /car/ai4r_policy mpc.mapping_verified
-ros2 param get /car/ai4r_policy mpc.limits_verified
+ros2 param get /car/ai4r_policy mpc.vehicle_params_source
+ros2 param get /car/ai4r_policy vehicle.valid
 ros2 param get /car/ai4r_policy mpc.v_exec_max_mps
 ```
 
@@ -664,11 +665,11 @@ ros2 topic echo /car/mpc_debug
 | `reject_reason` | 正常样本无拒绝 | 分别统计 stale、alignment、forward coverage 等原因 |
 | `applied_drive` / `applied_steer_action` | 始终为 0 | 立即 state 2，保持车辆停用并查原因 |
 | `candidate_delta_rad` | 单独误差场景应有修正趋势 | 检查估计器、坐标和模型符号 |
-| `candidate_steer_action` | 符合 placeholder 映射 | 未标定之前不能证明物理轮角正确 |
+| `candidate_steer_action` / `candidate_drive` | 符合 course_simulation 映射；驱动 ≥ 0 | 未标定之前不能证明物理轮角或速度响应正确 |
 | `step_s` / `solve_s` | 完整 step P95 < 0.05 s | 保存耗时和版本，回本机调整与验证 |
 | `dt` | 约 cone batch 周期，通常约 0.1 s | 大间隔/抖动尤其 >0.2 s 需解释 |
 | `ref_age_s` | 小于有效期 | 排查原始时戳、延迟、运动对齐 |
-| `model_speed_substituted` | 静止/慢推 shadow 可为 true | 是模型替代速度，不是测得的车速；执行模式不替代 |
+| `delta_est_rad` / `vehicle_source` | shadow 下为偏置角（应用动作恒为 0）；`course_simulation` | 由已应用指令按模型回放得到，不是测得的轮角 |
 | `simulation_only` | 当前 Planning shadow 为 true | 确认未把模型假设当实测能力 |
 | `planning_bypassed` / `reference_source` | 不 bypass、`planning` | 核对是否加载错 overlay |
 
@@ -752,7 +753,7 @@ prototype 提到 vehicle-identification 分支的 `id_test`。该分支及 READM
 
 ### 12.2 执行门槛
 
-依据 prototype，执行需要 shadow=false、mapping_verified=true、limits_verified=true、正的 v_exec_max_mps；这些值来自实测。Planning-bypass 还需 bypass_acknowledged，并明确缺失 clearance / stopping / speed cap 检查。本次主线使用 Planning 直线，不自动切换 bypass。
+依据 prototype，执行需要 shadow=false、`mpc.vehicle_params_source: vehicle`、`vehicle.valid: true`（全部字段实测并填写 source 标签，见 [VEHICLE_PARAMS_INTEGRATION.md](VEHICLE_PARAMS_INTEGRATION.md)）和正的 v_exec_max_mps。Planning-bypass 还需 bypass_acknowledged，并明确缺失 clearance / stopping / speed cap 检查。本次主线使用 Planning 直线，不自动切换 bypass。
 
 满足软件 flags 仅代表程序 gate 接受配置，不代替课程现场安排、实测参数或物理验收。`course_simulation` 的使用限制和仍未测量的参数由负责人明确解决。
 

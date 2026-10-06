@@ -1,10 +1,10 @@
-# Minimal lateral MPC prototype: running and release gates
+# Vehicle-model MPC prototype: running and release gates
 
-For a first low-speed, straight-road car test only. This is not M0. The code is in `scripts/policy_node.py` (`MPCSettings`, `reference_trajectory_from_planning`, `mpc_reference_errors`, `MinimalLateralMPC`, `MPCController`, `SpeedPI`) and the tests are in `tests/test_mpc.py`. It is off by default and enabled by the overlay `config/ai4r_policy_mpc_prototype.yaml`.
+For a first low-speed, straight-road car test only. This is not M0. The code is in `scripts/policy_node.py` (`VehicleParamsSettings`, `course_model_step`, `MPCSettings`, `reference_trajectory_from_planning`, `mpc_reference_errors`, `VehicleModelMPC`, `MPCController`) and the tests are in `tests/test_mpc.py`. The prediction model is the course model of `offline/mpc_prediction_model/` (validated against Dream Gym); the vehicle parameters are the identification record `vehicle.*` described in [VEHICLE_PARAMS_INTEGRATION.md](VEHICLE_PARAMS_INTEGRATION.md). It is off by default and enabled by the overlay `config/ai4r_policy_mpc_prototype.yaml`.
 
 ## Data flow
 
-Estimation (`estimation_output`) → Planning V1 (straight line `y = a0 + a1·x`, reference marked `simulation_only`) → `reference_trajectory_from_planning` (v0.1 point list, keeping Planning's original timestamp and validity period) → `MPCController.step` → `drive_action`, `steering_action`. The MPC reads only the point list.
+Estimation (`estimation_output`) → Planning V1 (straight line `y = a0 + a1·x`, reference marked `simulation_only`) → `reference_trajectory_from_planning` (v0.1 point list, keeping Planning's original timestamp and validity period) → `MPCController.step` → `drive_action`, `steering_action`. The MPC reads only the point list, the filtered speed and the vehicle record selected by `mpc.vehicle_params_source` (`vehicle` = the `vehicle.*` record, `course_simulation` = notebook values, shadow only). A valid `vehicle.*` record also replaces the estimator's unmeasured `vehicle_params` / `vehicle_limits`, so Planning can run on `upstream` limits.
 
 ## Starting it
 
@@ -12,28 +12,29 @@ Estimation (`estimation_output`) → Planning V1 (straight line `y = a0 + a1·x`
 ros2 launch ai4r_policy ai4r_policy.launch.py params_file:=<share>/config/ai4r_policy_mpc_prototype.yaml
 ```
 
-The overlay only turns on shadow mode. With `shadow: true` the applied drive and steering are always 0, whatever is computed, and a rejected step does not stop the policy. `shadow: false` requires `mapping_verified` and `limits_verified` both true and `v_exec_max_mps > 0`; otherwise the first step is refused (`gate_refused`).
+The overlay turns on shadow mode with the course-simulation vehicle. With `shadow: true` the applied drive and steering are always 0, whatever is computed, and a rejected step does not stop the policy. `shadow: false` requires `mpc.vehicle_params_source: vehicle`, `vehicle.valid: true` (a measured record) and `v_exec_max_mps > 0`; otherwise the first step is refused (`gate_refused`). With an unmeasured record the shadow log shows `vehicle_invalid`. The node refuses to start if `mpc.vehicle_params_source` and `planning.vehicle_limits_source` do not select `course_simulation` together (Planning reference mode), or if `id_test.mode` is not `off` while the MPC is enabled.
 
 ## Conventions
 
 - Errors: `e_y > 0` means the car is left of the path; `e_psi = car heading − path heading`; positive steering is left.
-- `δ = steering_sign · steering_gain_rad_per_action · action + steering_offset_rad`. The zero command maps to `offset`, not 0 rad. There is no wheel-angle sensor, so `prev_delta` is "the estimated angle for the last command sent", not a measured wheel angle.
-- The prediction step is fixed at `dt_pred_s = 0.1`; the measured dt is only range-checked (a first-step dt of 0 is accepted).
+- Prediction: state `[x, y, ψ, v, δ]` at the CG in base_link, input `[drive, steering_action]` (normalized). `δ_target = clip(gain·action + offset, min, max)`, approached at the steering rate limit; `m·v̇ = motor_gain·drive − drag·v|v|`; no lateral slip. One RK4 step per `dt_pred_s = 0.1` (fixed; the measured dt is only range-checked, a first-step dt of 0 is accepted).
+- One real-time SQP iteration per step: the model (without its clips) is linearised along the previous solution shifted by one step, and an OSQP QP bounds the steering range and rate, the action range and the drive. Drive is forward only (`max(0, vehicle.drive_min)` to `vehicle.drive_max`): the model has no reverse latch.
+- The zero steering command maps to `offset`, not 0 rad. There is no wheel-angle sensor: `delta_est_rad` is the model replay of the commands actually applied (zero in shadow mode), not a measured angle. Identified actuator delays are bridged the same way: the state is propagated over the delay with the commands already sent.
+- Execution stops (`stop:overspeed`) when the measured speed exceeds `v_exec_max_mps + overspeed_margin_mps`.
 - In execution mode any rejection raises `MPCStop`; the framework goes to state 2 and needs an explicit request to leave it. There is no automatic recovery.
-- Below `v_steer_min_mps` the controller does not solve and holds the current steering. In shadow mode it substitutes that speed into the model and flags `model_speed_substituted` in the log.
 
 ## Log
 
-Topic `mpc_debug` (String, JSON), one message for every branch, including early returns and rejections. Key fields: `branch` (shadow / solved / low_speed / zero_target / ref_invalid / stop / solver_fail / over_budget / gate_refused), `reject_reason`, `candidate_*` and `applied_*`, `e_y_m`, `e_psi_rad`, `speed_mps`, `v_ref_mps`, `path_id`, `ref_age_s`, `solve_s`, `step_s`, `clip_count`, `simulation_only`. `debug1 = e_y`, `debug2 = candidate_delta` (rad).
+Topic `mpc_debug` (String, JSON), one message for every branch, including early returns and rejections. Key fields: `branch` (shadow / solved / zero_target / ref_invalid / stop / solver_fail / over_budget / gate_refused / vehicle_invalid), `reject_reason`, `candidate_*` (including `candidate_drive`) and `applied_*`, `e_y_m`, `e_psi_rad`, `speed_mps`, `v_ref_mps`, `delta_est_rad`, `pred_e_y_end_m`, `pred_v_end_mps`, `vehicle_source`, `vehicle_valid`, `path_id`, `ref_age_s`, `solve_s`, `step_s`, `simulation_only`. `debug1 = e_y`, `debug2 = candidate_delta` (rad).
 
 ## Release gates
 
 | Gate | Content | Evidence |
 |---|---|---|
-| G0 | `python -m unittest tests/test_mpc.py tests/test_planning.py tests/test_estimation.py` | All pass (laptop, Python 3.13 / osqp 1.1.3) |
+| G0 | `python -m unittest tests/test_mpc.py tests/test_planning.py tests/test_estimation.py`, `python offline/mpc_prediction_model/test_vehicle_model.py`, `python -B offline/vehicle_identification/test_vehicle_identification.py` | All pass (laptop, Python 3.12 / osqp 1.1.3) |
 | G1 | On the Jetson, import numpy/scipy/osqp and run the same suite, read the timing output; start the node and load parameters | Mean / P95 / max step time and over-budget count; confirm the OSQP `time_limit` takes effect |
 | G2 (T9) | Vehicle not enabled; push the car by hand through left/right offsets and heading errors; request state 3 | Signs of e_y, e_psi and the candidate steering; share and reasons of `ref_invalid`; rosbag; confirm wheel speed reads while pushing |
-| G3 | Measure the steering mapping with the vehicle-identification `id_test`; measure the steering rate; test the speed PI on its own; measure coast distance, wheel-speed decay delay and the 0.5 s command timeout; write the measured braking deceleration back to `planning.simulation_braking_deceleration_mps2` | Write the values to `mpc.*`, set both verified flags true and set `v_exec_max_mps` |
+| G3 | Fill every `vehicle.*` field from the vehicle-identification tests (docs/vehicle-params-test-plan.md): geometry, steering map/range/rate, drive range and response (mass, motor gain, drag), delays, speed/braking/margin; also check the 0.5 s command timeout | `vehicle.valid: true` with a source label, `mpc.vehicle_params_source: vehicle`, `planning.vehicle_limits_source: upstream`, then `v_exec_max_mps` |
 | G4 (T10, conditional) | Fix the route, speed, stop conditions and who holds the stop button first; one run to check direction, then three in a row | Records of every run, including failures |
 
 ## Running it: Jetson, ROS, then the car
@@ -131,12 +132,12 @@ ros2 bag record /car/mpc_debug /car/debug1 /car/debug2 /car/policy_fsm_state_str
 | `e_y_m` | Positive when the car is left of the road centre; close to the tape measurement (offset 10 cm gives about 0.10) | Wrong sign: the estimator or coordinate convention differs from the assumption; do not go on |
 | `e_psi_rad` | Positive when the car heading is left of the road direction | Same |
 | `candidate_delta_rad` | Opposite sign to `e_y_m` and to `e_psi_rad` (left of the road, so steer right: negative) | Wrong sign is a model/convention bug |
-| `candidate_steer_action` | Follows `candidate_delta_rad` through the placeholder mapping; only its sign relation is meaningful until the mapping is measured | |
+| `candidate_steer_action`, `candidate_drive` | Steering follows `candidate_delta_rad` through the course-simulation mapping (only its sign is meaningful until measured); drive ≥ 0, larger at rest | |
 | `applied_steer_action`, `applied_drive` | Always 0 in shadow | Anything else is a bug |
 | `step_s`, `solve_s` | p95 under 0.05 s (half of the 0.1 s period) | Over budget: reduce `horizon_n` |
 | `dt` | Steady, about the cone-detection period (the node triggers on cone batches) | Large jitter or gaps above 0.2 s will lock a real run |
 | `ref_age_s` | Small and below the validity period | Old references mean a timing or alignment problem |
-| `model_speed_substituted` | `true` while the car is at rest or pushed slowly | Expected in shadow only; execution mode never substitutes |
+| `delta_est_rad`, `vehicle_source` | The steering offset (shadow applies zero), `course_simulation` | Model replay of the applied commands, not a measured angle |
 | `simulation_only`, `planning_bypassed`, `reference_source` | Match the mode you started | |
 
 Also confirm in Foxglove that wheel speed reads while you push (if it reads 0, the speed is invalid or too low for the estimator and the MPC will reject), and that `policy_fsm_state_string` stays in policy state 3 for the whole test. Plot `debug1` (e_y) and `debug2` (candidate angle) against time.
@@ -145,21 +146,22 @@ Pass for this step: signs and magnitudes right, the share of `ref_invalid` under
 
 ### 3. On the car: measurements first, then execution (G3, G4)
 
-Execution is refused (`gate_refused`) until `mapping_verified`, `limits_verified` and a positive `v_exec_max_mps` are set, and in bypass mode also `bypass_acknowledged`. Those flags are only to be set from the measurements below.
+Execution is refused (`gate_refused`) until `mpc.vehicle_params_source: vehicle`, a valid measured `vehicle.*` record and a positive `v_exec_max_mps` are set, and in bypass mode also `bypass_acknowledged`. The record is only to be filled from the measurements below.
 
-**3a. Measurements (vehicle enabled only for these tests; keep an RC stop to hand).** Use the vehicle-identification branch and its instructions (`offline/vehicle_identification/README.md` there). It has its own policy file with an `id_test` mode, so run it **instead of** this node, not together with it. Afterwards return to this branch.
+**3a. Measurements (vehicle enabled only for these tests; keep an RC stop to hand).** The identification sequence is part of this node: follow `offline/vehicle_identification/README.md` and [vehicle-params-test-plan.md](vehicle-params-test-plan.md), with `id_test.mode` set and `mpc.enabled: false` (the node refuses both at once). Afterwards set `id_test.mode: "off"` again.
 
 | Measure | How | Write to |
 |---|---|---|
-| Steering mapping and direction | `id_test.mode: steering` with a few small steering requests at rest; measure the front-wheel angle (or turning radius R, then angle = atan(L / R)) for left and right | `mpc.steering_gain_rad_per_action`, `mpc.steering_offset_rad`, `mpc.steering_sign` (positive action must give a left turn when the sign is +1), `mpc.steering_limit_rad` |
-| Steering rate | Time the wheel from one extreme to the other, or use the step test in that README | `mpc.steering_rate_limit_rad_s`; also keep it below the Traxxas slew limit (10 normalized units per second) times the gain |
-| Drive needed for the test speed | `id_test.mode: drive` on the straight; find the request that holds the test speed (start at 0.15 m/s) | `mpc.drive_max` (a little above that request), `mpc.v_exec_max_mps`, then check the speed PI gains |
-| Coast distance and braking | Run to the test speed, request state 2, measure the distance and time to rest; also note how long wheel speed takes to read zero (encoder timeout 3 s) | `planning.simulation_braking_deceleration_mps2` (use a conservative value, about v squared over twice the distance) |
+| Geometry and footprint | Tape and axle loads (`vehicle_test_tools.py geometry`) | `vehicle.wheelbase_m`, `rear_axle_from_cg_m`, `body_*` |
+| Steering mapping, direction and range | `id_test.mode: steering` at rest; equivalent front-wheel angle for several requests both ways (`steering` tool) | `vehicle.steering_gain_rad` (negative if a positive request turns right), `steering_offset_rad`, `steering_min_rad`, `steering_max_rad` |
+| Steering rate and delay | Synchronised angle video and requests (`steering-dynamics` tool); keep the rate below the Traxxas slew limit (10 normalized units per second) times the gain | `vehicle.steering_rate_limit_rad_s`, `steering_delay_s` |
+| Drive response | `id_test.mode: drive` on the straight: start, steady speeds for several fixed requests, zero-request coast; fit `m·v̇ = k·drive − c·v|v|` and check it on an independent run | `vehicle.mass_kg`, `motor_gain_n`, `drag_kg_per_m`, `drive_min`, `drive_max`, `drive_delay_s`, `drive_response_model` (text) |
+| Coast distance and braking | Run to the test speed, request state 2, measure distance and time to rest; note how long wheel speed takes to read zero (encoder timeout 3 s); ESC rules from `brake` mode | `vehicle.braking_deceleration_mps2` (conservative, about v² / 2d), `braking_behavior` (text), `speed_max_mps`, `safety_margin_m` |
 | Command timeout | With the car stopped, confirm what happens when the node stops publishing (vehicle command timeout 0.5 s) | Notes only |
 
-Not implemented: a speed-only test of the PI with steering held at zero. Until it exists, the speed loop is first exercised in the short straight run below, with the stop in hand.
+Then set `vehicle.valid: true` and `vehicle.source` to a label naming the record (date, run ids). The node refuses to start if the record is inconsistent.
 
-**3b. Switch to execution.** In the workspace YAML set `mpc.shadow: false`, `mpc.mapping_verified: true`, `mpc.limits_verified: true`, `mpc.v_exec_max_mps` to the measured cap (and `mpc.bypass_acknowledged: true` only in bypass mode, knowing the clearance and stopping checks are gone), then `dream runtime restart ai4r_policy` and repeat the parameter checks in section 2.
+**3b. Switch to execution.** In the workspace YAML set `mpc.vehicle_params_source: vehicle`, `planning.vehicle_limits_source: upstream`, `mpc.shadow: false`, `mpc.v_exec_max_mps` to the chosen cap (and `mpc.bypass_acknowledged: true` only in bypass mode, knowing the clearance and stopping checks are gone), then `dream runtime restart ai4r_policy` and repeat the parameter checks in section 2.
 
 **3c. Run order** (from the repository README): the policy starts publishing zeros, then request the vehicle Enable in Foxglove and wait for Enabled, then request policy state 3. Stop by requesting policy state 2 (zeros) and use the RC stop; zero commands are not active braking.
 
@@ -169,7 +171,7 @@ Not implemented: a speed-only test of the PI with steering held at zero. Until i
 4. Any rejection in execution mode stops the policy (state 2). It does not resume by itself: read `mpc_debug` (`branch`, `reject_reason`), fix the cause, and request state 3 again, which rebuilds the controller from zero.
 5. After each run save the bag and the `mpc_debug` lines, and write down the battery state, surface and the settings used.
 
-What to look at during execution: `branch` should be `solved` (or `low_speed` during the start-up), `applied_steer_action` should move smoothly and stay well inside [-1, 1] (`clip_count` stays 0), `e_y_m` should stay small and shrink, `step_s` inside the budget, `speed_mps` near the target. Only a straight, empty route is in scope; the result is a "first straight-line takeover prototype", not M0.
+What to look at during execution: `branch` should be `solved`, `applied_steer_action` should move smoothly and stay well inside [-1, 1], `applied_drive` should stay at or above 0 and near the steady value for the target speed, `e_y_m` should stay small and shrink, `pred_v_end_mps` and `speed_mps` near the target, `step_s` inside the budget. Only a straight, empty route is in scope; the result is a "first straight-line takeover prototype", not M0.
 
 ## Bends: a reference source that bypasses Planning
 
@@ -177,7 +179,7 @@ What to look at during execution: `branch` should be `solved` (or `low_speed` du
 
 - Checks that are lost: Planning's body clearance, stopping distance and speed cap no longer apply; the target speed is fixed at `bypass_target_speed_mps` (then capped by `v_exec_max_mps`). Executing (`shadow: false`) therefore also needs `bypass_acknowledged: true`, otherwise `gate_refused`. The log marks `reference_source` and `planning_bypassed`.
 - Rejections (handled by the existing rules: shadow only logs, execution mode locks the stop): road not aligned to the state timestamp, stale data (≥ `bypass_max_source_age_s`), missing near coverage (first point x > `max_backward_extension_m`), short forward coverage, fit residual > `bypass_max_fit_error_m`, curvature > `bypass_max_curvature_1pm`.
-- Offline evidence: left, right and S bends at R = 2.5 m (κ = 0.4), initial lateral offsets 0 and ±0.1 m, on the nonlinear plant. Peak |e_y| about 0.10 m (the initial offset) and tail RMSE 0.01–0.07 m (largest for the S bend), inside the pre-fixed E_LIMIT = 0.325 m and E_LIMIT/2. Also passes with ±30 % steering gain, a 2-step delay and 1 cm centerline noise.
+- Offline evidence: left, right and S bends at R = 2.5 m (κ = 0.4), initial lateral offsets 0 and ±0.1 m, on the course prediction model at 0.05 s with drive and steering both from the MPC. Peak |e_y| about 0.10 m (the initial offset) and tail RMSE 0.005–0.05 m (largest for the S bend), inside the pre-fixed E_LIMIT = 0.325 m and E_LIMIT/2. Also passes with steering gain ×0.85, a −3° offset, a 100 ms unmodelled delay and 1 cm centerline noise.
 - Limits: at κ = 0.4 the quadratic's extrapolation to the car is off by about 1.6 cm / 2.7°; the centerline comes only from the estimator and has not been checked against real-car data; speed is not lowered automatically in bends; the reference is still single-frame and local, with no path fusion across frames.
 
 ## Fit to Interface Contract v0.1
@@ -197,9 +199,9 @@ Checked against the interface-freeze proposal by reading the code; nothing here 
 | Item | Contract v0.1 | This prototype |
 |---|---|---|
 | Stale rule | Age above 2 nominal control periods, computed by the consumer | Uses the validity period `valid_for_s` given by Planning (at most 0.1 s), or fixed 0.2 s / 0.1 s in bypass mode. `valid_for_s` is an extra top-level field not in the contract |
-| Actual dt | Algorithms use the actual dt | Prediction step is fixed at 0.1 s; the measured dt is only range-checked (0 to 0.2 s) and used by the speed PI |
+| Actual dt | Algorithms use the actual dt | Prediction step is fixed at 0.1 s; the measured dt is only range-checked (0 to 0.2 s) and advances the command-history clock used for the steering/delay replay |
 | Stop semantics | With `stop_required`, target speed ramps to 0 along the path | The adapter sets every point speed to 0; in execution mode a stop is a locked stop, not a controlled deceleration |
-| Parameter source | Steering mapping and limits come from Identification via `VehicleParams`; constraints are read from it | `vehicle_params` is not read (the estimator still reports it as invalid/unmeasured). Mapping and limits are placeholders in `mpc.*` |
+| Parameter source | Steering mapping and limits come from Identification via `VehicleParams`; constraints are read from it | Read from the `vehicle.*` record (fields as `VehicleParams`, plus the numeric drive response and Planning limits), not from the estimator's `vehicle_params` dict; a valid record overwrites that dict for consumers. Course-simulation values are allowed in shadow only |
 | Planning output | Planning outputs a point list | Planning V1 outputs a polynomial `[a0, a1]`; an adapter converts it |
 | Bypass mode | Estimation should not output the final reference | In bypass mode the MPC side builds the reference from the estimator centerline, which does Planning's job. It is marked `planning_bypassed` |
 
@@ -212,8 +214,8 @@ Checked against the interface-freeze proposal by reading the code; nothing here 
 
 ## Known limits
 
-- Placeholder values: steering gain/offset/limit/rate, speed PI gains, `drive_max`, and Planning's braking deceleration and delay are all unmeasured.
+- Nothing is measured yet: `vehicle.valid` is false, so only shadow runs with the course-simulation vehicle are possible.
 - The default Planning reference supports straight roads only (curvature always 0); bends need the Planning-bypass mode above.
-- The closed-loop simulation only shows the implementation is self-consistent (same model family, limited gain/delay mismatch); it does not predict the real car.
+- The closed-loop simulation uses the course prediction model as the plant; it shows the implementation is consistent with the course model under the PID baseline's mismatch cases, not that the real car behaves the same way. Unresolved modelling gaps are listed in [VEHICLE_PARAMS_INTEGRATION.md](VEHICLE_PARAMS_INTEGRATION.md).
 - A blocked solve also stops the single-threaded executor's watchdog timer; the fallbacks are the OSQP `time_limit` and the vehicle's 0.5 s command timeout, whose real effect must be checked in G3.
-- The speed PI is a temporary copy of the baseline branch's PID and should be replaced by the shared module.
+- The step time (laptop mean about 5 ms, max about 9 ms) has not been measured on the Jetson (G1).
