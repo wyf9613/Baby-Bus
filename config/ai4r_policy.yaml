@@ -193,49 +193,74 @@
       simulation_actuation_delay_s: 0.1
       simulation_safety_margin_m: 0.05
 
-    # Minimal lateral MPC prototype (straight road only), OFF unless an overlay enables it:
+    # Vehicle parameters from identification (docs/vehicle-params-test-plan.md); field names
+    # match offline/vehicle_identification/vehicle_params.py. valid: false = NOT approved for the
+    # car: the zero defaults below are placeholders, never facts. Set valid: true only with every
+    # value measured and a source label naming the record (run ids, date). A valid record also
+    # replaces the estimator's unmeasured vehicle_params/vehicle_limits for Planning.
+    vehicle:
+      valid: false
+      source: "unmeasured"
+      wheelbase_m: 0.0
+      rear_axle_from_cg_m: 0.0
+      body_front_extent_from_cg_m: 0.0   # tyres and attachments included, no margin
+      body_rear_extent_from_cg_m: 0.0
+      body_width_m: 0.0
+      # Equivalent bicycle front-wheel angle: delta = gain * steering_action + offset (rad, left +).
+      # A negative gain means a positive request turns right.
+      steering_gain_rad: 0.0
+      steering_offset_rad: 0.0
+      steering_min_rad: 0.0              # measured working end points, may be asymmetric
+      steering_max_rad: 0.0
+      steering_rate_limit_rad_s: 0.0     # physical wheel-angle rate, not the command slew
+      drive_min: 0.0                     # normalized working range; the MPC never sends < 0
+      drive_max: 0.0
+      drive_response_model: ""
+      braking_behavior: ""
+      steering_delay_s: 0.0
+      drive_delay_s: 0.0
+      # Numeric drive response used by the MPC: m*dv/dt = motor_gain_n*drive - drag_kg_per_m*v*|v|.
+      mass_kg: 0.0
+      motor_gain_n: 0.0
+      drag_kg_per_m: 0.0
+      # Planning limits (operating domain, m/s, m/s^2, m).
+      speed_max_mps: 0.0
+      braking_deceleration_mps2: 0.0
+      safety_margin_m: 0.0
+
+    # Vehicle-model MPC (drive and steering), OFF unless an overlay enables it:
     #   ros2 launch ai4r_policy ai4r_policy.launch.py params_file:=<share>/config/ai4r_policy_mpc_prototype.yaml
-    # The overlay also requires wheel speed and yaw rate and selects the explicitly labelled
-    # simulation vehicle limits for the planner (references then carry simulation_only).
-    # Everything marked PLACEHOLDER must be replaced by a measurement before shadow: false.
+    # Prediction is the course model of offline/mpc_prediction_model with the vehicle record chosen
+    # by vehicle_params_source: "vehicle" (vehicle.* above) or "course_simulation" (notebook values,
+    # shadow only; pair it with planning.vehicle_limits_source: course_simulation).
+    # shadow: false is refused unless vehicle.valid is true and v_exec_max_mps > 0.
     mpc:
       enabled: false
       # true: compute and log candidates, always apply zero drive/steer, never stop on rejection.
       shadow: true
-      # shadow: false is refused until all three are set on purpose after the G3 checks.
-      mapping_verified: false
-      limits_verified: false
+      vehicle_params_source: "vehicle"
       v_exec_max_mps: 0.0          # execution speed cap; must be > 0 for shadow: false
+      overspeed_margin_mps: 0.1    # execution stops above v_exec_max_mps + this margin
       horizon_n: 10
       dt_pred_s: 0.1               # fixed prediction step; measured dt is only range-checked
       dt_max_s: 0.2
+      sqp_iterations: 1            # 1 = real-time iteration on the shifted previous solution
+      # Weights: lateral (1/m^2), heading (1/rad^2), speed (s^2/m^2), steering angle against
+      # curvature feedforward and its change (1/rad^2), drive against steady state and its change.
       q_ey: 20.0
       q_epsi: 5.0
+      q_v: 10.0
       r_delta: 1.0
       r_ddelta: 2.0
+      r_drive: 1.0
+      r_ddrive: 2.0
       terminal_scale: 5.0
-      # Course notebook values, recorded as model assumptions (not identified).
-      wheelbase_m: 0.33
-      rear_axle_from_cg_m: 0.132
-      # PLACEHOLDER mapping: delta = sign * gain * steering_action + offset (rad).
-      steering_gain_rad_per_action: 0.3
-      steering_offset_rad: 0.0
-      steering_sign: 1.0
-      steering_limit_rad: 0.35
-      steering_rate_limit_rad_s: 1.0   # PLACEHOLDER; bound by Traxxas steering slew * gain
-      max_clip_count: 5
-      v_steer_min_mps: 0.05
       max_backward_extension_m: 0.6
       reference_spacing_m: 0.05
       max_step_time_s: 0.05
       solver_time_limit_s: 0.03
       solver_max_iter: 400
       constraint_tolerance: 0.0001
-      # Temporary longitudinal PI (copy of the baseline branch PID); PLACEHOLDER gains.
-      speed_kp: 1.0
-      speed_ki: 0.4
-      drive_min: 0.0
-      drive_max: 0.15
       # planning: use the Planning V1 reference (straight roads only).
       # estimation_centerline: BYPASS Planning, quadratic fit of the estimator centerline (bends
       # allowed, no body-clearance/stopping-distance checks); needs bypass_acknowledged to execute.

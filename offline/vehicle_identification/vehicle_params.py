@@ -1,6 +1,8 @@
-"""车辆参数基础清单：None 表示未确认，尚未接入控制器。
+"""车辆参数基础清单：None 表示未确认。
 
-MPC 额外动力学参数待方程对齐；测量方法见 docs/vehicle-params-test-plan.md。
+运行时载体是 scripts/policy_node.py 的 VehicleParamsSettings（vehicle.* 参数），
+字段与本文件一一对应（tests/test_mpc.py 检查）；确认后的数值填入 YAML 的
+vehicle.*，并设置 valid/source。测量方法见 docs/vehicle-params-test-plan.md。
 """
 
 from dataclasses import dataclass
@@ -41,3 +43,14 @@ class VehicleParams:
     # 请求到物理响应开始的延迟；区分观测滤波滞后与完整响应时间。
     steering_delay_s: float | None = None
     drive_delay_s: float | None = None
+
+    # MPC 纵向模型的数值形式（offline/mpc_prediction_model）：
+    # m*dv/dt = motor_gain_n*drive - drag_kg_per_m*v*|v|。
+    mass_kg: float | None = None
+    motor_gain_n: float | None = None
+    drag_kg_per_m: float | None = None
+
+    # Planning 需要的工作域限值（m/s、m/s²、m）；延迟取上面两个延迟的较大值。
+    speed_max_mps: float | None = None
+    braking_deceleration_mps2: float | None = None
+    safety_margin_m: float | None = None

@@ -1,26 +1,34 @@
-"""Minimal lateral MPC contracts against the actual single-file source; no ROS needed.
+"""Vehicle-model MPC contracts against the actual single-file source; no ROS needed.
 
 The pure MPC definitions are extracted from scripts/policy_node.py like test_planning does.
-The closed loops use a nonlinear kinematic plant whose parameters differ from the
-controller's: they show that this implementation is self-consistent under modest
-mismatch, not that the real car behaves the same way.
+The closed loops drive offline/mpc_prediction_model/vehicle_model.step (the prediction
+model validated against Dream Gym) at the course step of 0.05 s, with parameters that
+differ from the controller's: they show that this implementation is self-consistent under
+the course model and modest mismatch, not that the real car behaves the same way.
 """
 import ast
 from pathlib import Path
 import json
 import math
+import random
 import runpy
 import statistics
+import sys
 import time
 from types import SimpleNamespace
 import unittest
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "offline" / "mpc_prediction_model"))
+from vehicle_model import CourseModelParams, step as plant_step  # noqa: E402
+
 planning_api = runpy.run_path(str(Path(__file__).with_name("test_planning.py")))
 namespace = planning_api["api"]["namespace"]
-SOURCE = Path(__file__).resolve().parents[1] / "scripts" / "policy_node.py"
-NAMES = {"wrap_angle", "MPCStop", "MPCSettings", "SpeedPI", "reference_trajectory_from_planning",
-         "reference_trajectory_from_road",
-         "mpc_reference_errors", "MinimalLateralMPC", "MPCController", "mpc_debug_json"}
+SOURCE = ROOT / "scripts" / "policy_node.py"
+NAMES = {"wrap_angle", "MPCStop", "VehicleParamsSettings", "course_simulation_vehicle_params",
+         "course_model_step", "MPCSettings", "mpc_vehicle_params", "reference_trajectory_from_planning",
+         "reference_trajectory_from_road", "mpc_reference_errors", "mpc_path_projector",
+         "VehicleModelMPC", "MPCController", "mpc_debug_json"}
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in NAMES]
@@ -28,10 +36,12 @@ assert {item.name for item in definitions} == NAMES
 namespace.update(time=time, json=json, String=lambda data: SimpleNamespace(data=data))
 exec(compile(ast.Module(body=definitions, type_ignores=[]), str(SOURCE), "exec"), namespace)
 Settings = namespace["MPCSettings"]
+Vehicle = namespace["VehicleParamsSettings"]
+course_vehicle = namespace["course_simulation_vehicle_params"]
+model_step = namespace["course_model_step"]
 Stop = namespace["MPCStop"]
 Controller = namespace["MPCController"]
-Solver = namespace["MinimalLateralMPC"]
-SpeedPI = namespace["SpeedPI"]
+Solver = namespace["VehicleModelMPC"]
 adapt = namespace["reference_trajectory_from_planning"]
 from_road = namespace["reference_trajectory_from_road"]
 errors = namespace["mpc_reference_errors"]
@@ -41,14 +51,30 @@ Planner, PlanSettings, plan_fixture = (planning_api["Planner"], planning_api["Se
 
 # Closed-loop pass criteria, fixed before looking at results: 1.0 m road, 0.25 m car, 0.05 m margin.
 E_LIMIT = (1.0-0.25)/2 - 0.05
-L, L_R = 0.33, 0.132
+PLANT_DT = 0.05
 
 
-def verified(**kwargs):
-    base = dict(enabled=True, shadow=False, mapping_verified=True, limits_verified=True,
-                v_exec_max_mps=0.3)
+def measured(**changes):
+    """Course values relabelled as a measured record: an offline TEST fixture only."""
+    values = dict(vars(course_vehicle()), valid=True, source="offline_test_fixture")
+    values.update(changes)
+    return Vehicle(**values)
+
+
+def verified(vehicle=None, **kwargs):
+    base = dict(enabled=True, shadow=False, v_exec_max_mps=0.3)
     base.update(kwargs)
-    return Settings(**base)
+    return Controller(Settings(**base), measured() if vehicle is None else vehicle)
+
+
+def plant_params(vehicle, gain_scale=1.0, offset=0.0, motor_scale=1.0, drag_scale=1.0):
+    return CourseModelParams(
+        front_axle_m=vehicle.wheelbase_m-vehicle.rear_axle_from_cg_m, rear_axle_m=vehicle.rear_axle_from_cg_m,
+        mass_kg=vehicle.mass_kg, motor_gain_n=vehicle.motor_gain_n*motor_scale,
+        drag_kg_per_m=vehicle.drag_kg_per_m*drag_scale, steering_gain_rad=vehicle.steering_gain_rad*gain_scale,
+        steering_offset_rad=vehicle.steering_offset_rad+offset, steering_min_rad=vehicle.steering_min_rad,
+        steering_max_rad=vehicle.steering_max_rad, steering_rate_lower_rad_s=-vehicle.steering_rate_limit_rad_s,
+        steering_rate_upper_rad_s=vehicle.steering_rate_limit_rad_s)
 
 
 def straight_trajectory(y=0.0, slope=0.0, speed=0.3, start_x=0.2, length=2.0, stamp=10.0,
@@ -62,6 +88,17 @@ def straight_trajectory(y=0.0, slope=0.0, speed=0.3, start_x=0.2, length=2.0, st
     return {"schema": "reference_trajectory_v0.1", "frame_id": "base_link", "timestamp_s": stamp,
             "valid_for_s": lifetime, "valid": True, "stop_required": False, "status": "TRACK",
             "reason": None, "path_id": 1, "simulation_only": True, "source_ages_s": {}, "points": points}
+
+
+def arc_trajectory(kappa, speed=0.3, length=2.0, stamp=10.0):
+    """Points on a circle of curvature kappa tangent to +x at the origin."""
+    points = []
+    for i in range(int(length/0.05)+1):
+        s = i*0.05
+        x, y = (s, 0.0) if kappa == 0 else (math.sin(kappa*s)/kappa, (1-math.cos(kappa*s))/kappa)
+        points.append({"s_m": s, "x_m": x, "y_m": y, "yaw_rad": kappa*s, "curvature_1pm": kappa,
+                       "target_speed_mps": speed})
+    return dict(straight_trajectory(stamp=stamp), points=points)
 
 
 class Adapter(unittest.TestCase):
@@ -124,70 +161,148 @@ class ReferenceErrors(unittest.TestCase):
         self.assertEqual(errors(traj, 10, 0.1, 0.3, 0.6)[1], "repeated_point")
 
 
-class SettingsChecks(unittest.TestCase):
-    def test_mapping_roundtrip_with_offset(self):
-        cfg = Settings(steering_offset_rad=0.02, steering_sign=-1.0, steering_gain_rad_per_action=0.25)
-        for action in (-1.0, -0.3, 0.0, 0.7, 1.0):
-            self.assertAlmostEqual(cfg.action_of_delta(cfg.delta_of_action(action)), action)
-        self.assertAlmostEqual(cfg.delta_of_action(0.0), 0.02)   # zero command is not 0 rad
+class VehicleRecord(unittest.TestCase):
+    def test_fields_match_the_identification_vehicle_params(self):
+        offline = runpy.run_path(str(ROOT / "offline" / "vehicle_identification" / "vehicle_params.py"))
+        fields = set(offline["VehicleParams"].__dataclass_fields__)
+        self.assertEqual(set(vars(Vehicle())) - {"valid", "source"}, fields)
 
+    def test_unmeasured_and_course_records_are_never_valid(self):
+        self.assertFalse(Vehicle().valid)
+        self.assertIsNotNone(Vehicle().problem())
+        course = course_vehicle()
+        self.assertFalse(course.valid)
+        self.assertIsNone(course.problem())
+        for source in ("unmeasured", "course_simulation", "offline_test_assumption"):
+            with self.assertRaises(ValueError, msg=source):
+                Vehicle(**dict(vars(course), valid=True, source=source))
+
+    def test_valid_record_must_be_consistent(self):
+        for change in ({"rear_axle_from_cg_m": 0.4}, {"steering_offset_rad": 0.9}, {"steering_gain_rad": 0.0},
+                       {"drive_max": -0.1}, {"steering_rate_limit_rad_s": 0.0}, {"mass_kg": 0.0},
+                       {"body_rear_extent_from_cg_m": 0.1}, {"steering_delay_s": 2.0},
+                       {"braking_deceleration_mps2": 0.0}, {"wheelbase_m": float("nan")}):
+            with self.assertRaises(ValueError, msg=str(change)):
+                measured(**change)
+        measured(steering_gain_rad=-0.3, steering_offset_rad=0.02, steering_min_rad=-0.25,
+                 steering_max_rad=0.3)
+
+    def test_records_feed_planning_with_the_measured_limits(self):
+        params, limits = measured(steering_delay_s=0.05, drive_delay_s=0.12).records()
+        self.assertEqual(limits["rear_axle_x_m"], -0.132)
+        self.assertEqual(limits["actuation_delay_s"], 0.12)
+        self.assertEqual(params["steering_map"]["gain_rad"], math.pi/4)
+        self.assertEqual(sorted(p[0] for p in limits["footprint_xy_m"])[::3], [-0.198, 0.297])
+        road, state, obstacles, _, now = plan_fixture(0.05, 0.02)
+        ref, _ = Planner(PlanSettings()).plan(road, state, obstacles, limits, now)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertFalse(ref["simulation_only"])
+
+
+class ModelParity(unittest.TestCase):
+    """The inlined model must be the validated offline model, line for line."""
+
+    def test_inlined_step_equals_offline_prediction_model(self):
+        rng = random.Random(7)
+        for vehicle in (course_vehicle(), measured(steering_gain_rad=-0.3, steering_offset_rad=0.02,
+                                                  steering_min_rad=-0.25, steering_max_rad=0.3,
+                                                  steering_rate_limit_rad_s=1.2, drag_kg_per_m=1.7)):
+            params = plant_params(vehicle)
+            for _ in range(200):
+                state = [rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-3, 3), rng.uniform(-0.5, 1.5),
+                         rng.uniform(vehicle.steering_min_rad, vehicle.steering_max_rad)]
+                control = [rng.uniform(-1, 1), rng.uniform(-1, 1)]
+                dt = rng.choice((0.01, 0.05, 0.1))
+                expected = plant_step(state, control, dt, params)
+                actual = model_step(state, control, dt, vehicle)
+                for a, b in zip(actual, expected):
+                    self.assertAlmostEqual(a, b, delta=1e-12)
+
+    def test_unclipped_step_agrees_inside_the_limits(self):
+        vehicle = course_vehicle()
+        state, control = [0.0, 0.0, 0.1, 0.4, 0.05], [0.2, 0.1]
+        self.assertEqual(model_step(state, control, 0.1, vehicle),
+                         model_step(state, control, 0.1, vehicle, rate_limited=False))
+
+
+class SettingsChecks(unittest.TestCase):
     def test_invalid_settings_are_rejected(self):
-        for kwargs in ({"steering_sign": 0.5}, {"steering_gain_rad_per_action": 0.0},
-                       {"horizon_n": 1}, {"dt_pred_s": float("nan")}, {"drive_max": 1.5},
-                       {"steering_offset_rad": 0.5}, {"dt_max_s": 0.01}, {"shadow": 1}):
+        for kwargs in ({"vehicle_params_source": "notebook"}, {"horizon_n": 1}, {"sqp_iterations": 0},
+                       {"dt_pred_s": float("nan")}, {"dt_max_s": 0.01}, {"shadow": 1},
+                       {"v_exec_max_mps": -0.1}, {"q_v": 0.0}):
             with self.assertRaises(ValueError, msg=str(kwargs)):
                 Settings(**kwargs)
 
-    def test_delta_range_follows_reachable_mapping(self):
-        cfg = Settings(steering_gain_rad_per_action=0.2, steering_limit_rad=0.35)
-        self.assertEqual(cfg.delta_range(), (-0.2, 0.2))
-        cfg = Settings(steering_gain_rad_per_action=0.6, steering_limit_rad=0.35)
-        self.assertEqual(cfg.delta_range(), (-0.35, 0.35))
+    def test_vehicle_source_selection(self):
+        record = measured()
+        self.assertIs(namespace["mpc_vehicle_params"](Settings(), record), record)
+        self.assertEqual(namespace["mpc_vehicle_params"](Settings(vehicle_params_source="course_simulation"),
+                                                         record).source, "course_simulation")
+        self.assertFalse(namespace["mpc_vehicle_params"](Settings(), None).valid)
 
 
 class SolverChecks(unittest.TestCase):
     def setUp(self):
-        self.cfg = Settings()
-        self.solver = Solver(self.cfg)
+        self.vehicle = measured()
+        self.solver = Solver(Settings(), self.vehicle)
 
-    def solve(self, e_y=0.0, e_psi=0.0, v=0.3, kappa=0.0, prev=0.0):
-        return self.solver.solve(e_y, e_psi, v, [kappa]*self.cfg.horizon_n, prev)
+    def solve(self, traj=None, speed=0.3, delta=0.0, cap=0.3, last_drive=0.0, vehicle=None):
+        solver = self.solver if vehicle is None else Solver(Settings(), vehicle)
+        traj = straight_trajectory() if traj is None else traj
+        return solver.solve(traj["points"], [0.0, 0.0, 0.0, speed, delta], cap, last_drive)
 
-    def test_centred_is_zero_and_corrections_are_symmetric(self):
-        self.assertAlmostEqual(self.solve()["delta0"], 0.0, places=5)
-        left, right = self.solve(e_y=0.15)["delta0"], self.solve(e_y=-0.15)["delta0"]
-        self.assertLess(left, 0)          # left of path -> steer right (negative)
-        self.assertAlmostEqual(left, -right, places=5)
-        self.assertLess(self.solve(e_psi=0.1)["delta0"], 0)   # heading left of path -> steer right
+    def test_centred_holds_and_offsets_steer_back_symmetrically(self):
+        out, why = self.solve()
+        self.assertIsNone(why)
+        self.assertAlmostEqual(out["steer0"], 0.0, places=4)
+        self.assertGreater(out["drive0"], 0.0)
+        left, _ = self.solve(straight_trajectory(y=-0.1))    # car left of the path
+        right, _ = self.solve(straight_trajectory(y=0.1))
+        self.assertLess(left["steer0"], 0.0)                 # -> steer right
+        self.assertAlmostEqual(left["steer0"], -right["steer0"], places=4)
+        heading, _ = self.solve(straight_trajectory(slope=-0.1, start_x=0.0))  # heading left of path
+        self.assertLess(heading["steer0"], 0.0)
 
-    def test_constraints_hold_including_first_step_from_previous_delta(self):
-        step = self.cfg.steering_rate_limit_rad_s*self.cfg.dt_pred_s
-        low, high = self.cfg.delta_range()
-        for prev in (0.0, 0.1, -0.2, 0.02):
-            out = self.solve(e_y=0.3, e_psi=0.2, prev=prev)
-            seq = out["delta_seq"]
-            self.assertLessEqual(abs(seq[0]-prev), step+1e-4)
-            self.assertTrue(all(abs(b-a) <= step+1e-4 for a, b in zip(seq, seq[1:])))
-            self.assertTrue(all(low-1e-4 <= v <= high+1e-4 for v in seq))   # accepted residual tolerance
-            self.assertLess(out["violation"], 1e-4)
-        # Large initial error saturates the rate bound relative to prev, not relative to zero.
-        self.assertAlmostEqual(self.solve(e_y=0.5, prev=0.2)["delta0"], 0.2-step, places=4)
-
-    def test_curvature_feedforward(self):
-        out = self.solve(kappa=0.5)
+    def test_curvature_feedforward_and_negative_gain_mapping(self):
+        out, _ = self.solve(arc_trajectory(0.6))
         self.assertGreater(out["delta0"], 0.0)
+        flipped = measured(steering_gain_rad=-math.pi/4)
+        other, _ = self.solve(arc_trajectory(0.6), vehicle=flipped)
+        self.assertAlmostEqual(other["delta0"], out["delta0"], places=4)
+        self.assertAlmostEqual(other["steer0"], -out["steer0"], places=4)
 
-    def test_predicted_state_matches_the_model(self):
-        out = self.solve(e_y=0.1, e_psi=0.05)
-        a = 0.3*0.1
-        ey, ep, d = 0.1, 0.05, out["delta_seq"][0]
-        ey, ep = ey + a*(ep + L_R/L*d), ep + a/L*d
-        self.assertAlmostEqual(out["pred_e_y"][0], ey, places=9)
-        self.assertAlmostEqual(out["pred_e_psi"][0], ep, places=9)
+    def test_constraints_hold_on_the_whole_sequence(self):
+        vehicle = measured(steering_rate_limit_rad_s=0.8, steering_offset_rad=0.03, steering_max_rad=0.5,
+                           drive_min=-0.5, drive_max=0.4)
+        step = 0.8*0.1
+        for delta in (0.03, 0.3, -0.2):
+            out, _ = self.solve(straight_trajectory(y=0.3, slope=0.3), delta=delta, vehicle=vehicle)
+            deltas = [vehicle.steering_gain_rad*s + vehicle.steering_offset_rad for _, s in out["inputs"]]
+            self.assertLessEqual(abs(deltas[0]-delta), step+1e-4)
+            self.assertTrue(all(abs(b-a) <= step+1e-4 for a, b in zip(deltas, deltas[1:])))
+            self.assertTrue(all(-math.pi/4-1e-4 <= v <= 0.5+1e-4 for v in deltas))
+            self.assertTrue(all(-1e-6 <= d <= 0.4+1e-6 for d, _ in out["inputs"]))   # forward only
+            self.assertTrue(all(abs(s) <= 1+1e-6 for _, s in out["inputs"]))
 
-    def test_bad_inputs_fail_cleanly(self):
+    def test_prediction_is_the_clipped_model_of_the_returned_inputs(self):
+        out, _ = self.solve(straight_trajectory(y=-0.1))
+        z = [0.0, 0.0, 0.0, 0.3, 0.0]
+        for (drive, steer), v, delta in zip(out["inputs"], out["pred_v"], out["pred_delta"]):
+            z = model_step(z, (drive, steer), 0.1, self.vehicle)
+            self.assertAlmostEqual(z[3], v, places=12)
+            self.assertAlmostEqual(z[4], delta, places=12)
+
+    def test_starts_from_rest_and_respects_the_speed_cap(self):
+        out, _ = self.solve(speed=0.0)
+        self.assertGreater(out["drive0"], 0.0)
+        capped, _ = self.solve(speed=0.0, cap=0.1)
+        self.assertLess(capped["pred_v"][-1], out["pred_v"][-1])
+
+    def test_short_reference_and_bad_inputs(self):
+        self.assertEqual(self.solve(straight_trajectory(length=0.2, start_x=0.0), speed=1.0),
+                         (None, "reference_too_short"))
         with self.assertRaises(Exception):
-            self.solve(e_y=float("nan"))
+            self.solve(speed=float("nan"))
 
 
 class ControllerBranches(unittest.TestCase):
@@ -199,15 +314,14 @@ class ControllerBranches(unittest.TestCase):
         return ctrl.step(straight_trajectory(y=-0.1) if traj is self.DEFAULT else traj, speed, dt, now, first)
 
     def test_shadow_computes_candidates_but_applies_zero_and_never_raises(self):
-        ctrl = Controller(Settings(enabled=True, shadow=True, steering_offset_rad=0.03, v_exec_max_mps=0.0))
-        out = self.step(ctrl, first=True, speed=0.0, dt=0.0)
+        ctrl = Controller(Settings(enabled=True, shadow=True, vehicle_params_source="course_simulation"))
+        out = self.step(ctrl, first=True, dt=0.0)
         self.assertEqual((out["drive"], out["steer"]), (0.0, 0.0))
         d = out["debug"]
         self.assertEqual(d["branch"], "shadow")
-        self.assertTrue(d["model_speed_substituted"])
-        self.assertIsNotNone(d["candidate_delta_rad"])
-        self.assertLess(d["candidate_steer_action"], 0.0)         # path at y=-0.1: car is left of it -> steer right
-        self.assertAlmostEqual(ctrl.prev_delta, 0.03)             # zero command, not 0 rad
+        self.assertEqual(d["vehicle_source"], "course_simulation")
+        self.assertLess(d["candidate_steer_action"], 0.0)   # path at y=-0.1: car is left of it -> steer right
+        self.assertGreater(d["candidate_drive"], 0.0)
         for bad in (None, {"schema": "reference_trajectory_v0.1", "valid": False, "reason": "stale_road"},
                     straight_trajectory(stamp=1.0)):
             out = self.step(ctrl, traj=bad)
@@ -215,17 +329,20 @@ class ControllerBranches(unittest.TestCase):
             self.assertEqual(out["debug"]["branch"], "ref_invalid")
         self.assertEqual(self.step(ctrl, traj=dict(straight_trajectory(), stop_required=True))["debug"]["branch"], "stop")
 
-    def test_gate_refuses_unverified_execution(self):
-        for kwargs in ({"mapping_verified": False}, {"limits_verified": False}, {"v_exec_max_mps": 0.0}):
-            ctrl = Controller(verified(**kwargs))
+    def test_unmeasured_vehicle_is_logged_in_shadow_and_refused_in_execution(self):
+        out = self.step(Controller(Settings(enabled=True)), first=True, dt=0.0)
+        self.assertEqual((out["debug"]["branch"], out["drive"], out["steer"]), ("vehicle_invalid", 0.0, 0.0))
+        for ctrl in (Controller(Settings(enabled=True, shadow=False, v_exec_max_mps=0.3)),
+                     Controller(Settings(enabled=True, shadow=False, v_exec_max_mps=0.3,
+                                         vehicle_params_source="course_simulation")),
+                     verified(v_exec_max_mps=0.0)):
             with self.assertRaises(Stop):
                 self.step(ctrl, first=True, dt=0.0)
             self.assertEqual(ctrl.last_debug["branch"], "gate_refused")
-        ctrl = Controller(verified())
-        self.assertEqual(self.step(ctrl, first=True, dt=0.0)["debug"]["branch"], "solved")
+        self.assertEqual(self.step(verified(), first=True, dt=0.0)["debug"]["branch"], "solved")
 
     def test_first_step_dt_zero_is_accepted_later_bad_dt_locks(self):
-        ctrl = Controller(verified())
+        ctrl = verified()
         self.step(ctrl, first=True, dt=0.0)
         for dt in (0.0, -0.1, 0.5, float("nan")):
             with self.assertRaises(Stop, msg=str(dt)):
@@ -237,44 +354,69 @@ class ControllerBranches(unittest.TestCase):
                  "stale_road": {"schema": "reference_trajectory_v0.1", "valid": False, "reason": "stale_road"},
                  "ref_expired_or_future": straight_trajectory(stamp=9.0),
                  "stop_required": dict(straight_trajectory(), stop_required=True),
-                 "reference_too_short": straight_trajectory(length=0.2, start_x=0.0)}
+                 "reference_too_short": straight_trajectory(length=0.2, start_x=0.0),
+                 "overspeed": straight_trajectory()}
         for reason, traj in cases.items():
-            ctrl = Controller(verified())
+            ctrl = verified()
             with self.assertRaises(Stop, msg=reason):
-                ctrl.step(traj, 0.3, 0.1, self.NOW, False)
+                ctrl.step(traj, 0.45 if reason == "overspeed" else 0.3, 0.1, self.NOW, False)
             d = ctrl.last_debug
             self.assertEqual(reason, d["reject_reason"])
             self.assertEqual((d["applied_steer_action"], d["applied_drive"]), (0.0, 0.0))
         with self.assertRaises(Stop):
-            self.step(Controller(verified()), speed=float("nan"))
+            self.step(verified(), speed=float("nan"))
         with self.assertRaises(Stop):
-            self.step(Controller(verified()), traj=dict(straight_trajectory(), frame_id="odom"))
+            self.step(verified(), traj=dict(straight_trajectory(), frame_id="odom"))
 
     def test_no_automatic_recovery_object_is_rebuilt_only_on_explicit_restart(self):
-        ctrl = Controller(verified())
+        ctrl = verified()
+        self.step(ctrl, first=True, dt=0.0)
         with self.assertRaises(Stop):
             self.step(ctrl, traj={"schema": "reference_trajectory_v0.1", "valid": False, "reason": "x"})
         # The node rebuilds the controller only on is_first_policy_step (state-3 request).
-        self.assertEqual(ctrl.applied_steer, 0.0)
-        self.assertEqual(ctrl.prev_delta, ctrl.cfg.delta_of_action(0.0))
+        self.assertEqual((ctrl.applied_steer, ctrl.applied_drive), (0.0, 0.0))
+        self.assertEqual(ctrl.history[-1][1:], (0.0, 0.0))
+        self.assertIsNone(ctrl.nominal)
 
-    def test_low_speed_holds_steering_and_runs_pi(self):
-        ctrl = Controller(verified())
-        out = self.step(ctrl, speed=0.0, first=True, dt=0.0)
-        self.assertEqual(out["debug"]["branch"], "low_speed")
-        self.assertEqual(out["steer"], 0.0)
+    def test_start_from_rest_drives_forward(self):
+        out = self.step(verified(), speed=0.0, first=True, dt=0.0)
+        self.assertEqual(out["debug"]["branch"], "solved")
         self.assertGreater(out["drive"], 0.0)
-        self.assertLessEqual(out["drive"], 0.15)
 
-    def test_previous_delta_follows_applied_command_with_offset(self):
-        ctrl = Controller(verified(steering_offset_rad=0.02))
-        out = self.step(ctrl, first=True, dt=0.0)
-        self.assertAlmostEqual(ctrl.prev_delta, ctrl.cfg.delta_of_action(out["steer"]))
-        step = ctrl.cfg.steering_rate_limit_rad_s*ctrl.cfg.dt_pred_s
-        self.assertLessEqual(abs(ctrl.cfg.delta_of_action(out["steer"]) - 0.02), step+1e-6)
+    def test_steering_estimate_replays_the_applied_commands(self):
+        class Full:
+            def solve(self, points, z0, cap, last_drive, nominal=None):
+                return {"inputs": [(0.1, 1.0)]*10, "drive0": 0.1, "steer0": 1.0, "delta0": math.pi/4,
+                        "iterations": 1, "solve_s": 0.0, "pred_e_y": [0.0], "pred_v": [0.3]}, None
+        vehicle = measured(steering_offset_rad=0.02, steering_max_rad=0.5)
+        ctrl = verified(vehicle=vehicle)
+        ctrl.solver = Full()
+        self.step(ctrl, first=True, dt=0.0)
+        self.assertAlmostEqual(ctrl.last_debug["delta_est_rad"], 0.02)   # zero command maps to the offset
+        for k in range(1, 6):
+            self.step(ctrl)
+            expected = min(0.5, 0.02 + math.pi/2*0.1*k)                     # rate limited towards the clip
+            self.assertAlmostEqual(ctrl.last_debug["delta_est_rad"], expected, places=6)
+
+    def test_actuator_delay_is_bridged_with_the_commands_already_sent(self):
+        seen = []
+
+        class Recorder:
+            def solve(self, points, z0, cap, last_drive, nominal=None):
+                seen.append(list(z0))
+                return {"inputs": [(0.0, 0.5)]*10, "drive0": 0.0, "steer0": 0.5, "delta0": 0.4,
+                        "iterations": 1, "solve_s": 0.0, "pred_e_y": [0.0], "pred_v": [0.3]}, None
+        ctrl = verified(vehicle=measured(steering_delay_s=0.2, drive_delay_s=0.2, drag_kg_per_m=0.0))
+        ctrl.solver = Recorder()
+        self.step(ctrl, first=True, dt=0.0)
+        self.assertAlmostEqual(seen[0][0], 0.3*0.2, places=6)   # coasting through the delay
+        self.assertAlmostEqual(seen[0][4], 0.0)                  # nothing sent yet reaches the wheels
+        self.step(ctrl)
+        self.step(ctrl)
+        self.assertGreater(seen[-1][4], 0.0)                     # the first command has now arrived
 
     def test_over_budget_result_is_not_executed(self):
-        ctrl = Controller(verified(max_step_time_s=1e-9))
+        ctrl = verified(max_step_time_s=1e-9)
         with self.assertRaises(Stop):
             self.step(ctrl, first=True, dt=0.0)
         self.assertEqual(ctrl.last_debug["branch"], "over_budget")
@@ -284,128 +426,151 @@ class ControllerBranches(unittest.TestCase):
         class Failing:
             def solve(self, *args):
                 raise Stop("solver_status:primal infeasible")
-        ctrl = Controller(verified(), solver=Failing())
+        ctrl = verified()
+        ctrl.solver = Failing()
         with self.assertRaises(Stop):
             self.step(ctrl, first=True, dt=0.0)
         self.assertEqual(ctrl.last_debug["branch"], "solver_fail")
-        shadow = Controller(Settings(enabled=True), solver=Failing())
+        shadow = Controller(Settings(enabled=True, vehicle_params_source="course_simulation"), solver=Failing())
         out = self.step(shadow, first=True, dt=0.0)
         self.assertEqual((out["drive"], out["steer"]), (0.0, 0.0))
         self.assertEqual(out["debug"]["branch"], "solver_fail")
 
-    def test_clip_counter_stops_after_repeated_saturation(self):
+    def test_out_of_bounds_solution_is_rejected(self):
         class Wild:
             def solve(self, *args):
-                return {"delta0": 5.0, "iterations": 1, "solve_s": 0.0}
-        ctrl = Controller(verified(max_clip_count=1), solver=Wild())
-        self.step(ctrl, first=True, dt=0.0)          # clip 1 allowed (reported, applied clipped)
-        self.assertEqual(ctrl.last_debug["applied_steer_action"], 1.0)
+                return {"inputs": [(0.1, 5.0)]*10, "drive0": 0.1, "steer0": 5.0, "delta0": 5.0,
+                        "iterations": 1, "solve_s": 0.0, "pred_e_y": [0.0], "pred_v": [0.3]}, None
+        ctrl = verified()
+        ctrl.solver = Wild()
         with self.assertRaises(Stop):
-            self.step(ctrl)
+            self.step(ctrl, first=True, dt=0.0)
+        self.assertEqual(ctrl.last_debug["reject_reason"], "action_out_of_bounds")
 
-    def test_zero_target_gives_zero_drive_without_steering_solve(self):
-        ctrl = Controller(verified())
+    def test_zero_target_gives_zero_drive_without_solving(self):
+        ctrl = verified()
         out = self.step(ctrl, traj=straight_trajectory(speed=0.0), first=True, dt=0.0)
         self.assertEqual(out["debug"]["branch"], "zero_target")
         self.assertEqual(out["drive"], 0.0)
 
     def test_debug_json_is_finite_and_complete(self):
-        ctrl = Controller(Settings(enabled=True))
+        ctrl = Controller(Settings(enabled=True, vehicle_params_source="course_simulation"))
         self.step(ctrl, first=True, dt=0.0, speed=float("nan"))
         data = json.loads(debug_json(ctrl.last_debug))
-        for key in ("branch", "candidate_steer_action", "applied_steer_action", "reject_reason", "step_s"):
+        for key in ("branch", "candidate_steer_action", "candidate_drive", "applied_steer_action",
+                    "reject_reason", "step_s", "delta_est_rad", "vehicle_source"):
             self.assertIn(key, data)
 
 
-class SpeedControl(unittest.TestCase):
-    def test_saturation_reset_and_antiwindup(self):
-        pi = SpeedPI(1.0, 0.4, 0.0, 0.15)
-        for _ in range(50):
-            drive = pi.update(0.3, 0.0, 0.1)
-        self.assertEqual(drive, 0.15)
-        self.assertLess(pi.integral, 0.5)           # not wound up while saturated
-        self.assertEqual(pi.update(0.0, 0.2, 0.1), 0.0)
-        self.assertEqual(pi.integral, 0.0)
-        self.assertEqual(pi.update(0.3, 0.0, 0.0, integrate=False), 0.15)
-        self.assertEqual(pi.integral, 0.0)
+def body_points(path, x, y, psi, x_min=-0.2, x_max=2.5, speed=0.3):
+    """World polyline [(x, y, heading, kappa)] seen from the car, as v0.1 points."""
+    c, s = math.cos(psi), math.sin(psi)
+    pts = []
+    for px, py, th, kap in path:
+        dx, dy = px-x, py-y
+        bx, by = c*dx + s*dy, -s*dx + c*dy
+        if x_min <= bx <= x_max:
+            arc = 0.0 if not pts else pts[-1]["s_m"] + math.hypot(bx-pts[-1]["x_m"], by-pts[-1]["y_m"])
+            pts.append({"s_m": arc, "x_m": bx, "y_m": by, "yaw_rad": th-psi, "curvature_1pm": kap,
+                        "target_speed_mps": speed})
+    return pts
 
 
-def simulate(controller, true_gain=0.3, true_offset=0.0, delay_steps=1, y0=0.15, psi0=0.0,
-             steps=300, v0=0.3, dt=0.1, tau=0.5, drive_gain=2.0, noise=None):
-    """Nonlinear CG kinematic plant; the road is the world x axis (y = 0)."""
-    x, y, psi, v = 0.0, y0, psi0, v0
-    pending = [0.0]*delay_steps
+def run_plant(controller, reference, z0, plant, steps, command_delay_s=0.0, noise=None, period=0.1):
+    """Course model at 0.05 s, controller every `period`; reference(k, z) -> trajectory."""
+    z = list(z0)
+    pending = [(0.0, 0.0)]*round(command_delay_s/PLANT_DT)
     log = []
     for k in range(steps):
-        pts = []
-        for i in range(60):
-            wx = x - 0.2 + 0.05*i
-            dx, dy = wx - x, -y
-            pts.append({"s_m": 0.05*i, "x_m": math.cos(psi)*dx + math.sin(psi)*dy,
-                        "y_m": -math.sin(psi)*dx + math.cos(psi)*dy, "yaw_rad": -psi,
-                        "curvature_1pm": 0.0, "target_speed_mps": 0.3})
-        traj = {"schema": "reference_trajectory_v0.1", "frame_id": "base_link", "timestamp_s": k*dt,
-                "valid_for_s": 0.1, "valid": True, "stop_required": False, "status": "TRACK",
-                "reason": None, "path_id": k, "simulation_only": True, "source_ages_s": {}, "points": pts}
-        meas_v = v if noise is None else max(0.0, v + noise(k))
-        out = controller.step(traj, meas_v, 0.0 if k == 0 else dt, k*dt, k == 0)
-        pending.append(out["steer"])
-        steer = pending.pop(0)
-        delta = true_gain*steer + true_offset
-        beta = math.atan(L_R/L*math.tan(delta))
-        x += v*math.cos(psi+beta)*dt
-        y += v*math.sin(psi+beta)*dt
-        psi += v/L*math.tan(delta)*math.cos(beta)*dt
-        v += dt/tau*(drive_gain*out["drive"] - v)
-        log.append((y, psi, v, out["steer"], out["debug"]["step_s"]))
+        traj = reference(k, z, k*period)
+        speed = z[3] if noise is None else max(0.0, z[3] + noise())
+        out = controller.step(traj, speed, 0.0 if k == 0 else period, k*period, k == 0)
+        command = (out["drive"], out["steer"])
+        for _ in range(round(period/PLANT_DT)):
+            pending.append(command)
+            z = list(plant_step(z, pending.pop(0), PLANT_DT, plant))
+        log.append({"z": z, "drive": out["drive"], "steer": out["steer"],
+                    "branch": out["debug"]["branch"], "step_s": out["debug"]["step_s"]})
     return log
 
 
-class ClosedLoop(unittest.TestCase):
-    """Self-consistency under modest mismatch; E_LIMIT is the pre-fixed pass criterion."""
+def straight_world(length=40.0):
+    return [(-1.0 + 0.05*i, 0.0, 0.0, 0.0) for i in range(int(length/0.05))]
 
-    def check(self, log, label):
-        ey = [abs(row[0]) for row in log]
-        tail = [row[0] for row in log[-len(log)//3:]]
+
+def straight_reference(path):
+    def reference(k, z, now):
+        x, y, psi = z[0], z[1], z[2]
+        near = [q for q in path if q[0] >= x-0.3][:60]
+        return dict(straight_trajectory(stamp=now), path_id=k, points=body_points(near, x, y, psi))
+    return reference
+
+
+class ClosedLoop(unittest.TestCase):
+    """Course prediction model as plant; E_LIMIT is the pre-fixed pass criterion."""
+
+    def check(self, log, label, vehicle, cross=None):
+        ey = [row["z"][1] for row in log] if cross is None else cross
+        tail = ey[-len(ey)//3:]
         rmse = math.sqrt(sum(v*v for v in tail)/len(tail))
-        self.assertLessEqual(max(ey), E_LIMIT, label)
+        self.assertTrue(all(row["branch"] == "solved" for row in log), label)
+        self.assertLessEqual(max(abs(v) for v in ey), E_LIMIT, label)
         self.assertLessEqual(rmse, E_LIMIT/2, label)
-        steer = [row[3] for row in log]
+        steer = [row["steer"] for row in log]
         self.assertTrue(all(abs(v) <= 1.0 for v in steer), label)
-        rate = max(abs(b-a) for a, b in zip(steer, steer[1:]))
-        self.assertLessEqual(rate*0.3, 1.0*0.1 + 1e-6, label)       # <= rate limit * dt (rad)
+        self.assertTrue(all(row["drive"] >= 0.0 for row in log), label)
+        rate = max(abs(b-a) for a, b in zip(steer, steer[1:]))*abs(vehicle.steering_gain_rad)
+        self.assertLessEqual(rate, vehicle.steering_rate_limit_rad_s*0.1 + 1e-4, label)
         return rmse
 
+    def run_straight(self, vehicle=None, plant=None, z0=(0.0, 0.15, 0.0, 0.3, 0.0), steps=150, **kw):
+        vehicle = measured() if vehicle is None else vehicle
+        plant = plant_params(vehicle) if plant is None else plant
+        return run_plant(verified(vehicle=vehicle), straight_reference(straight_world()), z0, plant, steps, **kw)
+
     def test_offsets_and_heading_errors_converge(self):
+        vehicle = measured()
         for y0, psi0 in ((0.15, 0.0), (-0.15, 0.0), (0.0, 0.0), (0.0, 0.09), (0.0, -0.09), (0.1, -0.08)):
-            log = simulate(Controller(verified()), y0=y0, psi0=psi0)
-            self.check(log, f"y0={y0} psi0={psi0}")
+            log = self.run_straight(z0=(0.0, y0, psi0, 0.3, 0.0))
+            self.check(log, f"y0={y0} psi0={psi0}", vehicle)
 
-    def test_start_from_rest_with_speed_loop(self):
-        log = simulate(Controller(verified()), v0=0.0, y0=0.12, steps=400)
-        self.check(log, "rest start")
-        self.assertAlmostEqual(log[-1][2], 0.3, delta=0.03)
+    def test_start_from_rest_reaches_the_cap(self):
+        log = self.run_straight(z0=(0.0, 0.12, 0.0, 0.0, 0.0), steps=200)
+        self.check(log, "rest start", measured())
+        self.assertAlmostEqual(log[-1]["z"][3], 0.3, delta=0.03)
 
-    def test_model_mismatch_gain_offset_and_delay(self):
-        for gain in (0.21, 0.39):
-            for delay in (0, 1, 2):
-                log = simulate(Controller(verified()), true_gain=gain, delay_steps=delay, y0=0.12)
-                self.check(log, f"gain={gain} delay={delay}")
-        log = simulate(Controller(verified()), true_offset=0.02, y0=0.0)   # unmodelled 1.1 deg zero offset
-        self.assertLessEqual(max(abs(r[0]) for r in log), E_LIMIT)
+    def test_plant_mismatch_like_the_pid_baseline(self):
+        """tune.py scenarios: drive x0.7-0.8, drag x1.4-1.5, steering x0.85, offset +-2-3 deg, 100 ms delay."""
+        vehicle = measured()
+        cases = {"motor0.75_drag1.4": plant_params(vehicle, motor_scale=0.75, drag_scale=1.4),
+                 "gain0.85_offset-3deg": plant_params(vehicle, gain_scale=0.85, offset=math.radians(-3),
+                                                      motor_scale=0.7, drag_scale=1.5),
+                 "offset+2deg": plant_params(vehicle, offset=math.radians(2), motor_scale=0.8)}
+        for label, plant in cases.items():
+            log = self.run_straight(plant=plant, z0=(0.0, 0.12, 0.0, 0.3, 0.0), steps=200)
+            self.check(log, label, vehicle)
+            self.assertAlmostEqual(log[-1]["z"][3], 0.3, delta=0.05, msg=label)
+        for delay in (0.1, 0.2):
+            log = self.run_straight(command_delay_s=delay, z0=(0.0, 0.12, 0.0, 0.3, 0.0))
+            self.check(log, f"unmodelled delay {delay}", vehicle)
+
+    def test_identified_delay_is_used_by_the_prediction(self):
+        vehicle = measured(steering_delay_s=0.2, drive_delay_s=0.2)
+        log = self.run_straight(vehicle=vehicle, command_delay_s=0.2, z0=(0.0, 0.15, 0.0, 0.3, 0.0))
+        known = self.check(log, "modelled delay", vehicle)
+        blind = self.check(self.run_straight(command_delay_s=0.2, z0=(0.0, 0.15, 0.0, 0.3, 0.0)),
+                           "same delay, unmodelled", measured())
+        self.assertLessEqual(known, blind + 1e-3)
 
     def test_speed_noise(self):
-        seeds = []
         for seed in (1, 2, 3):
-            import random
             rng = random.Random(seed)
-            seeds.append(simulate(Controller(verified()), y0=0.1, noise=lambda k: rng.gauss(0, 0.02)))
-        for i, log in enumerate(seeds):
-            self.check(log, f"noise seed {i+1}")
+            log = self.run_straight(z0=(0.0, 0.1, 0.0, 0.3, 0.0), noise=lambda: rng.gauss(0, 0.02))
+            self.check(log, f"noise seed {seed}", measured())
 
     def test_step_timing_report(self):
-        log = simulate(Controller(verified()), steps=200)
-        times = sorted(row[4] for row in log)
+        log = self.run_straight(steps=200)
+        times = sorted(row["step_s"] for row in log)
         p95 = times[int(0.95*len(times))-1]
         print(f"\nMPC step time (laptop, not the target platform): mean {statistics.mean(times)*1e3:.2f} ms, "
               f"p95 {p95*1e3:.2f} ms, max {times[-1]*1e3:.2f} ms; "
@@ -485,8 +650,8 @@ class BypassReference(unittest.TestCase):
         base = dict(reference_source="estimation_centerline")
         traj = from_road(*road_record(arc_centerline(0.0)), Settings(**base))
         with self.assertRaises(Stop):
-            Controller(verified(**base)).step(traj, 0.3, 0.0, 10.0, True)
-        ctrl = Controller(verified(bypass_acknowledged=True, **base))
+            verified(**base).step(traj, 0.3, 0.0, 10.0, True)
+        ctrl = verified(bypass_acknowledged=True, **base)
         self.assertEqual(ctrl.step(traj, 0.3, 0.0, 10.0, True)["debug"]["branch"], "solved")
         self.assertEqual(ctrl.last_debug["planning_bypassed"], True)
         with self.assertRaises(ValueError):
@@ -510,108 +675,99 @@ def world_path(segments, step=0.02, lead=1.0):
     return pts
 
 
-def simulate_curve(controller, path, y0=0.0, psi0=0.0, steps=150, dt=0.1, v0=0.3, tau=0.5,
-                   drive_gain=2.0, true_gain=0.3, delay_steps=1, noise_sd=0.0, seed=0):
-    import random
+def centerline_reference(path, cfg, noise_sd=0.0, seed=0):
+    """Estimator-like view: centerline points 0.3-1.8 m ahead, through the bypass adapter."""
     rng = random.Random(seed)
-    x, y, psi, v = 0.0, y0, psi0, v0
-    pending = [0.0]*delay_steps
-    cfg = controller.cfg
-    log = []
-    for k in range(steps):
+
+    def reference(k, z, now):
+        x, y, psi = z[0], z[1], z[2]
         c, sn = math.cos(psi), math.sin(psi)
-        body = []
-        # estimator-like view: only path points within ~2.5 m of arc ahead of the car
         near_i = min(range(len(path)), key=lambda i: (path[i][0]-x)**2 + (path[i][1]-y)**2)
-        for px, py, th, kap in path[max(0, near_i-25):near_i+125]:
+        body = []
+        for px, py, _, _ in path[max(0, near_i-25):near_i+125]:
             dx, dy = px-x, py-y
             bx, by = c*dx + sn*dy, -sn*dx + c*dy
             if 0.3 <= bx <= 1.8:
                 body.append((bx, by + (rng.gauss(0, noise_sd) if noise_sd else 0.0)))
-        body = body[::5]
-        road = {"valid": True, "time_aligned": True, "frame_id": "base_link", "timestamp_s": k*dt,
-                "measurement_timestamp_s": k*dt-0.05, "source_age_s": 0.05, "centerline_xy": body}
-        state = {"timestamp_s": k*dt, "speed_valid": True, "yaw_rate_valid": True}
-        traj = from_road(road, state, cfg)
-        out = controller.step(traj, v, 0.0 if k == 0 else dt, k*dt, k == 0)
-        pending.append(out["steer"])
-        delta = true_gain*pending.pop(0)
-        beta = math.atan(L_R/L*math.tan(delta))
-        # true cross-track error: signed distance to the nearest world path point (left positive)
+        road = {"valid": True, "time_aligned": True, "frame_id": "base_link", "timestamp_s": now,
+                "measurement_timestamp_s": now-0.05, "source_age_s": 0.05, "centerline_xy": body[::5]}
+        return from_road(road, {"timestamp_s": now, "speed_valid": True, "yaw_rate_valid": True}, cfg)
+    return reference
+
+
+def cross_track(path, log):
+    errors_m = []
+    for row in log:
+        x, y = row["z"][0], row["z"][1]
         near = min(path, key=lambda q: (q[0]-x)**2 + (q[1]-y)**2)
-        cross = -(x-near[0])*math.sin(near[2]) + (y-near[1])*math.cos(near[2])
-        log.append((cross, out["steer"], out["debug"]["branch"], v))
-        x += v*math.cos(psi+beta)*dt
-        y += v*math.sin(psi+beta)*dt
-        psi += v/L*math.tan(delta)*math.cos(beta)*dt
-        v += dt/tau*(drive_gain*out["drive"] - v)
-    return log
+        errors_m.append(-(x-near[0])*math.sin(near[2]) + (y-near[1])*math.cos(near[2]))
+    return errors_m
 
 
 class BendClosedLoop(unittest.TestCase):
-    """Bypass reference on arcs (R = 2.5 m) with the nonlinear plant; same pre-fixed E_LIMIT."""
+    """Bypass reference on arcs (R = 2.5 m) with the course model plant; same pre-fixed E_LIMIT."""
+    check = ClosedLoop.check
 
-    def controller(self):
-        return Controller(verified(reference_source="estimation_centerline", bypass_acknowledged=True,
-                                   bypass_target_speed_mps=0.3))
-
-    def check(self, log, label):
-        self.assertTrue(all(row[2] in ("solved", "low_speed") for row in log),
-                        f"{label}: {sorted({row[2] for row in log})}")
-        cross = [row[0] for row in log]
-        tail = cross[-len(cross)//3:]
-        rmse = math.sqrt(sum(v*v for v in tail)/len(tail))
-        self.assertLessEqual(max(abs(v) for v in cross), E_LIMIT, label)
-        self.assertLessEqual(rmse, E_LIMIT/2, label)
-        steer = [row[1] for row in log]
-        self.assertTrue(all(abs(v) <= 1.0 for v in steer), label)
-        self.assertLessEqual(max(abs(b-a) for a, b in zip(steer, steer[1:]))*0.3, 0.1+1e-6, label)
-        return max(abs(v) for v in cross), rmse
+    def run_bend(self, path, y0=0.0, plant=None, command_delay_s=0.0, noise_sd=0.0, seed=0):
+        vehicle = measured()
+        ctrl = verified(vehicle=vehicle, reference_source="estimation_centerline", bypass_acknowledged=True,
+                        bypass_target_speed_mps=0.3)
+        log = run_plant(ctrl, centerline_reference(path, ctrl.cfg, noise_sd, seed), (0.0, y0, 0.0, 0.3, 0.0),
+                        plant_params(vehicle) if plant is None else plant, 150, command_delay_s)
+        return log, cross_track(path, log), vehicle
 
     def test_left_right_and_s_bends(self):
         scenarios = {"left": [(1.0, 0.0), (6.0, 0.4)], "right": [(1.0, 0.0), (6.0, -0.4)],
                      "s_bend": [(1.0, 0.0), (2.5, 0.4), (2.5, -0.4), (1.0, 0.0)]}
         for name, segments in scenarios.items():
             for y0 in (0.0, 0.1, -0.1):
-                log = simulate_curve(self.controller(), world_path(segments), y0=y0)
-                peak, rmse = self.check(log, f"{name} y0={y0}")
-                print(f"\n{name} y0={y0:+.1f}: max |e_y| {peak:.3f} m, tail RMSE {rmse:.3f} m", end="")
+                log, cross, vehicle = self.run_bend(world_path(segments), y0=y0)
+                rmse = self.check(log, f"{name} y0={y0}", vehicle, cross)
+                print(f"\n{name} y0={y0:+.1f}: max |e_y| {max(abs(v) for v in cross):.3f} m, "
+                      f"tail RMSE {rmse:.3f} m", end="")
 
-    def test_bends_with_gain_mismatch_delay_and_centerline_noise(self):
+    def test_bends_with_mismatch_delay_and_centerline_noise(self):
         path = world_path([(1.0, 0.0), (6.0, 0.4)])
-        for gain, delay in ((0.21, 1), (0.39, 1), (0.3, 2)):
-            log = simulate_curve(self.controller(), path, y0=0.05, true_gain=gain, delay_steps=delay)
-            self.check(log, f"gain={gain} delay={delay}")
+        vehicle = measured()
+        for label, plant, delay in (("gain0.85", plant_params(vehicle, gain_scale=0.85), 0.0),
+                                    ("offset-3deg", plant_params(vehicle, offset=math.radians(-3)), 0.0),
+                                    ("delay0.1", None, 0.1)):
+            log, cross, _ = self.run_bend(path, y0=0.05, plant=plant, command_delay_s=delay)
+            self.check(log, label, vehicle, cross)
         for seed in (1, 2, 3):
-            log = simulate_curve(self.controller(), path, y0=0.05, noise_sd=0.01, seed=seed)
-            self.check(log, f"noise seed {seed}")
+            log, cross, _ = self.run_bend(path, y0=0.05, noise_sd=0.01, seed=seed)
+            self.check(log, f"noise seed {seed}", vehicle, cross)
 
 
 class ConfigChecks(unittest.TestCase):
     def load(self, name):
         import yaml
-        text = (Path(__file__).resolve().parents[1] / "config" / name).read_text(encoding="utf-8")
+        text = (ROOT / "config" / name).read_text(encoding="utf-8")
         return yaml.safe_load(text)["/**/ai4r_policy"]["ros__parameters"]
 
-    def test_shipped_yaml_mpc_section_matches_declared_defaults_and_is_off(self):
-        section = self.load("ai4r_policy.yaml")["mpc"]
-        self.assertEqual(section, vars(Settings()))
-        self.assertFalse(section["enabled"])
-        self.assertTrue(section["shadow"])
-        self.assertFalse(section["mapping_verified"] or section["limits_verified"])
-        self.assertEqual(section["v_exec_max_mps"], 0.0)
+    def test_shipped_yaml_sections_match_declared_defaults_and_are_off(self):
+        params = self.load("ai4r_policy.yaml")
+        self.assertEqual(params["mpc"], vars(Settings()))
+        self.assertFalse(params["mpc"]["enabled"])
+        self.assertTrue(params["mpc"]["shadow"])
+        self.assertEqual(params["mpc"]["v_exec_max_mps"], 0.0)
+        self.assertEqual(params["vehicle"], vars(Vehicle()))
+        self.assertFalse(params["vehicle"]["valid"])
+        self.assertEqual(params["id_test"]["mode"], "off")
 
     def test_bypass_overlay_is_shadow_and_unacknowledged(self):
         overlay = self.load("ai4r_policy_mpc_bypass.yaml")
         self.assertEqual(overlay["mpc"], {"enabled": True, "shadow": True,
-                                          "reference_source": "estimation_centerline"})
+                                          "reference_source": "estimation_centerline",
+                                          "vehicle_params_source": "course_simulation"})
         merged = dict(self.load("ai4r_policy.yaml")["mpc"], **overlay["mpc"])
         self.assertFalse(merged["bypass_acknowledged"])
         Settings(**merged)
 
     def test_prototype_overlay_enables_shadow_only(self):
         overlay = self.load("ai4r_policy_mpc_prototype.yaml")
-        self.assertEqual(overlay["mpc"], {"enabled": True, "shadow": True})
+        self.assertEqual(overlay["mpc"], {"enabled": True, "shadow": True,
+                                          "vehicle_params_source": "course_simulation"})
         self.assertEqual(overlay["planning"], {"vehicle_limits_source": "course_simulation"})
         self.assertEqual(set(overlay["required_sensors"]),
                          {"cone_detections", "wheel_speed", "imu_angular_velocity"})
@@ -622,7 +778,7 @@ class ConfigChecks(unittest.TestCase):
 class NodeEntry(unittest.TestCase):
     """The real calculate_policy_actions, with a stand-in node (no ROS)."""
 
-    def make_node(self, **mpc):
+    def make_node(self, vehicle=None, **mpc):
         api = planning_api["api"]
         obs, ages, stamps, receipts = api["input_record"](speed=0.2, yaw=0.0)
         for key in ("fiducial_detections", "lidar_scan", "imu_orientation", "imu_specific_force"):
@@ -638,6 +794,8 @@ class NodeEntry(unittest.TestCase):
             observations={key: SimpleNamespace(received_at=receipts.get(key), received_ros_ns=10_000_000_000)
                           for key in obs},
             get_clock=lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_050_000_000)))
+        if vehicle is not None:
+            node.vehicle_settings = vehicle
         return node, (obs, ages, stamps, receipts), published
 
     def test_disabled_mpc_keeps_zero_actions_and_publishes_nothing(self):
@@ -647,7 +805,8 @@ class NodeEntry(unittest.TestCase):
         self.assertEqual(published, [])
 
     def test_shadow_entry_returns_zero_and_logs_candidate(self):
-        node, (obs, ages, stamps, receipts), published = self.make_node(enabled=True, shadow=True)
+        node, (obs, ages, stamps, receipts), published = self.make_node(
+            enabled=True, shadow=True, vehicle_params_source="course_simulation")
         method = namespace["calculate_policy_actions"]
         drive, steer, pan, debug1, debug2 = method(node, obs, ages, stamps, receipts["wheel_speed"], 0.0, True)
         self.assertEqual((drive, steer, pan), (0.0, 0.0, None))
@@ -662,7 +821,8 @@ class NodeEntry(unittest.TestCase):
 
     def test_bypass_entry_uses_estimator_centerline_and_marks_the_log(self):
         node, (obs, ages, stamps, receipts), published = self.make_node(
-            enabled=True, shadow=True, reference_source="estimation_centerline")
+            enabled=True, shadow=True, reference_source="estimation_centerline",
+            vehicle_params_source="course_simulation")
         method = namespace["calculate_policy_actions"]
         drive, steer, pan, debug1, debug2 = method(node, obs, ages, stamps, receipts["wheel_speed"], 0.0, True)
         self.assertEqual((drive, steer), (0.0, 0.0))
@@ -672,6 +832,15 @@ class NodeEntry(unittest.TestCase):
         self.assertIn(record["branch"], ("shadow", "ref_invalid"))
         if record["branch"] == "ref_invalid":
             self.fail(record["reject_reason"])
+
+    def test_measured_vehicle_record_replaces_the_estimator_placeholders(self):
+        vehicle = measured()
+        node, (obs, ages, stamps, receipts), _ = self.make_node(vehicle=vehicle, enabled=False)
+        namespace["calculate_policy_actions"](node, obs, ages, stamps, receipts["wheel_speed"], 0.0, True)
+        self.assertEqual(node.estimation_output["vehicle_limits"], vehicle.records()[1])
+        node, (obs, ages, stamps, receipts), _ = self.make_node(vehicle=Vehicle(), enabled=False)
+        namespace["calculate_policy_actions"](node, obs, ages, stamps, receipts["wheel_speed"], 0.0, True)
+        self.assertEqual(node.estimation_output["vehicle_limits"]["source"], "unmeasured")
 
     def test_execution_refused_and_logged_when_unverified(self):
         node, (obs, ages, stamps, receipts), published = self.make_node(enabled=True, shadow=False)

@@ -1,4 +1,4 @@
-# Overlay for the minimal lateral MPC prototype (shadow mode by default).
+# Overlay for the vehicle-model MPC prototype (shadow mode by default).
 # Passed after the shipped file, so only the differences are listed.
 /**/ai4r_policy:
   ros__parameters:
@@ -11,3 +11,6 @@
     mpc:
       enabled: true
       shadow: true
+      # Course notebook vehicle for the prediction (shadow only); switch to "vehicle", and
+      # planning back to upstream, once vehicle.* holds a measured, valid record.
+      vehicle_params_source: course_simulation

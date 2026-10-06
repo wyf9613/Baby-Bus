@@ -1010,46 +1010,203 @@ class MPCStop(Exception):
 
 
 @dataclass
-class MPCSettings:
-    """Minimal lateral MPC for a straight-road first prototype.
+class VehicleParamsSettings:
+    """Runtime carrier of the identification VehicleParams (vehicle.* parameters).
 
-    Mapping, speed and braking values are PLACEHOLDERS until measured on the car;
-    shadow=False is refused unless mapping_verified, limits_verified and a
-    positive v_exec_max_mps were set deliberately. Wheelbase/CG offset are course
-    notebook values, recorded as model assumptions, not identified parameters.
+    Field names, units and conventions match offline/vehicle_identification/
+    vehicle_params.py and docs/vehicle-params-test-plan.md: metres, radians
+    (left positive), seconds, normalized drive/steering requests. ROS parameters
+    cannot be None, so valid=False marks the record as NOT approved for the car;
+    its zero defaults are never read as facts. valid=True needs a measured source
+    label and passes every consistency check below. The longitudinal coefficients
+    (mass, motor gain, quadratic drag) are the numeric drive_response_model of
+    offline/mpc_prediction_model; speed/braking/margin are Planning's limits.
+    """
+    valid: bool = False
+    source: str = "unmeasured"
+    wheelbase_m: float = 0.0
+    rear_axle_from_cg_m: float = 0.0
+    body_front_extent_from_cg_m: float = 0.0
+    body_rear_extent_from_cg_m: float = 0.0
+    body_width_m: float = 0.0
+    steering_gain_rad: float = 0.0          # delta = gain*steering_action + offset
+    steering_offset_rad: float = 0.0
+    steering_min_rad: float = 0.0
+    steering_max_rad: float = 0.0
+    steering_rate_limit_rad_s: float = 0.0
+    drive_min: float = 0.0
+    drive_max: float = 0.0
+    drive_response_model: str = ""         # free-text record of the fitted equation and its range
+    braking_behavior: str = ""             # measured zero/negative-drive and ESC rules, free text
+    steering_delay_s: float = 0.0
+    drive_delay_s: float = 0.0
+    mass_kg: float = 0.0
+    motor_gain_n: float = 0.0
+    drag_kg_per_m: float = 0.0
+    speed_max_mps: float = 0.0
+    braking_deceleration_mps2: float = 0.0
+    safety_margin_m: float = 0.0
+
+    NOT_MEASURED = ("unmeasured", "course_simulation", "offline_test_assumption")
+    TEXT_FIELDS = ("source", "drive_response_model", "braking_behavior")
+
+    def __post_init__(self):
+        if not isinstance(self.valid, bool) or not isinstance(self.source, str) or not self.source.strip():
+            raise ValueError("vehicle.valid must be bool and vehicle.source a nonempty label")
+        for name, value in vars(self).items():
+            if name in self.TEXT_FIELDS:
+                if not isinstance(value, str):
+                    raise ValueError(f"vehicle.{name} must be a string")
+            elif name != "valid" and not finite_number(value):
+                raise ValueError(f"vehicle.{name} must be finite")
+        if not self.valid:
+            return
+        if self.source in self.NOT_MEASURED:
+            raise ValueError("vehicle.valid requires a measured source label")
+        problem = self.problem()
+        if problem:
+            raise ValueError(f"vehicle parameters inconsistent: {problem}")
+
+    def problem(self):
+        """First inconsistency as a short reason, or None. Does not look at valid/source."""
+        wheelbase, rear = self.wheelbase_m, self.rear_axle_from_cg_m
+        if not 0 < rear < wheelbase:
+            return "need 0 < rear_axle_from_cg_m < wheelbase_m"
+        if (self.body_front_extent_from_cg_m < wheelbase-rear or self.body_rear_extent_from_cg_m < rear
+                or self.body_width_m <= 0):
+            return "body extents must enclose the axles and width must be positive"
+        if abs(self.steering_gain_rad) < 1e-3:
+            return "steering_gain_rad must be nonzero"
+        if not (-math.pi/2 < self.steering_min_rad <= self.steering_offset_rad
+                <= self.steering_max_rad < math.pi/2) or self.steering_min_rad >= self.steering_max_rad:
+            return "need -pi/2 < steering_min <= offset <= steering_max < pi/2"
+        if self.steering_rate_limit_rad_s <= 0:
+            return "steering_rate_limit_rad_s must be positive"
+        if not -1 <= self.drive_min < self.drive_max <= 1 or self.drive_max <= 0:
+            return "need -1 <= drive_min < drive_max <= 1 with drive_max > 0"
+        if not (0 <= self.steering_delay_s <= 1 and 0 <= self.drive_delay_s <= 1):
+            return "delays must lie in [0, 1] s"
+        if self.mass_kg <= 0 or self.motor_gain_n <= 0 or self.drag_kg_per_m < 0:
+            return "need mass_kg > 0, motor_gain_n > 0, drag_kg_per_m >= 0"
+        if self.speed_max_mps <= 0 or self.braking_deceleration_mps2 <= 0 or self.safety_margin_m < 0:
+            return "need speed_max_mps > 0, braking_deceleration_mps2 > 0, safety_margin_m >= 0"
+        return None
+
+    def records(self):
+        """estimation_output vehicle_params / vehicle_limits records built from this one."""
+        rear, front, half = self.body_rear_extent_from_cg_m, self.body_front_extent_from_cg_m, self.body_width_m/2
+        delay = max(self.steering_delay_s, self.drive_delay_s)
+        params = {"valid": self.valid, "source": self.source,
+                  "vehicle_reference_point": "cg_ground_projection",
+                  "effective_wheelbase_m": self.wheelbase_m,
+                  "rear_axle_from_cg_m": self.rear_axle_from_cg_m,
+                  "steering_offset": self.steering_offset_rad,
+                  "steering_map": {"type": "linear", "gain_rad": self.steering_gain_rad,
+                                   "offset_rad": self.steering_offset_rad},
+                  "steering_limit": [self.steering_min_rad, self.steering_max_rad],
+                  "steering_rate_limit_rad_s": self.steering_rate_limit_rad_s,
+                  "drive_range": [self.drive_min, self.drive_max],
+                  "drive_response": {"type": "course_linear_force_quadratic_drag", "mass_kg": self.mass_kg,
+                                     "motor_gain_n": self.motor_gain_n, "drag_kg_per_m": self.drag_kg_per_m,
+                                     "description": self.drive_response_model},
+                  "braking_behavior": self.braking_behavior,
+                  "steering_delay_s": self.steering_delay_s, "drive_delay_s": self.drive_delay_s,
+                  "actuation_delay_s": delay}
+        tightest = min(abs(self.steering_min_rad), abs(self.steering_max_rad))
+        limits = {"valid": self.valid, "source": self.source,
+                  "vehicle_reference_point": "cg_ground_projection",
+                  "footprint_xy_m": [(-rear, -half), (front, -half), (front, half), (-rear, half)],
+                  "wheelbase_m": self.wheelbase_m, "rear_axle_x_m": -self.rear_axle_from_cg_m,
+                  "curvature_limit_1pm": math.tan(tightest)/self.wheelbase_m,
+                  "speed_max_mps": self.speed_max_mps,
+                  "acceleration_max_mps2": self.motor_gain_n*self.drive_max/self.mass_kg,
+                  "braking_deceleration_mps2": self.braking_deceleration_mps2,
+                  "actuation_delay_s": delay, "safety_margin_m": self.safety_margin_m}
+        return params, limits
+
+
+def course_simulation_vehicle_params():
+    """Course notebook bicycle_model_config as a vehicle record: simulation, NEVER valid.
+
+    Geometry, steering and drive response are the notebook values validated in
+    offline/mpc_prediction_model. Speed/braking/margin repeat Planning's labelled
+    offline assumptions (planning.simulation_*), not notebook facts.
+    """
+    return VehicleParamsSettings(
+        valid=False, source="course_simulation", wheelbase_m=0.33, rear_axle_from_cg_m=0.132,
+        body_front_extent_from_cg_m=0.297, body_rear_extent_from_cg_m=0.198, body_width_m=0.25,
+        steering_gain_rad=math.pi/4, steering_offset_rad=0.0, steering_min_rad=-math.pi/4,
+        steering_max_rad=math.pi/4, steering_rate_limit_rad_s=math.pi/2, drive_min=-1.0, drive_max=1.0,
+        drive_response_model="course notebook: m*dv/dt = motor_gain_n*drive - drag_kg_per_m*v*|v|",
+        braking_behavior="course notebook: direction-change latch, NOT modelled; forward drive only",
+        steering_delay_s=0.0, drive_delay_s=0.0, mass_kg=3.0, motor_gain_n=10.0, drag_kg_per_m=1.0,
+        speed_max_mps=0.5, braking_deceleration_mps2=0.5, safety_margin_m=0.05)
+
+
+def course_model_step(state, control, dt, p, rate_limited=True):
+    """One RK4 step of offline/mpc_prediction_model/vehicle_model.step, in plain floats.
+
+    state = (x, y, heading, vx, delta) at the CG; control = (drive, steering_action);
+    p is a VehicleParamsSettings. rate_limited=False drops the steering range and
+    rate clips: used only to linearise inside the MPC, whose constraints keep both
+    clips inactive. No reverse latch: callers must not command negative drive.
+    """
+    wheelbase, rear = p.wheelbase_m, p.rear_axle_from_cg_m
+    target = p.steering_gain_rad*control[1] + p.steering_offset_rad
+    if rate_limited:
+        target = min(p.steering_max_rad, max(p.steering_min_rad, target))
+        rate = min(p.steering_rate_limit_rad_s, max(-p.steering_rate_limit_rad_s, (target-state[4])/dt))
+    else:
+        rate = (target-state[4])/dt
+    force = p.motor_gain_n*control[0]
+
+    def derivative(z):
+        psi, vx, delta = z[2], z[3], z[4]
+        yaw_rate = vx*math.tan(delta)/wheelbase
+        vy = rear*yaw_rate
+        return (vx*math.cos(psi) - vy*math.sin(psi), vx*math.sin(psi) + vy*math.cos(psi), yaw_rate,
+                (force - p.drag_kg_per_m*vx*abs(vx))/p.mass_kg, rate)
+
+    k1 = derivative(state)
+    k2 = derivative([s + dt*k/2 for s, k in zip(state, k1)])
+    k3 = derivative([s + dt*k/2 for s, k in zip(state, k2)])
+    k4 = derivative([s + dt*k for s, k in zip(state, k3)])
+    return [s + dt*(a + 2*b + 2*c + d)/6 for s, a, b, c, d in zip(state, k1, k2, k3, k4)]
+
+
+@dataclass
+class MPCSettings:
+    """Vehicle-model MPC: algorithm settings only; the car comes from vehicle.*.
+
+    Prediction uses course_model_step (the validated course prediction model) and
+    optimises normalized drive and steering together. vehicle_params_source picks
+    the measured vehicle.* record or the course-simulation record, which is shadow
+    only. shadow=False is refused unless vehicle.valid (measured) and a positive
+    v_exec_max_mps were set deliberately.
     """
     enabled: bool = False
     shadow: bool = True
-    mapping_verified: bool = False
-    limits_verified: bool = False
+    vehicle_params_source: str = "vehicle"
+    v_exec_max_mps: float = 0.0       # execution speed cap; must be > 0 for shadow: false
+    overspeed_margin_mps: float = 0.1
     horizon_n: int = 10
     dt_pred_s: float = 0.1            # fixed prediction step; measured dt is only range-checked
     dt_max_s: float = 0.2
+    sqp_iterations: int = 1            # 1 = real-time iteration on the shifted previous solution
     q_ey: float = 20.0
     q_epsi: float = 5.0
+    q_v: float = 10.0
     r_delta: float = 1.0
     r_ddelta: float = 2.0
+    r_drive: float = 1.0
+    r_ddrive: float = 2.0
     terminal_scale: float = 5.0
-    wheelbase_m: float = 0.33
-    rear_axle_from_cg_m: float = 0.132
-    steering_limit_rad: float = 0.35
-    steering_rate_limit_rad_s: float = 1.0
-    steering_gain_rad_per_action: float = 0.3   # delta = sign*gain*action + offset
-    steering_offset_rad: float = 0.0
-    steering_sign: float = 1.0
-    max_clip_count: int = 5
-    v_steer_min_mps: float = 0.05
-    v_exec_max_mps: float = 0.0
     max_backward_extension_m: float = 0.6
     reference_spacing_m: float = 0.05
     max_step_time_s: float = 0.05
     solver_time_limit_s: float = 0.03
     solver_max_iter: int = 400
     constraint_tolerance: float = 1e-4
-    speed_kp: float = 1.0
-    speed_ki: float = 0.4
-    drive_min: float = 0.0
-    drive_max: float = 0.15
     # Reference source. "planning" consumes the Planning V1 reference (straight roads only).
     # "estimation_centerline" BYPASSES Planning: a quadratic fit of the estimator's centerline,
     # so bends are possible but Planning's body-clearance and stopping-distance checks are lost.
@@ -1064,82 +1221,42 @@ class MPCSettings:
     bypass_valid_for_s: float = 0.1
 
     def __post_init__(self):
-        for name in ("enabled", "shadow", "mapping_verified", "limits_verified", "bypass_acknowledged"):
+        for name in ("enabled", "shadow", "bypass_acknowledged"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"mpc.{name} must be bool")
         if self.reference_source not in ("planning", "estimation_centerline"):
             raise ValueError("mpc.reference_source must be planning or estimation_centerline")
-        for name in ("horizon_n", "max_clip_count", "solver_max_iter"):
+        if self.vehicle_params_source not in ("vehicle", "course_simulation"):
+            raise ValueError("mpc.vehicle_params_source must be vehicle or course_simulation")
+        for name in ("horizon_n", "sqp_iterations", "solver_max_iter"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int):
                 raise ValueError(f"mpc.{name} must be an integer")
         for name, value in vars(self).items():
             if not isinstance(value, (bool, str)) and not finite_number(value):
                 raise ValueError(f"mpc.{name} must be finite")
-        if not 2 <= self.horizon_n <= 50:
-            raise ValueError("mpc.horizon_n must be in [2, 50]")
-        positive = ("dt_pred_s", "dt_max_s", "q_ey", "q_epsi", "r_delta", "r_ddelta", "terminal_scale",
-                    "wheelbase_m", "steering_limit_rad", "steering_rate_limit_rad_s",
-                    "v_steer_min_mps", "max_backward_extension_m", "reference_spacing_m",
-                    "max_step_time_s", "solver_time_limit_s", "solver_max_iter", "constraint_tolerance",
-                    "bypass_target_speed_mps", "bypass_max_curvature_1pm", "bypass_max_fit_error_m",
-                    "bypass_min_forward_m", "bypass_fit_max_x_m", "bypass_max_source_age_s",
-                    "bypass_valid_for_s")
+        if not 2 <= self.horizon_n <= 50 or not 1 <= self.sqp_iterations <= 5:
+            raise ValueError("mpc.horizon_n must be in [2, 50] and mpc.sqp_iterations in [1, 5]")
+        positive = ("dt_pred_s", "dt_max_s", "q_ey", "q_epsi", "q_v", "r_delta", "r_ddelta", "r_drive",
+                    "r_ddrive", "terminal_scale", "overspeed_margin_mps", "max_backward_extension_m",
+                    "reference_spacing_m", "max_step_time_s", "solver_time_limit_s", "solver_max_iter",
+                    "constraint_tolerance", "bypass_target_speed_mps", "bypass_max_curvature_1pm",
+                    "bypass_max_fit_error_m", "bypass_min_forward_m", "bypass_fit_max_x_m",
+                    "bypass_max_source_age_s", "bypass_valid_for_s")
         for name in positive:
             if getattr(self, name) <= 0:
                 raise ValueError(f"mpc.{name} must be positive")
         if self.dt_max_s < self.dt_pred_s:
             raise ValueError("mpc.dt_max_s must not be below dt_pred_s")
-        if not 0 <= self.rear_axle_from_cg_m < self.wheelbase_m:
-            raise ValueError("mpc.rear_axle_from_cg_m must be in [0, wheelbase)")
-        if self.steering_sign not in (-1.0, 1.0):
-            raise ValueError("mpc.steering_sign must be +1.0 or -1.0")
-        if abs(self.steering_gain_rad_per_action) <= 1e-3:
-            raise ValueError("mpc.steering_gain_rad_per_action must be nonzero")
-        if self.max_clip_count < 0 or self.v_exec_max_mps < 0 or self.speed_kp < 0 or self.speed_ki < 0:
-            raise ValueError("mpc clip count, speed limit and speed gains must be nonnegative")
-        if not 0 <= self.drive_min <= self.drive_max <= 1:
-            raise ValueError("mpc drive limits must satisfy 0 <= drive_min <= drive_max <= 1")
-        low, high = self.delta_range()
-        if not low < high or not low <= self.steering_offset_rad <= high:
-            raise ValueError("mpc steering offset must lie inside the executable steering range")
-
-    def delta_of_action(self, action):
-        """Estimated front-wheel angle for a normalized command (not a measured wheel angle)."""
-        return self.steering_sign*self.steering_gain_rad_per_action*action + self.steering_offset_rad
-
-    def action_of_delta(self, delta):
-        return self.steering_sign*(delta-self.steering_offset_rad)/self.steering_gain_rad_per_action
-
-    def delta_range(self):
-        """Optimiser bounds: steering limit intersected with what [-1, 1] can reach."""
-        ends = (self.delta_of_action(-1.0), self.delta_of_action(1.0))
-        return max(-self.steering_limit_rad, min(ends)), min(self.steering_limit_rad, max(ends))
+        if self.v_exec_max_mps < 0:
+            raise ValueError("mpc.v_exec_max_mps must be nonnegative")
 
 
-class SpeedPI:
-    """Temporary copy of the baseline branch's longitudinal PI (control-pid-baseline,
-    offline/control_pid/controller.py PID, kd=0) with conditional anti-windup.
-    Replace by the shared module once it exists. Gains are placeholders until G3."""
-
-    def __init__(self, kp, ki, low, high):
-        self.kp, self.ki, self.low, self.high = kp, ki, low, high
-        self.integral = 0.0
-
-    def reset(self):
-        self.integral = 0.0
-
-    def update(self, target, speed, dt, integrate=True):
-        if target <= 0.0:
-            self.integral = 0.0
-            return self.low
-        error = target-speed
-        increment = error*dt if integrate and dt > 0 else 0.0
-        raw = self.kp*error + self.ki*(self.integral+increment)
-        if (self.low <= raw <= self.high or raw > self.high and error < 0
-                or raw < self.low and error > 0):
-            self.integral += increment
-        return min(self.high, max(self.low, self.kp*error + self.ki*self.integral))
+def mpc_vehicle_params(cfg, vehicle):
+    """The vehicle record the MPC predicts with: course simulation, or the vehicle.* record."""
+    if cfg.vehicle_params_source == "course_simulation":
+        return course_simulation_vehicle_params()
+    return vehicle if vehicle is not None else VehicleParamsSettings()
 
 
 def reference_trajectory_from_planning(ref, spacing_m=0.05):
@@ -1336,17 +1453,48 @@ def mpc_reference_errors(traj, n, dt_pred, speed, max_extension):
             "extended_start": i == 0 and t < 0.0, "v_ref_mps": points[0]["target_speed_mps"]}, None
 
 
-class MinimalLateralMPC:
-    """Condensed QP over the front-wheel angles, solved with OSQP (rebuilt each step).
+def mpc_path_projector(points, max_extension):
+    """Nearest-point projection onto a v0.1 point list (base_link).
 
-    z = [e_y, e_psi] at the CG, small-angle kinematic model, speed constant over the horizon:
-      e_y+   = e_y   + v dt (e_psi + (l_r/L) delta)
-      e_psi+ = e_psi + v dt/L delta - v dt kappa
-    First-step rate bound is relative to the previous applied delta estimate.
+    Returns project(x, y) -> (px, py, heading, curvature, target_speed, past_end).
+    Behind the first point the first segment is extended by at most max_extension;
+    past the last point the projection clamps and past_end is True.
+    """
+    segments = []
+    for i, (a, b) in enumerate(zip(points, points[1:])):
+        dx, dy = b["x_m"]-a["x_m"], b["y_m"]-a["y_m"]
+        length2 = dx*dx + dy*dy
+        segments.append((a, b, dx, dy, length2, -max_extension/math.sqrt(length2) if i == 0 else 0.0))
+
+    def project(x, y):
+        best = None
+        for i, (a, b, dx, dy, length2, low) in enumerate(segments):
+            t = ((x-a["x_m"])*dx + (y-a["y_m"])*dy)/length2
+            clamped = min(1.0, max(low, t))
+            px, py = a["x_m"]+clamped*dx, a["y_m"]+clamped*dy
+            distance = (px-x)**2 + (py-y)**2
+            if best is None or distance < best[0]:
+                best = (distance, i, t, px, py, math.atan2(dy, dx), a if clamped < 0.5 else b)
+        _, i, t, px, py, heading, near = best
+        return (px, py, heading, near["curvature_1pm"], near["target_speed_mps"],
+                i == len(segments)-1 and t > 1.0+1e-9)
+    return project
+
+
+class VehicleModelMPC:
+    """LTV-MPC on the course prediction model, solved as a condensed QP with OSQP.
+
+    State z = [x, y, heading, v, delta] in base_link at the current reference time,
+    input u = [drive, steering_action] (normalized). Each SQP iteration linearises
+    course_model_step (without its clips) along the nominal input sequence; the QP
+    bounds keep both clips inactive: steering range and rate, and forward-only drive.
+    Cost: lateral and heading error to the projected path point, speed error,
+    steering against curvature feedforward, drive against its steady-state value,
+    and changes of both inputs. Rebuilt each step (no persistent solver state).
     """
 
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self, cfg, vehicle):
+        self.cfg, self.vehicle = cfg, vehicle
         try:
             import numpy
             import osqp
@@ -1355,60 +1503,134 @@ class MinimalLateralMPC:
             raise RuntimeError(f"MPC needs numpy, scipy and osqp: {exc}") from exc
         self._np, self._osqp, self._sparse = numpy, osqp, sparse
 
-    def solve(self, e_y, e_psi, speed, kappas, prev_delta):
-        np, cfg, n = self._np, self.cfg, self.cfg.horizon_n
+    def input_bounds(self):
+        p = self.vehicle
+        drive = (max(0.0, p.drive_min), p.drive_max)
+        ends = sorted(((p.steering_min_rad-p.steering_offset_rad)/p.steering_gain_rad,
+                       (p.steering_max_rad-p.steering_offset_rad)/p.steering_gain_rad))
+        return drive, (max(-1.0, ends[0]), min(1.0, ends[1]))
+
+    def steady_drive(self, speed):
+        p = self.vehicle
+        return p.drag_kg_per_m*speed*speed/p.motor_gain_n
+
+    def _linearise(self, z, u, h):
+        """Forward-difference Jacobians of the unclipped step at (z, u)."""
+        p, np = self.vehicle, self._np
+        base = course_model_step(z, u, h, p, rate_limited=False)
+        A, B = np.zeros((5, 5)), np.zeros((5, 2))
+        for j in range(5):
+            eps = 1e-6*max(1.0, abs(z[j]))
+            shifted = list(z)
+            shifted[j] += eps
+            A[:, j] = (np.array(course_model_step(shifted, u, h, p, rate_limited=False))-base)/eps
+        for j in range(2):
+            shifted = list(u)
+            shifted[j] += 1e-6
+            B[:, j] = (np.array(course_model_step(z, shifted, h, p, rate_limited=False))-base)/1e-6
+        return base, A, B
+
+    def solve(self, points, z0, speed_cap, last_drive, nominal=None):
+        """Returns (solution, None) or (None, reference_reason); raises MPCStop on solver failure."""
+        np, cfg, p, n, h = self._np, self.cfg, self.vehicle, self.cfg.horizon_n, self.cfg.dt_pred_s
         t0 = time.perf_counter()
-        a = speed*cfg.dt_pred_s
-        A = np.array([[1.0, a], [0.0, 1.0]])
-        B = np.array([[a*cfg.rear_axle_from_cg_m/cfg.wheelbase_m], [a/cfg.wheelbase_m]])
-        x0 = np.array([e_y, e_psi])
-        gamma, free = np.zeros((2*n, n)), np.zeros(2*n)
-        state = x0.copy()
-        powers = [np.linalg.matrix_power(A, k) for k in range(n+1)]
-        for k in range(1, n+1):
-            state = A @ state + np.array([0.0, -a*kappas[k-1]])
-            free[2*(k-1):2*k] = state
-            for j in range(k):
-                gamma[2*(k-1):2*k, j] = (powers[k-1-j] @ B).ravel()
-        weights = np.tile([cfg.q_ey, cfg.q_epsi], n).astype(float)
-        weights[-2:] *= cfg.terminal_scale
-        Q = np.diag(weights)
-        ff = np.array([math.atan(cfg.wheelbase_m*k) for k in kappas])
-        diff = np.eye(n) - np.eye(n, k=-1)
-        e0 = np.zeros(n)
-        e0[0] = prev_delta
-        P = 2*(gamma.T @ Q @ gamma + cfg.r_delta*np.eye(n) + cfg.r_ddelta*diff.T @ diff)
-        q = 2*(gamma.T @ Q @ free) - 2*cfg.r_delta*ff - 2*cfg.r_ddelta*diff.T @ e0
-        low, high = cfg.delta_range()
-        step = cfg.steering_rate_limit_rad_s*cfg.dt_pred_s
-        rate_lo, rate_hi = -step*np.ones(n), step*np.ones(n)
-        rate_lo[0] += prev_delta
-        rate_hi[0] += prev_delta
-        constraints = np.vstack([np.eye(n), diff])
-        lower = np.concatenate([low*np.ones(n), rate_lo])
-        upper = np.concatenate([high*np.ones(n), rate_hi])
-        sp = self._sparse
-        model = self._osqp.OSQP()
-        model.setup(sp.triu(sp.csc_matrix(P), format="csc"), q, sp.csc_matrix(constraints), lower, upper,
-                    verbose=False, eps_abs=1e-6, eps_rel=1e-6, max_iter=cfg.solver_max_iter,
-                    time_limit=cfg.solver_time_limit_s, polishing=False)
-        result = model.solve()
-        status = str(result.info.status)
-        if status != "solved":
-            raise MPCStop(f"solver_status:{status}")
-        u = np.asarray(result.x, dtype=float)
-        if not np.all(np.isfinite(u)):
-            raise MPCStop("solver_nonfinite")
-        row = constraints @ u
-        violation = float(max(np.max(row-upper), np.max(lower-row), 0.0))
-        if violation > cfg.constraint_tolerance:
-            raise MPCStop("constraint_residual")
-        predicted = (gamma @ u + free).reshape(n, 2)
-        return {"delta_seq": [float(v) for v in u], "delta0": float(u[0]),
-                "pred_e_y": [float(v) for v in predicted[:, 0]],
-                "pred_e_psi": [float(v) for v in predicted[:, 1]],
-                "iterations": int(result.info.iter), "violation": violation,
-                "solve_s": float(time.perf_counter()-t0)}
+        project = mpc_path_projector(points, cfg.max_backward_extension_m)
+        (d_lo, d_hi), (s_lo, s_hi) = self.input_bounds()
+        g, o = p.steering_gain_rad, p.steering_offset_rad
+        z0 = [float(v) for v in z0]
+        if not all(math.isfinite(v) for v in z0 + [speed_cap if speed_cap != math.inf else 0.0, last_drive]):
+            raise MPCStop("solver_nonfinite_input")
+        if nominal is None:
+            hold = min(s_hi, max(s_lo, (z0[4]-o)/g))
+            nominal = [(self.steady_drive(min(speed_cap, points[0]["target_speed_mps"])), hold)]*n
+        U_bar = np.array([[min(d_hi, max(d_lo, d)), min(s_hi, max(s_lo, s))] for d, s in nominal]).ravel()
+        iterations = 0
+        for _ in range(cfg.sqp_iterations):
+            states, A_list, B_list = [z0], [], []
+            for k in range(n):
+                nxt, A, B = self._linearise(states[-1], U_bar[2*k:2*k+2], h)
+                states.append(list(nxt))
+                A_list.append(A)
+                B_list.append(B)
+            # x_k = base_k + G_k U  (condensed, k = 1..n)
+            G = np.zeros((n, 5, 2*n))
+            for k in range(n):
+                if k:
+                    G[k] = A_list[k] @ G[k-1]
+                G[k][:, 2*k:2*k+2] = B_list[k]
+            base = np.array(states[1:]) - np.einsum("kij,j->ki", G, U_bar)
+            rows, targets, weights = [], [], []
+
+            def add(row, target, weight):
+                rows.append(row)
+                targets.append(target)
+                weights.append(weight)
+            reference = []
+            for k in range(n):
+                zk = states[k+1]
+                px, py, theta, kappa, v_point, past_end = project(zk[0], zk[1])
+                if past_end:
+                    return None, "reference_too_short"
+                theta = zk[2] + math.atan2(math.sin(theta-zk[2]), math.cos(theta-zk[2]))
+                v_ref = min(v_point, speed_cap)
+                reference.append((px, py, theta, kappa, v_ref))
+                normal = np.array([-math.sin(theta), math.cos(theta)])
+                scale = cfg.terminal_scale if k == n-1 else 1.0
+                add(normal @ G[k][0:2], normal @ (np.array([px, py]) - base[k][0:2]), cfg.q_ey*scale)
+                add(G[k][2], theta - base[k][2], cfg.q_epsi*scale)
+                add(G[k][3], v_ref - base[k][3], cfg.q_v)
+                steer_row, drive_row = np.zeros(2*n), np.zeros(2*n)
+                steer_row[2*k+1], drive_row[2*k] = g, 1.0
+                add(steer_row, math.atan(p.wheelbase_m*kappa) - o, cfg.r_delta)
+                add(drive_row, self.steady_drive(v_ref), cfg.r_drive)
+                d_steer, d_drive = steer_row.copy(), drive_row.copy()
+                if k:
+                    d_steer[2*k-1], d_drive[2*k-2] = -g, -1.0
+                add(d_steer, 0.0 if k else z0[4]-o, cfg.r_ddelta)
+                add(d_drive, 0.0 if k else last_drive, cfg.r_ddrive)
+            M, b, w = np.array(rows), np.array(targets), np.array(weights)
+            P = 2*(M.T*w) @ M
+            q = -2*(M.T*w) @ b
+            step = p.steering_rate_limit_rad_s*h
+            rate = np.zeros((n, 2*n))
+            for k in range(n):
+                rate[k, 2*k+1] = g
+                if k:
+                    rate[k, 2*k-1] = -g
+            constraints = np.vstack([np.eye(2*n), rate])
+            lower = np.concatenate([np.tile([d_lo, s_lo], n), -step*np.ones(n)])
+            upper = np.concatenate([np.tile([d_hi, s_hi], n), step*np.ones(n)])
+            lower[2*n] += z0[4]-o
+            upper[2*n] += z0[4]-o
+            sp = self._sparse
+            model = self._osqp.OSQP()
+            model.setup(sp.triu(sp.csc_matrix(P), format="csc"), q, sp.csc_matrix(constraints), lower, upper,
+                        verbose=False, eps_abs=1e-6, eps_rel=1e-6, max_iter=cfg.solver_max_iter,
+                        time_limit=cfg.solver_time_limit_s, polishing=False)
+            result = model.solve()
+            status = str(result.info.status)
+            if status != "solved":
+                raise MPCStop(f"solver_status:{status}")
+            U = np.asarray(result.x, dtype=float)
+            if not np.all(np.isfinite(U)):
+                raise MPCStop("solver_nonfinite")
+            row = constraints @ U
+            violation = float(max(np.max(row-upper), np.max(lower-row), 0.0))
+            if violation > cfg.constraint_tolerance:
+                raise MPCStop("constraint_residual")
+            iterations += int(result.info.iter)
+            U_bar = np.clip(U, np.tile([d_lo, s_lo], n), np.tile([d_hi, s_hi], n))
+        # Report the CLIPPED model's prediction of the accepted inputs.
+        predicted, z = [], z0
+        for k in range(n):
+            z = course_model_step(z, U_bar[2*k:2*k+2], h, p)
+            px, py, theta, _, _, _ = project(z[0], z[1])
+            predicted.append((-(z[0]-px)*math.sin(theta) + (z[1]-py)*math.cos(theta), z[3], z[4]))
+        inputs = [(float(U_bar[2*k]), float(U_bar[2*k+1])) for k in range(n)]
+        return {"inputs": inputs, "drive0": inputs[0][0], "steer0": inputs[0][1],
+                "delta0": g*inputs[0][1] + o, "violation": violation, "iterations": iterations,
+                "pred_e_y": [r[0] for r in predicted], "pred_v": [r[1] for r in predicted],
+                "pred_delta": [r[2] for r in predicted], "solve_s": float(time.perf_counter()-t0)}, None
 
 
 class MPCController:
@@ -1417,27 +1639,75 @@ class MPCController:
     Shadow: nothing is ever applied (applied = 0, 0) and rejections do not raise, so the
     valid-reference statistics keep accumulating. Non-shadow: any rejection raises MPCStop,
     i.e. a locked stop that needs an explicit state-3 request; there is no automatic recovery.
+    There is no wheel-angle sensor: the initial steering angle and the delayed part of the
+    motion are replayed through the model from the commands actually applied.
     """
 
-    def __init__(self, cfg, solver=None):
+    def __init__(self, cfg, vehicle=None, solver=None):
         self.cfg = cfg
-        self.solver = solver if solver is not None else MinimalLateralMPC(cfg)
-        self.speed_pi = SpeedPI(cfg.speed_kp, cfg.speed_ki, cfg.drive_min, cfg.drive_max)
+        self.vehicle = mpc_vehicle_params(cfg, vehicle)
+        self.vehicle_problem = self.vehicle.problem()
+        if solver is None and self.vehicle_problem is None:
+            solver = VehicleModelMPC(cfg, self.vehicle)
+        self.solver = solver
         self.last_debug = {}
         self.reset()
 
     def reset(self):
         self.applied_steer = 0.0
-        self.prev_delta = self.cfg.delta_of_action(0.0)   # delta of the zero command, not 0 rad
-        self.clip_count = 0
-        self.speed_pi.reset()
+        self.applied_drive = 0.0
+        self.clock_s = 0.0
+        self.history = []          # (issue time on clock_s, drive, steer) actually applied
+        self.nominal = None
+
+    def command_at(self, time_s):
+        """Applied command in force at time_s; zero before the run, held after the last."""
+        command = (0.0, 0.0)
+        for issued, drive, steer in self.history:
+            if issued > time_s + 1e-9:
+                break
+            command = (drive, steer)
+        return command
+
+    def initial_state(self, speed):
+        """Model state when the command computed now takes effect.
+
+        Steering is replayed from rest for long enough to settle, then the whole
+        state is propagated over the larger actuator delay with the commands already
+        sent; the channel with the shorter delay holds its last command meanwhile.
+        """
+        p, now = self.vehicle, self.clock_s
+        steer_delay, drive_delay = p.steering_delay_s, p.drive_delay_s
+        delay = max(steer_delay, drive_delay)
+        # 0.02 s substeps on the same clock as the command times, so switches land on substeps.
+        sub = 0.02
+        count = math.ceil(((p.steering_max_rad-p.steering_min_rad)/p.steering_rate_limit_rad_s + 0.2)/sub)
+        window = count*sub
+        z = [0.0, 0.0, 0.0, 0.0, p.steering_offset_rad]
+        for i in range(count):
+            t = now - window + i*sub
+            z = course_model_step(z, (0.0, self.command_at(t-steer_delay)[1]), sub, p)
+        delta_now = z[4]
+        z = [0.0, 0.0, 0.0, speed, delta_now]
+        if delay > 0:
+            count = math.ceil(delay/0.02)
+            sub = delay/count
+            for i in range(count):
+                t = now + i*sub
+                z = course_model_step(z, (self.command_at(t-drive_delay)[0], self.command_at(t-steer_delay)[1]),
+                                      sub, p)
+        return z, delta_now
 
     def gate_problem(self):
         cfg = self.cfg
         if cfg.shadow:
             return None
-        if not (cfg.mapping_verified and cfg.limits_verified and cfg.v_exec_max_mps > 0):
-            return "execution_gate_not_verified"
+        if cfg.vehicle_params_source != "vehicle":
+            return "course_simulation_is_shadow_only"
+        if not self.vehicle.valid:
+            return "vehicle_params_not_measured"
+        if cfg.v_exec_max_mps <= 0:
+            return "v_exec_max_not_set"
         if cfg.reference_source == "estimation_centerline" and not cfg.bypass_acknowledged:
             return "planning_bypass_not_acknowledged"
         return None
@@ -1449,8 +1719,9 @@ class MPCController:
              "candidate_delta_rad": None, "candidate_steer_action": None, "candidate_drive": None,
              "applied_steer_action": 0.0, "applied_drive": 0.0, "path_id": None, "ref_age_s": None,
              "simulation_only": None, "status": None, "iterations": None, "solve_s": None,
-             "step_s": None, "clip_count": self.clip_count, "model_speed_substituted": False,
-             "prev_delta_rad": self.prev_delta, "reference_source": None, "planning_bypassed": None}
+             "step_s": None, "delta_est_rad": None, "pred_e_y_end_m": None, "pred_v_end_mps": None,
+             "vehicle_source": self.vehicle.source, "vehicle_valid": self.vehicle.valid,
+             "reference_source": None, "planning_bypassed": None}
         self.last_debug = d
         if isinstance(traj, dict):
             d["path_id"], d["simulation_only"] = traj.get("path_id"), traj.get("simulation_only")
@@ -1459,13 +1730,19 @@ class MPCController:
             if finite_number(traj.get("timestamp_s")) and finite_number(now_s):
                 d["ref_age_s"] = now_s - traj["timestamp_s"]
 
+        def record(drive, steer):
+            self.applied_drive, self.applied_steer = drive, steer
+            self.history.append((self.clock_s, drive, steer))
+            keep = self.clock_s - 3.0
+            while len(self.history) > 1 and self.history[1][0] <= keep:
+                self.history.pop(0)
+            d.update(applied_steer_action=steer, applied_drive=drive)
+
         def reject(branch, reason):
             d["branch"], d["reject_reason"] = branch, reason
             d["step_s"] = time.perf_counter()-t0
-            self.applied_steer = 0.0
-            self.prev_delta = cfg.delta_of_action(0.0)
-            self.speed_pi.reset()
-            d["prev_delta_rad"] = self.prev_delta
+            record(0.0, 0.0)
+            self.nominal = None
             if not cfg.shadow:
                 raise MPCStop(f"{branch}:{reason}")
             return {"drive": 0.0, "steer": 0.0, "debug": d}
@@ -1475,21 +1752,18 @@ class MPCController:
             d["step_s"] = time.perf_counter()-t0
             if d["step_s"] > cfg.max_step_time_s:
                 return reject("over_budget", f"step {d['step_s']:.4f}s")
-            if cfg.shadow:
-                steer, out_drive = 0.0, 0.0
-            else:
-                steer, out_drive = min(1.0, max(-1.0, steer_action)), drive
-            self.applied_steer = steer
-            self.prev_delta = cfg.delta_of_action(steer)
-            d.update(applied_steer_action=steer, applied_drive=out_drive,
-                     prev_delta_rad=self.prev_delta, clip_count=self.clip_count)
+            steer, out_drive = (0.0, 0.0) if cfg.shadow else (steer_action, drive)
+            record(out_drive, steer)
             return {"drive": out_drive, "steer": steer, "debug": d}
 
         problem = self.gate_problem()
         if problem:
             return reject("gate_refused", problem)
+        if self.vehicle_problem is not None:
+            return reject("vehicle_invalid", self.vehicle_problem)
         if not is_first and not (finite_number(dt) and 0.0 < dt <= cfg.dt_max_s):
             return reject("ref_invalid", "dt_out_of_range")
+        self.clock_s += 0.0 if is_first else dt
         if not finite_number(speed_mps) or speed_mps < 0:
             return reject("ref_invalid", "speed_invalid")
         d["dt"] = dt if not is_first else 0.0
@@ -1503,43 +1777,38 @@ class MPCController:
         if (not finite_number(stamp) or not finite_number(lifetime) or not finite_number(now_s)
                 or not stamp-1e-6 <= now_s < stamp+lifetime):
             return reject("ref_invalid", "ref_expired_or_future")
-
-        model_speed = speed_mps
-        if speed_mps < cfg.v_steer_min_mps and cfg.shadow:
-            model_speed, d["model_speed_substituted"] = cfg.v_steer_min_mps, True
-        info, reason = mpc_reference_errors(traj, cfg.horizon_n, cfg.dt_pred_s,
-                                            max(model_speed, cfg.v_steer_min_mps),
+        info, reason = mpc_reference_errors(traj, cfg.horizon_n, cfg.dt_pred_s, 0.0,
                                             cfg.max_backward_extension_m)
         if info is None:
             return reject("ref_invalid", reason)
         d.update(e_y_m=info["e_y_m"], e_psi_rad=info["e_psi_rad"], v_ref_mps=info["v_ref_mps"])
-        target = info["v_ref_mps"]
-        if cfg.v_exec_max_mps > 0:
-            target = min(target, cfg.v_exec_max_mps)
-        dt_pi = d["dt"]
-        drive = self.speed_pi.update(target, speed_mps, dt_pi, integrate=not cfg.shadow)
-        d["candidate_drive"] = drive
-        if target <= 0.0:
+        if not cfg.shadow and speed_mps > cfg.v_exec_max_mps + cfg.overspeed_margin_mps:
+            return reject("stop", "overspeed")
+        cap = cfg.v_exec_max_mps if cfg.v_exec_max_mps > 0 else math.inf
+        if min(info["v_ref_mps"], cap) <= 0.0:
+            self.nominal = None
             return accept("zero_target", self.applied_steer, 0.0)
-        if speed_mps < cfg.v_steer_min_mps and not cfg.shadow:
-            return accept("low_speed", self.applied_steer, drive)
+        z0, delta_now = self.initial_state(speed_mps)
+        d["delta_est_rad"] = delta_now
         try:
-            solution = self.solver.solve(info["e_y_m"], info["e_psi_rad"], model_speed,
-                                         info["kappas"], self.prev_delta)
+            solution, reason = self.solver.solve(traj["points"], z0, cap, self.applied_drive, self.nominal)
         except MPCStop as exc:
             return reject("solver_fail", str(exc))
         except Exception as exc:
             return reject("solver_fail", f"solver_exception:{type(exc).__name__}")
-        raw_action = cfg.action_of_delta(solution["delta0"])
-        if not finite_number(raw_action):
-            return reject("solver_fail", "nonfinite_action")
-        if abs(raw_action) > 1.0 + 1e-9:
-            self.clip_count += 1
-            if self.clip_count > cfg.max_clip_count:
-                return reject("solver_fail", "clip_limit")
-        d.update(candidate_delta_rad=solution["delta0"], candidate_steer_action=raw_action,
-                 status="solved", iterations=solution["iterations"], solve_s=solution["solve_s"])
-        return accept("shadow" if cfg.shadow else "solved", raw_action, drive)
+        if solution is None:
+            return reject("ref_invalid", reason)
+        drive, steer = solution["drive0"], solution["steer0"]
+        if not (finite_number(drive) and finite_number(steer) and abs(steer) <= 1.0 + 1e-6
+                and -1e-6 <= drive <= 1.0 + 1e-6):
+            return reject("solver_fail", "action_out_of_bounds")
+        drive, steer = min(1.0, max(0.0, drive)), min(1.0, max(-1.0, steer))
+        inputs = solution["inputs"]
+        self.nominal = inputs[1:] + inputs[-1:]
+        d.update(candidate_delta_rad=solution["delta0"], candidate_steer_action=steer, candidate_drive=drive,
+                 status="solved", iterations=solution["iterations"], solve_s=solution["solve_s"],
+                 pred_e_y_end_m=solution["pred_e_y"][-1], pred_v_end_mps=solution["pred_v"][-1])
+        return accept("shadow" if cfg.shadow else "solved", steer, drive)
 
 
 def mpc_debug_json(debug):
@@ -1751,6 +2020,18 @@ class PolicyNode(Node):
             mpc_values[name] = self.get_parameter(parameter_name).value
         self.mpc_settings = MPCSettings(**mpc_values)
         self.mpc_controller = None
+        vehicle_values = {}
+        for name, default in vars(VehicleParamsSettings()).items():
+            parameter_name = f"vehicle.{name}"
+            self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
+            vehicle_values[name] = self.get_parameter(parameter_name).value
+        self.vehicle_settings = VehicleParamsSettings(**vehicle_values)
+        if self.mpc_settings.enabled and self.mpc_settings.reference_source == "planning":
+            simulated_mpc = self.mpc_settings.vehicle_params_source == "course_simulation"
+            simulated_planning = self.planning_settings.vehicle_limits_source == "course_simulation"
+            if simulated_mpc != simulated_planning:
+                raise ValueError("mpc.vehicle_params_source and planning.vehicle_limits_source "
+                                 "must select course_simulation together")
         # Both produce drive/steer requests; exactly one may own the actions.
         if self.identification.mode != "off" and self.mpc_settings.enabled:
             raise ValueError("id_test.mode and mpc.enabled cannot both be active")
@@ -2551,6 +2832,11 @@ class PolicyNode(Node):
         self.estimation_output = self.estimator.update(
             observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
             self.get_clock().now().nanoseconds / 1e9, receipt_ros_ns)
+        # A measured vehicle.* record replaces the estimator's "unmeasured"
+        # placeholders; nothing is substituted while it is not valid.
+        vehicle = getattr(self, "vehicle_settings", None)
+        if vehicle is not None and vehicle.valid:
+            self.estimation_output["vehicle_params"], self.estimation_output["vehicle_limits"] = vehicle.records()
 
         if is_first_policy_step or not hasattr(self, "planner"):
             self.planner = CenterlinePlanner(self.planning_settings, self.policy_frame_id)
@@ -2567,13 +2853,15 @@ class PolicyNode(Node):
             estimates["road"], estimates["state"], estimates["obstacles"],
             estimates["vehicle_limits"], estimates["state"]["timestamp_s"], source_timeouts)
 
-        # Minimal lateral MPC on the planner's straight reference (see MPCController).
+        # Vehicle-model MPC (drive and steering) on the Planning reference, or on the
+        # estimator centerline in bypass mode (see MPCController). The prediction
+        # model and the vehicle record come from mpc_vehicle_params().
         # Shadow mode computes candidates but applies zeros; a rejected step raises
         # MPCStop in non-shadow mode, which the framework turns into zero actions.
         mpc_settings = getattr(self, "mpc_settings", None)
         if mpc_settings is not None and mpc_settings.enabled:
             if is_first_policy_step or getattr(self, "mpc_controller", None) is None:
-                self.mpc_controller = MPCController(mpc_settings)
+                self.mpc_controller = MPCController(mpc_settings, getattr(self, "vehicle_settings", None))
             state = estimates["state"]
             if mpc_settings.reference_source == "estimation_centerline":
                 traj = reference_trajectory_from_road(estimates["road"], state, mpc_settings)
