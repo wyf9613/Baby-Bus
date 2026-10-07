@@ -12,6 +12,10 @@
 离线测试与实际 policy 方法的模型闭环通过；完整 ROS gate 和实车验证仍未完成。
 详细当前证据见 [验收记录](docs/acceptance.md)。
 
+**MPC**：同一个文件里还有纵横向联合 MPC（`mpc.*`，默认关闭）。它和上面的 MVP 二选一，
+通过 `config/ai4r_policy_newcar27.yaml` 加 `config/ai4r_policy_mpc_newcar27.yaml` 两层配置
+启用，默认是 shadow。现状、接口和验证方法见 [MPC README](docs/MPC_README.md)。
+
 团队策略仓库，基于 DREAM 课程框架。当前分工见 [四组项目计划](docs/TEAM_PROJECT_PLAN.md)。接口优先沿用 GitHub 中的课程框架代码和配置；框架未定义的组间数据结构再按 Word 接口会议草案补充。状态、道路和规划分别在 `self.estimation_output`、`self.planning_output`；控制诊断在 `self.control_diagnostics`，debug1/debug2 为路径误差（m）和本次累计里程（m），停止原因沿用 policy 状态字符串。算法、字段、调参和联调说明见 [估计模块首版说明](docs/ESTIMATION_V1_CN.md) 与 [V1 规划说明](docs/PLANNING_V1_CN.md)。离线检查命令为 `python3 -B tests/test_estimation.py -v`、`python3 -B tests/test_planning.py -v`、`python3 -B tests/test_control.py -v`；模型测试为 `python offline/control_pid/test_controller.py`（AI4R 环境）。下文为上游使用说明。
 
 2026-10-05 更新：有效道路/雷达点通过轮速与偏航率历史补偿到自车状态的参考时刻，并保留原测量时间；历史不足或断档时拒绝使用。该补偿采用前进、平面无侧滑近似，轮速时间为接收时刻代理，未完成实车精度验证。详情见上方模块说明。
