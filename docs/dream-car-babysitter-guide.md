@@ -1,10 +1,202 @@
 # DREAM 小车 Babysitter Guide：从连接到 MPC Shadow 验证
 
-整理日期：2026-10-05（Australia/Sydney），2026-10-07 按纵横向联合 MPC 和 `vehicle.*` 参数更新。适用本机：Windows PowerShell、WSL Ubuntu 24.04 / ROS Jazzy；目标设备：课程 DREAM 小车的 Jetson Orin Nano。
+整理日期：2026-10-05（Australia/Sydney）；2026-10-07 按纵横向联合 MPC 和 `vehicle.*` 参数更新，同日再按 v3（新车 .27 的实车日志、三层 newcar27 配置）更新。适用本机：Windows PowerShell、WSL Ubuntu 24.04 / ROS Jazzy；目标设备：课程 DREAM 小车的 Jetson Orin Nano。
 
-本指南依据用户提供的课程页面全文，结合当前 Baby-Bus 源码和 [MPC prototype 文档](MPC_PROTOTYPE.md) 整理。课程页面是本次提供的快照，没有重新验证 Canvas 或车上软件的最新状态。课程第 3 页本身注明了 draft；实际命令可用性要由 `dream runtime catalog`、`--help` 和 demonstrator 确认。
+本指南依据用户提供的课程页面全文，结合当前 Baby-Bus 源码（`control-mpc-v0`，≥ `3acd32d`）和 [MPC_PROTOTYPE.md](MPC_PROTOTYPE.md) 整理。MPC 的现状和接口先看 [MPC_README.md](MPC_README.md)。课程页面是本次提供的快照，没有重新验证 Canvas 或车上软件的最新状态。课程第 3 页本身注明了 draft；实际命令可用性要由 `dream runtime catalog`、`--help` 和 demonstrator 确认。
 
-**当前推荐走到 G2：车辆保持未 Enable，MPC 只计算候选动作并输出零动作。G3 标定和 G4 动力执行另行开展。**
+**上车当天先看下面的"快速上手"。** MPC 目前推荐走到 G2：车辆保持未 Enable，MPC 只计算候选动作并输出零动作；G3 标定和 G4 动力执行另行开展。MVP 已在 .27 上跑过，可以按快速上手的 `mvp` 方式运行。
+
+## 快速上手（Quick Start）
+
+这一节是上车当天照着做的最短流程，只保留必需的步骤和命令；每一步后面的"详见"指向下文对应的详细小节。第一次上车，或者某一步出了问题，再去看详细小节。
+
+运行方式有三种，第 2 步和第 5 步按所选方式操作：
+
+| 方式 | 控制器 | 车会不会被策略驱动 | 现在能用吗 |
+| --- | --- | --- | --- |
+| `mvp` | MVP（PI 控速 + P 控转向） | 会 | ✅ 10-06 在 .27 上跑过 |
+| `mpc-shadow` | MPC 只计算，下发零动作 | 不会（推车测试） | ✅ |
+| `mpc-exec` | MPC 驱动 | 会 | ⏳ 要先在现场测完转向 gain、零偏、轴距，并把 `vehicle.valid` 改为 true |
+
+### 第 0 步：出发前检查
+
+- [ ] 自己的电脑连上 UniWireless，并开着 GlobalProtect VPN；
+- [ ] 和 demonstrator 确认车号。车上 Ethernet 标签 → IP：`10.43.254.(标签数字 + 13)`。.27 这台车的 IP 是 `10.43.254.27`；
+- [ ] 遥控器在手，指定好由谁负责急停接管；电池已充电；
+- [ ] 本机代码是要部署的版本，记下 `git rev-parse HEAD`；
+- [ ] 准备一条短直线锥桶赛道（车道约 0.7 m 宽），车摆在中线 ±0.15 m、航向 ±5° 以内。
+
+### 第 1 步：SSH 登录
+
+**本机 PowerShell**（在 Baby-Bus 根目录）：
+
+```powershell
+$taskCarIp = '10.43.254.27'            # 换成自己的车
+ssh "ai4r@$taskCarIp"                    # 密码由 workshop 提供（ai4r）
+```
+
+**车上 SSH**：
+
+```bash
+dream runtime status                     # 看哪些 units 在运行
+```
+
+连不上：先查车是否上电、UniWireless、VPN。详见 [§2](#2-第-1-页vpn车号与-ssh)。
+
+### 第 2 步：部署（代码或配置变了才需要）
+
+**本机 WSL**：复制运行 [§5.2](#52-在本机生成-dream-读取的完整部署-yaml) 的整段命令，生成本次的完整配置。只需改开头两行：
+
+```bash
+export MODE=mvp          # mvp / mpc-shadow / mpc-exec
+export DISTANCE_M=0.5    # 本轮距离上限：首次 0.5，然后 1.0，最后 3.0
+```
+
+输出在 `.verification/car-deploy/ai4r_policy.yaml`，脚本会检查这份配置和所选方式是否一致，不一致就报错并停止。
+
+**本机 PowerShell**：传两个文件，核对 hash：
+
+```powershell
+$taskDeployDir = '.verification\car-deploy'
+Copy-Item scripts\policy_node.py "$taskDeployDir\policy_node.py"
+scp "$taskDeployDir\policy_node.py" "ai4r@${taskCarIp}:~/ai4r_student_workspace/src/ai4r_policy/scripts/policy_node.py"
+scp "$taskDeployDir\ai4r_policy.yaml" "ai4r@${taskCarIp}:~/ai4r_student_workspace/src/ai4r_policy/config/ai4r_policy.yaml"
+Get-FileHash "$taskDeployDir\policy_node.py", "$taskDeployDir\ai4r_policy.yaml"
+```
+
+**车上 SSH**：
+
+```bash
+sha256sum ~/ai4r_student_workspace/src/ai4r_policy/{scripts/policy_node.py,config/ai4r_policy.yaml}   # 和本机一致
+dream build ros student                  # 成功后才继续
+dream runtime restart ai4r_policy        # 策略进程已在运行时；没在运行就跳过，第 3 步再 start
+```
+
+部署前车辆必须是 Disabled。详见 [§5.3](#53-本次部署前确认车辆停用)、[§7](#7-第-3-页scp--build--restart)。
+
+### 第 3 步：启动服务，检查参数
+
+**车上 SSH**：
+
+```bash
+dream runtime start foxglove_bridge
+dream runtime start traxxas_vehicle_interface
+dream runtime start oakd_cone_detector
+dream runtime start bno08x_imu_interface
+dream runtime start ai4r_policy          # 刚 restart 过就不用再 start
+dream runtime status
+```
+
+关键参数（每条一行，看返回值）：
+
+```bash
+ros2 topic info /car/drive_and_steer_set_point_normalized   # Publisher count: 1
+ros2 param get /car/ai4r_policy control.enabled             # mvp: True；mpc-*: False
+ros2 param get /car/ai4r_policy mpc.enabled                 # mvp: False；mpc-*: True
+ros2 param get /car/ai4r_policy mpc.shadow                  # mpc-shadow: True；mpc-exec: False
+ros2 param get /car/ai4r_policy control.max_distance_m      # 等于本轮的 DISTANCE_M
+```
+
+动作发布者不是 1 个，或者参数和所选方式不符：停下来，不往下做。详见 [§8](#8-第-4-页启动所需-units检查-shadow)。
+
+### 第 4 步：Foxglove
+
+在自己的电脑打开课程给的 Foxglove Web App：
+
+1. **Open connection** → **Foxglove WebSocket** → `ws://<车IP>:1234`；
+2. **Layouts → Import from file…**，选仓库里的 `docs/AI4R_Foxglove_UI_v2026-09-22.json`（导入一次即可，账号会保存）；
+3. 跑 MPC 时，添加一个 **Raw Messages** 面板，订阅 `/car/mpc_debug`（JSON 文本）。
+
+| 按钮 | 作用 | 什么时候按 |
+| --- | --- | --- |
+| Policy publishing actions（state 3） | 开始运行策略 | 每轮开始 |
+| Policy publishing ZERO actions（state 2） | 策略持续发零动作 | 每轮结束；出任何问题时 |
+| Vehicle Request Enable | 车辆接受策略指令 | 仅 `mvp` 和 `mpc-exec`；必须在 state 3 **之前** |
+| Vehicle Request Disable | 车辆输出空挡 | 每轮结束，在 state 2 之后 |
+| Vehicle Request Disarm | 交回遥控器手动控制 | 需要手动开回车时 |
+
+先看这几个面板：Vehicle state、Policy state、Wheel speed、Cone locations、Drive/steer commands。详见 [§9](#9-第-5-页foxglove-连接与界面检查)。
+
+### 第 5 步：实车运行
+
+每一轮都先开始录包（**车上 SSH**，单独开一个终端）：
+
+```bash
+mkdir -p ~/ai4r-car-bags && cd ~/ai4r-car-bags
+ros2 bag record /car/mpc_debug /car/debug1 /car/debug2 /car/policy_fsm_state_string \
+  /car/drive_and_steer_set_point_normalized /car/wheel_speed_m_per_sec /car/cone_detections \
+  /car/imu/data /car/traxxas_state
+```
+
+**A. `mpc-shadow`：推车测试，车不 Enable**
+
+1. 确认 Vehicle state 不是 Enabled；
+2. 按 **Policy publishing actions**（state 3）；
+3. 依次把车摆在：居中、左偏约 0.10 m、右偏约 0.10 m、左偏航、右偏航，每个位置轻推向前；
+4. 在 `/car/mpc_debug` 里看：
+   - `branch` 多数为 `shadow`；
+   - `e_y_m` 的符号（车在路径左侧为正）和量级与卷尺测量一致；
+   - `candidate_delta_rad` 的符号与 `e_y_m` 相反；
+   - 推到约 0.2 m/s 时，`candidate_drive` 接近 0.30；
+   - `applied_*` 始终为 0；
+5. 按 **Policy ZERO**（state 2）。
+
+详见 [§10](#10-mpc-g2先录包再手推)。
+
+**B. `mvp` / `mpc-exec`：车由策略驱动**
+
+1. 确认 Policy state 是 Publishing zeros（state 2）；
+2. 按 **Vehicle Request Enable**，**看到 Vehicle state 变成 Enabled** 再继续；
+3. 按 **Policy publishing actions**（state 3）。车会起步（起步油门约 0.30–0.35，约 0.5 s 后才动），到达 `DISTANCE_M` 后自动进入 state 2；
+4. 任何异常（方向反了、冲出赛道、车不动、速度过快）：立刻按 **Policy ZERO**，必要时用遥控器接管；
+5. 结束：**Policy ZERO** → **Vehicle Request Disable** → 确认车停稳；
+6. 距离按 0.5 m → 1 m → 3 m 逐轮增加。每改一次 `DISTANCE_M` 都要重新做第 2 步。
+
+`mpc-exec` 时另外看 `mpc_debug`：`phase` 在约 1 s 内从 `starting` 变为 `tracking`；`branch` 多数为 `solved`，偶尔出现 `plan_hold`。锁停后读 `reject_reason`，修好原因再重新请求 state 3。详见 [§12](#12-g3--g4何时才进入动力执行)。
+
+**每一轮记录**：时间、方式、`DISTANCE_M`、结果或停止原因（`policy_fsm_state_string`）、现场观察、电量、bag 目录名。
+
+### 第 6 步：收尾
+
+**车上 SSH**（确认停车）：
+
+```bash
+ros2 topic pub --once /car/policy_fsm_transition_request std_msgs/msg/UInt16 '{data: 2}'
+ros2 topic pub --once /car/request std_msgs/msg/UInt8 '{data: 0}'
+ros2 topic echo --once /car/traxxas_state          # 读到 Disabled
+```
+
+在录包终端按 `Ctrl+C`，然后在**本机 PowerShell** 把数据拷回来：
+
+```powershell
+scp -r "ai4r@${taskCarIp}:~/ai4r-car-bags/<bag目录>" E:\26b\AI4R\car-evidence\
+ssh "ai4r@$taskCarIp" 'dream runtime logs ai4r_policy --tail 200' > E:\26b\AI4R\car-evidence\policy.log
+```
+
+详见 [§11](#11-结束回收数据与下一轮修改)。
+
+### 必须记住的四条
+
+1. **restart 不等于停用车辆。** 策略重启后会回到 state 2，但车辆可能仍是 Enabled，要单独按 Disable。
+2. **关掉 Foxglove 或断开 SSH 不等于停止。** 策略进程仍在运行。
+3. **不在车上安装任何软件**，也不在车上编辑代码；缺依赖找 demonstrator。
+4. **只能有一个策略进程。** DREAM 管理着 `ai4r_policy` 时，不要再手动 `ros2 launch`。
+
+### 常见问题速查
+
+| 现象 | 先查 |
+| --- | --- |
+| 请求 state 3 后马上回到 state 2 | `ros2 topic echo /car/policy_fsm_state_string` 看原因；必需传感器（锥桶、轮速、IMU）是否都在 |
+| 车 Enable 了但不动 | 请求的 drive 是否到了约 0.30（.27 的死区约 0.289）；遥控器的控制源；Vehicle state |
+| 参数和预期不一致 | 车上文件的 hash 是否和本机一致；是否 build 并 restart 了 |
+| 方向反了 | 立刻 state 2；确认 `mvp_steering_direction: -1.0` 或 `vehicle.steering_gain_rad` 为负 |
+| `mpc_debug` 大量 `ref_invalid` | 看 `reject_reason`：`stale_road` 查相机延迟，`insufficient_near_or_far_coverage` 查摆位和锥桶 |
+
+更多见 [§13](#13-按实际报错排查)。
+
+---
+
+以下是详细说明，按课程页面的顺序排列。
 
 ## 0. 先分清自己在哪台电脑
 
@@ -210,7 +402,7 @@ git status --short
 3. **转角映射。** 课程教学示例用“rad 除以自选转角限值”演示归一化。当前 MPC 使用 `vehicle.*` 的 gain（带符号，左正）/ offset / min / max 映射，必须沿用并实测，不能额外再归一化一次。零 action 映射到 offset；软件零命令不证明车轮物理零角。
 4. **LiDAR。** 原始第 i 束角度是 `angle_min + i * angle_increment`，在雷达原始 frame；中间索引不保证向前。当前源码已增加车体 Cartesian 点，若用它做决策，应检查 `lidar_cartesian_available` 并声明对应 required sensor。
 5. **时间和状态。** 首步不能除以 0；积分器和控制器要在显式启动/恢复时重置。不能在一次策略 step 内 sleep、等待或运行无界循环。普通有限次数数值循环与阻塞等待不同。
-6. **物理响应。** 仿真 `drive=-1` 的刹车/方向锁行为和无 dead zone 假设不能直接移植。负 drive、死区、滑行距离和轮速延迟要实测；当前 MPC shadow 不进行这些动力试验。
+6. **物理响应。** 仿真 `drive=-1` 的刹车/方向锁行为和无 dead zone 假设不能直接移植。.27 的死区（约 0.289）、起步油门（约 0.30）、低请求下的拖刹和约 0.1 s 延迟已从 10-06 的 MVP 日志拟合，写在 `config/ai4r_policy_mpc_newcar27.yaml` 的 `vehicle.*` 里。换车、换电池后要复核；负 drive 不使用。当前 MPC shadow 不进行动力试验。
 
 ### 4.3 当前源码与教学摘要的差异
 
@@ -232,7 +424,7 @@ git status --short
 cd E:\26b\AI4R\Baby-Bus
 $taskSourceSha = (git rev-parse HEAD).Trim()
 $taskStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$taskDeployDir = Join-Path (Get-Location).Path '.verification\car-deploy-shadow'
+$taskDeployDir = Join-Path (Get-Location).Path '.verification\car-deploy'
 $taskEvidenceDir = Join-Path 'E:\26b\AI4R\car-evidence' $taskStamp
 New-Item -ItemType Directory -Force -Path $taskDeployDir, $taskEvidenceDir | Out-Null
 Copy-Item -LiteralPath 'scripts\policy_node.py' -Destination (Join-Path $taskDeployDir 'policy_node.py')
@@ -243,25 +435,50 @@ $taskCarIp | Set-Content -Encoding utf8 -LiteralPath (Join-Path $taskEvidenceDir
 
 `.verification/` 已在仓库 ignore 中。证据目录在仓库外；不把密码放进去。
 
-### 5.2 在本机生成 DREAM 读取的完整 shadow YAML
+### 5.2 在本机生成 DREAM 读取的完整部署 YAML
 
-DREAM 主线读取车上的 `config/ai4r_policy.yaml`。只 SCP 一个 MPC overlay 文件，不证明 DREAM 会使用它。本指南将基础 YAML 与 prototype overlay 在本机合并，生成完整部署副本，保留仓库默认 `mpc.enabled=false`。
+DREAM 主线读取车上的 `config/ai4r_policy.yaml`。只 SCP 一个 overlay 文件，不证明 DREAM 会使用它。本指南在本机按顺序合并配置，生成一份完整的部署副本：
+
+1. `config/ai4r_policy.yaml`（基础）；
+2. `config/ai4r_policy_newcar27.yaml`（.27 的实车参数，MVP）；
+3. `config/ai4r_policy_mpc_newcar27.yaml`（关闭 MVP，开启 MPC；`mvp` 方式不加这一层）。
+
+仓库里的 YAML 保持不变。合并方法与 `offline/mpc_gym/newcar27_experiment.py` 的 `layered()` 相同。
+
+开头两行选择本次的方式和距离上限：
+
+| `MODE` | 合并的层 | 额外设置 | 检查 |
+| --- | --- | --- | --- |
+| `mvp` | 1 + 2 | — | MVP 开、MPC 关、转向方向 −1 |
+| `mpc-shadow` | 1 + 2 + 3 | — | MVP 关、MPC 开、shadow |
+| `mpc-exec` | 1 + 2 + 3 | `shadow: false`，`v_exec_max_mps` 不超过 0.2 | `vehicle.valid` 必须已经是 true（先把现场实测值和来源标签填进第 3 层） |
+
+`DISTANCE_M` 写入 `control.max_distance_m`，MVP 和 MPC 执行都受它约束（范围 (0, 3]）。
 
 **位置：本机 WSL，使用已有 MPC Python 环境。** 这里读取 Windows 仓库，保证部署副本来自同一份 Windows 源码：
 
 ```bash
+export MODE=mpc-shadow   # mvp / mpc-shadow / mpc-exec
+export DISTANCE_M=3.0    # 本轮距离上限 (0, 3]
 source ~/ai4r-python/mpc-ros/bin/activate
 cd /mnt/e/26b/AI4R/Baby-Bus
 
 python - <<'PY'
 from copy import deepcopy
+import os
 from pathlib import Path
 import yaml
 
+mode = os.environ['MODE']
+distance = float(os.environ['DISTANCE_M'])
+assert mode in ('mvp', 'mpc-shadow', 'mpc-exec'), mode
+assert 0 < distance <= 3.0, distance
+
 root = Path.cwd()
 key = '/**/ai4r_policy'
-base = yaml.safe_load((root / 'config/ai4r_policy.yaml').read_text(encoding='utf-8'))
-overlay = yaml.safe_load((root / 'config/ai4r_policy_mpc_prototype.yaml').read_text(encoding='utf-8'))
+layers = ['config/ai4r_policy.yaml', 'config/ai4r_policy_newcar27.yaml']
+if mode != 'mvp':
+    layers.append('config/ai4r_policy_mpc_newcar27.yaml')
 
 def merge(target, changes):
     for name, value in changes.items():
@@ -270,28 +487,45 @@ def merge(target, changes):
         else:
             target[name] = deepcopy(value)
 
-merge(base, overlay)
+base = yaml.safe_load((root / layers[0]).read_text(encoding='utf-8'))
+for layer in layers[1:]:
+    merge(base, yaml.safe_load((root / layer).read_text(encoding='utf-8')))
 p = base[key]['ros__parameters']
-p['mpc'].update(enabled=True, shadow=True, reference_source='planning',
-                vehicle_params_source='course_simulation',
-                v_exec_max_mps=0.0, bypass_acknowledged=False)
-assert p['vehicle']['valid'] is False
-assert p['required_sensors'] == ['cone_detections', 'wheel_speed', 'imu_angular_velocity']
-assert p['planning']['vehicle_limits_source'] == 'course_simulation'
-assert p['mpc']['shadow'] is True
+p['control']['max_distance_m'] = distance
+if mode == 'mpc-exec':
+    p['mpc'].update(shadow=False, v_exec_max_mps=min(p['mpc']['v_exec_max_mps'], 0.2))
 
-out = root / '.verification/car-deploy-shadow/ai4r_policy.yaml'
+# Checks common to every mode.
+assert p['policy_update_mode'] == 'timer' and p['policy_update_rate_hz'] == 20.0
+assert p['required_sensors'] == ['cone_detections', 'wheel_speed', 'imu_angular_velocity']
+assert p['id_test']['mode'] == 'off'
+if mode == 'mvp':
+    assert p['control']['enabled'] is True and p['mpc']['enabled'] is False
+    assert p['control']['mode'] == 'mvp' and p['control']['mvp_steering_direction'] == -1.0
+else:
+    assert p['control']['enabled'] is False and p['mpc']['enabled'] is True
+    assert p['mpc']['vehicle_params_source'] == 'vehicle'
+    assert p['mpc']['reference_source'] == 'planning'
+    assert p['planning']['vehicle_limits_source'] == 'upstream'
+    if mode == 'mpc-shadow':
+        assert p['mpc']['shadow'] is True
+    else:
+        assert p['vehicle']['valid'] is True, \
+            'mpc-exec: fill the measured values into ai4r_policy_mpc_newcar27.yaml and set vehicle.valid: true first'
+
+out = root / '.verification/car-deploy/ai4r_policy.yaml'
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(yaml.safe_dump(base, sort_keys=False), encoding='utf-8')
-print('Generated:', out)
-print('MPC:', {n: p['mpc'][n] for n in ('enabled', 'shadow', 'reference_source',
-      'vehicle_params_source', 'v_exec_max_mps')}, 'vehicle.valid:', p['vehicle']['valid'])
+(out.parent / 'mode.txt').write_text(f'{mode} {distance}\n', encoding='utf-8')
+print('Generated:', out, '| mode', mode, '| max_distance_m', distance)
+print('control.enabled', p['control']['enabled'], '| mpc', {n: p['mpc'][n] for n in (
+      'enabled', 'shadow', 'v_exec_max_mps')}, '| vehicle', p['vehicle']['source'], p['vehicle']['valid'])
 PY
 ```
 
 这是本机生成文件，不在车上编辑。不改 `traxxas_vehicle_interface.yaml` 或其他硬件配置。YAML dump 会移除副本注释；带注释的仓库基础 YAML 保持原样。
 
-**配置冲突需要明确：**基础 YAML 把 `course_simulation` 标为离线假设并警告不要作为实车限制；MPC prototype G2 又使用它生成 shadow 参考。本指南仅按 prototype 的“未 Enable、零应用动作”实验范围准备该配置，并要求现场负责人确认；`simulation_only` 不能作为动力执行许可或实测车辆能力证明。
+**这份配置的性质**：v3 不再使用 `course_simulation`。MPC 方式下的车辆记录是 `newcar27_logfit_20261006`：纵向参数从实车日志拟合，转向大小、零偏、轴距仍是占位值，所以 `valid: false`，只能跑 shadow，`mpc-exec` 会被脚本拒绝。三种方式的规划都使用 mvp 配置（`control.mode: mvp`），参考的 `simulation_only` 为 false。`mvp` 方式使用 10-06 实车验证过的参数。
 
 ### 5.3 本次部署前确认车辆停用
 
@@ -323,7 +557,7 @@ python3 -B -c "import sys, numpy, scipy, osqp, yaml; print('Python:', sys.execut
 
 ### 6.2 使用独立的源码快照跑测试
 
-测试放在独立目录，避免把活动 workspace 的完整 shadow YAML 当成仓库默认配置测试。`test_mpc.py` 的配置检查需要原始基础 YAML；如果先把它改成 enabled=true，再测，会产生配置契约失败。
+测试放在独立目录，避免把活动 workspace 的完整 shadow YAML 当成仓库默认配置测试。`test_mpc.py` 的配置检查需要原始的三层 YAML；如果拿合并后的部署副本替换基础 YAML 再测，会产生配置契约失败。
 
 **本机 PowerShell，仍在 Baby-Bus 根目录：**
 
@@ -356,7 +590,7 @@ env -u PYTHONPATH python3 -B -c "import importlib.util, numpy, scipy, osqp, yaml
 
 ```bash
 env -u PYTHONPATH python3 -B -m unittest \
-  tests/test_mpc.py tests/test_planning.py tests/test_estimation.py \
+  tests.test_control tests.test_mpc tests.test_planning tests.test_estimation \
   2>&1 | tee offline-tests.log
 task_mpc_test_rc=${PIPESTATUS[0]}
 printf '%s\n' "$task_mpc_test_rc" > offline-exit-code.txt
@@ -370,8 +604,8 @@ printf 'exit code: %s\n' "$task_mpc_test_rc"
 | 看什么 | 条件 |
 |---|---|
 | 导入 | 节点实际 Python 能导入 NumPy / SciPy / OSQP / PyYAML |
-| 套件 | exit code 0，最后 `OK` |
-| 完整 MPC step | P95 明显低于 50 ms，超预算 0/200 |
+| 套件 | exit code 0，最后 `OK`；共 137 项（control 22、mpc 70、planning 17、estimation 28） |
+| 完整 MPC step | P95 明显低于 50 ms，超预算 0/200。笔记本参考值：mean 约 2.6 ms，p95 约 2.7 ms（N = 10） |
 | 闭环数值 | 与本机相同场景结果接近，无明显数值异常 |
 | OSQP 超时 | 确认目标版本接受 `time_limit`，并记录目标平台限制生效证据 |
 
@@ -495,16 +729,26 @@ dream runtime status
 ```bash
 ros2 topic info /car/drive_and_steer_set_point_normalized
 ros2 param get /car/ai4r_policy required_sensors
+ros2 param get /car/ai4r_policy policy_update_mode
+ros2 param get /car/ai4r_policy control.enabled
 ros2 param get /car/ai4r_policy mpc.enabled
 ros2 param get /car/ai4r_policy mpc.shadow
 ros2 param get /car/ai4r_policy mpc.reference_source
 ros2 param get /car/ai4r_policy planning.vehicle_limits_source
 ros2 param get /car/ai4r_policy mpc.vehicle_params_source
+ros2 param get /car/ai4r_policy vehicle.source
 ros2 param get /car/ai4r_policy vehicle.valid
+ros2 param get /car/ai4r_policy vehicle.drive_deadband
 ros2 param get /car/ai4r_policy mpc.v_exec_max_mps
 ```
 
-预期：恰好一个动作发布者；三项 required sensors；MPC enabled=true、shadow=true、source=planning、limits source=course_simulation；`mpc.vehicle_params_source=course_simulation`、`vehicle.valid=false`，执行速度 cap=0.0。
+预期：
+- 恰好一个动作发布者；
+- 三项 required sensors；`policy_update_mode=timer`；
+- `control.enabled=false`（MVP 关闭）；MPC `enabled=true`、`shadow=true`、`reference_source=planning`；
+- `planning.vehicle_limits_source=upstream`；`mpc.vehicle_params_source=vehicle`；
+- `vehicle.source=newcar27_logfit_20261006`、`vehicle.valid=false`、`vehicle.drive_deadband=0.289`；
+- `mpc.v_exec_max_mps=0.25`（shadow 下不起作用）。
 
 两个发布者时先定位并消除重复策略进程。课程使用 DREAM 管理，本次不同时再开手动 `ros2 launch`。
 
@@ -572,7 +816,7 @@ E:\26b\AI4R\Baby-Bus\docs\AI4R_Foxglove_UI_v2026-09-22.json
 | Heading angle | 进入策略 state 3 时 tare 的相对 heading |
 | IMU | angular velocity 的有效性与变化 |
 | `debug1` | 当前 MPC 横向误差 `e_y`，m |
-| `debug2` | MPC 候选轮角 `candidate_delta`，rad，不是已应用转向 action |
+| `debug2` | MPC 候选轮角 `candidate_delta_rad`，rad，不是已应用转向 action |
 
 课程通用布局未保证包含 `mpc_debug`。添加 Raw Messages 面板订阅 `/car/mpc_debug`；它是 String，内容为 JSON。现成 Plot 可直接画数值 `debug1` / `debug2`，JSON 内字段需要解析后才能按数值绘制，不能当作原生消息字段。
 
@@ -645,7 +889,7 @@ ros2 topic echo /car/mpc_debug
 
 先用卷尺/角度参照记录位置，再轻推向前产生连续轮速历史。当前估计器/规划器依赖运动对齐，静止摆放后不保证马上有有效参考。
 
-航向测试先选小角度，例如左右约 5°（约 0.087 rad），并保持道路可见。当前 Planning 的 heading-error 上限为 0.15 rad、lateral-offset 上限为 0.2 m；超过范围可能正常拒绝参考，不能把这种拒绝直接判为 MPC 符号错误，也不为得到样本临时放宽门槛。
+航向测试先选小角度，例如左右约 5°（约 0.087 rad），并保持道路可见。.27 配置下 Planning 的 heading-error 上限为 0.25 rad、lateral-offset 上限为 0.2 m；超过范围可能正常拒绝参考，不能把这种拒绝直接判为 MPC 符号错误，也不为得到样本临时放宽门槛。
 
 | 场景 | 实测条件 | 预期 `e_y_m` / `e_psi_rad` | 预期候选轮角 |
 |---|---|---|---|
@@ -661,19 +905,20 @@ ros2 topic echo /car/mpc_debug
 
 | 字段 | 期望 | 不符合时 |
 |---|---|---|
-| `branch` | 有效参考时主要 `shadow` | 收集 `ref_invalid` 的理由；`solver_fail` / `over_budget` 必须零 |
+| `branch` | 有效参考时主要 `shadow`；shadow 下不会出现 `plan_hold` | 收集 `ref_invalid` 的理由；`solver_fail` / `over_budget` 必须零 |
 | `reject_reason` | 正常样本无拒绝 | 分别统计 stale、alignment、forward coverage 等原因 |
 | `applied_drive` / `applied_steer_action` | 始终为 0 | 立即 state 2，保持车辆停用并查原因 |
 | `candidate_delta_rad` | 单独误差场景应有修正趋势 | 检查估计器、坐标和模型符号 |
-| `candidate_steer_action` / `candidate_drive` | 符合 course_simulation 映射；驱动 ≥ 0 | 未标定之前不能证明物理轮角或速度响应正确 |
+| `candidate_steer_action` / `candidate_drive` | 转向按占位 gain（负值）映射，只有符号有意义；驱动 ≥ 0，以约 0.2 m/s 推车时应接近拟合的稳态值 0.297 | 转向大小未实测之前不能证明物理轮角正确；稳定推车时驱动离 0.3 很远，说明 `vehicle.*` 的纵向参数有问题 |
+| `phase` / `drive_bias` | 静止时为 `starting`，推车超过 0.05 m/s 后为 `tracking`；shadow 下 bias 保持 0 | |
 | `step_s` / `solve_s` | 完整 step P95 < 0.05 s | 保存耗时和版本，回本机调整与验证 |
-| `dt` | 约 cone batch 周期，通常约 0.1 s | 大间隔/抖动尤其 >0.2 s 需解释 |
+| `dt` | 约 0.05 s（20 Hz timer） | 执行时 >0.2 s 会变成 `dt_late`（沿用计划），>0.4 s 锁停；需解释 |
 | `ref_age_s` | 小于有效期 | 排查原始时戳、延迟、运动对齐 |
-| `delta_est_rad` / `vehicle_source` | shadow 下为偏置角（应用动作恒为 0）；`course_simulation` | 由已应用指令按模型回放得到，不是测得的轮角 |
-| `simulation_only` | 当前 Planning shadow 为 true | 确认未把模型假设当实测能力 |
+| `delta_est_rad` / `vehicle_source` | shadow 下为偏置角（应用动作恒为 0）；`newcar27_logfit_20261006` | 由已应用指令按模型回放得到，不是测得的轮角 |
+| `simulation_only` | false（mvp 规划配置） | 为 true 说明加载了课程仿真用的 prototype overlay |
 | `planning_bypassed` / `reference_source` | 不 bypass、`planning` | 核对是否加载错 overlay |
 
-shadow 内 MPC 拒绝通常只记录，不锁停策略；required sensor 失效仍会由外层框架停止。不要因为它没有锁停就忽略大比例无效参考。
+shadow 内 MPC 拒绝只记录，不锁停策略；3 m / 30 s 预算在 shadow 下也不生效。required sensor 失效仍会由外层框架停止。不要因为它没有锁停就忽略大比例无效参考。
 
 ### 10.6 G2 通过条件
 
@@ -741,21 +986,22 @@ Copy-Item -LiteralPath (Join-Path $taskDeployDir 'policy_node.py') -Destination 
 
 | 项目 | 结果写入/记录 |
 |---|---|
-| 小范围左右 steering action 与真实轮角，含方向和零点 | `vehicle.steering_gain_rad`（带符号）、`steering_offset_rad`、`steering_min_rad`/`steering_max_rad` |
+| **必测**：小范围左右 steering action 与真实轮角（方向已知为负，要测大小和零点） | `vehicle.steering_gain_rad`、`steering_offset_rad`、`steering_min_rad`/`steering_max_rad` |
+| **必测**：轴距、车身尺寸 | `vehicle.wheelbase_m`、`rear_axle_from_cg_m`、`body_*` |
 | 转向步进耗时/速率 | `vehicle.steering_rate_limit_rad_s`、`steering_delay_s`，并与 Traxxas slew 约束兼容 |
-| 直道固定 drive 的起步/稳态速度、dead zone | `vehicle.mass_kg`（称重）、`motor_gain_n`、`drag_kg_per_m`、`drive_min`/`drive_max`、`drive_delay_s`；执行速度 cap `mpc.v_exec_max_mps` |
+| **复核**：纵向响应（已从 10-06 日志拟合） | 当天先用 MVP 跑 0.5 m，确认维持 0.2 m/s 的油门仍约 0.30；偏差大时重新拟合 `drive_deadband`、`motor_gain_n`、`brake_gain_n`、`drag_kg_per_m`、`drive_breakaway` |
 | state 2 后滑行距离和停稳时间 | `vehicle.braking_deceleration_mps2`、`braking_behavior`、轮速衰减延迟 |
 | 约 0.5 s command timeout 的实际效果 | 单独的现场记录，不当作正常停车 |
 
-这些测量归参数辨识组负责，流程见 [vehicle-params-test-plan.md](vehicle-params-test-plan.md) 和 `offline/vehicle_identification/README.md`。`id_test` 已合入同一节点：测量时设 `id_test.mode` 并保持 `mpc.enabled: false`（两者同时开启节点拒绝启动），测完改回 `"off"`。全部字段实测并复测后，填写 `vehicle.*`、设置 `valid: true` 和可追溯的 `source`。
+转向和几何的测量由机械（MPC）和参数辨识组一起完成，流程见 [vehicle-params-test-plan.md](vehicle-params-test-plan.md) 和 `offline/vehicle_identification/README.md`。`id_test` 已合入同一节点：测量时设 `id_test.mode` 并保持 `mpc.enabled: false`（两者同时开启节点拒绝启动），测完改回 `"off"`。全部字段实测并复测后，填写 `vehicle.*`、设置 `valid: true` 和可追溯的 `source`。
 
-MPC 同时输出驱动和转向，没有单独的速度 PI；纵向表现依赖实测的 m、k、c。首次执行前先用实测参数再跑一次 shadow，检查 `candidate_drive` 与目标速度是否合理。
+MPC 同时输出驱动和转向，没有单独的速度 PI。纵向表现依赖死区和增益，偏置估计（`mpc.drive_bias_gain`）补偿电池漂移；静止起步由起步阶段（`drive_breakaway` 加爬升）处理。首次执行前先用实测参数再跑一次 shadow，检查 `candidate_drive` 与目标速度是否合理。
 
 ### 12.2 执行门槛
 
-依据 prototype，执行需要 shadow=false、`mpc.vehicle_params_source: vehicle`、`vehicle.valid: true`（全部字段实测并填写 source 标签，见 [VEHICLE_PARAMS_INTEGRATION.md](VEHICLE_PARAMS_INTEGRATION.md)）和正的 v_exec_max_mps。Planning-bypass 还需 bypass_acknowledged，并明确缺失 clearance / stopping / speed cap 检查。本次主线使用 Planning 直线，不自动切换 bypass。
+依据 [MPC_PROTOTYPE.md](MPC_PROTOTYPE.md)，执行需要 shadow=false、`mpc.vehicle_params_source: vehicle`、`vehicle.valid: true`（全部字段实测并填写 source 标签，见 [VEHICLE_PARAMS_INTEGRATION.md](VEHICLE_PARAMS_INTEGRATION.md)）和正的 v_exec_max_mps。Planning-bypass 还需 bypass_acknowledged，并明确缺失 clearance / stopping / speed cap 检查。本次主线使用 Planning 直线，不自动切换 bypass。
 
-满足软件 flags 仅代表程序 gate 接受配置，不代替课程现场安排、实测参数或物理验收。`course_simulation` 的使用限制和仍未测量的参数由负责人明确解决。
+满足软件 flags 仅代表程序 gate 接受配置，不代替课程现场安排、实测参数或物理验收。首次执行把 `mpc.v_exec_max_mps` 设为 0.2，按 0.5 m → 1 m → 3 m 直线推进（见 [MPC_PLAN_OVERVIEW.md §9](MPC_PLAN_OVERVIEW.md#9-后续开发计划按周)）。
 
 ### 12.3 动力执行的顺序（仅在 G3 和现场条件满足后）
 
@@ -763,10 +1009,10 @@ MPC 同时输出驱动和转向，没有单独的速度 PI；纵向表现依赖�
 2. 本机准备执行配置，传输、build、restart；复查实际参数。
 3. 确认策略 state 2 持续发送新鲜零动作。
 4. Foxglove **Vehicle Request Enable**，看清 **Enabled** 后再继续。
-5. **Policy publishing actions** / state 3，先做一次方向和驱动（速度）检查。MPC 只能滑行停车，路线长度按实测滑行距离预留。
+5. **Policy publishing actions** / state 3，先做一次方向和驱动（速度）检查。`mpc_debug` 的 `phase` 应在约 1 s 内从 `starting` 变为 `tracking`。MPC 不发负油门，停车靠零油门加拖刹（.27 约 0.5 m/s²），路线长度按实测停车距离预留；3 m / 30 s 预算同样生效。
 6. 若检查正常，做文档要求的三次连续运行；干预、碰锥或离路记失败，保留全部尝试。
 7. 正常停止：**Policy publishing ZERO actions → Vehicle Request Disable**；必要时 RC 接管。
-8. 执行模式拒绝会锁回 state 2。查明原因后显式重启 state 3，控制器重新建立，不自动恢复。
+8. 不超过 0.3 s 的参考失效会沿用上一步计划（`plan_hold`）；更长的失效，以及停车请求、超速、起步失败等，都会锁回 state 2。查明原因后显式重启 state 3，控制器重新建立，不自动恢复。
 
 课程 CLI 的 Enable 请求为：
 
@@ -795,7 +1041,7 @@ ros2 topic echo /car/traxxas_state
 | 图像黑 | debug images默认关闭 | 需要时 annotated；影响时序需记录 |
 | Enable无反应（未来执行） | 新鲜零动作、RC模式、车辆状态 | 先 state 2；不是反复发非零动作 |
 | 重启后仍 Enabled | 车辆与策略是两个状态机 | 显式 Disable；restart不代替停用 |
-| 小 drive没动（未来标定） | 死区、RC控制源、Enabled与实际输出 | 按识别方案测量；不随意大幅加油 |
+| 小 drive没动 | 死区（.27 约 0.289，起步约 0.30）、RC控制源、Enabled与实际输出 | MPC 起步阶段会从 `drive_breakaway` 开始逐步加；超时会锁停（`no_motion_after_breakaway`）。不随意大幅加油 |
 
 向 demonstrator/Ed反馈时提供：自己的车号、确切命令、完整错误、源码/配置版本和本次日志。不要提供密码。
 
@@ -840,7 +1086,9 @@ G3/G4动力测试：not run（或对应单独记录）
 ### 15.2 项目依据
 
 - [policy_node.py](../scripts/policy_node.py)：实际输入、源码选择相关测试所用算法、MPC和动作框架。
-- [基础参数](../config/ai4r_policy.yaml)与[prototype overlay](../config/ai4r_policy_mpc_prototype.yaml)：默认关闭、shadow、required sensors和simulation参数。
+- [基础参数](../config/ai4r_policy.yaml)、[.27 实车参数](../config/ai4r_policy_newcar27.yaml)、[.27 MPC 参数](../config/ai4r_policy_mpc_newcar27.yaml)：三层配置；[prototype overlay](../config/ai4r_policy_mpc_prototype.yaml) 只用于课程仿真车辆。
+- [纵向拟合结果](../offline/vehicle_identification/results/newcar27_drive_fit.json)：.27 的死区、增益、拖刹和起步参数的来源。
+- [MPC_README.md](MPC_README.md)：MPC 的现状、接口和验证入口。
 - [MPC_PROTOTYPE.md](MPC_PROTOTYPE.md)：G0～G4、日志、方向约定、限制。
 - [ROS verification babysitter](ros-verification-babysitter.md)：本机WSL、依赖、gate和解释器排查。
 - [CONTRIBUTING.md](../CONTRIBUTING.md)、[CMakeLists.txt](../CMakeLists.txt)、[接口pin](../ci/dependencies.repos)：软件验证入口和接口兼容性。
@@ -856,5 +1104,5 @@ G3/G4动力测试：not run（或对应单独记录）
 | 以为restart会停用车辆 | restart策略回零，但车辆可保持Enabled；显式Disable |
 | overlay复制即生效 | DREAM使用完整源YAML，本机合并、部署、参数实查 |
 | 静止或混合误差时逐点要求反号 | 分别测试横向/航向误差，考虑运动对齐与速率状态 |
-| 动力执行可直接套simulation limits | 明确未测量/配置冲突和负责人确认；G3/G4单独记录 |
+| 动力执行可直接套simulation limits | v3 改用 .27 的日志拟合记录；转向和几何未实测前 `valid: false`；G3/G4单独记录 |
 | 安装包/参数加载代表真实MPC已验证 | 分别记录导入、模块测试、ROS gate、实际shadow和实车证据 |
