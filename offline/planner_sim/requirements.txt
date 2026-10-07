@@ -1,0 +1,2 @@
+# Exact source behind notebook COURSE_SOURCE_REF=v0.4.0; no RL/MPC/render extras.
+dreamgym @ git+https://gitlab.unimelb.edu.au/dream/dream-gym.git@9e9d031fabf5c97b32428925e56bb6a13de713f3
