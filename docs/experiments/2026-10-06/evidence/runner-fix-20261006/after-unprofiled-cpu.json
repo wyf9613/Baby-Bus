@@ -1,0 +1,217 @@
+[
+  {
+    "elapsed_s": 3.968000100940117e-06,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 89
+      }
+    ]
+  },
+  {
+    "elapsed_s": 1.0217173870000806,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0,
+        "cpu_percent": 0.0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 165,
+        "cpu_percent": 74.38485057227335
+      }
+    ]
+  },
+  {
+    "elapsed_s": 2.0421963920000508,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0,
+        "cpu_percent": 0.0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 241,
+        "cpu_percent": 74.47482959240521
+      },
+      {
+        "pid": 11473,
+        "command": "python3 /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py --ros-args -r __node:=ai4r_policy -r __ns:=/car --params-file /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51/parameters.yaml ",
+        "cpu_ticks": 58
+      }
+    ]
+  },
+  {
+    "elapsed_s": 3.06303248100005,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0,
+        "cpu_percent": 0.0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 319,
+        "cpu_percent": 76.40795700748394
+      },
+      {
+        "pid": 11473,
+        "command": "python3 /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py --ros-args -r __node:=ai4r_policy -r __ns:=/car --params-file /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51/parameters.yaml ",
+        "cpu_ticks": 137,
+        "cpu_percent": 77.38754619988758
+      }
+    ]
+  },
+  {
+    "elapsed_s": 4.083124502000032,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0,
+        "cpu_percent": 0.0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 394,
+        "cpu_percent": 73.52277878468114
+      },
+      {
+        "pid": 11473,
+        "command": "python3 /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py --ros-args -r __node:=ai4r_policy -r __ns:=/car --params-file /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51/parameters.yaml ",
+        "cpu_ticks": 143,
+        "cpu_percent": 5.881822302774491
+      }
+    ]
+  },
+  {
+    "elapsed_s": 5.103650694000066,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0,
+        "cpu_percent": 0.0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 471,
+        "cpu_percent": 75.45127269011577
+      },
+      {
+        "pid": 11473,
+        "command": "python3 /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py --ros-args -r __node:=ai4r_policy -r __ns:=/car --params-file /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51/parameters.yaml ",
+        "cpu_ticks": 149,
+        "cpu_percent": 5.87931994987915
+      }
+    ]
+  },
+  {
+    "elapsed_s": 6.1270917670000244,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0,
+        "cpu_percent": 0.0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 548,
+        "cpu_percent": 75.23637855797014
+      },
+      {
+        "pid": 11473,
+        "command": "python3 /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py --ros-args -r __node:=ai4r_policy -r __ns:=/car --params-file /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51/parameters.yaml ",
+        "cpu_ticks": 155,
+        "cpu_percent": 5.862574952569101
+      }
+    ]
+  },
+  {
+    "elapsed_s": 7.147925705000034,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0,
+        "cpu_percent": 0.0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 624,
+        "cpu_percent": 74.44893549375635
+      },
+      {
+        "pid": 11473,
+        "command": "python3 /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py --ros-args -r __node:=ai4r_policy -r __ns:=/car --params-file /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51/parameters.yaml ",
+        "cpu_ticks": 162,
+        "cpu_percent": 6.857138795477559
+      }
+    ]
+  },
+  {
+    "elapsed_s": 8.167520737000018,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0,
+        "cpu_percent": 0.0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 697,
+        "cpu_percent": 71.59705344660914
+      },
+      {
+        "pid": 11473,
+        "command": "python3 /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py --ros-args -r __node:=ai4r_policy -r __ns:=/car --params-file /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51/parameters.yaml ",
+        "cpu_ticks": 167,
+        "cpu_percent": 4.903907770315695
+      }
+    ]
+  },
+  {
+    "elapsed_s": 9.190554627000097,
+    "processes": [
+      {
+        "pid": 10880,
+        "command": "/usr/bin/SCREEN -D -m -c /dev/null -S dream_ff4c70626f2e7ce0_35ac94a9238e -- /home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 0,
+        "cpu_percent": 0.0
+      },
+      {
+        "pid": 10881,
+        "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+        "cpu_ticks": 773,
+        "cpu_percent": 74.28883905301919
+      },
+      {
+        "pid": 11473,
+        "command": "python3 /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py --ros-args -r __node:=ai4r_policy -r __ns:=/car --params-file /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51/parameters.yaml ",
+        "cpu_ticks": 174,
+        "cpu_percent": 6.842393070672821
+      }
+    ]
+  }
+]

@@ -45,10 +45,16 @@ class VehicleParams:
     drive_delay_s: float | None = None
 
     # MPC 纵向模型的数值形式（offline/mpc_prediction_model）：
-    # m*dv/dt = motor_gain_n*drive - drag_kg_per_m*v*|v|。
+    # m*dv/dt = gain*(drive - drive_deadband) - drag_kg_per_m*v*|v|，
+    # drive 不低于死区时 gain = motor_gain_n，低于死区时 gain = brake_gain_n（电调拖刹）。
     mass_kg: float | None = None
     motor_gain_n: float | None = None
     drag_kg_per_m: float | None = None
+    drive_deadband: float | None = None
+    brake_gain_n: float | None = None
+    # 静止起步：请求至少 drive_breakaway 并保持 breakaway_wait_s 后车轮才转（静摩擦）。
+    drive_breakaway: float | None = None
+    breakaway_wait_s: float | None = None
 
     # Planning 需要的工作域限值（m/s、m/s²、m）；延迟取上面两个延迟的较大值。
     speed_max_mps: float | None = None

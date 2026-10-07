@@ -5,7 +5,12 @@ control = [normalized_drive, normalized_steering_target], each in [-1, 1].
 Coordinates: x forward at heading=0, y left, positive heading/steering left.
 Pure prediction only: no Gym, ROS, observations, controller, or hidden state.
 
-Assumes no lateral slip, classic linear motor gain and quadratic drag.
+Assumes no lateral slip, a linear motor gain above a drive deadband and quadratic
+drag. Force = motor_gain_n*(drive - drive_deadband) at or above the deadband and
+brake_gain_n*(drive - drive_deadband) below it (an ESC drag brake on the
+2026-10-06 car). The defaults (deadband 0, brake gain = motor gain) reproduce
+the notebook's single linear gain exactly. Static friction (breakaway) is a
+hidden stuck state and is NOT modelled here; see offline/mpc_gym/pipeline_sim.py.
 Does NOT implement the simulator's direction-change latch or dynamic tyre model.
 Negative drive can predict reverse motion: do not use this alone to validate
 braking/parking. Add the latch state before modelling stop/reverse transitions.
@@ -27,6 +32,8 @@ class CourseModelParams:
     mass_kg: float = 3.0
     motor_gain_n: float = 10.0
     drag_kg_per_m: float = 1.0
+    drive_deadband: float = 0.0
+    brake_gain_n: float = 10.0
     steering_gain_rad: float = np.pi / 4
     steering_offset_rad: float = 0.0
     steering_min_rad: float = -np.pi / 4
@@ -42,6 +49,8 @@ class CourseModelParams:
             raise ValueError('Axle distances, mass and motor gain must be positive')
         if self.drag_kg_per_m < 0 or self.steering_gain_rad == 0:
             raise ValueError('Invalid drag or steering gain')
+        if not 0 <= self.drive_deadband < 1 or self.brake_gain_n < 0:
+            raise ValueError('Drive deadband must lie in [0, 1) and brake gain be nonnegative')
         if not (-np.pi / 2 < self.steering_min_rad <= self.steering_offset_rad
                 <= self.steering_max_rad < np.pi / 2) or self.steering_min_rad >= self.steering_max_rad:
             raise ValueError('Steering range must contain the offset inside (-pi/2, pi/2)')
@@ -101,6 +110,8 @@ def step(state, control, dt, params=None):
         (target - s[4]) / dt,
         p.steering_rate_lower_rad_s, p.steering_rate_upper_rad_s,
     )
+    effort = u[0] - p.drive_deadband
+    force = (p.motor_gain_n if effort >= 0 else p.brake_gain_n) * effort
 
     def derivative(z):
         _, _, psi, vx, delta = z
@@ -110,7 +121,7 @@ def step(state, control, dt, params=None):
             vx * np.cos(psi) - vy * np.sin(psi),
             vx * np.sin(psi) + vy * np.cos(psi),
             yaw_rate,
-            (p.motor_gain_n * u[0] - p.drag_kg_per_m * vx * abs(vx)) / p.mass_kg,
+            (force - p.drag_kg_per_m * vx * abs(vx)) / p.mass_kg,
             steering_rate,
         ])
 

@@ -71,7 +71,8 @@ def plant_params(vehicle, gain_scale=1.0, offset=0.0, motor_scale=1.0, drag_scal
     return CourseModelParams(
         front_axle_m=vehicle.wheelbase_m-vehicle.rear_axle_from_cg_m, rear_axle_m=vehicle.rear_axle_from_cg_m,
         mass_kg=vehicle.mass_kg, motor_gain_n=vehicle.motor_gain_n*motor_scale,
-        drag_kg_per_m=vehicle.drag_kg_per_m*drag_scale, steering_gain_rad=vehicle.steering_gain_rad*gain_scale,
+        drag_kg_per_m=vehicle.drag_kg_per_m*drag_scale, drive_deadband=vehicle.drive_deadband,
+        brake_gain_n=vehicle.brake_gain_n*motor_scale, steering_gain_rad=vehicle.steering_gain_rad*gain_scale,
         steering_offset_rad=vehicle.steering_offset_rad+offset, steering_min_rad=vehicle.steering_min_rad,
         steering_max_rad=vehicle.steering_max_rad, steering_rate_lower_rad_s=-vehicle.steering_rate_limit_rad_s,
         steering_rate_upper_rad_s=vehicle.steering_rate_limit_rad_s)
@@ -118,12 +119,33 @@ class Adapter(unittest.TestCase):
         self.assertAlmostEqual(s[1]-s[0], 0.05, places=6)
 
     def test_invalid_or_stopping_planner_output_is_invalid_with_stop(self):
-        for bad in (None, {}, {"valid": False, "reason": "stale_road"},
-                    {"valid": True, "stop_requested": True, "frame_id": "base_link", "timestamp_s": 1.0}):
+        for bad in (None, {}, {"valid": False, "reason": "stale_road"}):
             traj = adapt(bad, 0.05)
             self.assertFalse(traj["valid"])
             self.assertTrue(traj["stop_required"])
             self.assertEqual(traj["points"], [])
+
+    def test_planner_stop_reaches_the_stop_branch_not_the_dropout_path(self):
+        traj = adapt({"valid": True, "stop_requested": True, "stop_reason": "obstacle",
+                      "frame_id": "base_link", "timestamp_s": 1.0}, 0.05)
+        self.assertTrue(traj["valid"])
+        self.assertTrue(traj["stop_required"])
+        self.assertEqual((traj["points"], traj["reason"]), ([], "obstacle"))
+        ctrl = verified(reference_dropout_tolerance_s=0.5)
+        ctrl.step(straight_trajectory(), 0.3, 0.0, 10.0, True)
+        with self.assertRaises(Stop):
+            ctrl.step(traj, 0.3, 0.05, 10.05, False)
+        self.assertEqual(ctrl.last_debug["branch"], "stop")
+
+    def test_clipped_path_end_adds_no_near_duplicate_point(self):
+        ref, _ = Planner(PlanSettings(vehicle_limits_source="course_simulation")).plan(*plan_fixture())
+        lo = ref["path"]["range"][0]
+        for hi in (lo+1.0+1e-7, lo+1.0, lo+1.0-1e-7):
+            ref["path"]["range"] = [lo, hi]
+            traj = adapt(ref, 0.05)
+            steps = [b["s_m"]-a["s_m"] for a, b in zip(traj["points"], traj["points"][1:])]
+            self.assertGreater(min(steps), 0.01, hi)
+            self.assertIsNotNone(errors(traj, 10, 0.1, 0.0, 0.6)[0])
 
     def test_wrong_frame_is_rejected(self):
         ref, _ = Planner(PlanSettings(vehicle_limits_source="course_simulation")).plan(*plan_fixture())
@@ -206,7 +228,8 @@ class ModelParity(unittest.TestCase):
         rng = random.Random(7)
         for vehicle in (course_vehicle(), measured(steering_gain_rad=-0.3, steering_offset_rad=0.02,
                                                   steering_min_rad=-0.25, steering_max_rad=0.3,
-                                                  steering_rate_limit_rad_s=1.2, drag_kg_per_m=1.7)):
+                                                  steering_rate_limit_rad_s=1.2, drag_kg_per_m=1.7),
+                        measured(drive_deadband=0.29, brake_gain_n=5.5, motor_gain_n=30.0, drive_max=0.4)):
             params = plant_params(vehicle)
             for _ in range(200):
                 state = [rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-3, 3), rng.uniform(-0.5, 1.5),
@@ -344,7 +367,7 @@ class ControllerBranches(unittest.TestCase):
     def test_first_step_dt_zero_is_accepted_later_bad_dt_locks(self):
         ctrl = verified()
         self.step(ctrl, first=True, dt=0.0)
-        for dt in (0.0, -0.1, 0.5, float("nan")):
+        for dt in (0.0, -0.1, 0.5, float("nan")):     # 0.5 > dt_hard_max_s
             with self.assertRaises(Stop, msg=str(dt)):
                 self.step(ctrl, dt=dt)
             self.assertEqual(ctrl.last_debug["reject_reason"], "dt_out_of_range")
@@ -415,15 +438,17 @@ class ControllerBranches(unittest.TestCase):
         self.step(ctrl)
         self.assertGreater(seen[-1][4], 0.0)                     # the first command has now arrived
 
-    def test_short_reference_dropout_coasts_then_locks(self):
+    def test_short_reference_dropout_holds_the_last_plan_then_locks(self):
         ctrl = verified(reference_dropout_tolerance_s=0.25)
         self.step(ctrl, first=True, dt=0.0)
-        steer = ctrl.applied_steer
+        inputs = ctrl.plan[1]
         bad = {"schema": "reference_trajectory_v0.1", "valid": False, "reason": "not_straight_enough"}
-        for _ in range(2):                                  # 0.0 s and 0.1 s into the dropout
+        for k in (1, 2):                                    # 0.0 s and 0.1 s into the dropout
+            before = ctrl.applied_drive
             out = self.step(ctrl, traj=bad)
-            self.assertEqual(out["debug"]["branch"], "ref_hold")
-            self.assertEqual((out["drive"], out["steer"]), (0.0, steer))
+            self.assertEqual((out["debug"]["branch"], out["debug"]["plan_index"]), ("plan_hold", k))
+            self.assertEqual(out["steer"], inputs[k][1])
+            self.assertEqual(out["drive"], min(inputs[k][0], before))   # never raised during a hold
         self.assertEqual(self.step(ctrl)["debug"]["branch"], "solved")   # a valid frame resets the window
         for _ in range(3):
             self.step(ctrl, traj=bad)                        # 0.0, 0.1, 0.2 s
@@ -442,6 +467,21 @@ class ControllerBranches(unittest.TestCase):
                 call(ctrl)
         with self.assertRaises(ValueError):
             Settings(reference_dropout_tolerance_s=0.8)
+
+    def test_dropout_without_a_plan_coasts_with_steering_held(self):
+        ctrl = verified(reference_dropout_tolerance_s=0.25)
+        bad = {"schema": "reference_trajectory_v0.1", "valid": False, "reason": "not_straight_enough"}
+        out = self.step(ctrl, traj=bad, first=True, dt=0.0)
+        self.assertEqual((out["debug"]["branch"], out["drive"]), ("ref_hold", 0.0))
+
+    def test_late_update_holds_the_plan_and_very_late_locks(self):
+        ctrl = verified(reference_dropout_tolerance_s=0.5)
+        self.step(ctrl, first=True, dt=0.0)
+        out = self.step(ctrl, dt=0.3)
+        self.assertEqual((out["debug"]["branch"], out["debug"]["reject_reason"]), ("plan_hold", "dt_late"))
+        with self.assertRaises(Stop):
+            self.step(ctrl, dt=0.45)
+        self.assertEqual(ctrl.last_debug["reject_reason"], "dt_out_of_range")
 
     def test_over_budget_result_is_not_executed(self):
         ctrl = verified(max_step_time_s=1e-9)
@@ -532,6 +572,111 @@ def straight_reference(path):
         near = [q for q in path if q[0] >= x-0.3][:60]
         return dict(straight_trajectory(stamp=now), path_id=k, points=body_points(near, x, y, psi))
     return reference
+
+
+def newcar(**changes):
+    """Deadband record shaped like the 2026-10-06 fit of car .27 (mass 3 kg scaling): TEST fixture."""
+    values = dict(drive_deadband=0.289, motor_gain_n=30.1, drag_kg_per_m=5.81, brake_gain_n=5.53,
+                  drive_max=0.4, drive_breakaway=0.30, breakaway_wait_s=0.2)
+    values.update(changes)
+    return measured(**values)
+
+
+class DeadbandDrive(unittest.TestCase):
+    """The longitudinal changes made after the 2026-10-06 car runs."""
+    NOW = 10.0
+
+    def test_steady_drive_sits_above_the_deadband(self):
+        self.assertAlmostEqual(Solver(Settings(), course_vehicle()).steady_drive(0.2), 0.004, places=6)
+        self.assertAlmostEqual(Solver(Settings(), newcar()).steady_drive(0.2), 0.2967, places=3)
+
+    def test_moving_solution_never_requests_drive_inside_the_deadband(self):
+        solver = Solver(Settings(), newcar())
+        traj = straight_trajectory(speed=0.2)
+        for speed in (0.1, 0.2, 0.3):
+            out, why = solver.solve(traj["points"], [0.0, 0.0, 0.0, speed, 0.0], 0.3, 0.297, moving=True)
+            self.assertIsNone(why)
+            self.assertTrue(all(d >= 0.289-1e-6 for d, _ in out["inputs"]), speed)
+        slow, _ = solver.solve(traj["points"], [0.0, 0.0, 0.0, 0.1, 0.0], 0.3, 0.297, moving=True)
+        fast, _ = solver.solve(traj["points"], [0.0, 0.0, 0.0, 0.3, 0.0], 0.3, 0.297, moving=True)
+        self.assertGreater(slow["drive0"], fast["drive0"])
+        self.assertLess(slow["drive0"], 0.4)          # ~13 m/s per unit: no saturation needed
+
+    def test_start_holds_breakaway_then_hands_over(self):
+        ctrl = verified(vehicle=newcar())
+        out = ctrl.step(straight_trajectory(speed=0.2), 0.0, 0.0, self.NOW, True)
+        self.assertEqual((out["debug"]["phase"], out["drive"]), ("starting", 0.30))
+        out = ctrl.step(straight_trajectory(speed=0.2), 0.12, 0.05, self.NOW, False)
+        self.assertEqual(out["debug"]["phase"], "tracking")
+        self.assertGreaterEqual(out["drive"], 0.289-1e-6)
+
+    def test_no_motion_after_breakaway_locks(self):
+        ctrl = verified(vehicle=newcar())
+        ctrl.step(straight_trajectory(speed=0.2), 0.0, 0.0, self.NOW, True)
+        with self.assertRaises(Stop):
+            for _ in range(40):
+                ctrl.step(straight_trajectory(speed=0.2), 0.0, 0.05, self.NOW, False)
+        self.assertEqual(ctrl.last_debug["reject_reason"], "no_motion_after_breakaway")
+        self.assertAlmostEqual(ctrl.clock_s, 1.5, delta=0.05+1e-9)   # breakaway_timeout_s
+
+    def test_start_drive_ramps_up_to_the_drive_cap(self):
+        ctrl = verified(vehicle=newcar(), breakaway_ramp_per_s=0.05)
+        drives = [ctrl.step(straight_trajectory(speed=0.2), 0.0, 0.0, self.NOW, True)["drive"]]
+        for _ in range(25):                                   # 1.25 s, inside breakaway_timeout_s
+            drives.append(ctrl.step(straight_trajectory(speed=0.2), 0.0, 0.05, self.NOW, False)["drive"])
+        self.assertEqual(drives[0], 0.30)
+        self.assertAlmostEqual(drives[20], 0.35, places=6)
+        self.assertLessEqual(max(drives), 0.4)
+
+    def test_returning_to_rest_restarts_a_bounded_number_of_times(self):
+        ctrl = verified(vehicle=newcar(), max_restarts=1)
+        ctrl.step(straight_trajectory(speed=0.2), 0.0, 0.0, self.NOW, True)
+        ctrl.step(straight_trajectory(speed=0.2), 0.1, 0.05, self.NOW, False)
+        out = ctrl.step(straight_trajectory(speed=0.2), 0.0, 0.05, self.NOW, False)
+        self.assertEqual((out["debug"]["phase"], out["drive"]), ("starting", 0.30))
+        ctrl.step(straight_trajectory(speed=0.2), 0.1, 0.05, self.NOW, False)
+        with self.assertRaises(Stop):
+            ctrl.step(straight_trajectory(speed=0.2), 0.0, 0.05, self.NOW, False)
+        self.assertEqual(ctrl.last_debug["reject_reason"], "too_many_restarts")
+
+    def run_speed_loop(self, gain, true_deadband=0.30, seconds=8.0, dt=0.05):
+        """Longitudinal closed loop: the car's deadband differs from the model's."""
+        ctrl = verified(vehicle=newcar(), drive_bias_gain=gain)
+        plant = newcar(drive_deadband=true_deadband)
+        speed, t, first = 0.2, 0.0, True
+        for _ in range(int(seconds/dt)):
+            out = ctrl.step(straight_trajectory(speed=0.2, stamp=self.NOW+t, length=3.0), speed, 0.0 if first else dt,
+                            self.NOW+t, first)
+            first = False
+            for _ in range(5):
+                effort = out["drive"] - plant.drive_deadband
+                force = (plant.motor_gain_n if effort >= 0 else plant.brake_gain_n)*effort
+                speed = max(0.0, speed + dt/5*(force - plant.drag_kg_per_m*speed*speed)/plant.mass_kg)
+            t += dt
+        return speed, ctrl.bias
+
+    def test_bias_estimate_removes_the_steady_speed_error(self):
+        without, _ = self.run_speed_loop(0.0)
+        with_bias, bias = self.run_speed_loop(2.0)
+        self.assertLess(abs(with_bias-0.2), 0.02)
+        self.assertGreater(abs(without-0.2), abs(with_bias-0.2))
+        self.assertGreater(bias, 0.0)                  # the real deadband is higher
+
+    def test_bias_can_lift_the_deadband_past_the_breakaway_effort(self):
+        solver = Solver(Settings(), newcar())
+        traj = straight_trajectory(speed=0.2)
+        out, why = solver.solve(traj["points"], [0.0, 0.0, 0.0, 0.2, 0.0], 0.3, 0.31, drive_bias=0.04, moving=True)
+        self.assertIsNone(why)
+        self.assertGreaterEqual(out["drive0"], 0.329-1e-6)
+
+    def test_reused_solver_matches_a_fresh_one(self):
+        reused = Solver(Settings(), measured())
+        for y in (0.05, -0.08, 0.1):
+            traj = straight_trajectory(y=y)
+            a, _ = reused.solve(traj["points"], [0.0, 0.0, 0.0, 0.3, 0.0], 0.3, 0.0)
+            b, _ = Solver(Settings(), measured()).solve(traj["points"], [0.0, 0.0, 0.0, 0.3, 0.0], 0.3, 0.0)
+            self.assertAlmostEqual(a["drive0"], b["drive0"], delta=1e-4)
+            self.assertAlmostEqual(a["steer0"], b["steer0"], delta=1e-4)
 
 
 class ClosedLoop(unittest.TestCase):
@@ -805,6 +950,18 @@ class ConfigChecks(unittest.TestCase):
                          {"cone_detections", "wheel_speed", "imu_angular_velocity"})
         merged = dict(self.load("ai4r_policy.yaml")["mpc"], **overlay["mpc"])
         Settings(**merged)
+
+    def test_mpc_overlays_disable_the_mvp_controller(self):
+        self.assertTrue(self.load("ai4r_policy.yaml")["control"]["enabled"])
+        for name in ("ai4r_policy_mpc_prototype.yaml", "ai4r_policy_mpc_bypass.yaml"):
+            self.assertEqual(self.load(name)["control"], {"enabled": False}, name)
+
+    def test_newcar27_overlay_holds_the_field_settings(self):
+        overlay = self.load("ai4r_policy_newcar27.yaml")
+        self.assertEqual(overlay["policy_update_mode"], "timer")
+        self.assertEqual(overlay["planning"]["max_source_age_s"], 0.4)
+        self.assertEqual(overlay["control"]["mvp_steering_direction"], -1.0)
+        PlanSettings(**dict(self.load("ai4r_policy.yaml")["planning"], **overlay["planning"]))
 
 
 class NodeEntry(unittest.TestCase):

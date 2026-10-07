@@ -1,0 +1,70 @@
+Tue Oct  6 11:37:51 2026    /home/ai4r/runner-fix-evidence/before-runner.pstats
+
+         11840623 function calls (11549481 primitive calls) in 17.606 seconds
+
+   Ordered by: cumulative time
+   List reduced from 784 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000   17.706   17.706 runtime_runner.py:657(main)
+        1    0.000    0.000   17.702   17.702 runtime_runner.py:289(run)
+        1    0.001    0.001   17.488   17.488 runtime_runner.py:614(_supervise)
+  157/137    0.001    0.000   17.249    0.126 runtime_runner.py:352(_try)
+       41    0.005    0.000   12.587    0.307 runtime_runner.py:415(_owned_group)
+       20    0.001    0.000    9.343    0.467 runtime_runner.py:489(_control)
+1342/1074    0.004    0.000    8.215    0.008 {built-in method builtins.next}
+      132    0.008    0.000    7.827    0.059 runtime_state.py:1292(_open_run)
+      130    0.001    0.000    7.724    0.059 runtime_state.py:1835(_open_exact_run)
+       41    0.042    0.001    7.170    0.175 runtime_runner.py:179(group_members)
+    11520    0.289    0.000    7.035    0.001 runtime_runner.py:158(identity)
+       20    0.000    0.000    5.519    0.276 runtime_runner.py:399(_poll)
+       20    0.000    0.000    5.518    0.276 runtime_runner.py:406(<lambda>)
+       43    0.001    0.000    5.485    0.128 runtime_state.py:1349(read_runner)
+  335/201    0.001    0.000    5.423    0.027 contextlib.py:132(__enter__)
+      471    0.049    0.000    4.987    0.011 runtime_state.py:4577(_validate_metadata)
+      700    0.005    0.000    4.912    0.007 runtime_parameters.py:662(parameter_file_bytes)
+      700    0.007    0.000    4.905    0.007 __init__.py:263(safe_dump)
+      700    0.020    0.000    4.899    0.007 __init__.py:215(dump_all)
+      700    0.011    0.000    4.821    0.007 representer.py:26(represent)
+      149    0.007    0.000    4.746    0.032 runtime_state.py:3297(_refresh_loaded_runtime_run)
+      229    0.012    0.000    4.530    0.020 runtime_state.py:2801(_load_runtime_candidate)
+      700    0.010    0.000    4.413    0.006 serializer.py:46(serialize)
+40600/700    0.327    0.000    4.287    0.006 serializer.py:78(serialize_node)
+    46200    0.151    0.000    3.720    0.000 emitter.py:111(emit)
+      471    0.034    0.000    3.631    0.008 runtime_parameters.py:622(validate_snapshot)
+    34484    0.183    0.000    3.508    0.000 runtime_runner.py:136(_read_proc_text)
+      242    0.012    0.000    2.865    0.012 runtime_state.py:3246(_require_compatible_runtime_snapshot)
+  335/201    0.001    0.000    2.789    0.014 contextlib.py:141(__exit__)
+    34484    0.053    0.000    2.377    0.000 pathlib.py:1007(open)
+
+
+Tue Oct  6 11:37:51 2026    /home/ai4r/runner-fix-evidence/before-runner.pstats
+
+         11840623 function calls (11549481 primitive calls) in 17.606 seconds
+
+   Ordered by: internal time
+   List reduced from 784 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+       19    0.952    0.050    0.952    0.050 {built-in method time.sleep}
+    34485    0.893    0.000    2.323    0.000 {built-in method _io.open}
+    37800    0.806    0.000    1.121    0.000 emitter.py:626(analyze_scalar)
+2804183/2801578    0.701    0.000    0.702    0.000 {built-in method builtins.len}
+    34448    0.666    0.000    0.666    0.000 {method 'read' of '_io.BufferedReader' objects}
+    11482    0.548    0.000    1.446    0.000 runtime_runner.py:105(_parse_status)
+    37800    0.545    0.000    0.848    0.000 emitter.py:1080(write_plain)
+1289956/1273942    0.540    0.000    0.653    0.000 {built-in method builtins.isinstance}
+    15882    0.410    0.000    1.344    0.000 runtime_state.py:529(verify)
+40600/700    0.327    0.000    4.287    0.006 serializer.py:78(serialize_node)
+    70572    0.321    0.000    0.493    0.000 pathlib.py:357(__init__)
+   172069    0.310    0.000    1.043    0.000 runtime_runner.py:84(_proc_integer)
+    11520    0.289    0.000    7.035    0.001 runtime_runner.py:158(identity)
+   548003    0.286    0.000    0.286    0.000 {method 'partition' of 'str' objects}
+    67953    0.279    0.000    0.279    0.000 {built-in method posix.stat}
+    42138    0.276    0.000    0.559    0.000 pathlib.py:387(_parse_path)
+    70180    0.254    0.000    1.449    0.000 pathlib.py:437(__str__)
+   218888    0.248    0.000    0.248    0.000 {method 'fullmatch' of 're.Pattern' objects}
+    34733    0.225    0.000    0.369    0.000 <frozen posixpath>:71(join)
+    34448    0.219    0.000    0.219    0.000 {method '__exit__' of '_io._IOBase' objects}
+
+

@@ -26,7 +26,10 @@ else:
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 names = {"finite_number", "Observation", "EstimationSettings", "FirstOrderSampleFilter", "EstimationMotionHistory",
          "_estimation_median", "_estimation_solve", "_estimation_fit_boundary", "EstimationPipeline",
-         "PlanningSettings", "CenterlinePlanner", "evaluate_planning_path", "planning_vehicle_limits"}
+         "PlanningSettings", "CenterlinePlanner", "evaluate_planning_path", "planning_vehicle_limits",
+         "ControlSettings", "VehicleParamsSettings", "ControlPID", "PolicyController", "wrap_angle",
+         "PolicyStopRequest", "RunDistanceLimiter",
+         "_control_poly_eval", "_control_poly_roots", "control_path_geometry"}
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in names]
 policy_class = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")

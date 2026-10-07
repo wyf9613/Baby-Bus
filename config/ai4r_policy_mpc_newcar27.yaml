@@ -1,0 +1,56 @@
+# Overlay: joint MPC on car 10.43.254.27. Layer order:
+#   ai4r_policy.yaml -> ai4r_policy_newcar27.yaml -> this file
+# SHADOW by default: the record below is NOT valid for execution. Its drive response is
+# fitted from the 2026-10-06 runs (offline/vehicle_identification/results/
+# newcar27_drive_fit.json); geometry and steering MAGNITUDE are course placeholders.
+# Execution needs, on site: wheelbase, steering gain magnitude and offset, then
+# vehicle.valid: true, mpc.shadow: false, mpc.v_exec_max_mps set deliberately.
+/**/ai4r_policy:
+  ros__parameters:
+    control:
+      enabled: false                  # exactly one controller owns the actions
+    vehicle:
+      valid: false
+      source: "newcar27_logfit_20261006"
+      # Placeholders (course notebook geometry): measure before execution.
+      wheelbase_m: 0.33
+      rear_axle_from_cg_m: 0.132
+      body_front_extent_from_cg_m: 0.297
+      body_rear_extent_from_cg_m: 0.198
+      body_width_m: 0.25
+      # Sign measured (+request turned right); magnitude is the course value, range the
+      # MVP's +/-0.5 normalized cap. Offset unknown: the MVP drifted slightly right.
+      steering_gain_rad: -0.785
+      steering_offset_rad: 0.0
+      steering_min_rad: -0.39
+      steering_max_rad: 0.39
+      steering_rate_limit_rad_s: 1.57
+      steering_delay_s: 0.1
+      # Fitted drive response (requested units; applied ~0.9 x requested). Mass is a
+      # scale only: a = motor_gain_n/mass = 10.0, c = drag/mass = 1.94, e = brake/mass = 1.84.
+      drive_min: 0.0
+      drive_max: 0.35
+      drive_delay_s: 0.1
+      mass_kg: 3.0
+      motor_gain_n: 30.1
+      drag_kg_per_m: 5.81
+      drive_deadband: 0.289
+      brake_gain_n: 5.53
+      drive_breakaway: 0.30
+      breakaway_wait_s: 0.2
+      drive_response_model: "v' = 10.0*(u-0.289) - 1.94 v|v| above the deadband, 1.84*(u-0.289) below; fit RMSE 0.024-0.032 m/s on B10/B11/B12/B14"
+      braking_behavior: "zero/low request decelerates ~0.5 m/s^2 (ESC drag brake); negative drive never sent"
+      speed_max_mps: 0.35
+      braking_deceleration_mps2: 0.5
+      safety_margin_m: 0.05
+    mpc:
+      enabled: true
+      shadow: true
+      vehicle_params_source: "vehicle"
+      v_exec_max_mps: 0.25
+      overspeed_margin_mps: 0.15     # start overshoot reached 0.33 m/s under the MVP
+      reference_dropout_tolerance_s: 0.3
+      drive_bias_gain: 2.0
+      breakaway_ramp_per_s: 0.05     # 0.30 -> 0.35 within 1 s if the battery needs more
+      drive_bias_max: 0.05
+      max_backward_extension_m: 2.0  # MVP-profile paths start up to ~0.9 m ahead

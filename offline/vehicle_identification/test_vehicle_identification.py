@@ -34,6 +34,7 @@ def policy_harness():
     tree = ast.parse(source.read_text(encoding="utf-8"))
     selected = {"_age", "_fresh", "health_problem", "run_policy_step", "calculate_policy_actions",
                 "fsm_transition_request_callback", "_change_state", "supervision_callback",
+                "_budgets_active", "_control_problem",
                 "publish_zero_actions", "_publish_actions"}
     constants = {"SENSORS", "STATE_NAMES", "FSM_STATE_NOT_PUBLISHING_ACTIONS",
                  "FSM_STATE_PUBLISHING_ZERO_ACTIONS", "FSM_STATE_PUBLISHING_POLICY_ACTION"}
@@ -64,6 +65,11 @@ def policy_harness():
     node.fsm_state = 2
     # _change_state also clears the estimation motion history (control-mpc-v0).
     node.motion_history = SimpleNamespace(clear=lambda: None)
+    # Merged MVP control state: both controllers are off during identification.
+    node.control_settings = SimpleNamespace(enabled=False)
+    node.mpc_settings = SimpleNamespace(enabled=False, shadow=True)
+    node.controller = SimpleNamespace(clear=lambda: None)
+    node.distance_limiter = SimpleNamespace(reset=lambda *args: None, distance_m=0.0)
     node.required_sensors = ["wheel_speed"]
     node.sensor_timeout_s = {name: 0.5 for name in scope["SENSORS"]}
     node.observations = {name: None for name in scope["SENSORS"]}
@@ -270,6 +276,26 @@ class PolicyBoundaryTests(unittest.TestCase):
         self.assertEqual(node.action_publisher.messages[-1].drive, 0)
         node.supervision_callback()
         self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+
+class DriveFitFromLogs(unittest.TestCase):
+    """The archived 2026-10-06 runs pin the deadband model of car .27."""
+
+    def test_fit_reproduces_the_steady_runs_and_finds_the_deadband(self):
+        import runpy
+        fit = runpy.run_path(str(Path(__file__).resolve().parent / "fit_drive_from_logs.py"))
+        runs = {k: fit["load_run"](fit["EVIDENCE"] / v) for k, v in fit["FIT_RUNS"].items()}
+        stuck = {k: fit["load_run"](fit["EVIDENCE"] / v) for k, v in fit["NO_MOTION_RUNS"].items()}
+        observed = fit["breakaway_from_logs"](runs, stuck)
+        breakaway = ((observed["did_not_start_with"] + observed["started_with"])/2, observed["start_wait_s"])
+        params = dict(zip(fit["NAMES"], fit["fit"](runs, breakaway)))
+        self.assertTrue(0.27 <= params["d0"] <= 0.31, params)
+        self.assertGreater(params["e"], 0.0)       # requests below d0 brake, not coast
+        check = {k: fit["load_run"](fit["EVIDENCE"] / v) for k, v in fit["CHECK_RUNS"].items()}
+        report = fit["evaluate"]({"B12": runs["B12"], "B14": check["B14"]},
+                                 [params[n] for n in fit["NAMES"]], breakaway)
+        for name, result in report.items():
+            self.assertLess(result["rmse_mps"], 0.035, name)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,56 @@
 # AI4R policy acceptance
 
-Status: the implementation passes the software gate on `jah`. Version 0.1.0
-identifies a release only through its published annotated tag and successful
-release CI. Physical vehicle acceptance remains unperformed.
+Status: the 2026-10-06 car candidate passes the installed fast gate and has
+bounded, observed physical runs. A complete 3 m physical run remains unverified.
+Upstream gates on `jah` and the earlier entries below are historical evidence.
+Release identity requires a published annotated tag and successful release CI.
+
+## New-car MVP control trial, 2026-10-06
+
+The isolated `fix/newcar-control` candidate adds optional normalized sustaining
+drive feedforward (default zero, bounded by `drive_max`) and planning-rejection
+diagnostics. Stop, invalid-feedback and reference-expiry paths still publish
+zero; the calibrated controller is unchanged. Feedforward needs measured car
+tuning and is not a universal output calibration.
+
+On car 10.43.254.27, positive steering was observed to turn right. The car-only
+configuration uses MVP steering direction -1, drive feedforward 0.30, drive cap
+0.35, speed gains 0.35/0.08, and target 0.2 m/s. These overrides are retained in
+the external diagnostic bundle rather than the shipped default YAML. The
+operator confirmed forward motion and stopping, and subsequently reported
+normal steering/throttle in the approximately 1.11 m wheel-integral trial.
+
+With the curvature gate increased from 0.15 to 0.25 1/m, a subsequent bounded
+run recorded 2.015 m wheel-integral distance in 10.54 s, peak wheel speed
+0.333 m/s, and stopped on invalid road estimates (`right_only`, unknown width).
+The operator confirmed this approximately 2 m run was normal and stopped.
+Increasing cone confidence from 0.75 to 0.85 recovered some invalid replay
+frames but reduced the next live run to 0.425 m due to insufficient coverage;
+the deployed confidence threshold was restored to 0.75. One intervening start
+was refused for stale gyro and issued no nonzero drive. The test then requested
+policy state 2 and vehicle Disable. Wheel integration
+is not an independent measurement of physical displacement. This run does not
+establish 3 m completion, obstacle response, braking calibration, or general
+turning performance. Boundary/freshness checks and explicit resume remain.
+
+Verification:
+
+- Portable estimation/planning/control tests: 28 + 17 + 21 = 66 passed.
+- Student overlay build on the car: passed.
+- `AI4R_INTERFACES_SOURCE=/home/ai4r/dream_system/ros2_ws/src/dream_interfaces
+  bash tools/verify_fast.sh`: passed in an isolated temporary checkout;
+  exact clean dependency `5f50902ccee44e8370d6e2be85607b3054ffbf98`;
+  139 tests, zero failures/errors/skips, installed launch arguments passed.
+  This gate uses synthetic localhost peers in test domain 218.
+- An earlier Disabled idle probe recorded only zero applied drive/steering and
+  zero wheel speed. A later post-run probe lost wheel/applied telemetry after
+  a vehicle reconnection, so that later probe alone does not prove a physical
+  stop. The final six-second check after restoring confidence 0.75 recorded
+  Disabled/state 2, 271 zero wheel samples, 270 zero applied commands, and 88
+  zero requested commands. Recorded results, sampled telemetry, profiles and gate logs are archived in
+  `docs/experiments/2026-10-06/`; original rollback backups remain in the parent
+  project workspace.
+- The runtime-runner CPU problem is not claimed fully resolved.
 
 ## Evidence ownership
 
@@ -12,6 +60,136 @@ Synthetic observations and a synthetic ROS peer establish software behavior,
 not actual sensor/vehicle response.
 Keep revision, command, result and limitations here; retain detailed logs in
 CI artifacts or merge requests rather than a tracked evidence directory.
+
+## MVP revision and 3 m run limit, 2026-10-05
+
+The shipped YAML now selects `control.mode=mvp`, one 20 Hz timer, target speed
+0.2 m/s, normalized drive cap 0.15 and absolute steering cap 0.5. All runtime
+code stays in `scripts/policy_node.py`. The direct normalized lateral/heading
+controller and speed PI require no complete vehicle calibration. The planner's
+MVP branch keeps state/road validity, source age, time alignment, supported
+coverage, both boundaries and the straight/small-error domain. It skips the
+calibrated footprint and braking qualification. The optional calibrated mode
+and measured parameter inlet remain available. There is no simulation fallback.
+Control supports degree-five paths; the present upstream V1 emits straight paths.
+
+Each explicit entry into policy state 3 resets raw unsigned wheel-speed
+trapezoidal odometry to zero. At estimated travel >=3.0 m, the framework latches
+state 2 and continuously publishes zero drive/steer with pan held. Policy
+pre-calculation, pre-publication and independent supervision share one monotonic
+integration clock. Repeated checks at the same time do not add distance; a
+repeated state-3 request during a run does not reset it. Fresh sensor data cannot
+resume a stopped run. Another explicit start resets the budget. A 30 s run-time
+limit also stops a run with fresh but continuously zero wheel speed. Missing or
+stale feedback, invalid/expired references and timing gaps retain latched stops.
+debug1 is path normal error (m); debug2 is per-run distance (m), including the
+final stop reading. This is estimated travel, not guaranteed physical stopping
+position: encoder scale, slip, sampling and neutral-effort coasting still matter.
+
+The local teacher PDFs require a single policy/YAML, finite normalized actions,
+framework publication/FSM, sensor freshness and explicit recovery. They permit
+local editing without ROS and describe copying to the car, building the student
+overlay and restarting policy. Complete physical identification is not a first
+MVP prerequisite. The earlier calibration requirement below belongs to the
+optional calibrated controller. See the Chinese MVP integration note for PDF
+page references and the minimal on-car sequence.
+
+Verification of this revision:
+
+- `python -B tests/test_estimation.py -v`: 28/28 passed.
+- `python -B tests/test_planning.py -v`: 17/17 passed.
+- `python -B tests/test_control.py -v`: 20/20 passed against actual single-file
+  definitions/methods with recording ports, not rclpy/DDS. Includes exact 3 m,
+  variable speed, repeated checks/start, raw versus filtered wheel speed,
+  supervisor/post-calculation stops, latched zeros, explicit restart and 30 s.
+- `conda run -n AI4R python -B offline/control_pid/test_controller.py`: 20/20
+  passed (Python 3.12.13 / Dream Gym v0.4.0). Actual policy/model tests include
+  both calibrated and no-calibration MVP, +/-0.1 m and +/-0.04 rad initial
+  errors, 20 Hz control, 10 Hz cones and 50 ms acquisition delay. MVP runs reach
+  3 m and request zero within the next check (<3.02 m estimated); final-window
+  lateral offset stays <0.03 m. The model is the plant, not supplied MVP
+  calibration. Independent NumPy comparisons cover 72 polynomial cases.
+- Python syntax and YAML setting construction passed; whitespace checks passed.
+  Original offline PID gains/models/results were not regenerated or modified.
+
+Real-rclpy MVP callback/stop/restart and installed-YAML assertions were added,
+but remain NOT RUN. The required CONTRIBUTING fast command was attempted in
+WSL Ubuntu and failed at the absent pinned `dream_interfaces` directory.
+The expected revision is `5f50902ccee44e8370d6e2be85607b3054ffbf98`; ROS Jazzy
+and colcon are also not provisioned. No live configuration, car build, vehicle
+Enable, physical test or remote push was performed. The teacher's car-side
+build/restart and first physical response check remain necessary.
+
+Tested policy SHA-256 (local file bytes):
+`b1a2293e2bf5c09a0332aa2b5dc8828b0394502f25763f004093e6ed2dcd1570`.
+
+## Earlier calibrated single-file control, 2026-10-05
+
+Earlier local candidate: the policy executes estimation, V1 planning and
+forward-only PID control in `scripts/policy_node.py`. No offline-directory,
+NumPy or Gym import is needed by the installed ROS node. The control consumer
+supports Cartesian y(x) through degree five, producer origin/scale/range,
+CG-path feedforward and heading/normal-error feedback. The V1 planner itself
+still produces a straight path; quintics are contract fixtures, not an observed
+new upstream planning implementation.
+
+The existing YAML selects one 20 Hz timer and requires cones, wheel speed and
+body yaw rate. Planning recomputes each cycle from motion-aligned cached road
+data; this does not claim a 20 Hz camera. Candidate normalized caps are drive
+0.15 and abs(steering) 0.5. Parameter loading and configuration validation are
+startup-only. Bare-node defaults leave the teaching starter disabled; the
+shipped YAML explicitly enables the integrated code. The separate vehicle
+Enable and explicit policy state-3 request remain necessary.
+
+Missing calibration, invalid planning, control gaps, expired references and
+feedback faults latch state 2, clear controller state and publish zeros.
+Reference expiry is checked by supervision, before calculation and before
+publication, including when sensor callbacks cease or calculation runs late.
+Fresh data cannot automatically resume tracking. Initial missing motion history
+has a bounded neutral priming period before the first successful control only.
+Pan continues to hold. debug1/debug2 expose normal error (m) and filtered speed
+(m/s); the existing state string reports the stop cause.
+
+`vehicle` is the measured-parameter inlet: CG-referenced footprint, wheelbase,
+CG-to-rear-axle distance, effective steering mapping, speed/deceleration/delay
+limits and margin. Defaults remain invalid/unmeasured; no physical measurements
+were supplied or fabricated. Effective wheel steering is measured AFTER the
+vehicle interface scaling, and assumes a symmetric approximately linear map.
+The stopping-domain deceleration must describe the current neutral-effort stop,
+not a negative-drive brake experiment. Runtime never issues negative effort and
+does not inherit the offline simulator's brake/hold assumption. Simulation
+planning/control profiles must match; live control rejects simulation references
+and known simulation geometry. No live vehicle configuration was changed.
+
+Local verification:
+
+- `python -B tests/test_estimation.py -v`: 28/28 passed.
+- `python -B tests/test_planning.py -v`: 16/16 passed.
+- `python -B tests/test_control.py -v`: 12/12 passed, exercising actual policy
+  methods with recording transport ports (not rclpy or DDS).
+- `conda run -n AI4R python -B offline/control_pid/test_controller.py`: 20/20
+  passed on Python 3.12.13 / Dream Gym v0.4.0. Includes the actual policy entry,
+  20 Hz control, 10 Hz synthetic cones, 50 ms acquisition delay, both initial
+  offsets +/-0.1 m and headings +/-0.04 rad, 200 model steps each. Final-window
+  absolute lateral offset stays below 0.03 m, final speed within 0.3+/-0.05 m/s.
+  Also compares the single-file bounded root solver with the independent NumPy
+  solver on 72 seeded polynomial/normalization cases. These are model checks.
+- YAML was parsed and both new parameter groups instantiated; syntax checks and
+  `git diff --check` passed. Original PID gain/evidence files are unchanged.
+
+New control cases are registered with CMake; two real-rclpy integration cases
+were added to `test_policy_node.py`, but those installed ROS tests are NOT RUN.
+The required CONTRIBUTING fast command was attempted in WSL Ubuntu and failed
+at the missing `.verification/dependencies/dream_interfaces` path. ROS Jazzy
+and colcon are also not provisioned there. The required interface revision is
+`5f50902ccee44e8370d6e2be85607b3054ffbf98`. Prior upstream gate results do not
+qualify this changed candidate. Physical steering mapping, neutral stopping,
+sensor/frame accuracy and actual-car closed loop remain NOT RUN.
+
+Final control-tested policy SHA-256 (local file bytes):
+`e9bdd6717b94f11e423a2b5815ff98daec5427aeae8e179ff3bc38e4bc25a1ce`.
+Earlier zero-action/pre-integration descriptions below retain their historical
+scope; the MVP section above describes the current local candidate.
 
 ## V1 planning implementation, 2026-10-05
 

@@ -1,6 +1,39 @@
 # MPC 进度日志
 
-对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v2）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
+对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
+
+## 2026-10-07（v3）：按新车 .27 的实车日志适配 MPC
+
+分支 `mpc-newcar-integration`，从 `control-mpc-v0` 新建，合入了 `origin/fix/newcar-control`。**尚未提交**，合并处于进行中。
+
+**起因**：实车 MVP 跑出了 2.015 m。对照它的日志，原来的 MPC 上车会遇到三个问题：
+- 纵向模型过原点，0.2 m/s 只给 0.004 的油门，实车需要约 0.30，车会一直不动；
+- 配置还是旧门限，第一帧就锁停；
+- 缺少 3 m 距离停车。
+
+**完成的工作**：
+
+| 阶段 | 内容 | 状态 |
+|---|---|---|
+| 0 合并 | 合入 MVP；`vehicle.*` 统一使用 `VehicleParamsSettings`，并给 PolicyController 推导出 `steering_limit_rad` 和 `steering_direction`；`control.enabled` 与 `mpc.enabled` 互斥；3 m/30 s 预算同样约束 MPC 执行；MPC 起步时也有动作历史预热；新增 overlay `config/ai4r_policy_newcar27.yaml`（实车参数） | ✅ |
+| 1 纵向辨识 | `offline/vehicle_identification/fit_drive_from_logs.py` 用输出误差法拟合日志，结果在 `results/newcar27_drive_fit.json`：死区 0.289，死区以上加速度斜率 10.0 m/s² 每单位油门，拖刹 1.84，阻力 1.94 1/m，延迟 0.10 s，起步需要请求 ≥0.30 并保持 0.2 s。速度 RMSE：B10/B11/B12 为 0.024–0.032（拟合集），B14 为 0.026（验证集）；B06/B07/B08 走走停停的工况为 0.06–0.09。预测模型两处副本同步加入 `drive_deadband` 和 `brake_gain_n`，一致性误差 ≤1e-12 | ✅ |
+| 2 MPC 纵向 | 车在动时油门下界为"死区 + 偏置"；偏置估计 `drive_bias_gain`；起步状态机（`drive_breakaway` 加爬升，超时或回到静止次数过多都锁停）；短暂失效时沿用上一步计划；Planning 的停车请求走 stop 分支（修了 bug）；更新迟到 0.2–0.4 s 时可容忍；OSQP 只建一次（单步 4.3→2.6 ms） | ✅ |
+| 3 仿真 | `pipeline_sim.py`：`NewcarPlant`、timer 20 Hz、0.19–0.22 s 延迟、丢帧、0.72 m 车道和 0.2 m 锥桶间距；`newcar27_experiment.py` 跑场景矩阵 | ✅ |
+| 4 转向零偏 | ±0.03 rad 零偏只造成约 0.02 m 稳态偏移，低于 0.1 m 门槛，不加横向积分，只做现场实测 | ✅（不需要额外实现） |
+| 5 上车准备 | `config/ai4r_policy_mpc_newcar27.yaml`（shadow，`valid: false`） | 🟡 需要现场测量 |
+
+**仿真结果**（[newcar27_comparison.md](../offline/mpc_gym/results/newcar27_comparison.md)，只是仿真，不是实车证据）：
+- 标定：MVP 起步延迟 0.50 s（实车 0.53）、稳态 0.202 m/s（实车 0.20）；**峰值 0.261，实车 0.333**。拟合低估了脱离静摩擦时的加速度，所以评估超速时要多留约 0.07 m/s 的余量。
+- 25 个场景跑完 3 m 的数量：MVP 0，MPC 24（N=10/8/5 相同）。差距主要来自失效处理方式（MVP 遇到任一帧规划失败就锁停），而不是跟踪精度。MPC 唯一失败的是 20% 丢帧场景。
+- 死区漂移到 0.27–0.305 时都能完成，起步爬升和偏置估计都在起作用。MPC 峰值速度 ≤0.293 m/s。
+- 笔记本上单步 p95：N=10 为 3.0 ms，N=5 为 1.8 ms。N=10 的横向 RMSE 最好（0.034 m），先保持 10，等 Jetson 实测后再定。
+
+**测试**：主测试 control 22、mpc 70、planning 17、estimation 28；离线测试 prediction 6、identification 18、Gym 9、control_pid 20，全部通过。**`tests/test_policy_node.py`（ROS）未运行**，需要在 WSL 上跑 `.verification/run_ros_check.sh`。
+
+**下一步**：
+1. WSL 上跑 ROS 门禁；Jetson 上做 G1 计时（N=10 和 N=5）。
+2. 审阅后提交合并；`vehicle.*` 字段的变化通知辨识组，新增 `drive_deadband`、`brake_gain_n`、`drive_breakaway`、`breakaway_wait_s`。
+3. 现场按顺序进行：遥控确认动力和零输出 → 原地转向，测零偏和 gain 大小 → 用尺子量轴距 → MVP 跑 0.5 m 复测 → MPC shadow（对比候选油门和 MVP 的约 0.30）→ 把 `vehicle.valid` 改为 true → MPC 依次执行 0.5 m、1 m、3 m。
 
 ## 2026-10-07：感知 → 规划 → MPC 对齐，完成最小流程闭环测试
 

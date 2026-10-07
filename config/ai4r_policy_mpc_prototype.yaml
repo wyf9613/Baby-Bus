@@ -15,6 +15,9 @@
       max_near_x_m: 1.45
       max_curvature_1pm: 0.3
       max_fit_error_m: 0.06
+    # The shipped file enables the MVP controller; exactly one controller may own the actions.
+    control:
+      enabled: false
     mpc:
       enabled: true
       shadow: true

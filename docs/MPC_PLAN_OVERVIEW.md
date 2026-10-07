@@ -1,8 +1,15 @@
-# MPC Plan Overview：从最小真车闭环到系统集成与对比实验（v2）
+# MPC Plan Overview：从最小真车闭环到系统集成与对比实验（v3）
 
-日期：2026-10-06（v1：2026-10-03）。适用对象：MPC 子组三人——机械（预测模型与部署）、IT1（目标、约束与评估）、IT2（优化、求解与控制循环）。分工对应团队计划 3.4：Zhenyu Zhang、Ying Xu、Yuzaiyang Fan。
+日期：2026-10-07（v2：2026-10-06，v1：2026-10-03）。适用对象：MPC 子组三人——机械（预测模型与部署）、IT1（目标、约束与评估）、IT2（优化、求解与控制循环）。分工对应团队计划 3.4：Zhenyu Zhang、Ying Xu、Yuzaiyang Fan。
 
 **v2 主要变更：第一版技术路线由"横向 MPC＋共享 PI/PID 速度控制"改为纵横向联合 MPC**：预测模型使用 `offline/mpc_prediction_model` 的车辆模型，MPC 同时输出驱动和转向。各节的相应调整用"v2"标出。当前进度和下一步见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md)。
+
+**v3 主要变更（依据 2026-10-06 新车 .27 实车日志）**：
+- 纵向模型加入**油门死区和电调拖刹**：`m·v̇ = gain·(drive − drive_deadband) − c·v|v|`，drive 不低于死区时 gain = `motor_gain_n`，低于死区时 gain = `brake_gain_n`。新车拟合值：死区 0.289，死区以上斜率约 13 m/s/单位油门，低于死区约 0.5 m/s² 减速。原来过原点的模型在 0.2 m/s 只要 0.004 的油门，实车需要约 0.30。
+- 车在动时，油门下界为"死区 + 偏置估计"；**偏置估计**起积分作用（`mpc.drive_bias_gain`）。起步用开环 `drive_breakaway`（静摩擦），起步超时或回到静止次数过多都会锁停。
+- 短暂失效（参考不可用、更新迟到、超时）时**沿用上一步的输入序列**，并且不增加油门。不再纯滑行，因为这台车滑行就是拖刹。Planning 的停车请求一律走 stop 分支。
+- 合入 main 的 MVP（timer 20 Hz、实车门限、3 m/30 s 预算），两种控制器互斥。`vehicle.*` 统一使用本记录。
+- 对比仿真按实车条件运行：`offline/mpc_gym/pipeline_sim.py` 中的 `NewcarPlant`、0.2 s 相机延迟、0.72 m 车道。
 
 ## 1. 目标与边界
 
@@ -24,14 +31,14 @@
 | 项目 | 选择 |
 | --- | --- |
 | 预测模型 | 课程 notebook 车辆模型的运动学版本（`offline/mpc_prediction_model/vehicle_model.py`）。已用 Dream Gym 开环验证：直行、转弯、蛇形工况误差 ≤ 1e-6 m。状态 `[x, y, ψ, v, δ]`（CG，base_link），输入 `[drive, steering_action]`（归一化） |
-| 纵向 | `m·v̇ = k·drive − c·v|v|` |
+| 纵向 | v3：`m·v̇ = gain·(drive − d0) − c·v|v|`（死区以上为电机增益，以下为拖刹增益）；静止起步需要 `drive_breakaway` |
 | 转向 | `δ_target = clip(gain·u + offset, min, max)`，按转向速率限制逼近目标值 |
 | 优化 | 每步沿上一步解的平移序列做一次线性化（RTI，1 次 SQP），组成凸 QP，用 OSQP 求解；N = 10，dt_pred = 0.1 s |
 | 约束 | 转角范围和变化率、动作范围；驱动只取正值 `[max(0, drive_min), drive_max]`（模型没有倒车锁存） |
 | 代价 | 横向误差、航向误差、速度误差；转角相对曲率前馈的偏差；驱动相对稳态值的偏差；两个输入的变化量；终端加权 |
 | 参数来源 | `vehicle.*` 记录，字段与辨识组 `VehicleParams` 一一对应；未实测时只允许 shadow 模式，使用 `course_simulation` 参数 |
 
-**为什么改**：预测模型已经包含经过验证的纵向方程；联合优化可以直接利用速度与转向的耦合；`origin/main` 上的共享速度 PI 属于 PID 组的 MVP，没有合入本分支。
+**为什么改**：预测模型已经包含经过验证的纵向方程；联合优化可以直接利用速度与转向的耦合；`origin/main` 上的共享速度 PI 属于 PID 组的 MVP（v3：已合入，`control.enabled` 与 `mpc.enabled` 二选一，作为同一份文件里的基线）。
 
 **代价和风险（必须在报告中说明）**：
 

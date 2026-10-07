@@ -1,0 +1,20 @@
+{
+  "wheel": 0.0,
+  "applied": {
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "requested": {
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "vehicle": "Disabled",
+  "policy": 2,
+  "receive_age_s": {
+    "wheel": 0.016899550999937674,
+    "applied": 0.0001007150000305046,
+    "requested": 0.02756114900000739,
+    "vehicle": 0.0562340660000018,
+    "policy": 0.22590805000004366
+  }
+}

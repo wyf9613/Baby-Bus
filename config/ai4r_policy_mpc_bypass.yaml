@@ -4,6 +4,9 @@
 /**/ai4r_policy:
   ros__parameters:
     required_sensors: [cone_detections, wheel_speed, imu_angular_velocity]
+    # The shipped file enables the MVP controller; exactly one controller may own the actions.
+    control:
+      enabled: false
     mpc:
       enabled: true
       shadow: true

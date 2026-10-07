@@ -1,13 +1,18 @@
 # Baby Bus · ai4r_policy
 
-已加入 V1 直线中心线规划器，内部输出为 `self.planning_output` 和
-`self.planning_diagnostics`，配置位于 `planning` 节。车辆限制尚未标定，
-估计器已用历史运动对齐道路；规划器默认不追加补偿。当前车辆限制不足时会返回无效参考和停止请求；
-支持显式 course_simulation 离线参数，默认仍消费上游实测限制。
-控制器尚未接入，动作仍为零。16 项规划及 28 项估计离线测试通过，ROS gate 尚未运行，接口与测试方法见
-[V1 规划说明](docs/PLANNING_V1_CN.md)。
+已在 `scripts/policy_node.py` 接入估计→V1 规划→PID 控制→归一化动作。
+控制侧支持至五次的 Cartesian y(x)，当前上游 V1 仍生成直线。供给的 YAML 选择单一
+20 Hz timer，要求 cones、轮速和偏航率。当前 `control.mode: mvp` 使用路径误差与
+航向误差直接计算归一化转向，目标速度 0.2 m/s；不要求先完成完整车辆标定。
+每次显式启动累计原始轮速里程，达到 3.0 m 自动进入状态 2、持续输出零动作；
+30 s 为兜底时间限制。无效/过期路径或反馈断流也会锁存停止，重新请求状态 3 才
+重置里程并恢复。3 m 是编码器估计距离，实际停车位置受轮速尺度、打滑和滑行影响。
+可选 `calibrated` 模式仍支持有来源的 `vehicle.*` 参数。上车步骤及老师要求见
+[MVP 接入说明](docs/MVP_INTEGRATION_REVIEW_2026-10-05_CN.md)。
+离线测试与实际 policy 方法的模型闭环通过；完整 ROS gate 和实车验证仍未完成。
+详细当前证据见 [验收记录](docs/acceptance.md)。
 
-团队策略仓库，基于 DREAM 课程框架。当前分工见 [四组项目计划](docs/TEAM_PROJECT_PLAN.md)。接口优先沿用 GitHub 中的课程框架代码和配置；框架未定义的组间数据结构再按 Word 接口会议草案补充。已加入首版车辆状态低通滤波和单帧鲁棒道路估计，新增内部状态采用 `speed_mps`、`yaw_rate_rps` 等草案字段，并提供截图名称别名。结果在 `self.estimation_output`，参数位于现有 `config/ai4r_policy.yaml` 的 `estimation` 节；规划已接入内部参考生成，控制尚未接入，驱动和转向仍为零。算法、字段、调参和联调说明见 [估计模块首版说明](docs/ESTIMATION_V1_CN.md)。离线检查命令为 `python3 -B tests/test_estimation.py -v`；完整 ROS gate 与实车验证见 [验收记录](docs/acceptance.md)。下文为上游使用说明。
+团队策略仓库，基于 DREAM 课程框架。当前分工见 [四组项目计划](docs/TEAM_PROJECT_PLAN.md)。接口优先沿用 GitHub 中的课程框架代码和配置；框架未定义的组间数据结构再按 Word 接口会议草案补充。状态、道路和规划分别在 `self.estimation_output`、`self.planning_output`；控制诊断在 `self.control_diagnostics`，debug1/debug2 为路径误差（m）和本次累计里程（m），停止原因沿用 policy 状态字符串。算法、字段、调参和联调说明见 [估计模块首版说明](docs/ESTIMATION_V1_CN.md) 与 [V1 规划说明](docs/PLANNING_V1_CN.md)。离线检查命令为 `python3 -B tests/test_estimation.py -v`、`python3 -B tests/test_planning.py -v`、`python3 -B tests/test_control.py -v`；模型测试为 `python offline/control_pid/test_controller.py`（AI4R 环境）。下文为上游使用说明。
 
 2026-10-05 更新：有效道路/雷达点通过轮速与偏航率历史补偿到自车状态的参考时刻，并保留原测量时间；历史不足或断档时拒绝使用。该补偿采用前进、平面无侧滑近似，轮速时间为接收时刻代理，未完成实车精度验证。详情见上方模块说明。
 

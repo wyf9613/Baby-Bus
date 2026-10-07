@@ -114,5 +114,35 @@ class PipelineFlow(unittest.TestCase):
         self.assertIn("insufficient_near_or_far_coverage", result["locked_stop"]["reason"])
 
 
+@unittest.skipIf(harness is None, "Dream Gym environment not available")
+class Newcar27Plant(unittest.TestCase):
+    """The fitted car .27 (deadband, drag brake, static friction) under the car's timing."""
+
+    @classmethod
+    def setUpClass(cls):
+        import newcar27_experiment
+        cls.x = newcar27_experiment
+
+    def test_mvp_reproduces_the_b12_start_and_steady_speed(self):
+        cal = self.x.calibration()["sim"]
+        self.assertTrue(cal["completed"], cal)
+        self.assertLess(abs(cal["start_delay_s"] - 0.53), 0.15)
+        self.assertLess(abs(cal["steady_speed_mps"] - 0.20), 0.03)
+
+    def test_deadband_mpc_completes_3m_without_a_locked_stop(self):
+        result = self.x.run(self.x.mpc_params(), noise=0.02, seed=1)
+        self.assertTrue(result["completed"], result["locked_stop"])
+        self.assertLess(result["peak_speed_mps"], 0.30)
+        self.assertLess(result["lateral_max_m"], 0.1)
+
+    def test_course_drive_model_never_starts_the_car(self):
+        params = self.x.mpc_params()
+        params["vehicle"].update(motor_gain_n=10.0, drag_kg_per_m=1.0, drive_deadband=0.0, brake_gain_n=10.0,
+                                 drive_breakaway=0.0, breakaway_wait_s=0.0)
+        result = self.x.run(params, noise=0.02, seed=1, duration=6.0)
+        self.assertLess(result["distance_m"], 0.05)
+        self.assertLess(max(result["trace"]["drive"]), 0.25)
+
+
 if __name__ == "__main__":
     unittest.main()
