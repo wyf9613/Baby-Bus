@@ -210,8 +210,8 @@ MPC 负责的是跟踪 Planning 的输出，以及正确执行停车请求。障
 | 停车请求的格式（目前是 `stop_requested=True`）是否会变？ | Planning | 停车分支 |
 | `drive_deadband`、`brake_gain_n`、`drive_breakaway`、`breakaway_wait_s` 这 4 个字段是否接受？ | Identification | `vehicle.*` 能否冻结 |
 | 速度上限和安全余量由谁定？ | Planning 与 MPC | 超速阈值的归属 |
-| 能否加入锥桶记忆：用已有的运动历史（`EstimationMotionHistory`）把前几帧的锥桶推算到当前时刻，补上已出视野的近处一段？ | Estimation | 10-08 G2 有效参考只有 5–79%，主因 `invalid_estimates` 和近处覆盖不足；执行时只容忍 0.3 s 失效 |
-| 能否把 `estimation.known_lane_width_m` 设为赛道的已知宽度（1.0 m），让只看到一侧时也能推出中线？ | Estimation | 现在单侧帧一律判无效（10-06 的 `right_only`） |
+| 能否加入锥桶记忆：用已有的运动历史（`EstimationMotionHistory`）把前几帧的锥桶推算到当前时刻，补上已出视野的近处一段？近处覆盖门槛（`max_near_x_m`、`min_forward_x_m`）是否还能结合相机视野再调？两侧共同覆盖不到 0.5 m（回放中占 19%）是远处锥桶置信度不够被丢，还是检测距离有限？ | Estimation（锥桶记忆、共同覆盖）+ Planning（门槛） | 10-08 G2 有效参考只有 5–79%，主因 `invalid_estimates` 和近处覆盖不足；执行时只容忍 0.3 s 失效 |
+| 能否把 `estimation.known_lane_width_m` 设为赛道的已知宽度（1.0 m），让只看到一侧时也能推出中线？Planning V1 能否同时接受单侧推出的道路（现在报 `v1_requires_both_boundaries`）？ | Estimation + Planning | 现在单侧帧一律判无效（10-06 的 `right_only`）；只改路宽不够，回放工具在合成数据上已确认 |
 | G3 转向标定能否按测试计划测 5–10 个指令点、左右分开，并给出是否线性的判断？ | Identification + 机械 | MPC 转向映射是否要改成分段线性（§5 第 5 条） |
 
 ## 11. 代码组织（单文件部署约束下的实际位置）

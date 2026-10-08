@@ -2,6 +2,53 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-08：实车包回放工具，查清 G2 道路无效的原因
+
+**工具**：新增 `tools/replay_policy_bag.py`。从 `scripts/policy_node.py` 抽出真实的估计器、Planning、MPC、`calculate_policy_actions` 和 `_store`（做法同 `offline/mpc_gym/pipeline_sim.py`，但不依赖 Gym），把录包里的 `/car/cone_detections`、`/car/wheel_speed_m_per_sec`、`/car/imu/data` 按接收顺序、按车上回调的校验规则喂进去，按 20 Hz 定时器逐步运行。每个包输出估计器道路状态、可见侧、路宽、Planning 原因、回放的 MPC 分支，并与包里车上录到的 `/car/mpc_debug` 分支对比。`--set section.key=value` 做假设分析，`--json-out` 输出逐帧结果。需要 ROS（rosbag2_py）和已构建的 `dream_interfaces`，在 WSL 里运行：
+
+```bash
+source /opt/ros/jazzy/setup.bash; source ~/ai4r-dev/Baby-Bus/.verification/ws/install/setup.bash
+E=/mnt/e/26b/AI4R/car-evidence/g2-20261008-162044
+python3 tools/replay_policy_bag.py --params $E/ai4r_policy.yaml $E/g2-*/ --json-out /tmp/replay-base.json
+```
+
+先在 Windows 上用合成数据（静止车前 1 m 宽直线，每 3 批锥桶有 1 批只有一侧）验证了逻辑：两侧都在时有效；单侧帧报 `single_side_width_unknown`；设 `known_lane_width_m=1.0` 后估计器变为 `single_side_inferred`，但 Planning 改报 `v1_requires_both_boundaries`。
+
+**回放与车上一致**（忠实度检查）：
+
+| 包 | 回放：有效 / 无效 | 车上录到：有效 / 无效 |
+| --- | --- | --- |
+| A 居中 | 74% / 26% | 79% / 21% |
+| B 左偏 10 cm | 4% / 96% | 5% / 95% |
+| D 车头左偏 | 76% / 24% | 79% / 21% |
+| A2 居中（起点 0.45 m） | 47% / 53% | 44% / 56% |
+| B2 左偏（起点 0.45 m） | 12% / 88% | 14% / 86% |
+| C 右偏 10 cm | 65% / 35% | 68% / 32% |
+| E 车头右偏 | 10% / 90% | 13% / 87% |
+
+相差 2–5 个百分点，主要拒绝原因的分布一致。差异来自回放从空的运动历史开始（开头约 0.4 s 多出 `missing_motion_history` / `motion_state_unavailable`）和假定的 IMU 安装姿态（包里没有 `/tf_static`，用 10-08 IMU 日志里打印的 base_link ← fsm300_sensor 绕 y 轴 180°）。
+
+**道路无效的原因**（7 个包合计 3,172 步，估计器状态）：
+
+| 状态 | 占比 | 主要出现在 |
+| --- | --- | --- |
+| `observed`（有效） | 60% | — |
+| `insufficient_common_range`（两侧都拟合出边界，但前后重叠不到 0.5 m） | 19% | A2 52%、B2 77%：起点后移到 0.45 m 的两次 |
+| `single_side_width_unknown`（只看到一侧，路宽未知） | 14% | E 76%：车头右偏，可见侧 73% 为 `right_only` |
+| `motion_state_unavailable`（运动状态不可用） | 4% | A、B、E；部分是回放开头造成的 |
+| 其他（`invalid_width_or_order`、`insufficient_geometry`、`missing_motion_history` 等） | 3% | — |
+
+道路有效但被 Planning 覆盖门槛（`insufficient_near_or_far_coverage`，`max_near_x_m` 0.9 / `min_forward_x_m` 1.0）拒绝的，场景 B 占 76%，C 21%，D 18%。估计路宽中位数 0.99–1.06 m，和实际 1 m 一致。
+
+**假设分析：`--set estimation.known_lane_width_m=1.0`**。单侧帧被估计器接受（E 有 357 帧变成 `single_side_inferred`），但 Planning 全部改报 `v1_requires_both_boundaries`（`policy_node.py` 第 875 行，写在代码里），7 个包的有效比例**一个都没变**。合成数据上的结论在真实数据上得到确认：单侧兜底必须估计组和 Planning 组一起改。
+
+**结论与下一步**（已写入全队文档和计划 §10）：
+1. 两侧共同覆盖太短（19%）→ 估计组：查清重叠不够的原因（远处锥桶因置信度 < 0.75 被丢，还是检测距离有限）。可以给回放工具加“每帧左右两侧各自的前后范围和锥桶数”的输出。
+2. 只看到一侧（14%）→ 估计组 + Planning 组：已知路宽兜底**加上** Planning 接受单侧推出的道路（改代码），或锥桶记忆。
+3. 覆盖门槛（场景 B 76%）→ Planning 组：用回放工具试放宽（`max_near_x_m` 必须小于 `min_forward_x_m`），同时看路径误差。
+
+证据：逐帧结果在 WSL 的 `/tmp/replay-base.json`（建议复制到 `car-evidence/g2-20261008-162044/`）。
+
 ## 2026-10-08：G2 shadow 推车 —— MPC 一侧通过，上游有两个问题
 
 - 车 .27，部署 `434cedd`（`policy_node.py` sha256 `c7b44b0a…`，部署 YAML `0dd3ca3b…`，mpc-shadow，`qp_solver: dense`），车辆 Disarmed。按 [G2 清单](G2_SHADOW_CHECKLIST_CN.md) 单人流程，一个人手摆、**没有卷尺**；道路 2.2 m × 1 m，每排 8 个锥桶、间距 0.3 m，每个场景静止约 3 s 后推约 0.8 m，录包 25 s。
@@ -21,7 +68,7 @@
 
 - **通过（MPC 一侧）**：7 个场景应用动作全为 0，无 `solver_fail` / `over_budget`；整步 p95 12–17 ms、最大 25 ms；`dt` 中位数 50 ms；配置来源正确（newcar27、planning、非仿真、shadow）。候选转角始终朝减小误差的方向（85–100%）。`e_y` 正负号正确：B − A = +0.114，B2 − C = +0.112（实际都约左偏 10 cm）。推车时候选油门 0.24–0.29，接近拟合的稳态值 0.297。
 - **未确认：航向偏差**。7 个场景的 `e_psi` 全为负，平均约 −0.06 rad（−3.4°）；D − E = +0.027，方向对但小于手摆误差。可能是摆放误差，也可能是相机安装角带来的固定偏差（10-06 MVP 略向右漂可能同源）。需带尺子精确摆放复测，并与估计组核对相机安装。
-- **上游问题：有效参考比例 5–79%**。`invalid_estimates`（估计器判道路无效，例如只看到一侧时 `known_lane_width_m = 0` 推不出中线）和 `insufficient_near_or_far_coverage`（近处锥桶在相机视野外，车偏时远侧超过 0.9 m）。起点后移到 0.45 m 后 `invalid_estimates` 明显增多。已作为问题提交估计组（计划 §10：锥桶记忆、已知路宽兜底）。
+- **上游问题：有效参考比例 5–79%**。`invalid_estimates`（估计器判道路无效，例如只看到一侧时 `known_lane_width_m = 0` 推不出中线）和 `insufficient_near_or_far_coverage`（近处锥桶在相机视野外，车偏时远侧超过 0.9 m）。起点后移到 0.45 m 后 `invalid_estimates` 明显增多。两个原因都由 Planning（`CenterlinePlanner`）报出：前者是上游道路估计判了无效（估计组），后者是 Planning 自己的覆盖门槛（`max_near_x_m` 0.9、`min_forward_x_m` 1.0）加上估计给出的覆盖范围（Planning 组 + 估计组）。已写入计划 §10。
 - 证据：本机 `E:\26b\AI4R\car-evidence\g2-20261008-162044\`（部署文件与 SHA、原文件备份、7 个包、`g2-summary.txt/json`、`g2-policy.log`）。
 - 阶段状态：**G2 中 MPC 自身部分 ✅**；进入执行（G3/G4）前还需：转向标定、航向偏差复测、道路有效率改善。
 
