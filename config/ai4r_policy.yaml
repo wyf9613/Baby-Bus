@@ -139,6 +139,17 @@
       # Missing/old motion or a gap rejects geometry instead of retimestamping.
       motion_max_gap_s: 0.15
       motion_max_interval_s: 0.3
+      # Original observation lifetime, seconds; repeated predictions never renew
+      # it. Propagation uses short camera-to-camera intervals, not a 5 s hold.
+      road_history_s: 5.0
+      # Keep measured support behind the car, metres, so the origin can be
+      # bracketed. This is a local cache bound, NOT a measured vehicle length.
+      road_rear_support_m: 0.5
+      # Brief fresh-frame fitting failure bridge, seconds (0 disables; <=0.25).
+      # Original acquisition age and motion deadlines may end it earlier.
+      # A degraded road advises a 0.5 speed scale; PLANNING must consume that
+      # advisory and cap its reference lifetime by prediction_remaining_s.
+      road_hold_s: 0.2
       # Dimensionless confidence threshold in [0,1]. Colour convention for this
       # prototype is BLUE left / YELLOW right, as in the supplied course road.
       min_cone_confidence: 0.5

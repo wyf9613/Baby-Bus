@@ -139,6 +139,14 @@ class PlanningChecks(unittest.TestCase):
         xs = [0.2+0.1*i for i in range(27)]
         args[0]["cone_detections"] = api["cones"](
             [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
+        # Forward-only startup has no observed support at the body origin.
+        # Reject it before testing same-epoch consumption of a valid corridor.
+        front_only = api["Pipeline"](api["Settings"]()).update(*args, 10.05)
+        self.assertFalse(front_only["road"]["valid"])
+        self.assertEqual(front_only["road"]["status"], "near_field_unobserved")
+        xs = [-0.3, -0.2, -0.1, 0.0] + xs
+        args[0]["cone_detections"] = api["cones"](
+            [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
         out = api["Pipeline"](api["Settings"]()).update(*args, 10.05)
         self.assertTrue(out["alignment"]["valid"])
         ref, diag = Planner(Settings()).plan(

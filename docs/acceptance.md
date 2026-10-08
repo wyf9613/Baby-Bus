@@ -141,6 +141,123 @@ clipping and bounded history. A new two-case ROS callback regression is included
 in test_policy_node.py but **not run** in this Windows environment. The full
 CONTRIBUTING ROS gate and physical accuracy tests remain unperformed.
 
+## Near-field observed support fix, 2026-10-08
+
+On `feature/state-road-estimation`, the estimator now keeps at most 64 validated
+cones per side, original observation ages, and an acquisition-frame cache.
+Camera-to-camera filtered odometry transports history incrementally; current
+two-sided geometry remains mandatory, nearby new detections replace old support,
+and overlapping corridor conflicts discard history. Original observations expire
+after at most 5 s; rear support is bounded to 0.5 m by default. No polynomial is
+extrapolated into unobserved space and no repeated prediction renews point age.
+
+Valid output now also requires the centerline and both boundaries to bracket the
+body origin. Front-only observations return `near_field_unobserved`, invalid
+road/alignment and empty consumable geometry, retaining coverage diagnostics.
+Near-field validity does not assert footprint/swept-path clearance or an interior
+Frenet projection; those are downstream planning checks using real geometry.
+First-ever blind startup cannot be solved by historical observations. The branch
+keeps zero actuator actions and does not import the new-car drive compensation.
+
+Portable `python -B tests/test_estimation.py -v`: **40 checks passed**, including
+the original 28 checks and 12 near-field cases. These exercise a moving 0.9 m
+camera blind zone, original ages/expiry, stationary startup rejection, duplicate
+batches, overlap conflicts, missing motion, clock/stop resets, empty frames,
+bounded storage, analytic rotation, and a noisy curved road. The simulated blind
+zone requires actual prior motion; it is not accepted before reaching the origin.
+The ROS acquisition-time callback fixture now includes observed support across
+the body origin; the ROS suite and CONTRIBUTING fast gate are **not run** here
+(Windows lacks ROS/colcon and an installed WSL distribution). Physical camera,
+odometry drift, startup procedures and full vehicle footprint remain unverified.
+
+A local Windows measurement of the complete estimator update, 320 frames per
+scenario with the first 20 excluded, gave median/p95 1.003/1.038 ms for 10 cones
+per side and 4.356/4.421 ms for 64 per side (maximum 1.353/4.691 ms respectively).
+The retained caches contained 20/128 points. These are local timing samples,
+not Jetson CPU utilization, a worst-case deadline, or physical performance.
+The source SHA256 was `65d83abc6b18ccda2c86cd3fc0cb4dba0636619f2e1f9aac2bce8b1570598f51`;
+the complete report is retained outside the repository at
+`tmp/project_review/near_field_benchmark.json`.
+
+## Bounded road quality-drop bridge, 2026-10-08
+
+The same local estimation branch adds `estimation.road_hold_s=0.2` (0 disables,
+maximum 0.25 s). Fresh empty/one-sided/insufficient-common-range frames may
+briefly transport the last fully valid double-sided corridor to the current
+state epoch. Predictions preserve original measurement/near-support ages and
+never enter the trusted cache. Failure elapsed time, source deadline, motion
+interval and near observation expiry jointly bound the output. Missing or stale
+sources, broken motion, width/order faults, observed overlap conflicts,
+out-of-order camera timestamps, clock/reset and expiry reject reuse. Current
+failed-frame diagnostics are separate from historical geometry.
+
+Portable `python -B tests/test_estimation.py -v`: **53 checks passed** (40 previous
+checks with the empty-frame case updated, and 13 new dropout checks). They cover
+analytic turning transport, consecutive failures and timer reuse, recovery,
+unchanged original timestamps, empty startup, width/conflict faults, missing
+motion, gaps, unavailable/stale camera, stop/clock/out-of-order resets, acquisition
+delay consuming the available budget, near-support expiry, disabled hold and
+bounded parameters. Repeated failed batches fit only once. A ROS callback case
+for empty-frame transport and invalid gyro was added but is **not run** here.
+
+An in-memory offline integration used the actual new-car branch's extracted
+`calculate_policy_actions`, planner and PID source at `6c80c51`, replacing only
+its estimator definitions/settings with this candidate. Valid output at 10.0 s,
+one-sided failures at 10.1/10.2, recovery at 10.3, and failures at 10.4/10.5 were
+accepted by planning/control; the continuous failure at 10.6 requested a stop.
+Road/state/reference epochs agreed; predictions retained 10.0/10.3 as the real
+measurement stamps. The existing planner does NOT yet consume the new speed
+advisory or prediction lifetime: at 10.2 its 0.15 s reference exceeded the 0.10 s
+prediction remainder. An offline two-field adapter (multiply target speed by
+`recommended_speed_scale`, cap reference lifetime by `prediction_remaining_s`)
+produced accepted references at 0.1 m/s with the bounded lifetime. This was only
+in-memory validation; no other team's source or live car was modified. Planning
+owns that adapter, startup strategy, negative-x reference preservation and body
+checks. No claim of automatic slowdown or full vehicle qualification is made.
+
+Before integrating the remote planning update, the whole PolicyNode AST matched
+branch HEAD `144ab8a`; input, trigger, startup/lifecycle, action and hardware-enable
+behavior remained unchanged. All
+repository Python source parsed and `git diff --check` passed. The required
+CONTRIBUTING ROS/Jazzy fast gate and vehicle tests remain **not run**: this
+Windows environment has no ROS, colcon or installed WSL distribution.
+
+A local Windows complete-update sample (320 fresh frames; first 20 excluded)
+gave median/p95 1.214/1.254 ms for 10 cones per side and 4.760/4.901 ms for 64
+per side, with maxima 1.389/5.770 ms and 20/128 retained cones. These are local
+measurements, not Jetson CPU utilization or real-time guarantees. Measured
+policy source SHA256:
+`c4879b749950da592433a7bf35a62260a670b9c48d8b9db18464ec8aadc7edcb`.
+Report outside the repository: `tmp/project_review/road_dropout_benchmark.json`.
+
+## Follow-up feedback audit and submission check, 2026-10-08
+
+The teammate's 2026-10-08 report and `control-mpc-v0` replay log at `52af5e8`
+describe sustained common-range failure (19%), one-sided visibility (14%), and
+an unconfirmed approximately -0.06 rad road-relative heading offset. This
+candidate only bridges brief quality loss; partial fits failing the joint-range
+requirement are not assimilated into cone history. Sustained common-range or
+one-sided loss still expires. Known lane width alone does not satisfy this
+candidate's near-field two-boundary checks or the downstream two-boundary gate.
+No fixed heading correction was applied without verified mounting/placement.
+The report's seven G2 bags are not available in this workspace, so no new
+real-bag replay or claim of >=90% validity / 0.3 s dropout tolerance is made.
+
+Before submission, the remote branch had advanced to `43c3e96` with V1 planning.
+The estimation patch was rebased onto that commit, preserving all remote work.
+All **53 estimator checks and 16 planning checks passed**. One planning fixture
+was updated to explicitly reject front-only unobserved startup before supplying
+observed origin support for its same-epoch test; no planning logic changed.
+All ten repository Python files parsed and `git diff --check` passed. PolicyNode
+and all planning definitions remain AST-identical to `43c3e96`. The integrated
+policy source SHA256 is
+`54e884bf97baabc58fc767994e23ecdfae74a7b5f7d911fcf7559db824f0ee29`;
+the timing report above predates this planning integration, so its timings do
+not measure the new planner. ROS/Jazzy dependencies and an
+installed WSL distribution remain unavailable: required ROS gate and physical
+tests are **not run**. Startup and downstream advisory/lifetime consumption
+remain planning-team responsibilities. No live configuration or hardware changed.
+
 ## Student-facing review, 2026-09-28
 
 The owner reviewed `scripts/policy_node.py`, `config/ai4r_policy.yaml` and
