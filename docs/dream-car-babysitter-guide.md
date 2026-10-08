@@ -564,7 +564,7 @@ python3 -B -c "import sys, numpy, scipy, osqp, yaml; print('Python:', sys.execut
 ```powershell
 $taskRemoteCheck = "ai4r_mpc_check/$taskStamp"
 ssh "ai4r@$taskCarIp" "mkdir -p ~/$taskRemoteCheck"
-scp -r scripts config tests offline "ai4r@${taskCarIp}:~/$taskRemoteCheck/"
+scp -r scripts config tests offline tools "ai4r@${taskCarIp}:~/$taskRemoteCheck/"
 $taskSourceSha | Set-Content -Encoding utf8 -LiteralPath (Join-Path $taskEvidenceDir 'snapshot-sha.txt')
 scp (Join-Path $taskEvidenceDir 'snapshot-sha.txt') "ai4r@${taskCarIp}:~/$taskRemoteCheck/source-sha.txt"
 Write-Host "车上测试目录：~/$taskRemoteCheck"

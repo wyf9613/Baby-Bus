@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # G1 (docs/MPC_PROTOTYPE.md): can the car computer run the MPC, and how long does a step take?
-# Run on the Jetson from a checkout of control-mpc-v0 (needs offline/ and tests/):
-#   bash tools/jetson_g1_check.sh
+# Run on the Jetson from a source snapshot copied as in docs/dream-car-babysitter-guide.md 6.2
+# (scripts config tests offline tools, plus source-sha.txt), never the live student workspace:
+#   cd ~/ai4r_mpc_check/<stamp> && bash tools/jetson_g1_check.sh
 # Uses the python3 the policy node uses (override with PY=/path/to/python). No ROS, no
 # vehicle commands; it does not need the vehicle enabled. Every log goes to one evidence
 # directory, ~/ai4r-evidence/g1-<time>/ (override with EVIDENCE=...).
@@ -21,8 +22,12 @@ step "0. Source and machine"
 {
   echo "date:     $(date -Is)"
   echo "host:     $(hostname)"
-  echo "source:   $(git rev-parse HEAD 2>/dev/null || echo 'not a git checkout') $(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
-  [ -n "$(git status --porcelain 2>/dev/null)" ] && echo "WARNING:  uncommitted changes in $REPO"
+  if git rev-parse HEAD >/dev/null 2>&1; then
+    echo "source:   $(git rev-parse HEAD) $(git rev-parse --abbrev-ref HEAD)"
+    [ -n "$(git status --porcelain)" ] && echo "WARNING:  uncommitted changes in $REPO"
+  else   # scp snapshot (babysitter guide 6.2): the sender records the commit in source-sha.txt
+    echo "source:   $(cat source-sha.txt 2>/dev/null || echo 'unknown: no git and no source-sha.txt') (snapshot)"
+  fi
   echo "policy:   sha256 $(sha256sum scripts/policy_node.py | cut -d' ' -f1)"
   echo "kernel:   $(uname -srm)"
   [ -r /proc/device-tree/model ] && echo "model:    $(tr -d '\0' < /proc/device-tree/model)"
@@ -42,7 +47,7 @@ import sys, numpy, scipy, osqp, yaml
 print('python', sys.version.split()[0], sys.executable)
 print('numpy', numpy.__version__, 'scipy', scipy.__version__, 'osqp', getattr(osqp, '__version__', '?'), 'yaml', yaml.__version__)
 " 2>&1 | tee "$EVIDENCE/dependencies.txt"
-[ "${PIPESTATUS[0]}" -eq 0 ] || fail "missing numpy/scipy/osqp/yaml for $PY (try: $PY -m pip install --user osqp; if it cannot be installed, stop: MPC cannot run on this machine)"
+[ "${PIPESTATUS[0]}" -eq 0 ] || fail "missing numpy/scipy/osqp/yaml for $PY. Do not install software on the car: keep this log and give it to the demonstrator; MPC cannot run here until it is provided"
 
 step "2. Offline suites (correctness on this machine)"
 suites_rc=0
