@@ -47,6 +47,7 @@
       enabled: true
       shadow: true
       vehicle_params_source: "vehicle"
+      qp_solver: "dense"             # the car's Python has numpy/scipy but no osqp (G1, 2026-10-08)
       v_exec_max_mps: 0.25
       overspeed_margin_mps: 0.15     # start overshoot reached 0.33 m/s under the MVP
       reference_dropout_tolerance_s: 0.3

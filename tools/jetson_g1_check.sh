@@ -26,7 +26,7 @@ step "0. Source and machine"
     echo "source:   $(git rev-parse HEAD) $(git rev-parse --abbrev-ref HEAD)"
     [ -n "$(git status --porcelain)" ] && echo "WARNING:  uncommitted changes in $REPO"
   else   # scp snapshot (babysitter guide 6.2): the sender records the commit in source-sha.txt
-    echo "source:   $(cat source-sha.txt 2>/dev/null || echo 'unknown: no git and no source-sha.txt') (snapshot)"
+    echo "source:   $(tr -d '\r\n' < source-sha.txt 2>/dev/null || echo 'unknown: no git and no source-sha.txt') (snapshot)"
   fi
   echo "policy:   sha256 $(sha256sum scripts/policy_node.py | cut -d' ' -f1)"
   echo "kernel:   $(uname -srm)"
@@ -43,11 +43,21 @@ ps -eo pid,pcpu,pmem,comm --sort=-pcpu | head -9 | tee -a "$EVIDENCE/machine.txt
 
 step "1. Python dependencies ($PY)"
 env -u PYTHONPATH "$PY" -c "
-import sys, numpy, scipy, osqp, yaml
+import sys, numpy, scipy, yaml
+try:
+    import osqp
+    osqp_version = getattr(osqp, '__version__', '?')
+except ImportError:
+    osqp_version = 'not installed'
 print('python', sys.version.split()[0], sys.executable)
-print('numpy', numpy.__version__, 'scipy', scipy.__version__, 'osqp', getattr(osqp, '__version__', '?'), 'yaml', yaml.__version__)
+print('numpy', numpy.__version__, 'scipy', scipy.__version__, 'osqp', osqp_version, 'yaml', yaml.__version__)
 " 2>&1 | tee "$EVIDENCE/dependencies.txt"
-[ "${PIPESTATUS[0]}" -eq 0 ] || fail "missing numpy/scipy/osqp/yaml for $PY. Do not install software on the car: keep this log and give it to the demonstrator; MPC cannot run here until it is provided"
+[ "${PIPESTATUS[0]}" -eq 0 ] || fail "missing numpy/scipy/yaml for $PY. Do not install software on the car: keep this log and give it to the demonstrator"
+if grep -q "osqp not installed" "$EVIDENCE/dependencies.txt"; then
+  # mpc.qp_solver: dense needs numpy only; the suites then run every MPC test on it.
+  export MPC_TEST_QP_SOLVER=dense
+  echo "osqp is not installed: tests and timing use mpc.qp_solver=dense"
+fi
 
 step "2. Offline suites (correctness on this machine)"
 suites_rc=0
@@ -60,7 +70,7 @@ for suite in "-m unittest tests.test_control tests.test_mpc tests.test_planning 
 done
 grep -E "^Ran |^OK|^FAILED|MPC step time" "$EVIDENCE/offline-tests.log"
 
-step "3. MPC step timing, N = 10 / 8 / 5"
+step "3. MPC step timing, N = 10 / 8 / 5, dense and (if installed) osqp"
 env -u PYTHONPATH "$PY" -B tools/mpc_platform_timing.py --out "$EVIDENCE" 2>&1 | tee "$EVIDENCE/mpc-timing.txt"
 timing_rc=${PIPESTATUS[0]}
 
@@ -68,10 +78,10 @@ step "Summary"
 {
   grep -E "^(source|model|nvpmodel):" "$EVIDENCE/machine.txt"
   sed -n 2p "$EVIDENCE/dependencies.txt"
-  echo "offline: $([ $suites_rc -eq 0 ] && echo PASS || echo FAIL)"
+  echo "offline: $([ $suites_rc -eq 0 ] && echo PASS || echo FAIL) (MPC tests on qp_solver=${MPC_TEST_QP_SOLVER:-osqp})"
   echo "timing:  $([ "$timing_rc" -eq 0 ] && echo PASS || echo FAIL)"
   sed -n '/^MPC step time on this machine/,/^(ms;/p' "$EVIDENCE/mpc-timing.txt"
-  grep "^OSQP time_limit" "$EVIDENCE/mpc-timing.txt"
+  grep " time limit: " "$EVIDENCE/mpc-timing.txt"
   echo "logs:    $EVIDENCE"
 } | tee -a "$EVIDENCE/summary.txt"
 [ $suites_rc -eq 0 ] && [ "$timing_rc" -eq 0 ]

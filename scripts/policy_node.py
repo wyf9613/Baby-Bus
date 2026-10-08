@@ -1358,6 +1358,9 @@ class MPCSettings:
     solver_time_limit_s: float = 0.03
     solver_max_iter: int = 400
     constraint_tolerance: float = 1e-4
+    # QP solver. "osqp" needs the osqp package; "dense" is an exact dual active-set
+    # (Goldfarb-Idnani) solver using numpy only, for computers without osqp.
+    qp_solver: str = "osqp"
     # Reference source. "planning" consumes the Planning V1 reference (straight roads only).
     # "estimation_centerline" BYPASSES Planning: a quadratic fit of the estimator's centerline,
     # so bends are possible but Planning's body-clearance and stopping-distance checks are lost.
@@ -1379,6 +1382,8 @@ class MPCSettings:
             raise ValueError("mpc.reference_source must be planning or estimation_centerline")
         if self.vehicle_params_source not in ("vehicle", "course_simulation"):
             raise ValueError("mpc.vehicle_params_source must be vehicle or course_simulation")
+        if self.qp_solver not in ("osqp", "dense"):
+            raise ValueError("mpc.qp_solver must be osqp or dense")
         for name in ("horizon_n", "sqp_iterations", "solver_max_iter", "max_restarts"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int):
@@ -1663,19 +1668,24 @@ class VehicleModelMPC:
     A drive at the bound means no drive force; requests below it would engage
     the ESC drag brake, which this optimisation does not plan with.
 
-    One OSQP object is set up on the first solve and updated afterwards: the
-    constraint matrix is constant and P keeps a fixed dense upper-triangular
-    pattern, so only P values, q and the bounds change (warm-started).
+    With mpc.qp_solver "osqp", one OSQP object is set up on the first solve and
+    updated afterwards: the constraint matrix is constant and P keeps a fixed dense
+    upper-triangular pattern, so only P values, q and the bounds change (warm-started).
+    With "dense", each QP is solved exactly from scratch by _solve_dense (numpy only).
     """
 
     def __init__(self, cfg, vehicle):
         self.cfg, self.vehicle = cfg, vehicle
         try:
             import numpy
-            import osqp
-            from scipy import sparse
+            if cfg.qp_solver == "osqp":
+                import osqp
+                from scipy import sparse
+            else:
+                osqp = sparse = None
         except ImportError as exc:
-            raise RuntimeError(f"MPC needs numpy, scipy and osqp: {exc}") from exc
+            raise RuntimeError(f"MPC qp_solver {cfg.qp_solver} needs numpy"
+                               f"{', scipy and osqp' if cfg.qp_solver == 'osqp' else ''}: {exc}") from exc
         self._np, self._osqp, self._sparse = numpy, osqp, sparse
         self._model = None
         rows, cols = numpy.triu_indices(2*cfg.horizon_n)
@@ -1720,6 +1730,9 @@ class VehicleModelMPC:
         return base, A, B
 
     def _solve_qp(self, P, q, constraints, lower, upper):
+        """min 0.5 U'PU + q'U, lower <= constraints U <= upper -> (status, U, iterations)."""
+        if self.cfg.qp_solver == "dense":
+            return self._solve_dense(P, q, constraints, lower, upper)
         sp, cfg = self._sparse, self.cfg
         Px = P[self._triu]
         if self._model is None:
@@ -1730,7 +1743,74 @@ class VehicleModelMPC:
                               max_iter=cfg.solver_max_iter, time_limit=cfg.solver_time_limit_s, polishing=False)
         else:
             self._model.update(Px=Px, q=q, l=lower, u=upper)
-        return self._model.solve()
+        result = self._model.solve()
+        return str(result.info.status), result.x, int(result.info.iter)
+
+    def _solve_dense(self, P, q, constraints, lower, upper):
+        """Goldfarb-Idnani dual active set (Math. Programming 27, 1983) for a positive-definite P.
+
+        Starts from the unconstrained minimum and adds the most violated one-sided
+        constraint C_p U >= b_p until none is violated; a constraint whose multiplier
+        would turn negative is dropped on the way. Finite and exact up to rounding,
+        unlike ADMM. J and R satisfy J'N = [R; 0] for the active normals N and are
+        refactorised by one small QR whenever the active set changes. Status words
+        follow OSQP; solver_max_iter and solver_time_limit_s bound the work.
+        """
+        np, cfg = self._np, self.cfg
+        t0 = time.perf_counter()
+        C = np.vstack([constraints, -constraints])
+        b = np.concatenate([lower, -upper])
+        keep = np.isfinite(b)
+        C, b = C[keep], b[keep]
+        try:
+            J0 = np.linalg.inv(np.linalg.cholesky(P)).T      # P^-1 = J0 J0'
+        except np.linalg.LinAlgError:
+            return "non_convex", None, 0
+        x = -J0 @ (J0.T @ q)
+        active, u, J, R = [], np.zeros(0), J0, np.zeros((0, 0))
+        tol = 1e-9*(1.0 + float(np.max(np.abs(b), initial=0.0)))
+        iterations = 0
+        while True:
+            slack = C @ x - b
+            p = int(np.argmin(slack))
+            if slack[p] >= -tol:
+                return "solved", x, iterations
+            if p in active:
+                return "numerical_error", x, iterations
+            n_p, u_plus = C[p], np.append(u, 0.0)
+            while True:
+                iterations += 1
+                if iterations > cfg.solver_max_iter:
+                    return "maximum iterations reached", x, iterations
+                if time.perf_counter()-t0 > cfg.solver_time_limit_s:
+                    return "run time limit reached", x, iterations
+                k = len(active)
+                d = J.T @ n_p
+                z = J[:, k:] @ d[k:]                         # primal step direction
+                r = np.linalg.solve(R, d[:k]) if k else np.zeros(0)
+                t1, drop = math.inf, None                    # partial step: a multiplier reaches 0
+                for j in range(k):
+                    if r[j] > 1e-12 and u_plus[j]/r[j] < t1:
+                        t1, drop = u_plus[j]/r[j], j
+                zn = float(z @ n_p)
+                t2 = (b[p] - float(n_p @ x))/zn if zn > 1e-12 else math.inf   # full step: p satisfied
+                t = min(t1, t2)
+                if t == math.inf:
+                    return "primal infeasible", x, iterations
+                if t2 < math.inf:
+                    x = x + t*z
+                u_plus[:k] -= t*r
+                u_plus[k] += t
+                if t2 <= t1:
+                    active.append(p)
+                    u = u_plus
+                else:
+                    active.pop(drop)
+                    u_plus = np.delete(u_plus, drop)
+                Q, R_full = np.linalg.qr(J0.T @ C[active].T, mode="complete")
+                J, R = J0 @ Q, R_full[:len(active), :len(active)]
+                if t2 <= t1:
+                    break
 
     def reset(self):
         """Forget the solver and its warm start, e.g. after a stop or a failure."""
@@ -1809,12 +1889,11 @@ class VehicleModelMPC:
             upper = np.concatenate([np.tile([d_hi, s_hi], n), step*np.ones(n)])
             lower[2*n] += z0[4]-o
             upper[2*n] += z0[4]-o
-            result = self._solve_qp(P, q, constraints, lower, upper)
-            status = str(result.info.status)
+            status, x, solver_iterations = self._solve_qp(P, q, constraints, lower, upper)
             if status != "solved":
                 self.reset()
                 raise MPCStop(f"solver_status:{status}")
-            U = np.asarray(result.x, dtype=float)
+            U = np.asarray(x, dtype=float)
             if not np.all(np.isfinite(U)):
                 raise MPCStop("solver_nonfinite")
             row = constraints @ U
@@ -1822,7 +1901,7 @@ class VehicleModelMPC:
             if violation > cfg.constraint_tolerance:
                 self.reset()
                 raise MPCStop("constraint_residual")
-            iterations += int(result.info.iter)
+            iterations += solver_iterations
             U_bar = np.clip(U, np.tile([d_lo, s_lo], n), np.tile([d_hi, s_hi], n))
         # Report the CLIPPED model's prediction of the accepted inputs.
         predicted, z = [], z0

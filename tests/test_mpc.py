@@ -10,6 +10,7 @@ import ast
 from pathlib import Path
 import json
 import math
+import os
 import random
 import runpy
 import statistics
@@ -35,7 +36,22 @@ definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, 
 assert {item.name for item in definitions} == NAMES
 namespace.update(time=time, json=json, String=lambda data: SimpleNamespace(data=data))
 exec(compile(ast.Module(body=definitions, type_ignores=[]), str(SOURCE), "exec"), namespace)
-Settings = namespace["MPCSettings"]
+DeclaredSettings = namespace["MPCSettings"]
+# MPC_TEST_QP_SOLVER=dense runs every test on the numpy solver, e.g. on a car without osqp.
+TEST_QP_SOLVER = os.environ.get("MPC_TEST_QP_SOLVER", DeclaredSettings().qp_solver)
+try:
+    import osqp  # noqa: F401
+    HAVE_OSQP = True
+except ImportError:
+    HAVE_OSQP = False
+
+
+def Settings(**values):
+    values.setdefault("qp_solver", TEST_QP_SOLVER)
+    return DeclaredSettings(**values)
+
+
+
 Vehicle = namespace["VehicleParamsSettings"]
 course_vehicle = namespace["course_simulation_vehicle_params"]
 model_step = namespace["course_model_step"]
@@ -326,6 +342,61 @@ class SolverChecks(unittest.TestCase):
                          (None, "reference_too_short"))
         with self.assertRaises(Exception):
             self.solve(speed=float("nan"))
+
+
+class DenseSolver(unittest.TestCase):
+    """mpc.qp_solver=dense (numpy-only active set) against OSQP on the controller's own QPs."""
+    CASES = (("centred", straight_trajectory(), [0.0, 0.0, 0.0, 0.3, 0.0], 0.0, False),
+             ("offset", straight_trajectory(y=0.3, slope=0.3), [0.0, 0.0, 0.0, 0.3, 0.2], 0.3, False),
+             ("arc", arc_trajectory(0.6), [0.0, 0.0, 0.0, 0.3, 0.0], 0.0, False),
+             ("rest", straight_trajectory(y=-0.1), [0.0, 0.0, 0.0, 0.0, 0.0], 0.0, False),
+             ("deadband_moving", straight_trajectory(speed=0.2), [0.0, 0.0, 0.0, 0.2, 0.0], 0.297, True))
+
+    def vehicles(self):
+        return (measured(), newcar(),
+                measured(steering_rate_limit_rad_s=0.8, steering_offset_rad=0.03, steering_max_rad=0.5,
+                         drive_min=-0.5, drive_max=0.4))
+
+    @unittest.skipUnless(HAVE_OSQP, "comparison needs osqp")
+    def test_same_solution_as_osqp(self):
+        for vehicle in self.vehicles():
+            for name, traj, z0, last_drive, moving in self.CASES:
+                out = [Solver(Settings(qp_solver=s), vehicle).solve(traj["points"], z0, 0.3, last_drive,
+                                                                   moving=moving)[0] for s in ("dense", "osqp")]
+                for (d1, s1), (d2, s2) in zip(out[0]["inputs"], out[1]["inputs"]):
+                    self.assertAlmostEqual(d1, d2, delta=1e-4, msg=name)
+                    self.assertAlmostEqual(s1, s2, delta=1e-4, msg=name)
+                self.assertLessEqual(out[0]["violation"], 1e-9, name)
+
+    @unittest.skipUnless(HAVE_OSQP, "comparison needs osqp")
+    def test_closed_loops_match_osqp(self):
+        for vehicle, z0 in ((measured(), (0.0, 0.15, 0.0, 0.3, 0.0)), (newcar(), (0.0, 0.1, 0.0, 0.0, 0.0))):
+            logs = [run_plant(verified(vehicle=vehicle, qp_solver=s), straight_reference(straight_world()), z0,
+                              plant_params(vehicle), 150) for s in ("dense", "osqp")]
+            self.assertEqual([r["branch"] for r in logs[0]], [r["branch"] for r in logs[1]])
+            for a, b in zip(*logs):
+                self.assertTrue(all(abs(u-v) < 1e-3 for u, v in zip(a["z"], b["z"])))
+
+    def test_work_limits_stop_like_osqp(self):
+        _, traj, z0, last_drive, _ = self.CASES[1]          # rate and range limits active: ~19 iterations
+        vehicle = self.vehicles()[2]
+        for changes, status in (({"solver_time_limit_s": 1e-9}, "run time limit reached"),
+                                ({"solver_max_iter": 1}, "maximum iterations reached")):
+            solver = Solver(Settings(qp_solver="dense", **changes), vehicle)
+            with self.assertRaises(Stop) as caught:
+                solver.solve(traj["points"], z0, 0.3, last_drive)
+            self.assertEqual(str(caught.exception), f"solver_status:{status}")
+
+    def test_runs_without_osqp_or_scipy(self):
+        from unittest import mock
+        with mock.patch.dict(sys.modules, {"osqp": None, "scipy": None, "scipy.sparse": None}):
+            out, why = Solver(Settings(qp_solver="dense"), measured()).solve(
+                straight_trajectory(y=0.1)["points"], [0.0, 0.0, 0.0, 0.3, 0.0], 0.3, 0.3)
+            self.assertIsNone(why)
+            with self.assertRaises(RuntimeError):
+                Solver(Settings(qp_solver="osqp"), measured())
+        with self.assertRaises(ValueError):
+            Settings(qp_solver="cvxpy")
 
 
 class ControllerBranches(unittest.TestCase):
@@ -920,7 +991,7 @@ class ConfigChecks(unittest.TestCase):
 
     def test_shipped_yaml_sections_match_declared_defaults_and_are_off(self):
         params = self.load("ai4r_policy.yaml")
-        self.assertEqual(params["mpc"], vars(Settings()))
+        self.assertEqual(params["mpc"], vars(DeclaredSettings()))
         self.assertFalse(params["mpc"]["enabled"])
         self.assertTrue(params["mpc"]["shadow"])
         self.assertEqual(params["mpc"]["v_exec_max_mps"], 0.0)
@@ -962,6 +1033,12 @@ class ConfigChecks(unittest.TestCase):
         self.assertEqual(overlay["planning"]["max_source_age_s"], 0.4)
         self.assertEqual(overlay["control"]["mvp_steering_direction"], -1.0)
         PlanSettings(**dict(self.load("ai4r_policy.yaml")["planning"], **overlay["planning"]))
+
+    def test_newcar27_mpc_overlay_uses_the_numpy_solver(self):
+        overlay = self.load("ai4r_policy_mpc_newcar27.yaml")["mpc"]
+        self.assertEqual(overlay["qp_solver"], "dense")      # the car has no osqp (G1, 2026-10-08)
+        self.assertTrue(overlay["shadow"])
+        Settings(**dict(self.load("ai4r_policy.yaml")["mpc"], **overlay))
 
 
 class NodeEntry(unittest.TestCase):

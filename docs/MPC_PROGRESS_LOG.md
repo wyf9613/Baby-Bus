@@ -2,6 +2,32 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-08：不依赖 OSQP 的 QP 求解器（`mpc.qp_solver: dense`）
+
+车上没有 osqp（见下一条），所以在 `VehicleModelMPC` 里加了只用 numpy 的求解器 `_solve_dense`：Goldfarb–Idnani 对偶积极集法，适用于正定 P（每个输入都带权重，所以成立），有限步得到精确解。新参数 `mpc.qp_solver`：默认 `osqp`，行为不变；`config/ai4r_policy_mpc_newcar27.yaml` 设为 `dense`。状态字与 OSQP 一致（`solved`、`run time limit reached`、`maximum iterations reached`、`primal infeasible`），`solver_time_limit_s` 和 `solver_max_iter` 同样生效，失败时同样锁停。
+
+验证（笔记本 Windows，Python 3.12）：
+- 300 个同结构随机 QP 与高精度 OSQP 对比：解的最大差 4e-16，平均 11 次迭代，最多 17 次。
+- `tests/test_mpc.py` 新增 `DenseSolver` 4 项与一项配置检查：控制器真实 QP 上与 OSQP 的输入差 ≤1e-4；直线与新车起步闭环的分支序列相同、状态差 <1e-3；时间和迭代上限按 OSQP 的状态字停止；屏蔽 osqp 和 scipy 后仍能求解。
+- `MPC_TEST_QP_SOLVER=dense` 时全部 MPC 测试用 dense 运行：75/75 通过；默认 osqp 也是 75/75。control、planning、estimation 67/67，Gym 9/9（newcar27 实验已经走 dense）。
+- **车上同版本环境**（干净 venv：numpy 1.26.4、scipy 1.11.4、PyYAML 6.0.1，无 osqp）跑 `tools/jetson_g1_check.sh`：142 项通过、2 项对照测试因无 osqp 跳过；N=10 单步 mean 4.4 ms、max 6.0 ms，无超预算。第一次运行时弯道测试出现过一次 55 ms 的单步（`over_budget`），重跑和单独分析都没有复现：900 次弯道求解最多 9 次迭代、单次 ≤2.8 ms，判断为 Windows 调度抖动。
+- 笔记本上两种求解器 N=10 单步 mean：dense 3.4 ms，osqp 3.2 ms。
+
+G1 脚本同步修改：osqp 变为可选；没有 osqp 时测试和计时自动用 dense，两种都有时都测。
+
+未完成：`policy_node.py` 改动后需要重跑 WSL ROS 门禁；Jetson 上的 G1（dense）还没跑。
+
+## 2026-10-08：车上 G1 —— Jetson 缺少 OSQP，MPC 目前无法在车上运行
+
+- 车：Jetson Orin Nano（Super 开发套件），L4T R39.2.1，aarch64，6 核，功耗模式 25W；源码快照 `209ca4d`，按上车指南 §6.2 用 scp 复制到 `~/ai4r_mpc_check/20261008-151042/`，没有动 student workspace。运行时 foxglove_bridge、traxxas_vehicle_interface（未 Enable）、oakd_cone_detector、bno08x_imu_interface 在运行，ai4r_policy 未运行。
+- `bash tools/jetson_g1_check.sh` 在第 1 步停止：**`No module named 'osqp'`**。车上所有 python3 都一样：DREAM 的 venv `~/.local/share/dream/venvs/ros2_jazzy`（策略节点 shebang 为 `#!/usr/bin/env python3`，DREAM 下解析到这个 venv）和 `/usr/bin/python3`，都是 numpy 1.26.4、scipy 1.11.4、PyYAML 6.0.1，没有 osqp。
+- PyPI 有对应的现成包：`pip3 download` 得到 `osqp-1.1.3-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl`（只下载到 /tmp，没有安装）。
+- 按课程规则不在车上自行安装软件。离线测试和计时都没有执行，所以 **G1 没有得到耗时数据**。
+- 同时观察到：3–4 个 `python3`（DREAM runner）各占约 60–74% CPU，load 3.8（6 核），与 10-06 复盘一致。
+- 证据：车上 `~/ai4r-evidence/g1-20261008-151825/`（machine、dependencies、summary）。
+- 另外发现：车上 numpy/scipy 版本（1.26/1.11）比笔记本和 WSL（2.5/1.18）旧，我们的 MPC 代码和测试还没有在这个版本组合上跑过。
+- 阶段状态：**A 运行链 ❌（求解器依赖缺失）**；B3 的 G1 被阻塞。下一步：请 demonstrator 在 DREAM venv 里装 `osqp==1.1.3`；同时在 WSL 用 numpy 1.26.4 / scipy 1.11.4 / osqp 1.1.3 复现车上版本组合，先离线确认兼容性。如果不允许加装，需要评估不依赖 OSQP 的求解方案。
+
 ## 2026-10-08：合并后 ROS 门禁重跑通过
 
 - WSL（Ubuntu 24.04，ROS Jazzy）运行 `.verification/run_ros_check.sh`，测试源码为 `26a140e`（包含 `3acd32d` 合入的 MVP 和 newcar27 改动），`dream_interfaces` 为 `5f50902`。

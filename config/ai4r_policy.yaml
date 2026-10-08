@@ -285,6 +285,9 @@
       solver_time_limit_s: 0.03
       solver_max_iter: 400
       constraint_tolerance: 0.0001
+      # QP solver: osqp (needs the osqp package) or dense (exact active-set solver, numpy only;
+      # use it where osqp is not installed, e.g. the car Jetsons as of 2026-10-08).
+      qp_solver: osqp
       # planning: use the Planning V1 reference (straight roads only).
       # estimation_centerline: BYPASS Planning, quadratic fit of the estimator centerline (bends
       # allowed, no body-clearance/stopping-distance checks); needs bypass_acknowledged to execute.
