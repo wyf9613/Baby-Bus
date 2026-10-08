@@ -2,6 +2,29 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-08：G2 shadow 推车 —— MPC 一侧通过，上游有两个问题
+
+- 车 .27，部署 `434cedd`（`policy_node.py` sha256 `c7b44b0a…`，部署 YAML `0dd3ca3b…`，mpc-shadow，`qp_solver: dense`），车辆 Disarmed。按 [G2 清单](G2_SHADOW_CHECKLIST_CN.md) 单人流程，一个人手摆、**没有卷尺**；道路 2.2 m × 1 m，每排 8 个锥桶、间距 0.3 m，每个场景静止约 3 s 后推约 0.8 m，录包 25 s。
+- 部署前备份了车上原有的策略文件（另一组的 `TeamPolicy`），收尾时可按清单第 10 步恢复。
+
+| 场景 | 有效 | `e_y` m | `e_psi` rad | 候选转角 rad | 修正方向 | step p95 / max ms | 主要拒绝原因 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A 居中 | 79% | +0.064 | −0.077 | +0.015 | 89% | 17.0 / 24.5 | invalid_estimates 50，coverage 45 |
+| B 左偏 10 cm | 5% | +0.178 | −0.059 | −0.046 | 90% | 1.9 / 20.6 | coverage 403 |
+| D 车头左偏 | 79% | +0.124 | −0.041 | −0.026 | 100% | 17.2 / 23.2 | coverage 81 |
+| A2 居中（起点后移） | 43% | +0.050 | −0.121 | +0.043 | 85% | 15.8 / 25.2 | invalid_estimates 235 |
+| B2 左偏（车头略偏右） | 14% | +0.093 | −0.023 | −0.026 | 100% | 12.3 / 21.6 | invalid_estimates 363 |
+| C 右偏 10 cm | 68% | −0.019 | −0.021 | +0.017 | 90% | 16.2 / 22.7 | coverage 88，invalid_estimates 60 |
+| E 车头右偏 | 13% | +0.039 | −0.068 | +0.030 | 97% | 12.8 / 24.0 | invalid_estimates 384 |
+
+（中位数取自有效样本，大部分是静止时的样本；“修正方向”= 候选转角与误差反号的比例；coverage = `insufficient_near_or_far_coverage`。）
+
+- **通过（MPC 一侧）**：7 个场景应用动作全为 0，无 `solver_fail` / `over_budget`；整步 p95 12–17 ms、最大 25 ms；`dt` 中位数 50 ms；配置来源正确（newcar27、planning、非仿真、shadow）。候选转角始终朝减小误差的方向（85–100%）。`e_y` 正负号正确：B − A = +0.114，B2 − C = +0.112（实际都约左偏 10 cm）。推车时候选油门 0.24–0.29，接近拟合的稳态值 0.297。
+- **未确认：航向偏差**。7 个场景的 `e_psi` 全为负，平均约 −0.06 rad（−3.4°）；D − E = +0.027，方向对但小于手摆误差。可能是摆放误差，也可能是相机安装角带来的固定偏差（10-06 MVP 略向右漂可能同源）。需带尺子精确摆放复测，并与估计组核对相机安装。
+- **上游问题：有效参考比例 5–79%**。`invalid_estimates`（估计器判道路无效，例如只看到一侧时 `known_lane_width_m = 0` 推不出中线）和 `insufficient_near_or_far_coverage`（近处锥桶在相机视野外，车偏时远侧超过 0.9 m）。起点后移到 0.45 m 后 `invalid_estimates` 明显增多。已作为问题提交估计组（计划 §10：锥桶记忆、已知路宽兜底）。
+- 证据：本机 `E:\26b\AI4R\car-evidence\g2-20261008-162044\`（部署文件与 SHA、原文件备份、7 个包、`g2-summary.txt/json`、`g2-policy.log`）。
+- 阶段状态：**G2 中 MPC 自身部分 ✅**；进入执行（G3/G4）前还需：转向标定、航向偏差复测、道路有效率改善。
+
 ## 2026-10-08：车上 IMU 无数据 —— 固件故障锁定，已恢复
 
 - 现象：车 .27 的 `bno08x_imu_interface` 显示 running，`/car/imu/data` 有 1 个发布者，但 `ros2 topic echo` 8 s 收不到消息；重启服务（`dream runtime restart bno08x_imu_interface`）无效。车上 IMU 配置与仓库一致；`lsusb` 能看到 `DREAM BNO08x IMU`。
