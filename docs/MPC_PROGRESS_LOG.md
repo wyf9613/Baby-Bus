@@ -15,7 +15,9 @@
 
 G1 脚本同步修改：osqp 变为可选；没有 osqp 时测试和计时自动用 dense，两种都有时都测。
 
-未完成：`policy_node.py` 改动后需要重跑 WSL ROS 门禁；Jetson 上的 G1（dense）还没跑。
+WSL ROS 门禁（`5b3d30e`，ROS Jazzy）：`verify_fast.sh` PASS，143 项，0 错误、0 失败；离线测试 PASS（证据 `~/ai4r-evidence/ros-20261008-153613/`）。
+
+未完成：Jetson 上的 G1（dense）还没跑。
 
 ## 2026-10-08：车上 G1 —— Jetson 缺少 OSQP，MPC 目前无法在车上运行
 
