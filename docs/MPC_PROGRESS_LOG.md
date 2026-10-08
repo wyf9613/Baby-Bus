@@ -2,6 +2,27 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-08：车上 G1 通过（dense 求解器，Jetson Orin Nano）
+
+- 车 10.43.254.27：Jetson Orin Nano Super，L4T R39.2.1，aarch64，6 核，25W 模式；numpy 1.26.4、scipy 1.11.4、PyYAML 6.0.1，无 osqp。源码快照 `b6016b8`（代码与 `5b3d30e` 相同），scp 到 `~/ai4r_mpc_check/20261008-154505/`，未动 student workspace。
+- 负载：foxglove_bridge、traxxas_vehicle_interface（Disabled，`traxxas_state_value` 0）、oakd_cone_detector、bno08x_imu_interface 在运行；ai4r_policy 未运行。4 个 DREAM runner（python3）各占约 58–74% CPU，load 约 4（6 核）。
+- `bash tools/jetson_g1_check.sh`：**offline PASS、timing PASS**。没有 osqp，测试和计时自动用 dense。
+
+| N | 步数 | mean | p95 | p99 | max | 首步 | 超 50 ms |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 10 | 1650 | 10.59 ms | 11.83 ms | 12.25 ms | 12.94 ms | 11.59 ms | 0 |
+| 8 | 1650 | 8.77 ms | 9.80 ms | 10.10 ms | 10.55 ms | 9.65 ms | 0 |
+| 5 | 1650 | 6.23 ms | 6.58 ms | 6.73 ms | 7.23 ms | 6.80 ms | 0 |
+
+- 求解超时保护生效：极小上限返回 `run time limit reached`；默认 30 ms 上限下正常求解（含线性化等，墙钟 13.3 ms）。
+- 约为笔记本的 3 倍（N=10 笔记本 mean 3.4 ms）；N=10 的最坏步占 50 ms 预算的 26%。
+- **决定：保持 N = 10**，`max_step_time_s` 0.05、`solver_time_limit_s` 0.03 不变。理由：最坏步仍有约 4 倍余量；Gym 中 N=5 跟踪效果相近，作为余量不足时的退路。
+- 局限：policy 节点没有运行，所以估计、规划、ROS 回调和执行器调度的开销不在这组数里（10-06 MVP 整步计算 p99 约 6 ms），实车运行时的整步耗时仍需在 shadow（G2）中由 `mpc_debug` 的 `step_s` 和 `step_p95_s` 复核。
+- 同时发现：`/car/imu/data` 有发布者，但 5 s 内 `ros2 topic echo` 收不到消息；MPC 需要 IMU 角速度，shadow 前必须解决。
+- tegrastats（1 s 采样）：只开上述服务时（15:30–15:43）6 核平均占用 57%；G1 运行中（15:45–15:50）64%，最忙的核到 100%。CPU 频率 729–1344 MHz，测试前后不变；结温 48–49.5 °C，没有过热降频。所以这组耗时是在接近实车的后台负载下测得的。
+- 证据：车上 `~/ai4r-evidence/g1-20261008-154540/`（machine、dependencies、offline-tests、mpc-timing.txt/json、summary）和 tegrastats 日志；已复制到本机 `E:\26b\AI4R\car-evidence\g1-20261008-154540\`（G1 时段在 `tegrastats-g1-151717.log`）。
+- 阶段状态：**B3 ✅**（ROS 门禁 + Jetson G1）；A 中求解器依赖已解决。下一步：解决 IMU 无数据，然后 shadow 推车（G2）。
+
 ## 2026-10-08：不依赖 OSQP 的 QP 求解器（`mpc.qp_solver: dense`）
 
 车上没有 osqp（见下一条），所以在 `VehicleModelMPC` 里加了只用 numpy 的求解器 `_solve_dense`：Goldfarb–Idnani 对偶积极集法，适用于正定 P（每个输入都带权重，所以成立），有限步得到精确解。新参数 `mpc.qp_solver`：默认 `osqp`，行为不变；`config/ai4r_policy_mpc_newcar27.yaml` 设为 `dense`。状态字与 OSQP 一致（`solved`、`run time limit reached`、`maximum iterations reached`、`primal infeasible`），`solver_time_limit_s` 和 `solver_max_iter` 同样生效，失败时同样锁停。
