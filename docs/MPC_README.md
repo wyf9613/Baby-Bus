@@ -6,7 +6,7 @@
 
 ## 1. 现状
 
-**V0（虚拟闭环）基本完成；ROS 门禁合并后已重跑通过（10-08）；车上 Jetson 没有 osqp，改用只依赖 numpy 的求解器（`mpc.qp_solver: dense`），10-08 在 Jetson 上通过 G1（N=10 单步 max 12.9 ms）；下一步车上 IMU 排查和 shadow；还没上真车。**
+**V0（虚拟闭环）基本完成；ROS 门禁合并后已重跑通过（10-08）；车上 Jetson 没有 osqp，改用只依赖 numpy 的求解器（`mpc.qp_solver: dense`），10-08 在 Jetson 上通过 G1（N=10 单步 max 12.9 ms）；IMU 故障已恢复，下一步 shadow 推车（G2）；还没上真车。**
 
 | 项目 | 状态 |
 | --- | --- |

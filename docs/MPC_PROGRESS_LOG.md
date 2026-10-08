@@ -2,6 +2,16 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-08：车上 IMU 无数据 —— 固件故障锁定，已恢复
+
+- 现象：车 .27 的 `bno08x_imu_interface` 显示 running，`/car/imu/data` 有 1 个发布者，但 `ros2 topic echo` 8 s 收不到消息；重启服务（`dream runtime restart bno08x_imu_interface`）无效。车上 IMU 配置与仓库一致；`lsusb` 能看到 `DREAM BNO08x IMU`。
+- 原因在 `/car/diagnostics`（`/diagnostics` 里没有 IMU 条目）：level ERROR，`firmware.lifecycle_state: FAULT_LATCHED`，`firmware.reason_code: dynamic_calibration_failed`，`connection_state: fault`，`host_publication_ready: false`。固件 0.3.0，`expectations_match: true`（不是版本不匹配）。故障锁在 IMU 板（RP2040）固件里，只重启 ROS 服务清不掉。
+- 处理：停服务、给 IMU 板断电再上电（拔插 USB）、车静止放平后再启动服务。之后诊断为 `connection_state: streaming`、`host_publication_ready: true`、`lifecycle_state: CALIBRATING`（`accuracy_below_low`，门槛是 `unreliable`，所以照常发布）。注意：处理后 `lsusb` 的设备号没变（仍为 005），板子是否真正断电重启没有确认，恢复的确切原因不确定。
+- 验证：静止时角速度为 0.0（BNO08x 输出已扣零偏，分辨率约 0.002 rad/s）；用手原地转车 10 s，收到 350 条消息（约 35 条每秒，部分消息不带角速度，协方差首项为 −1），z 在 −1.27 到 +1.41 rad/s，277 条非零。
+- 下次排查顺序：`ros2 topic echo /car/diagnostics --once` 看 `lifecycle_state` 和 `reason_code` → 若为 `FAULT_LATCHED`，停服务、拔插 IMU 的 USB、车静止后再启动 → 仍不行交 demonstrator。
+- 小坑：`timeout ... ros2 topic echo ... | grep` 会因 Python 输出缓冲丢掉全部输出，要加 `PYTHONUNBUFFERED=1` 或先写入文件。
+- 状态：A 运行链中的 IMU 问题已解决；可以进行 shadow 推车（G2）。
+
 ## 2026-10-08：车上 G1 通过（dense 求解器，Jetson Orin Nano）
 
 - 车 10.43.254.27：Jetson Orin Nano Super，L4T R39.2.1，aarch64，6 核，25W 模式；numpy 1.26.4、scipy 1.11.4、PyYAML 6.0.1，无 osqp。源码快照 `b6016b8`（代码与 `5b3d30e` 相同），scp 到 `~/ai4r_mpc_check/20261008-154505/`，未动 student workspace。
