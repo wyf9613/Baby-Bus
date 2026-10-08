@@ -1,0 +1,66 @@
+[
+  {
+    "state": "Disarmed",
+    "reason": "worker receive-service gap",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3"
+  },
+  {
+    "state": "Disarmed",
+    "reason": "worker receive-service gap",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3"
+  },
+  {
+    "state": "Disarmed",
+    "reason": "worker receive-service gap",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3"
+  },
+  {
+    "state": "Disarmed",
+    "reason": "worker receive-service gap",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3"
+  },
+  {
+    "state": "Disarmed",
+    "reason": "worker receive-service gap",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3"
+  },
+  {
+    "state": "Disarmed",
+    "reason": "worker receive-service gap",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3"
+  },
+  {
+    "state": "Disarmed",
+    "reason": "worker receive-service gap",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3"
+  },
+  {
+    "state": "Disarmed",
+    "reason": "worker receive-service gap",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3"
+  }
+]

@@ -1049,6 +1049,9 @@ class ControlSettings:
     mvp_lateral_ki: float = 0.0
     mvp_heading_kp: float = 0.5
     mvp_steering_direction: float = 1.0
+    # Measured normalized effort needed to sustain the selected crawl speed.
+    # Optional and zero by default; stop/invalid paths bypass this compensation.
+    mvp_drive_feedforward: float = 0.0
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
@@ -1069,6 +1072,9 @@ class ControlSettings:
             raise ValueError("control action limits must not exceed 1")
         if not finite_number(self.mvp_steering_direction) or self.mvp_steering_direction not in (-1.0, 1.0):
             raise ValueError("control.mvp_steering_direction must be -1.0 or 1.0")
+        if (not finite_number(self.mvp_drive_feedforward)
+                or not 0 <= self.mvp_drive_feedforward <= self.drive_max):
+            raise ValueError("control.mvp_drive_feedforward must be within [0, drive_max]")
 
 
 class PolicyStopRequest(Exception):
@@ -1347,7 +1353,8 @@ class PolicyController:
                 steer = self.mvp_lateral.update(geometry["path_error_m"], -geometry["path_error_m"], dt,
                     -cfg.steering_max_normalized, cfg.steering_max_normalized,
                     cfg.mvp_heading_kp*heading)
-                drive = self.speed.update(target-speed, speed, dt, 0.0, cfg.drive_max)
+                drive = self.speed.update(target-speed, speed, dt, 0.0, cfg.drive_max,
+                                          feedforward=cfg.mvp_drive_feedforward)
                 return drive, cfg.mvp_steering_direction*steer, {
                     **geometry, "valid": True, "stop_requested": False, "reason": "mvp_tracking",
                     "heading_error_rad": heading, "speed_error_mps": target-speed,
@@ -2306,6 +2313,17 @@ class PolicyNode(Node):
                 return 0.0, 0.0, None, None, None
             if not self.planning_output["valid"]:
                 reason = "Planning: " + str(self.planning_output["reason"])
+                self.get_logger().warning("Planning rejection details: " + str({
+                    "reason": self.planning_output["reason"],
+                    "road_status": estimates["road"].get("status"),
+                    "road_valid": estimates["road"].get("valid"),
+                    "road_visibility": estimates["road"].get("visibility"),
+                    "road_source_age_s": estimates["road"].get("source_age_s"),
+                    "state_valid": estimates["state"].get("valid"),
+                    "speed_valid": estimates["state"].get("speed_valid"),
+                    "yaw_rate_valid": estimates["state"].get("yaw_rate_valid"),
+                    "planning_diagnostics": self.planning_diagnostics,
+                }))
                 raise PolicyStopRequest(reason)
             drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
                 self.planning_output, estimates["state"], estimates["vehicle_params"],

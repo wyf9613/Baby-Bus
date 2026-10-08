@@ -1,0 +1,1425 @@
+{"elapsed_s": 0.46080486100004237, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.4612325210000563, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.46219827499999155, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 0.46233120700003383, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.4624644259999968, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.4630102010000883, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.46313039599999684, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.4637217080000937, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.4638511200000721, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.46437302200001795, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.46449302499991063, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.4650019670000347, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.465113841999937, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.46561750399996527, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.46572973100001036, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.46623153699988507, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.46634242000004633, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.4720228619999034, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.4826196629999231, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.492975369000078, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 0.49318785399987064, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.5025054200000341, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.5139693159999297, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.5234493190000649, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.5349494100000811, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.5445426009998755, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.5635849789998701, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.5735229479998907, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.5829898310000772, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.5954783340000631, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 0.5958009349999429, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.6022960249999869, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.6124884640000801, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.623967114999914, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.6322738389999358, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.6424114609999378, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.6521921129999555, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.6622424370000317, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.6723005999999714, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.6825817459998689, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.6924533129999872, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.7082247220000681, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 0.7084322789999078, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.7127571020000687, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.7251587220000602, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.7359225689999676, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.7423974989999351, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.754263519999995, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.7624798090000695, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.773570096999947, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.7824169640000491, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.7924122780000289, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.8026473429999896, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.8123848899999757, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.8141743149999456, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 0.8223360750000666, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.832516385999952, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.8424288179999166, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.8523264010000275, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.8643409389999306, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.8726201100000708, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.8826142719999552, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.9024222069999723, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.9037000339999395, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.9153059840000424, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 0.9274218999998993, "kind": "diag", "value": {"state": "Disabled", "reason": "disable requested", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "unavailable", "matched_telemetry_age_s": "0.026623", "last_positive_vehicle_ack": "82659", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.000000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "82658", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.000000", "drive_pwm_us": "1500", "steer_pwm_us": "1500", "rc_drive_us": "1510", "rc_drive_age_us": "8550", "rc_steer_us": "1510", "rc_steer_age_us": "8550", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 0.9277627100000245, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.9437771329999123, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.9530444590000116, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.9533207869999387, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.9626227379999364, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 0.9725196809999943, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.9925722630000564, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 0.9928299660000448, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.0130128230000537, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.0133015989999876, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.0228476209999826, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.0340465199999471, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.0343195519999426, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.0525382589999026, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.0534481719998894, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.0625647740000659, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.073901884999941, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.0934462929999427, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.0937094359999264, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.1126126750000367, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.1142236949999642, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.132416866000085, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.132618470999887, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.1327893559998756, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.1525090969998928, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.1533008619999237, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.173198111999909, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.1735466019999876, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.193166212000051, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.205063242000051, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.2151969599999575, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.2368736819998958, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.2371046959999603, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.245793606999996, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.2460492939999313, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.2626376529999561, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.27307675499992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.282861086999901, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.2924135410000872, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.3022175220000918, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.3024522480000087, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.322120595999877, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.3321019570000772, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.3422442520000004, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.3424549449998722, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.3523708969999007, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.3621975670000666, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.372044269000071, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.3822879740000644, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.3964934190000804, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.4025238570000056, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.4128173550000156, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.4280152439998801, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.4304136129999279, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.4446263229999659, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.4449221390000275, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.4569542449999062, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.4579550729999937, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.4666448149998814, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.4747772299999724, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.4835582389998763, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.4977105630000551, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.5130066619999525, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.5330063169999448, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.5335790050000924, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.5428545570000551, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.5529578450000372, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.5532150040000943, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.5623751289999745, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.5746951169999193, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.5836940540000342, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.593121033999978, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.6037785450000683, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.6123821419998876, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.6346542139999656, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.6349144769999384, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.6539158339999176, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.654155967999941, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.6543489339999269, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.6733189300000504, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.6742232750000312, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.6959093460000076, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.7022815220000211, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.7124055459999, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.7221617830000469, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.7322376140000415, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.7422624020000512, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.7523559930000374, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.7531980649998786, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.7625683070000377, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.772587815999941, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.7822947079998812, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.7928484080000544, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.8022373070000413, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.812845568000057, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.8348642250000466, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.8437345499999083, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.8439933729998756, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.8669169499999043, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.867143421000037, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.8673325140000543, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.8856738530000712, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.8867769549999593, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.8957794119999107, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.9038176179999482, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.9124042549999558, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.9221465719999742, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.933006647999946, "kind": "diag", "value": {"state": "Disabled", "reason": "disable requested", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "unavailable", "matched_telemetry_age_s": "0.014039", "last_positive_vehicle_ack": "82757", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.000000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "82756", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.000000", "drive_pwm_us": "1500", "steer_pwm_us": "1500", "rc_drive_us": "1510", "rc_drive_age_us": "4267", "rc_steer_us": "1510", "rc_steer_age_us": "4267", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 1.942097042999876, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.942313337000087, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.9625065669999913, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.9627242690000912, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.9734429650000038, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 1.9832085149998875, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.9834931630000483, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.0025013039999067, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.014071223999963, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.0223579490000247, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.0350896279999233, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.043437314999892, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.0642046729999493, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.064474759999939, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.076439315000016, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.0782003869999244, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 2.0869808539998758, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.0928405679999287, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.1022104270000455, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.1124432209999213, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.1222700210000767, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.1362100219998865, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.1423407509998924, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.154001074000007, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.1729568929999914, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 2.17316221100009, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.1733458639998844, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.192697758999884, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.192985862999876, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.212676902999874, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.2129323340000155, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.2338341909999144, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.237155658999882, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.2527192249999644, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.252969855999936, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.27252220399987, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.2727796829999534, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.282287274000055, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 2.29244592200007, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.292711498000017, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.3128909669999302, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.3131284779999532, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.3352771219999795, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.335549161000017, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.3528553349999584, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.353121486999953, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.3745554869999523, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.375108941999997, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.3831317239998953, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 2.402569349000032, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.415548714999886, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.4225998859999436, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.4325476169999547, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.443004385999984, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.4552293639999334, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.4624199939999016, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.473082593000072, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.482489092999913, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.494874106999987, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 2.495104832999914, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.5021320670000478, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.5158190059999015, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.522389235999981, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.533071740999958, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.542592453999987, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.5548675800000638, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.5649421640000583, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.5723993310000424, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.582385304999889, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.5924050720000196, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.6022832670000753, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.6035627910000585, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 2.612227831999917, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.622127786999954, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.632195299999921, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.6419432190000407, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.6519899630000054, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.662281704999941, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.6722733110000263, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.6827491869998994, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.6923488780000753, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.7027567830000407, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 2.703016375000061, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.712523582999893, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.7224651720000566, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.7365687649999018, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.7502247929999157, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.754802552000001, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.763833522999903, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.7734656630000245, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.7892728869999246, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.8039777129999948, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 2.804303705999928, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.804502622999962, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.8223288149999917, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.8322055379999256, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.8422513539999272, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.852464886000007, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.8623786979999295, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.873257593000062, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.8837805739999567, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.8968563299999914, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.9225318599999355, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 2.9226905210000496, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.9228694369999175, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.926019412999949, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.92625241199994, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.933431970999891, "kind": "diag", "value": {"state": "Disabled", "reason": "disable requested", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "unavailable", "matched_telemetry_age_s": "0.003598", "last_positive_vehicle_ack": "82854", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.000000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "82854", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.000000", "drive_pwm_us": "1500", "steer_pwm_us": "1500", "rc_drive_us": "1510", "rc_drive_age_us": "5403", "rc_steer_us": "1510", "rc_steer_age_us": "5403", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 2.9426086109999687, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.9526566669999283, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.962383592999913, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.9729237270000795, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.983204525000019, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.9926876689999062, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.002211645999978, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.0122181639999326, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 3.0124406980000913, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.02208999100003, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.0333116469998913, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.0421235080000315, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.053815929999928, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.062831253000013, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.0728081380000276, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.086185662999924, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.096440732000019, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.103087381000023, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.1123349350000353, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.1138236479998795, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 3.1244030459999976, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.133454754000013, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.142467613000008, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.1526626170000327, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.173094257999992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.1823439550000785, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.193606155999987, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.2022708140000304, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.2136889870000687, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.222610675999931, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 3.2228287299999465, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.2324118120000094, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.24210862599989, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.2521062490000077, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.2621314880000227, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.2721861350000836, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.2840766100000565, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.294695946000047, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.302290653, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.31354923899994, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.3243858920000093, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 3.3247325259999343, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.333251098999881, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.3430709560000196, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.3526746479999474, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.372464349999973, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.3727400380000745, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.3933047379998698, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.4025505639999665, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.416033723000055, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.4225767529999302, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.4227983589998985, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.4324509159998797, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 3.4422801489999983, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.45237034999991, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.462272129999974, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.472478173999889, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.4838843790000737, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.4930746190000264, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.5023110360000373, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.513370127999906, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.522517647000086, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.5234036879999167, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.543050319000031, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 3.544001736999917, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.552755710999918, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.562551760999895, "kind": "state", "value": "Pre-enable"}
+{"elapsed_s": 3.565040983000017, "kind": "diag", "value": {"state": "Pre-enable", "reason": "awaiting new neutral action and confirmed host neutral", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "unavailable", "matched_telemetry_age_s": "0.013946", "last_positive_vehicle_ack": "82915", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.000000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "82914", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.000000", "drive_pwm_us": "1500", "steer_pwm_us": "1500", "rc_drive_us": "1510", "rc_drive_age_us": "6406", "rc_steer_us": "1510", "rc_steer_age_us": "6406", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 3.5652704940000604, "kind": "state", "value": "Pre-enable"}
+{"elapsed_s": 3.5654165460000513, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.5724675589999606, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.58249052799988, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 3.582684069999914, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.5834151300000485, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 3.592598715999884, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.6022608430000673, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.6125206179999623, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.6222675480000817, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.632733792999943, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.6424453289998837, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 3.6426415910000287, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.6537239169999793, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.662329919000058, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.6740821200000937, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.6839920299998994, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.6936136120000356, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.7022849590000533, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.7128532869999162, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.7239139169998907, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.742574504000004, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 3.742835216000003, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.752292025000088, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.7626091459999316, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.764007169000024, "kind": "diag", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "0.174198", "matched_telemetry_age_s": "0.003993", "last_positive_vehicle_ack": "82935", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.000000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "82934", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.000000", "drive_pwm_us": "1500", "steer_pwm_us": "1500", "rc_drive_us": "1510", "rc_drive_age_us": "3209", "rc_steer_us": "1510", "rc_steer_age_us": "3209", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 3.77287781799987, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.782695404999913, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.7953524639999614, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.807227292999869, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.807488868000064, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.822943380999959, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.836476593000043, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.8422775869998986, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 3.8425329550000242, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.8551504600000044, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.8622952690000147, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.8725050589998773, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.8823962799999663, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.8937892399999328, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.9023042940000323, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.913271866000059, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.922482012000046, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.93332974000009, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.942229989999987, "kind": "applied", "value": {"drive": 0.0, "steer": 0.10400000214576721}}
+{"elapsed_s": 3.9528230230000645, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 3.9530212360000405, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.963707999999997, "kind": "applied", "value": {"drive": 0.0, "steer": 0.30399999022483826}}
+{"elapsed_s": 3.973518451000018, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.9838986780000596, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 3.9930122450000454, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.013093735999973, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.013360528000021, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.033239133000052, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.033729450999999, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.052526553999996, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 4.052724062999914, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.052897699999903, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.073532870999998, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.084967207000091, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.092777794000085, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.10222813900009, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.112409960999912, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.122563909000064, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.13262729500002, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.1424470590000055, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.152706674000001, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 4.152938809000034, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.164301815000044, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.172409947000006, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.183325101000037, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.196277367999983, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.197994888000039, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.214066666000008, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.227467585999875, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.242595625999911, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.244658436000009, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.253456346999883, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 4.262262545999874, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.2640496359999815, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.282225152999899, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.284090741999989, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.302272786999993, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.302505657999973, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.3222464989999025, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.333757542000058, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.343396340000027, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.352866877999986, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.362406792999991, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.365498399999979, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 4.374672417000056, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.382264022000072, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.396554439000056, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.402297639999915, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.4148768400000336, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.422485277000078, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.435031996999896, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.442149668999946, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.452383203999943, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.462157846000082, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.472424406000073, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 4.472604859000057, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.482127301999981, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.494913036000071, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.5025669149999885, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.5134851729999355, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.522637686000053, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.532480236000083, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.542289280999967, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.5528510829999504, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.563154253999983, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.580951780000078, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 4.585162490999892, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.5875013410000065, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.606280751999975, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.615183402999946, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.615553110000064, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.630022765999911, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.633479055999942, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.6538115979999475, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.6631836389999535, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.673374389999935, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.686111645999972, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 4.686345989000074, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.695063995000055, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.702267141999982, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.712667179999926, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.722352540999964, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.734244972999932, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.742296815999907, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.752802456999916, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.762435369000059, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.773423806999972, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.775417783999956, "kind": "diag", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "0.045606", "matched_telemetry_age_s": "0.014172", "last_positive_vehicle_ack": "83034", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.400000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83033", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.400000", "drive_pwm_us": "1500", "steer_pwm_us": "1700", "rc_drive_us": "1510", "rc_drive_age_us": "5411", "rc_steer_us": "1510", "rc_steer_age_us": "5411", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 4.785552117999941, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.79550491100008, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 4.795787063000034, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.80226378999987, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.812713429000041, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.824370205999912, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.835236944999906, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.842459037000026, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.852236304999906, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.862181577999991, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.872590416000094, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.882166877999907, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.894063726000013, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 4.894317268999885, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.903681150000011, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.912581976999945, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.9338881789999505, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.934458562999907, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.942462725000041, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.962563227999908, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.975503914000001, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 4.975780560999965, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 4.992551466999885, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.002338430999998, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.00257459799991, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.012211894000075, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.022669533999988, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.0326149019999775, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.042307848000064, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.052186111000083, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.0650768749999315, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.0725013409999065, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.0824330129999, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.095758316999991, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.102583277999884, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.103092699999934, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.122535264999897, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.122836746000075, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.145796146000066, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.146030393000046, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.163903473999881, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.165675012000065, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.183259059999955, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.184306674000027, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.20240395299993, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.202644056000054, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.2124538049999956, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.222524936999889, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.223005687000068, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.242580991000068, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.2428161979999, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.262522706000027, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.262760153000045, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.283011604999956, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.2835150430000795, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.302980809000019, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.3032247520000055, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.312969442999929, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.326383902000089, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.3328226749999885, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.3424756839999645, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.352659780000067, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.362288115999945, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.372220107999965, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.382180005000009, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.392406405999964, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.4023082539999905, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.412326712000095, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.422620186999893, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.422800448000089, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.433290535999959, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.454090003999909, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.454628483000079, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.475329195000086, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.475587122999968, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.493229796999913, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.508184363000055, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.513326043999996, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.522515841000086, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.5227558789999875, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.532597470999917, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.542316435999965, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.552256973999874, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.562094822000063, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.57230794499992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.582265667999991, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.594957932999932, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.603208855000048, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.617032128999881, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.622628223999982, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.635756340999933, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.635967611000069, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.642322255999943, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.652684438000051, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.662748948999933, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.673459717000014, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.685603902999901, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.692870444999926, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.704663068999935, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.71236738399989, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.722248272999877, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.732254348999959, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.742329131999895, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.7425507059999745, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.752933017000032, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.7623300850000305, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.772187901000052, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.782912334000002, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.785209902999895, "kind": "diag", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "0.045718", "matched_telemetry_age_s": "0.004024", "last_positive_vehicle_ack": "83133", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.400000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83132", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.400000", "drive_pwm_us": "1500", "steer_pwm_us": "1700", "rc_drive_us": "1510", "rc_drive_age_us": "8643", "rc_steer_us": "1510", "rc_steer_age_us": "8643", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 5.793710529000009, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.802562396999974, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.81259500200008, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.822959232999892, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.834197088999872, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.84253559800004, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.842767732000084, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.8548971969999, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.862339297000062, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.873328633000028, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.882560640000065, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.8976035959999535, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.90267682800004, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.93272065899987, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.93296495300001, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.942418150000094, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 5.9426125879999745, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.952166812000087, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.9620827740000095, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.972212438000042, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 5.982830500000091, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 5.994631954999932, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.004911896000067, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.012806839999939, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.0226906089999375, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.036394006999899, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.043049107999877, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.04325669800005, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.052740103999895, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.062406074999899, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.072276210999917, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.082428083999957, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.092540500000041, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.102770582999938, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.112321798000039, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.122224799999913, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.132283070000085, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.142186840000022, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.152709827000081, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.152932104999991, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.163864992000072, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.18435552699998, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.194240128000047, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.197983690000001, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.214592674999949, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.222345662999942, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.235091241999953, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.236858267999878, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.2534566280000945, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.262469907999957, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.262706106999985, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.272365997999941, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.28222039000002, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.302384004000032, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.3028540969999085, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.326317291999885, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.326561107000089, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.34278755299988, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.343054087999917, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.354399274999878, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.362417006999976, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.362647252999977, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.373389735000046, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.382287427999927, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.392622505999952, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.402311645000054, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.422923847999982, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.423436406000064, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.445377285999939, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.445641518000002, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.452425646999927, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.462253925999903, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.462482124999951, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.4825554639999154, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.4830114760000015, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.502331257999913, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.50257257699991, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.533564180999974, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.534032258000025, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.543779289999975, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.552478259000054, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.564224930999899, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.5740745250000145, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.574311555999884, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.594658699000092, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.595430784999962, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.612875604999999, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.614010868999912, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.634617827000056, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.634883051000088, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.655712926999968, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.656543382999871, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.673138738000034, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.6733549049999965, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.6735559979999834, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.694178156999897, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.695280653000054, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.713145420000046, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.722742046999883, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.733833213000025, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.734074435999901, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.755179135999924, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.763130148000073, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.772543345000031, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.782311721000042, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.782550352000044, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.796170134000022, "kind": "diag", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "0.008657", "matched_telemetry_age_s": "0.013719", "last_positive_vehicle_ack": "83230", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.400000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83229", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.400000", "drive_pwm_us": "1500", "steer_pwm_us": "1700", "rc_drive_us": "1510", "rc_drive_age_us": "6592", "rc_steer_us": "1510", "rc_steer_age_us": "6592", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 6.796420477000083, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.80220886699999, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.812704976000077, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.822590410999965, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.836244370000031, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.842863246999968, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.852264828999978, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.8621983610000825, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.8726331559998926, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.885203020000063, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.885457362999887, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.892991146999975, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.902417976999914, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.91349144600008, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.922697309999876, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.932341074000078, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.942770845000041, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.962394318999941, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.9726512849999835, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 6.982653266999932, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 6.982844153000087, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.993711375999965, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 6.9939397979999285, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.012924438000027, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.022093308999956, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.034806953000043, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.0423047679998945, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.05244332999996, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.062179608999941, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.07281418499997, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.082492286999923, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.092888872000003, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 7.093145584000013, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.1028091880000375, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.114667223999959, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.123092841000016, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.1325048870000956, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.142497652999964, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.152492306999875, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.162681334999888, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.172191048000059, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.182170885000005, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.192293543000005, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.202202626999906, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 7.202396808999993, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.212167840999882, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.222053852000045, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.2344812799999545, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.2422172130000035, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.25628609599994, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.262383103000047, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.277331339000057, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.286660245999883, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.293985832000089, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.302650048000032, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 7.30288611900005, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.3241585040000245, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.334662293000065, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.34278521400006, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.352547573000038, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.3621484880000025, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.372197863999872, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.382096418999936, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.392172260000052, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.402190434999966, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.413895698000033, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 7.414104376000068, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.422284161999869, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.4323548509999, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.442220860999896, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.454929321000009, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.465354676000061, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.474283860000014, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.482306425999923, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.496029410999881, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.50241013699997, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.513971652000009, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.522379638000075, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 7.522598907999964, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.532251634999966, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.542601629000046, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.55240991200003, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.56242837700006, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.572414297000023, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.582272788999944, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.602623744000084, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.6028484549999575, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.622693603000016, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.6231948330000705, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.632386747000055, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 7.642469916999971, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.64273862899995, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.653178289999914, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.6651374830000805, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.68359615899999, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.700377058999948, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.70348774099989, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.71530785799996, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.7228108580000026, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.733973676000005, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 7.735978310000064, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.742482081999924, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.754766148000044, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.762725450000062, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.762989680999908, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.79497678000007, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.795636927000032, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.805231635999917, "kind": "diag", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "0.060504", "matched_telemetry_age_s": "0.014325", "last_positive_vehicle_ack": "83328", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.400000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83326", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.400000", "drive_pwm_us": "1500", "steer_pwm_us": "1700", "rc_drive_us": "1510", "rc_drive_age_us": "7373", "rc_steer_us": "1510", "rc_steer_age_us": "7373", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 7.8177770529998725, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.818047205000084, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.836044332000029, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 7.836282418999872, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.836477881000064, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.85255069599998, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.853088695999986, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.862174077999953, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.872244991999878, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.882170013999939, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.892853043000059, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.90253901799997, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.912614572999928, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.922711888000094, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.932970935999947, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.942414055999961, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 7.942661486999896, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.952405768000062, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.962274725000043, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 7.9868674659999215, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 7.988244370000075, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.004121852000026, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.014084602999901, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.022425740000017, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.03658614799997, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.036841195000079, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.042791766999926, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 8.052773142999968, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.062125188999971, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.072168934000047, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.082343115999947, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.093472332999909, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.102919324999903, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.112811641999997, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.123458028999949, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.142599990000008, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.142873789000078, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.15247416200009, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 8.162691128999995, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.162901311000041, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.182467250999935, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.182694873999935, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.205715858000076, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.205931415999885, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.225914072000023, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.226180224000018, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.242975460000025, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.243278572999998, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.252758398999958, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 8.262265777000039, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.263418097999875, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.28229816299995, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.282498776000011, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.30237096499991, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.30260214000009, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.32245996100005, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.323046986000008, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.345227529999875, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.345876955999984, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.365304141000024, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 8.365522003000024, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.365705175999892, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.388243425999917, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.396231880999949, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.40501488599989, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.42255209599989, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.434753567999905, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.435010183000031, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.454398838000088, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.462454173999959, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.472528769000064, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.474489497999912, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 8.474691294999957, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.492446622999978, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.502109366000013, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.512163703999931, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.52206120599999, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.536403894999921, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.542588841999986, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.552660910999975, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.5631209579999, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.573756403000061, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 8.573978105999913, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.58248708899987, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.597247805000052, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.60269980399994, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.61487074899992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.622544412000025, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.632954506000033, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.64263168299999, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.652381054999978, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.662227612999914, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.672443269000041, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.68227366699989, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 8.682485321000058, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.692575501999954, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.70214630800001, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.712395436999941, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.722148296999876, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.732271054999956, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.74273948699988, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.752631262000023, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.76240597800006, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.77329710999993, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.784374423999907, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 8.784857829999964, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.794916393999983, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.802323040999909, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.814061622000054, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.81627701399998, "kind": "diag", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "0.017197", "matched_telemetry_age_s": "0.003327", "last_positive_vehicle_ack": "83426", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.400000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83425", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.400000", "drive_pwm_us": "1500", "steer_pwm_us": "1700", "rc_drive_us": "1510", "rc_drive_age_us": "3280", "rc_steer_us": "1510", "rc_steer_age_us": "3280", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 8.82223219499997, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.833465832999991, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.842228488000046, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.852412144000027, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.862280141999918, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.88247023200006, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.894917761999977, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 8.895442385000024, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.902750020999974, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.912260569999944, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.92316773399989, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.932337985000004, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.942135932999918, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.952312548999998, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.962264005999941, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.972672211999907, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 8.985766128000023, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 8.99355733099992, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.001341364999917, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.007760814999983, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.012542105999955, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.0222825809999, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.032516157999908, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.052383679000059, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.052629254000067, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.072465989999955, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.07293579599991, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.09596654500001, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.096219704000077, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.104405990000032, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.112676405999991, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.11289925999995, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.132390385999997, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.132888417000004, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.152512186999957, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.152806435000002, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.178168003999872, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.178408427000022, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.195530971999915, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.19609239600004, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.212760848000016, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.213030807999985, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.213215166000055, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.233693679999988, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.233943831000033, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.253059651000058, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.254541517999996, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.272534263999887, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.274501168999905, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.30324354000004, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.30409870099993, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.322384320000083, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.323221271999955, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.33217410799989, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.342911859999958, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.343179292000059, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.362388009999904, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.372156197000095, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.382537394999872, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.392661848999978, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.40248047, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.41426199600005, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.424390897999956, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.424618297000052, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.435105257000032, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.442168150000043, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.44359600000007, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.462308223000036, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.47238973200001, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.482274242999893, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.492693809999992, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.505304671999966, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.512205607999931, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.522323342999925, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.532742750999887, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.533261934999928, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.542242965000014, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.552284250999946, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.56222780500002, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.572164639999983, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.582402795000007, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.592557299999953, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.602512342999944, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.61626215299998, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.625008456999922, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.632705673999908, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.632977298000014, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.644415648999939, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.653091165999967, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.662915934000011, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.682887813999969, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.683972740999934, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.693620350999936, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.703081844000053, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.723121309999897, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.724076825999873, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.742635384000096, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.742889791999914, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.75221697699999, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.761997678999933, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.772127926999929, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.782577447999984, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.792752977999953, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.802774903, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.817528966000054, "kind": "diag", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "0.047241", "matched_telemetry_age_s": "0.015143", "last_positive_vehicle_ack": "83524", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.400000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83522", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.400000", "drive_pwm_us": "1500", "steer_pwm_us": "1700", "rc_drive_us": "1510", "rc_drive_age_us": "4341", "rc_steer_us": "1510", "rc_steer_age_us": "4341", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 9.818211417999919, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.822924644000068, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.83273843500001, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.843246198000088, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.855949737999936, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.856162543999972, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.856337653000082, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.875263934000031, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.876024660999974, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.90246514599994, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.902814212000067, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.92262755899992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.933121913999912, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.942273670000077, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.952523057000008, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 9.952745719999939, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.96236344099998, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.972397654999895, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 9.98421438399987, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 9.992409023999926, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.002249887000062, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.013444071000094, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.022131269000056, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.032485139000073, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.045793720999882, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.052513916999942, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.062489088999882, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 10.062699142999918, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.072936433999985, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.082486120999874, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.092545199999904, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.104210981000051, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.112654940000084, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.12240543300004, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.132285017999948, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.142148698000028, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.15222003200006, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.162202627999932, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.17245339200008, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 10.172745784999961, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.182318929000076, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.193422548999933, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.20378841999991, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.212379934999944, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.222233791999997, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.232520108000017, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.242265737000025, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.253242986000032, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.263102027000059, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.272919305999949, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 10.273690175999945, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.282502465999869, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.292787951000037, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.302575437000087, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.312313768999957, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.322355471000037, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.332307634000017, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.342183602999967, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.352334619999965, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.365484028000083, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.372640493000063, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.382648338000081, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.38628959599987, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 10.396515558999909, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.40237189100003, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.42314030600005, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.432230140000001, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.442202686999963, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.452133666000009, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.464469706000045, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.472460819999924, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.482289171000048, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.49259542499999, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 10.493167730000096, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.504080465000015, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.512328002000004, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.522952760999942, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.53273365699988, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.544305678, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.562703850999924, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.562944113999947, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.572684880999986, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.582414222999887, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.592814242000031, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.602997677000076, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 10.603526909000038, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.614801800999885, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.622293285000069, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.632451632000084, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.642254801000036, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.65218568499995, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.662191740000026, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.672244196000065, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.682213768999873, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.702985805000026, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.703236851999918, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.716271444000085, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 10.717027881999911, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.722322501999997, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.733353067000053, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.742456086999937, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.762486979999949, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.76334319800003, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.782832506999966, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.792638076000003, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.806756123000014, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.807061347999934, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.812458947000096, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 10.823784112999874, "kind": "diag", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "0.031131", "matched_telemetry_age_s": "0.014886", "last_positive_vehicle_ack": "83622", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.400000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83620", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.400000", "drive_pwm_us": "1500", "steer_pwm_us": "1700", "rc_drive_us": "1510", "rc_drive_age_us": "6384", "rc_steer_us": "1510", "rc_steer_age_us": "6384", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 10.832470607999994, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.832738007999978, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.843385105999914, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.852318489000027, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.876287130000037, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.876515296999969, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.89623850199996, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.896826102999967, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.902331513000036, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.91254512599994, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.922896342000058, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 10.936983828999928, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.93887665300008, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.945053858999927, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.962632616000064, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 10.96320399299998, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.975313820999872, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 10.993506932999935, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.003765282999893, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.012403264999875, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.022389959000066, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.03378047000001, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 11.033978524000077, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.042304369000021, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.052373402000057, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.062347678999913, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.072228545999906, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.082546194000088, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.092504598999994, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.102492604999952, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.11228946999995, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.124250077999932, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.133583728000076, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.142673435999995, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 11.142915554999945, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.15229109500001, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.163156215000072, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.172303300000067, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.182895579999922, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.196229124999945, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.202322935999973, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.212523332000046, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.222353957999985, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.232226983999908, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.242192590000059, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.253185105000057, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 11.263665125999978, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.263930444999914, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.282460366999885, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.282693397999992, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.302390681999896, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.302643776999957, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.332815256999993, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.333083489000046, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.342641915000058, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.352415161999943, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.354082826999957, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 11.362033492999899, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.37220304099992, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.382079202999876, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.39217799700009, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.402205044000084, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.412159064999969, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.422340996999992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.432546352999907, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.442594649000057, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.452976809999882, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.462567557000057, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.466008361999911, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 11.472260737999932, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.48228468100001, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.493860254000083, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.512495139000066, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.514728963999914, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.533237608000036, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.533508559999973, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.55292756699987, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.55519451500004, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.57246593800005, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.573585267999988, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 11.57379177000007, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.592385377000028, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.593457279999939, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.612450482999975, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.61355950799998, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.63330422099989, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.633544708000045, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.655507470999964, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.655890138999894, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.67332572700002, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 11.682333993999919, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.682557777000056, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.692632410999977, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.702390172999912, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.712238335999928, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.72312118700006, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.742606883999997, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.74320155800001, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.76279506700007, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.772294483999985, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.78237030299988, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.78321784800005, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 11.792223682999975, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.80244388999995, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.812452729999904, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.826029965000089, "kind": "diag", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "0.014830", "matched_telemetry_age_s": "0.025830", "last_positive_vehicle_ack": "83719", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.400000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83717", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.400000", "drive_pwm_us": "1500", "steer_pwm_us": "1700", "rc_drive_us": "1510", "rc_drive_age_us": "1161", "rc_steer_us": "1510", "rc_steer_age_us": "1161", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 11.82627246800007, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.835169562999909, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.845242277999887, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.852306615000089, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.862480132999963, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.86305311000001, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.882671674999983, "kind": "state", "value": "Enabled"}
+{"elapsed_s": 11.882901729999958, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.892650275000051, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.90232310600004, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.912168420999933, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.922430996999992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.935291602999996, "kind": "applied", "value": {"drive": 0.0, "steer": 0.4000000059604645}}
+{"elapsed_s": 11.94292555700008, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 11.943121019000046, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.943842127999915, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 11.952391052999928, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 11.962480056000004, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.97317685300004, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 11.98345018200007, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 11.983769743000039, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 11.99570222500006, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.002456377000044, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.012495361999981, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.025518723999994, "kind": "diag", "value": {"state": "Disabled", "reason": "disable requested", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "unavailable", "matched_telemetry_age_s": "0.014901", "last_positive_vehicle_ack": "83738", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.000000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83737", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.000000", "drive_pwm_us": "1500", "steer_pwm_us": "1500", "rc_drive_us": "1510", "rc_drive_age_us": "6565", "rc_steer_us": "1510", "rc_steer_age_us": "6565", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 12.025818285000014, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.03301158599993, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.042336310999872, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.052338430999953, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.063000250999949, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.07226391800009, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.082157491000089, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.09228143900009, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 12.092531845999929, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.102275783000096, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.112202572999877, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.122241206999888, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.132271167999988, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.142112419999876, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.152595450000035, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.163228212999911, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.182867099000077, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.195517906000077, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 12.1958027149999, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.202322331999994, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.21225357000003, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.222149287000093, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.232455352999978, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.242256730999998, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.252679407999949, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.26238775999991, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.27262761499992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.282497444, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.293204608999986, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.302584374999924, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 12.302841854999997, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.31245180399992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.322288830999923, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.332494765000092, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.34248510999987, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.352223030000005, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.362375459000077, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.373399178, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.382354003000046, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.393085616999997, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.40262433199996, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.413920601999962, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 12.414123328999949, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.422614300000077, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.432555490999903, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.442352612999912, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.45414787499999, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.462539162999974, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.47298724899997, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.484814351000068, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.492775578999954, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.502634174999912, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.512485282999933, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 12.512673640999992, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.533795134000002, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.543029840999907, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.543266872000004, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.56262354599994, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.572500192000007, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.594293418000007, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.594620083999871, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.613490791000004, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.61375499099995, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.622509044000026, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 12.632185044999915, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.632421243999943, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.652398319999975, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.652645398999994, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.672516039999891, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.682680150999886, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.693614460999925, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.702357218000088, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.71233124399987, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.722441049000054, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.732728651999878, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 12.732920081999964, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.74246382199999, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.75247519300001, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.762397569000086, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.773094207999975, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.78278374499996, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.792631398999902, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.802438667999922, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.812841762000062, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.822469344999945, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.832305990999885, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 12.832500331999881, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.842237422999915, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.852221528999962, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.86227670900007, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.872350960999938, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.883483228999921, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.893773327999952, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.90392223899994, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.912431037000033, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.925232731000051, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.933150407000085, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 12.943076142999871, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.952470855000001, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.964354345999936, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.972365272999923, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 12.982811760000004, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 12.992296587000055, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.00229919000003, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.012184701000024, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.022326539000005, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.032182033000026, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.03365487699989, "kind": "diag", "value": {"state": "Disabled", "reason": "disable requested", "discovery": "exactly one DREAM Traxxas MCU", "expected_device_id": "unavailable", "selected_device_id": "E6625C05E7328C25", "expected_build_id": "unpinned", "observed_build_id": "e5396c97afd8-clean-735ff548aae062b2", "build_expectation_origin": "unpinned", "firmware_version": "0.5.0", "source_commit_prefix": "e5396c97afd8", "source_git_dirty": "false", "compatibility_policy": "explicit release/board allowlist; protocol 1.4; required capabilities and policy_ready", "target_board": "waveshare_rp2040_zero", "boot_id": "F9E5808642382EC8", "protocol": "1.4", "session_id": "5", "ready": "1", "connected": "1", "output_limits_configured": "1", "action_age_s": "unavailable", "matched_telemetry_age_s": "0.003910", "last_positive_vehicle_ack": "83837", "ignored_acks": "0", "selected_source": "2", "last_written_drive_normalized": "0.000000", "last_written_steer_normalized": "0.000000", "rc_drive_status": "1", "rc_steer_status": "1", "steering_trim": "0.000000", "host_seq": "83836", "host_fresh": "1", "host_permitted": "1", "host_permission_reason": "allowed", "applied_drive_normalized": "0.000000", "applied_steer_normalized": "0.000000", "drive_pwm_us": "1500", "steer_pwm_us": "1500", "rc_drive_us": "1510", "rc_drive_age_us": "4352", "rc_steer_us": "1510", "rc_steer_age_us": "4352", "wheel_stream_available": "1", "wheel_stopped_by_timeout": "1", "wheel_period_seen": "1", "encoder_drops": "0", "pan_output_enabled": "1", "pan_encoder_available": "0", "flash_prepared": "0", "pan_startup_complete": "1", "pan_command_seen": "0", "pan_target": "0.000000", "pan_output_us": "1500", "pan_origin_session": "0", "mcu_malformed": "1", "mcu_rejected": "0", "mcu_capture_resets": "0", "mcu_encoder_drops": "0", "mcu_max_loop_gap_us": "1512", "framing_corruption": "0", "rejected_inputs": "303", "connection_attempts": "5", "input_overflows": "0", "publication_drops": "0"}}
+{"elapsed_s": 13.042279549999876, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 13.04251027700002, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.052152932999888, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.064242989999912, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.074287481000056, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.08235178599989, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.092343507999885, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.103317210999876, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.112536397999975, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.125742808000041, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.132923213999902, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.142348806999962, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.153252909000003, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.154275210999913, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 13.163790151000057, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.17374235200009, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.18493129400008, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.193864328000018, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.202492906000089, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.212448787000085, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.222263638999948, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.232187358999909, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.24215748100005, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.252288470999929, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.26278552000008, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 13.262992693999877, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.272571060000018, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.283505434000062, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.292811216000018, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.302327019999893, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.313280082999881, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.322319423999943, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.342835971999875, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.343146573000013, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.354210007999882, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.36346625200008, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.365585579000026, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 13.382602758000075, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.386453464999931, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.412417631999915, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.412656551000055, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.432394579999936, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.442252505999932, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.452273413000057, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.462353650000068, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.47444802599989, "kind": "state", "value": "Disabled"}
+{"elapsed_s": 13.474763363999955, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.483122460999994, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.495090498000081, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.503725796000026, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.512393989999964, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.523882845999879, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 13.53242210999997, "kind": "applied", "value": {"drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 13.543218241999966, "kind": "wheel", "value": 0.0}
