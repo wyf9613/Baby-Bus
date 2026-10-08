@@ -2,6 +2,15 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-08：合并后 ROS 门禁重跑通过
+
+- WSL（Ubuntu 24.04，ROS Jazzy）运行 `.verification/run_ros_check.sh`，测试源码为 `26a140e`（包含 `3acd32d` 合入的 MVP 和 newcar27 改动），`dream_interfaces` 为 `5f50902`。
+- **`tools/verify_fast.sh`：PASS**，143 项测试，0 失败、0 错误、0 跳过；launch 参数检查通过。比 10-06 的 116 项多出的是合入的 MVP/control 测试。只使用合成的 ROS 节点，不代表实车行为。
+- 离线测试全部通过：主测试（MPC、规划、估计）115/115，预测模型 6/6，辨识 18/18。
+- WSL 上 MPC 每步耗时 mean 2.88 ms，p95 3.14 ms，max 3.77 ms，200 步中没有超出 50 ms 预算的步（10-06 为 p95 3.8 ms；下降应来自 v3 的 OSQP 只建一次加热启动）。这是笔记本数据，不能代替 Jetson 计时。
+- 证据：WSL 中的 `~/ai4r-evidence/ros-20261008-135127/`（summary、verify-fast、offline-tests、rosdep 日志）。
+- 阶段状态：**B3 中的 ROS 门禁（合并后）✅**；Jetson 计时（G1）仍待完成。下一步：Jetson 依赖检查和计时脚本。
+
 ## 2026-10-07（v3）：按新车 .27 的实车日志适配 MPC
 
 提交 `3acd32d`（合并 `origin/fix/newcar-control`），已在 `control-mpc-v0` 上。

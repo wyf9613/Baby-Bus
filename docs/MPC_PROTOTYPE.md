@@ -140,6 +140,8 @@ AI4R_INTERFACES_SOURCE="$PWD/.verification/dependencies/dream_interfaces" \
 
 Why: the tests need no ROS, so this isolates "does the solver work on this machine and how long does a step take" from everything else.
 
+One command does all of this section and saves the evidence to `~/ai4r-evidence/g1-<time>/`: `bash tools/jetson_g1_check.sh` (machine and power mode, dependency versions, the suites below, then `tools/mpc_platform_timing.py`: closed-loop step time for N = 10, 8 and 5 on a straight, a new-car start from rest and a bypass S-bend, plus a check that OSQP stops at `time_limit`). The manual steps below remain the reference for reading the results.
+
 1. Put the branch on the Jetson (`git pull`, or copy it).
 2. In the `Baby-Bus` directory, with the `python3` the node uses (not a venv):
 
