@@ -35,6 +35,17 @@ def fixture(offset=0.0, slope=0.0):
 
 
 class PlanningChecks(unittest.TestCase):
+    def test_degraded_road_advisory_and_prediction_lifetime_reach_v1(self):
+        args = list(fixture())
+        args[0].update(degraded=True, recommended_speed_scale=0.5, prediction_remaining_s=0.04)
+        for mvp in (True, False):
+            ref, _ = Planner(Settings()).plan(*args, mvp=mvp)
+            self.assertTrue(ref["valid"], ref["reason"])
+            self.assertLessEqual(ref["target_speed_mps"], 0.1)
+            self.assertLessEqual(ref["valid_for_s"], 0.04)
+        args[0]["prediction_remaining_s"] = 0
+        self.assertFalse(Planner(Settings()).plan(*args, mvp=True)[0]["valid"])
+
     def test_mvp_reference_without_calibration_keeps_geometry_and_freshness_checks(self):
         args = list(fixture(0.1, 0.05))
         args[3] = {"valid": False, "source": "unmeasured"}
@@ -153,6 +164,14 @@ class PlanningChecks(unittest.TestCase):
     def test_history_aligned_estimator_output_is_not_compensated_twice(self):
         args = api["input_record"](speed=0.1, yaw=0.0)
         xs = [0.2+0.1*i for i in range(27)]
+        args[0]["cone_detections"] = api["cones"](
+            [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
+        # Forward-only startup has no observed support at the body origin.
+        # Reject it before testing same-epoch consumption of a valid corridor.
+        front_only = api["Pipeline"](api["Settings"]()).update(*args, 10.05)
+        self.assertFalse(front_only["road"]["valid"])
+        self.assertEqual(front_only["road"]["status"], "near_field_unobserved")
+        xs = [-0.3, -0.2, -0.1, 0.0] + xs
         args[0]["cone_detections"] = api["cones"](
             [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
         out = api["Pipeline"](api["Settings"]()).update(*args, 10.05)

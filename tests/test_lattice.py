@@ -31,6 +31,93 @@ def planner(**kwargs):
 
 
 class LatticeChecks(unittest.TestCase):
+    def test_observed_rear_support_needs_no_extension_and_roundtrips(self):
+        for start in (-1.5, -0.5, -0.348):
+            args = fixture()
+            xs = [start]+[i*0.1 for i in range(-14, 31) if i*0.1 > start]
+            for key, y in (("centerline_xy", 0), ("left_boundary_xy", 0.5), ("right_boundary_xy", -0.5)):
+                args[0][key] = [(x, y) for x in xs]
+            ref, diag = planner().plan(*args)
+            self.assertTrue(ref["valid"], ref["reason"])
+            self.assertEqual(diag["near_support"]["extension_m"], 0)
+            self.assertEqual(diag["near_support"]["method"], "observed_support")
+            origin = ref["frenet_path"]["lateral"]["origin"]
+            g = ns["evaluate_frenet_path"](json.loads(json.dumps(ref)), origin, 10.0)
+            self.assertAlmostEqual(g["x"], 0, places=6)
+            self.assertAlmostEqual(g["y"], 0, places=6)
+
+    def test_fused_forward_only_start_requires_explicit_planner_assumption(self):
+        estimator_api = api["api"]
+        out = estimator_api["NearFieldHistoryChecks"].step(
+            estimator_api["Pipeline"](estimator_api["Settings"]()), 10.0,
+            [0.9+0.3*i for i in range(8)], speed=0.0)
+        road = out["road"]
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["centerline_xy"], [])
+        self.assertTrue(road["forward_geometry"]["geometry_valid"])
+        before = deepcopy(road)
+        enabled = planner(obstacle_check_enabled=False)
+        ref, diag = enabled.plan(road, out["state"], out["obstacles"], {}, 10.0)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertTrue(diag["controlled_near_extension"])
+        # Once observed origin support exists, loss must not revert to the
+        # startup assumption, even when the forward shape remains plausible.
+        observed = fixture()
+        self.assertTrue(enabled.plan(*observed)[0]["valid"])
+        self.assertFalse(enabled.plan(road, out["state"], None, {}, 10.0)[0]["valid"])
+        enabled.cfg = Config(clear_start_assumed=False, budget_s=5, obstacle_check_enabled=False)
+        self.assertFalse(enabled.plan(road, out["state"], out["obstacles"], {}, 10.0)[0]["valid"])
+        bad = deepcopy(road)
+        bad["status"] = "observed_history_conflict"
+        self.assertFalse(planner(obstacle_check_enabled=False).plan(bad, out["state"], None, {}, 10.0)[0]["valid"])
+        self.assertEqual(road, before)
+
+    def test_degraded_fused_road_caps_speed_and_reference_deadline(self):
+        args = fixture(speed=0.2)
+        args[0].update(degraded=True, recommended_speed_scale=0.5, prediction_remaining_s=0.08)
+        ref, diag = planner().plan(*args)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertLessEqual(ref["target_speed_mps"], 0.1)
+        self.assertLessEqual(ref["valid_for_s"], 0.08)
+        self.assertTrue(diag["road_degraded"])
+        self.assertAlmostEqual(ref["speed_profile"][0][1], 0.2)
+        self.assertLessEqual(diag["selected"]["terminal_speed_mps"], 0.1)
+        for changes in ({"prediction_remaining_s": 0}, {"prediction_remaining_s": None},
+                        {"recommended_speed_scale": 0}, {"recommended_speed_scale": float("nan")}):
+            args[0].update(changes)
+            self.assertFalse(planner().plan(*args)[0]["valid"])
+            args[0].update(prediction_remaining_s=0.08, recommended_speed_scale=0.5)
+
+    def test_actual_node_bridge_slows_then_expires_and_stays_stopped(self):
+        control_api = runpy.run_path(str(Path(__file__).with_name("test_control.py")))
+        node = control_api["make_node"](simulated=False, mvp=True)
+        node.planning_settings = Settings(algorithm="lattice_v2", max_source_age_s=0.4, reference_lifetime_s=0.2)
+        node.lattice_settings = Config(budget_s=5, clear_start_assumed=True, obstacle_check_enabled=False)
+        control_api["feed"](node, center=0.0, speed=0.2)
+        control_api["start"](node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        deadlines = []
+        for _ in range(6):
+            node.test_clock.advance(0.05)
+            control_api["feed"](node, center=0.0, speed=0.2, empty=True)
+            node.run_policy_step()
+            if node.fsm_state == 2:
+                break
+            self.assertTrue(node.planning_diagnostics["road_degraded"])
+            self.assertLessEqual(node.planning_output["target_speed_mps"], 0.1)
+            prediction_deadline = node.planning_output["timestamp_s"]+node.planning_diagnostics["prediction_remaining_s"]
+            self.assertLessEqual(node.last_control_reference_deadline_s, prediction_deadline+1e-8)
+            deadlines.append(prediction_deadline)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        self.assertTrue(deadlines)
+        self.assertLessEqual(max(deadlines)-min(deadlines), 1e-8)
+        node.test_clock.advance(0.05)
+        control_api["feed"](node, center=0.0)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 2)
+
     def test_straight_projection_and_arc_are_analytic(self):
         curve = ns["LatticeCurve"]([(0, 0.2), (1, 0.2), (2, 0.2)], 0.5, 0.025)
         s0, d0 = curve.project_origin()

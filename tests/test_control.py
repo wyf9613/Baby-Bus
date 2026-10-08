@@ -6,6 +6,7 @@ The installed ROS gate separately runs test_policy_node with real rclpy peers.
 """
 import ast
 from copy import deepcopy
+from dataclasses import replace
 import math
 from pathlib import Path
 import runpy
@@ -99,7 +100,8 @@ def feed(node, center=0.1, speed=0.0, yaw=0.0, delay=0.0, empty=False):
     mono = node.test_clock.monotonic
     node._store("wheel_speed", speed, None, mono, now)
     node._store("imu_angular_velocity", (0, 0, yaw), now, mono, now)
-    xs = [0.1+0.3*i for i in range(9)]
+    # A fully observed corridor brackets the origin under fused-road validity.
+    xs = [-0.1+0.3*i for i in range(10)]
     batch = api["cones"]([(x, center+0.5) for x in xs], [(x, center-0.5) for x in xs])
     if empty:
         batch["detections"] = []
@@ -115,6 +117,7 @@ def start(node):
 class ControlChecks(unittest.TestCase):
     def test_mvp_sustaining_effort_keeps_fault_and_operator_stops_neutral(self):
         node = make_node(simulated=False, mvp=True)
+        node.estimation_settings = replace(node.estimation_settings, road_hold_s=0)
         node.control_settings = ns["ControlSettings"](
             enabled=True, mode="mvp", drive_max=0.35, mvp_drive_feedforward=0.30)
         node.controller = ns["PolicyController"](node.control_settings)
@@ -169,6 +172,7 @@ class ControlChecks(unittest.TestCase):
 
     def test_invalid_road_latches_stop_and_fresh_data_does_not_resume(self):
         node = make_node()
+        node.estimation_settings = replace(node.estimation_settings, road_hold_s=0)
         feed(node)
         start(node)
         node.run_policy_step()
