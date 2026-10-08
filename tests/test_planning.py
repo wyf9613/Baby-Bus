@@ -252,8 +252,8 @@ class PlanningChecks(unittest.TestCase):
                 normal_right = (cy-(0.1+0.08*cx-0.5))/math.hypot(1, 0.08)
                 self.assertGreaterEqual(min(normal_left, normal_right), cfg.simulation_safety_margin_m)
 
-    def test_planning_yaml_matches_declared_defaults(self):
-        # Restricted scalar subtree, parsed without ROS/PyYAML provisioning.
+    def test_shipped_planning_configuration_is_valid(self):
+        # Validate the actual selected profile rather than freeze all defaults.
         import re
         config = Path(__file__).resolve().parents[1]/"config"/"ai4r_policy.yaml"
         inside, scalars = False, {}
@@ -265,12 +265,16 @@ class PlanningChecks(unittest.TestCase):
                 continue
             if not line.startswith("      "):
                 break
-            match = re.fullmatch(r"      ([a-z_][a-z_0-9]*): ([a-z_]+|-?[0-9]+(?:\.[0-9]+)?)", line)
+            if line.startswith("        ") or line == "      lattice:":
+                continue
+            match = re.fullmatch(r"      ([a-z_][a-z_0-9]*): ([a-z_0-9]+|-?[0-9]+(?:\.[0-9]+)?)", line)
             self.assertIsNotNone(match, line)
             value = match[2]
             scalars[match[1]] = (value == "true" if value in ("true", "false") else
                                  float(value) if value[0] in "-0123456789" else value)
-        self.assertEqual(scalars, vars(Settings()))
+        settings = Settings(**scalars)
+        self.assertIn(settings.algorithm, ("centerline", "lattice_v2"))
+        self.assertGreater(settings.reference_lifetime_s, 1/20)
 
 
 if __name__ == "__main__":

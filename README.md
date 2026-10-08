@@ -1,8 +1,12 @@
 # Baby Bus · ai4r_policy
 
-已在 `scripts/policy_node.py` 接入估计→V1 规划→PID 控制→归一化动作。
-控制侧支持至五次的 Cartesian y(x)，当前上游 V1 仍生成直线。供给的 YAML 选择单一
-20 Hz timer，要求 cones、轮速和偏航率。当前 `control.mode: mvp` 使用路径误差与
+已在 `scripts/policy_node.py` 接入估计→V2 Frenet lattice 规划→PID 控制→归一化动作。
+V2 包含近端盲区补足、横纵向多项式采样、车身/障碍/运动初筛、固定打分与停车行为，
+输出原始 Frenet 多项式及经过复核的五次以内 Cartesian y(x)，控制侧使用预瞄误差。
+实现和边界见 [V2 规划说明](docs/PLANNING_V2_CN.md)。供给的 YAML 选择单一
+20 Hz timer，要求 cones、轮速和偏航率。近期无障碍锥桶道路测试配置关闭雷达障碍检查，
+雷达继续采集但不是必需传感器；道路边界和车身净空检查仍开启。
+当前 `control.mode: mvp` 使用路径误差与
 航向误差直接计算归一化转向，目标速度 0.2 m/s；不要求先完成完整车辆标定。
 每次显式启动累计原始轮速里程，达到 3.0 m 自动进入状态 2、持续输出零动作；
 30 s 为兜底时间限制。无效/过期路径或反馈断流也会锁存停止，重新请求状态 3 才

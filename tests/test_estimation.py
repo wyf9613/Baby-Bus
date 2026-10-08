@@ -30,6 +30,10 @@ names = {"finite_number", "Observation", "EstimationSettings", "FirstOrderSample
          "ControlSettings", "VehicleCalibrationSettings", "ControlPID", "PolicyController", "wrap_angle",
          "PolicyStopRequest", "RunDistanceLimiter",
          "_control_poly_eval", "_control_poly_roots", "control_path_geometry"}
+names.update({"LatticeSettings", "LatticeCurve", "FrenetLatticePlanner", "_lattice_interp",
+              "_lattice_derivative", "_lattice_lateral", "_lattice_geometry", "_lattice_steering"})
+names.add("evaluate_frenet_path")
+names.add("_planning_control_geometry")
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in names]
 policy_class = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
@@ -38,6 +42,7 @@ policy_method = next(item for item in policy_class.body if isinstance(item, ast.
 store_method = next(item for item in policy_class.body if isinstance(item, ast.FunctionDef)
                     and item.name == "_store")
 namespace = {"dataclass": dataclass, "math": math, "deepcopy": deepcopy,
+             "time": __import__("time"),
              "Real": __import__("numbers").Real,
              "ConeDetection": SimpleNamespace(COLOR_BLUE=2, COLOR_YELLOW=1)}
 exec(compile(ast.Module(body=definitions+[policy_method, store_method], type_ignores=[]), str(SOURCE), "exec"), namespace)
@@ -202,8 +207,8 @@ class EstimationChecks(unittest.TestCase):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 Settings(**kwargs)
 
-    def test_existing_yaml_additions_match_declared_parameter_defaults(self):
-        # The new subtree consists only of double scalar defaults. Parse that
+    def test_shipped_estimation_configuration_is_valid(self):
+        # The subtree consists only of double scalar defaults. Parse that
         # restricted subset without adding a YAML dependency to the offline run.
         import re
         config = Path(__file__).resolve().parents[1] / "config" / "ai4r_policy.yaml"
@@ -221,7 +226,8 @@ class EstimationChecks(unittest.TestCase):
             self.assertIsNotNone(match, line)
             self.assertNotIn(match[1], scalars)
             scalars[match[1]] = float(match[2])
-        self.assertEqual(scalars, vars(Settings()))
+        settings = Settings(**scalars)
+        self.assertLessEqual(settings.motion_max_interval_s, settings.max_source_age_s)
 
     def test_actual_student_entry_exports_estimates_and_returns_zero_actions(self):
         obs, ages, stamps, receipts = input_record()

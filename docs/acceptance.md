@@ -1,9 +1,64 @@
 # AI4R policy acceptance
 
-Status: the 2026-10-06 car candidate passes the installed fast gate and has
-bounded, observed physical runs. A complete 3 m physical run remains unverified.
+Status: the 2026-10-08 local V2 lattice candidate passes 92 portable tests and
+four numerical closed-loop studies. Its ROS gate and physical runs are not run.
+The 2026-10-06 car candidate's installed gate and physical runs below are
+historical evidence, not evidence for the new V2 candidate. A complete 3 m
+physical run remains unverified.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
+
+## V2 Frenet lattice local candidate, 2026-10-08
+
+The selected YAML uses `planning.algorithm: lattice_v2`. The current controlled
+cone-only trial disables `planning.lattice.obstacle_check_enabled` and removes
+Cartesian lidar from required sensors. Lidar collection remains enabled; its
+points and availability do not affect this trial's planning. Body/boundary and
+motion checks remain enabled. This profile does not avoid lidar obstacles;
+restore both the flag and required sensor before obstacle-response trials.
+Runtime code remains in the single policy script. It adds
+bounded near-road extension, spatial quintic lateral and time quartic/quintic
+longitudinal candidates, approximate whole-body/static-obstacle checks,
+physical steering/motion limits, fixed normalized scores, persistent planned
+stops, original Frenet output and revalidated Cartesian compatibility output.
+Both controllers use a preview for V2. Model dimensions are explicitly course
+approximations; no vehicle enablement or calibrated motor/brake map changed.
+See [PLANNING_V2_CN.md](PLANNING_V2_CN.md) for contracts and restrictions.
+
+Observed portable checks: estimation 28, legacy planning 17, V2 lattice 26 and
+control 21 tests, total 92 passing. The cone-only configuration follow-up reran
+the 26 lattice, 17 planning and 21 control tests successfully. Added checks
+verify absent/noisy lidar is ignored when disabled, narrow boundaries still
+reject trajectories, and the actual policy follows a road without optional lidar.
+The required fast gate was retried and still stops at the missing pinned
+interfaces checkout. V2 cases cover analytic geometry, C2 near
+extension, serialization, startup assumptions, obstacle bypass/stop, stop
+persistence, stale/misaligned inputs, deterministic deadline rejection,
+controller preview, and the actual policy's lidar/stop/restart integration.
+These tests extract pure definitions and use stubbed ROS; they do not verify DDS.
+
+`python -B tools/study_lattice.py --steps 200` passed four 200-step numerical
+studies using the actual planner/controller and teacher approximate plant:
+MVP straight, MVP curved, MVP with a 0.9 m blind gap, calibrated simulated curved.
+Initial lateral error was -0.1 m; final errors were approximately -0.0343,
+-0.0444, -0.0343 and +0.00247 m. This uses a relaxed 5 s numerical budget;
+full-search Windows p95 times were approximately 27–45 ms, so it is not a
+35 ms real-time qualification.
+
+An earlier 35 ms run rejected one curve frame at 35.995 ms. Reserving 40% of
+the budget for output checks then passed four 50-step studies at the actual
+35 ms budget: p95 approximately 22.1–26.9 ms, maximum 33.1 ms, no timeout.
+The planner may truncate search after finding feasible candidates; it reports
+that fact and selects the best of evaluated feasible candidates. OS scheduling,
+more complex scenes and Jetson execution remain unqualified. Hard timeout
+rejection is intentional and requests a latched framework stop.
+
+Required `tools/verify_fast.sh` was attempted but cannot run here: the pinned
+`.verification/dependencies/dream_interfaces` checkout is absent, and this
+Windows workspace has no provisioned ROS Jazzy environment. Installed YAML,
+real rclpy/DDS timing, message-build and launch checks remain not run for V2.
+Physical steering response, TF, wheel-speed calibration, actual brake/deceleration,
+obstacle accuracy and controlled blind-start assumption also remain not run.
 
 ## New-car MVP control trial, 2026-10-06
 

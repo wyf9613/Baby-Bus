@@ -687,6 +687,7 @@ class PlanningSettings:
     must be supplied by calibration or an explicitly labelled offline fixture.
     Constant-twist compensation is opt-in and is a short-time approximation.
     """
+    algorithm: str = "centerline"
     cruise_speed_mps: float = 0.2
     max_source_age_s: float = 0.2
     reference_lifetime_s: float = 0.1
@@ -708,7 +709,10 @@ class PlanningSettings:
 
     def __post_init__(self):
         for name, value in vars(self).items():
-            if name == "vehicle_limits_source":
+            if name == "algorithm":
+                if value not in ("centerline", "lattice_v2"):
+                    raise ValueError("planning.algorithm must be centerline or lattice_v2")
+            elif name == "vehicle_limits_source":
                 if value not in ("upstream", "course_simulation"):
                     raise ValueError("planning vehicle limits source must be upstream or course_simulation")
             elif name == "compensate_constant_twist":
@@ -760,14 +764,17 @@ def evaluate_planning_path(reference, x_m, now_s):
     coeffs, bounds = path.get("coeffs_low_to_high"), path.get("range")
     origin, scale = path.get("origin"), path.get("scale")
     if (path.get("type") != "CARTESIAN_Y_OF_X" or path.get("independent_variable") != "x_m"
-            or not isinstance(coeffs, (list, tuple)) or len(coeffs) != 2
+            or not isinstance(coeffs, (list, tuple)) or not 1 <= len(coeffs) <= 6
             or not isinstance(bounds, (list, tuple)) or len(bounds) != 2
             or not all(finite_number(v) for v in (*coeffs, *bounds, origin, scale))
             or scale <= 0 or bounds[1] <= bounds[0] or not bounds[0] <= x_m <= bounds[1]):
         return None
-    y = coeffs[0]+coeffs[1]*(x_m-origin)/scale
-    return {"position_xy_m": (x_m, y), "heading_rad": math.atan(coeffs[1]/scale),
-            "curvature_1pm": 0.0}
+    u = (x_m-origin)/scale
+    y = _control_poly_eval(coeffs, u)
+    slope = _control_poly_eval([i*c for i, c in enumerate(coeffs) if i] or [0.0], u)/scale
+    second = _control_poly_eval([i*(i-1)*c for i, c in enumerate(coeffs) if i > 1] or [0.0], u)/scale**2
+    return {"position_xy_m": (x_m, y), "heading_rad": math.atan(slope),
+            "curvature_1pm": second/math.hypot(1, slope)**3}
 
 
 class CenterlinePlanner:
@@ -1016,6 +1023,895 @@ class CenterlinePlanner:
                                "coeffs_low_to_high": [a0, a1], "range": [lo, hi]},
                          target_speed_mps=target, stop_requested=False, stop_reason=None)
         return reference, diagnostics
+
+
+@dataclass
+class LatticeSettings:
+    """V2 development defaults; teacher geometry is an approximation, not calibration.
+
+    CSV sampling keeps ROS startup parameter types unambiguous. Hard limits and
+    score scales are independent. Near extension requires an explicit clear-start
+    assumption; no-return lidar alone does not establish free road boundaries.
+    """
+    model_source: str = "course_approximation"
+    transition_lengths_m: str = "0.6,1.0,1.5"
+    terminal_offsets_m: str = "-0.25,0.0,0.25"
+    durations_s: str = "3.0"
+    terminal_speeds_mps: str = "0.1,0.2"
+    obstacle_check_enabled: bool = True
+    clear_start_assumed: bool = False
+    max_near_gap_m: float = 0.9
+    max_extension_m: float = 1.3
+    extension_margin_growth: float = 0.08
+    blind_lateral_change_m: float = 0.08
+    blind_steering_limit_rad: float = 0.3490658504
+    geometry_step_m: float = 0.025
+    time_step_s: float = 0.05
+    horizon_m: float = 2.0
+    score_time_s: float = 3.0
+    budget_s: float = 0.035
+    max_candidates: int = 81
+    max_obstacle_points: int = 2048
+    obstacle_margin_m: float = 0.05
+    acceleration_max_mps2: float = 0.5
+    braking_mps2: float = 0.5
+    lateral_acceleration_max_mps2: float = 0.5
+    actuation_delay_s: float = 0.2
+    speed_max_mps: float = 0.5
+    wheelbase_m: float = 0.33
+    rear_axle_from_cg_m: float = 0.132
+    front_extent_m: float = 0.297
+    rear_extent_m: float = 0.198
+    width_m: float = 0.25
+    steering_limit_rad: float = math.pi/4
+    steering_rate_limit_radps: float = math.pi/2
+    hard_margin_m: float = 0.05
+    d_scale_m: float = 0.125
+    clearance_soft_m: float = 0.125
+    blind_center_weight: float = 0.25
+    clearance_peak_ratio: float = 0.5
+    steering_scale_rad: float = math.pi/9
+    steering_rate_scale_radps: float = math.pi/4
+    steering_rate_weight: float = 0.5
+    consistency_range_m: float = 1.0
+    speed_scale_mps: float = 0.2
+    acceleration_scale_mps2: float = 0.3
+    acceleration_weight: float = 0.25
+    weight_center: float = 0.30
+    weight_clearance: float = 0.25
+    weight_steering: float = 0.20
+    weight_consistency: float = 0.15
+    weight_motion: float = 0.10
+    tie_tolerance: float = 0.01
+    fit_position_error_m: float = 0.01
+    fit_heading_error_rad: float = 0.03
+    fit_curvature_error_1pm: float = 0.15
+    preview_m: float = 0.35
+    speed_preview_s: float = 0.3
+    minimum_output_m: float = 0.4
+
+    def __post_init__(self):
+        csv = {"transition_lengths_m", "terminal_offsets_m", "durations_s", "terminal_speeds_mps"}
+        for name, value in vars(self).items():
+            if name == "model_source":
+                if value not in ("course_approximation", "course_simulation", "upstream"):
+                    raise ValueError("invalid lattice model source")
+            elif name in csv:
+                samples = self.samples(name)
+                if not 1 <= len(samples) <= 9 or len(set(samples)) != len(samples):
+                    raise ValueError("lattice sampling must have 1..9 distinct values")
+                if name != "terminal_offsets_m" and any(v <= 0 for v in samples):
+                    raise ValueError("lattice lengths, durations and speeds must be positive")
+            elif isinstance(value, bool):
+                if name not in ("obstacle_check_enabled", "clear_start_assumed"):
+                    raise ValueError("invalid lattice boolean")
+            elif name in ("obstacle_check_enabled", "clear_start_assumed"):
+                raise ValueError("lattice flags must be booleans")
+            elif not finite_number(value) or value <= 0:
+                raise ValueError("lattice numeric settings must be finite and positive: " + name)
+        if not 0 <= self.blind_center_weight <= 1 or not 0 <= self.clearance_peak_ratio <= 1:
+            raise ValueError("lattice proportions must be in [0,1]")
+        if not self.rear_axle_from_cg_m < self.wheelbase_m or self.steering_limit_rad >= math.pi/2:
+            raise ValueError("invalid lattice vehicle geometry")
+        if self.rear_extent_m < self.rear_axle_from_cg_m or self.front_extent_m < self.wheelbase_m-self.rear_axle_from_cg_m:
+            raise ValueError("lattice body must cover both axles")
+        if self.geometry_step_m > 0.05 or self.time_step_s > 0.1 or self.horizon_m > 3:
+            raise ValueError("lattice checking resolution/range exceeds bounded domain")
+        if any(t < self.score_time_s for t in self.samples("durations_s")):
+            raise ValueError("all longitudinal candidates must cover the common scoring window")
+        count = len(self.samples("transition_lengths_m"))*(len(self.samples("terminal_offsets_m"))+1)*(
+            len(self.samples("durations_s"))*len(self.samples("terminal_speeds_mps"))+1)
+        if not isinstance(self.max_candidates, int) or count > self.max_candidates or self.max_candidates > 256:
+            raise ValueError("candidate product exceeds lattice cap")
+        if not isinstance(self.max_obstacle_points, int) or not 1 <= self.max_obstacle_points <= 10000:
+            raise ValueError("invalid obstacle cap")
+
+    def samples(self, name):
+        try:
+            values = [float(v.strip()) for v in getattr(self, name).split(",")]
+        except (ValueError, AttributeError):
+            raise ValueError("invalid lattice CSV: " + name) from None
+        if not all(math.isfinite(v) for v in values):
+            raise ValueError("nonfinite lattice sample")
+        return values
+
+
+def _lattice_derivative(coeffs, order=1):
+    for _ in range(order):
+        coeffs = [i*c for i, c in enumerate(coeffs) if i] or [0.0]
+    return coeffs
+
+
+def _lattice_interp(points, x):
+    if not points or not points[0][0]-1e-8 <= x <= points[-1][0]+1e-8:
+        raise ValueError("outside_supported_range")
+    lo, hi = 0, len(points)-1
+    while hi-lo > 1:
+        mid = (lo+hi)//2
+        if points[mid][0] < x:
+            lo = mid
+        else:
+            hi = mid
+    a, b = points[lo], points[hi]
+    return a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0])
+
+
+class LatticeCurve:
+    """Clamped cubic y(x), bounded C2 backward extension and Simpson arc table.
+
+    Local roads must remain functions of body x. Arc lookup is approximate to
+    the configured fine grid; actual sampled path is checked after conversion.
+    No extension forward beyond observed support is allowed.
+    """
+    def __init__(self, points, extension, step):
+        self.points = CenterlinePlanner._points(points)
+        if self.points is None:
+            raise ValueError("invalid_reference_points")
+        n = len(points)
+        h = [points[i+1][0]-points[i][0] for i in range(n-1)]
+        second = [0.0]*n
+        # O(N) clamped spline. Endpoint tangents from three-point quadratics
+        # avoid the artificial zero curvature of natural end conditions.
+        diag, rhs, upper = [1.0]*n, [0.0]*n, [0.0]*n
+        def tangent(sample, x):
+            if len(sample) < 3:
+                return (sample[-1][1]-sample[0][1])/(sample[-1][0]-sample[0][0])
+            base = sample[0][0]
+            coeffs = _estimation_solve([[1, q-base, (q-base)**2] for q, _ in sample], [v for _, v in sample])
+            if coeffs is None:
+                raise ValueError("endpoint_tangent_singular")
+            return coeffs[1]+2*coeffs[2]*(x-base)
+        diag[0], upper[0] = 2*h[0], h[0]
+        rhs[0] = 6*((points[1][1]-points[0][1])/h[0]-tangent(points[:3], points[0][0]))
+        for i in range(1, n-1):
+            diag[i] = 2*(h[i-1]+h[i])
+            upper[i] = h[i]
+            rhs[i] = 6*((points[i+1][1]-points[i][1])/h[i]-(points[i][1]-points[i-1][1])/h[i-1])
+        diag[-1] = 2*h[-1]
+        rhs[-1] = 6*(tangent(points[-3:], points[-1][0])-(points[-1][1]-points[-2][1])/h[-1])
+        for i in range(1, n):
+            factor = h[i-1]/diag[i-1]
+            diag[i] -= factor*upper[i-1]
+            rhs[i] -= factor*rhs[i-1]
+        for i in range(n-1, -1, -1):
+            second[i] = (rhs[i]-upper[i]*(second[i+1] if i+1 < n else 0))/diag[i]
+        self.segments = []
+        for i, length in enumerate(h):
+            self.segments.append((points[i][0], points[i+1][0], [points[i][1],
+                (points[i+1][1]-points[i][1])/length-length*(2*second[i]+second[i+1])/6,
+                second[i]/2, (second[i+1]-second[i])/(6*length)]))
+        # Bounded curvature-fading cubic extension: match y/y'/y'' at observed
+        # start, fade y'' to zero at the rear endpoint instead of unlimited fit.
+        first = self.segments[0]
+        self.xmin, self.xmax = first[0]-extension, points[-1][0]
+        self.extension = (self.xmin, first[0], [first[2][0], first[2][1], second[0]/2, second[0]/(6*extension)])
+        count = math.ceil((self.xmax-self.xmin)/step)
+        if count > 400:
+            raise ValueError("reference_grid_cap")
+        self.arc = [(self.xmin, 0.0)]
+        for i in range(count):
+            a = self.xmin+(self.xmax-self.xmin)*i/count
+            b = self.xmin+(self.xmax-self.xmin)*(i+1)/count
+            length = (b-a)*(math.hypot(1, self.at_x(a)[1])+4*math.hypot(1, self.at_x((a+b)/2)[1])+
+                            math.hypot(1, self.at_x(b)[1]))/6
+            self.arc.append((b, self.arc[-1][1]+length))
+        self.inverse_arc = [(s, x) for x, s in self.arc]
+        self._s_cache = {}
+        probes = [x for x, _ in self.arc]
+        for a, b, coeffs in self.segments:
+            probes.extend((a, b))
+            if abs(coeffs[3]) > 1e-12:
+                stationary = a-coeffs[2]/(3*coeffs[3])
+                if a < stationary < b:
+                    probes.append(stationary)
+        self.max_slope = max(abs(self.at_x(x)[1]) for x in probes)
+        self.max_second = max(abs(self.at_x(x)[2]) for x in probes)
+
+    def at_x(self, x):
+        if not self.xmin-1e-8 <= x <= self.xmax+1e-8:
+            raise ValueError("curve_range")
+        if x < self.points[0][0]:
+            c = self.extension[2]
+            u = x-self.points[0][0]
+            return c[0]+u*(c[1]+u*(c[2]+u*c[3])), c[1]+u*(2*c[2]+3*c[3]*u), 2*c[2]+6*c[3]*u, 6*c[3]
+        lo, hi = 0, len(self.segments)-1
+        while lo < hi:
+            mid = (lo+hi)//2
+            if self.segments[mid][1] < x:
+                lo = mid+1
+            else:
+                hi = mid
+        origin, _, coeffs = self.segments[lo]
+        u = x-origin
+        a, b, c, d = coeffs
+        return a+u*(b+u*(c+u*d)), b+u*(2*c+3*d*u), 2*c+6*d*u, 6*d
+
+    def at_s(self, s):
+        if s in self._s_cache:
+            return self._s_cache[s]
+        x = _lattice_interp(self.inverse_arc, s)
+        y, slope, second, third = self.at_x(x)
+        norm = math.hypot(1, slope)
+        curvature = second/norm**3
+        rate = third/norm**4-3*slope*second**2/norm**6
+        result = (x, y, 1/norm, slope/norm, curvature, rate)
+        if len(self._s_cache) < 600:
+            self._s_cache[s] = result
+        return result
+
+    def project_origin(self):
+        # Distance derivative roots on each cubic segment, plus endpoints.
+        options = []
+        intervals = [(self.xmin, self.points[0][0])]+[(a, b) for a, b, _ in self.segments]
+        for a, b in intervals:
+            mid, half = (a+b)/2, (b-a)/2
+            y, dy, ddy, dddy = self.at_x(mid)
+            c = [y, dy*half, ddy*half**2/2, dddy*half**3/6]
+            dc = _lattice_derivative(c)
+            derivative = [mid*half, half*half]+[0.0]*4
+            for i, v in enumerate(c):
+                for j, w in enumerate(dc):
+                    derivative[i+j] += v*w
+            for u in [-1.0, 1.0, *_control_poly_roots(derivative)]:
+                x = mid+half*u
+                options.append((x*x+_control_poly_eval(c, u)**2, x))
+        _, x = min(options)
+        if not self.xmin+1e-5 < x < self.xmax-1e-5:
+            raise ValueError("projection_at_support_end")
+        y, slope, _, _ = self.at_x(x)
+        if abs(x+y*slope) > 1e-4:
+            raise ValueError("nonorthogonal_projection")
+        s = _lattice_interp(self.arc, x)
+        return s, (-y+x*slope)/math.hypot(1, slope)
+
+    def record(self):
+        return {"type": "CUBIC_Y_OF_X_ARCLENGTH", "segments": deepcopy(self.segments),
+                "extension": deepcopy(self.extension), "arc_table": list(self.arc),
+                "observed_x_range_m": [self.points[0][0], self.xmax],
+                "supported_x_range_m": [self.xmin, self.xmax]}
+
+    @classmethod
+    def from_record(cls, record):
+        curve = cls.__new__(cls)
+        curve.segments = deepcopy(record["segments"])
+        curve.extension = deepcopy(record["extension"])
+        curve.xmin, curve.xmax = record["supported_x_range_m"]
+        curve.points = [(record["observed_x_range_m"][0], curve.segments[0][2][0])]
+        curve.arc = [tuple(p) for p in record["arc_table"]]
+        curve.inverse_arc = [(s, x) for x, s in curve.arc]
+        curve._s_cache = {}
+        return curve
+
+
+def evaluate_frenet_path(reference, s_ref_m, now_s):
+    """Reconstruct the original serialized V2 curve, never refit it for display."""
+    try:
+        if not reference.get("valid") or not reference["timestamp_s"] <= now_s < reference["timestamp_s"]+reference["valid_for_s"]:
+            return None
+        path = reference["frenet_path"]
+        lateral = path["lateral"]
+        if not finite_number(s_ref_m) or not lateral["range"][0] <= s_ref_m <= lateral["range"][1]:
+            return None
+        return _lattice_geometry(LatticeCurve.from_record(path["reference_curve"]), lateral["origin"],
+            lateral["coeffs_low_to_high"], lateral["scale"], lateral["terminal_offset_m"], s_ref_m)
+    except (KeyError, ValueError, TypeError, ArithmeticError):
+        return None
+
+
+def _lattice_lateral(d, first, second, target, length):
+    b0, b1, b2 = d, first*length, second*length**2/2
+    tail = _estimation_solve([[1, 1, 1], [3, 4, 5], [6, 12, 20]],
+                            [target-b0-b1-b2, -b1-2*b2, -2*b2])
+    if tail is None:
+        raise ValueError("lateral_solve")
+    return [b0, b1, b2, *tail]
+
+
+def _lattice_geometry(curve, s0, coeffs, length, target, s):
+    u = (s-s0)/length
+    if u >= 1:
+        d, first, second = target, 0.0, 0.0
+    else:
+        d = _control_poly_eval(coeffs, u)
+        first = _control_poly_eval(_lattice_derivative(coeffs), u)/length
+        second = _control_poly_eval(_lattice_derivative(coeffs, 2), u)/length**2
+    x, y, tx, ty, k, dk = curve.at_s(s)
+    a = 1-k*d
+    q = math.hypot(a, first)
+    if a <= 0.2 or q < 0.2:
+        raise ValueError("frenet_degenerate")
+    curvature = (k*(a*a+2*first*first)+a*second+dk*d*first)/q**3
+    return {"s": s, "d": d, "x": x-d*ty, "y": y+d*tx,
+            "heading": math.atan2(a*ty+first*tx, a*tx-first*ty),
+            "curvature": curvature, "q": q, "support": "observed" if x >= curve.points[0][0] else "extrapolated"}
+
+
+def _lattice_steering(curvature, model):
+    rear, length = model["rear_axle_from_cg_m"], model["wheelbase_m"]
+    den = 1-(rear*curvature)**2
+    if den <= 0:
+        raise ValueError("unreachable_cg_curvature")
+    return math.atan(length*curvature/math.sqrt(den))
+
+
+class FrenetLatticePlanner:
+    """Bounded forward local planner with full body/static-point checks.
+
+    It never enables a car or resumes a stopped framework. Unknown near road
+    requires clear_start_assumed. Sampling is a bounded engineering collision
+    approximation, not a continuous safety proof or a calibrated braking model.
+    """
+    def __init__(self, settings, lattice=None, frame_id="base_link", clock=None):
+        self.settings, self.cfg, self.frame_id = settings, lattice or LatticeSettings(), frame_id
+        self.clock = clock or time.perf_counter
+        self.sequence, self.previous, self.stop_latched = 0, None, False
+
+    def _model(self, limits):
+        cfg = self.cfg
+        names = ("wheelbase_m", "rear_axle_from_cg_m", "front_extent_m", "rear_extent_m", "width_m",
+                 "steering_limit_rad", "steering_rate_limit_radps", "acceleration_max_mps2",
+                 "braking_mps2", "lateral_acceleration_max_mps2", "actuation_delay_s", "speed_max_mps")
+        model = {name: getattr(cfg, name) for name in names}
+        model["source"] = cfg.model_source
+        if cfg.model_source == "upstream":
+            if not isinstance(limits, dict) or not limits.get("valid") or limits.get("source") in (None, "unmeasured"):
+                raise ValueError("lattice_vehicle_limits_unavailable")
+            model = {name: limits.get(name) for name in names}
+            model["source"] = limits["source"]
+            model["braking_mps2"] = limits.get("braking_deceleration_mps2")
+            # No default fallback for missing measured motion limits.
+            if any(not finite_number(model.get(name)) or model[name] <= 0 for name in names):
+                raise ValueError("incomplete_lattice_vehicle_limits")
+        return model
+
+    def _clearance(self, geom, left, right, obstacles, model):
+        cfg = self.cfg
+        c, s = math.cos(geom["heading"]), math.sin(geom["heading"])
+        # Boundary signed vertical distances converted to local normal metres.
+        clearance = math.inf
+        body_length = model["rear_extent_m"]+model["front_extent_m"]
+        radius = math.hypot(max(model["front_extent_m"], model["rear_extent_m"]), model["width_m"]/2)
+        sweep_guard = cfg.geometry_step_m*geom.get("q", 1.0)*(1+radius*abs(geom["curvature"]))/2
+        # Include longitudinal edge subdivisions, and reserve an interpolation
+        # sag bound for the curved boundaries between these footprint samples.
+        edge_guard = max(left.max_second, right.max_second)*(body_length/4)**2/8
+        for bx in [-model["rear_extent_m"]+body_length*i/4 for i in range(5)]:
+            for by in (-model["width_m"]/2, model["width_m"]/2):
+                x, y = geom["x"]+c*bx-s*by, geom["y"]+s*bx+c*by
+                yl, sl, _, _ = left.at_x(x)
+                yr, sr, _, _ = right.at_x(x)
+                extra = cfg.extension_margin_growth*max(0.0, max(left.points[0][0], right.points[0][0])-x)
+                clearance = min(clearance, (yl-y)/math.hypot(1, left.max_slope)-cfg.hard_margin_m-extra-edge_guard-sweep_guard,
+                                (y-yr)/math.hypot(1, right.max_slope)-cfg.hard_margin_m-extra-edge_guard-sweep_guard)
+        nearby = obstacles
+        if isinstance(obstacles, dict):
+            nearby = []
+            reach = radius+cfg.obstacle_margin_m+cfg.hard_margin_m+sweep_guard
+            for ix in range(math.floor((geom["x"]-reach)/0.25), math.floor((geom["x"]+reach)/0.25)+1):
+                for iy in range(math.floor((geom["y"]-reach)/0.25), math.floor((geom["y"]+reach)/0.25)+1):
+                    nearby.extend(obstacles.get((ix, iy), ()))
+        for ox, oy in nearby:
+            dx, dy = ox-geom["x"], oy-geom["y"]
+            bx, by = c*dx+s*dy, -s*dx+c*dy
+            outside_x = max(-model["rear_extent_m"]-bx, bx-model["front_extent_m"], 0.0)
+            outside_y = max(abs(by)-model["width_m"]/2, 0.0)
+            clearance = min(clearance, math.hypot(outside_x, outside_y)-cfg.obstacle_margin_m-cfg.hard_margin_m-sweep_guard)
+        return clearance
+
+    def plan(self, road, state, obstacles, vehicle_limits, now_s, source_timeout_s=None, mvp=False,
+             _stop_before_x=None, _started=None):
+        self.sequence += 1
+        started, cfg = self.clock() if _started is None else _started, self.cfg
+        self._consistency_cache = {}
+        diag = {"candidates": [], "obstacle_response_enabled": cfg.obstacle_check_enabled,
+                "model_source": cfg.model_source, "near_support": None, "initialization": {}}
+        ref = {"schema_version": "planning_reference_v2", "planner_version": "frenet_lattice_v2",
+               "trajectory_id": self.sequence, "timestamp_s": now_s, "generated_at_s": now_s,
+               "frame_id": self.frame_id, "vehicle_reference_point": "cg_ground_projection",
+               "valid": False, "status": "INVALID_INPUT", "reason": None, "valid_for_s": 0.0,
+               "path": None, "target_speed_mps": 0.0, "speed_profile": None,
+               "stop_requested": True, "stop_reason": None, "source_ages_s": {},
+               "simulation_only": cfg.model_source == "course_simulation",
+               "model_assumed": cfg.model_source != "upstream", "vehicle_limits_source": cfg.model_source}
+
+        def fail(reason, status="INVALID_INPUT"):
+            ref.update(reason=reason, stop_reason=reason, status=status)
+            diag["elapsed_s"] = self.clock()-started
+            self.previous = None
+            return ref, diag
+
+        def budget():
+            if self.clock()-started > cfg.budget_s:
+                raise TimeoutError("lattice_time_budget_exceeded")
+
+        try:
+            if not finite_number(now_s) or not isinstance(road, dict) or not isinstance(state, dict):
+                raise ValueError("invalid_lattice_input")
+            if not road.get("valid") or road.get("visibility") != "both" or not state.get("speed_valid") or not state.get("yaw_rate_valid"):
+                raise ValueError("invalid_estimates_or_boundaries")
+            if any(obj.get("frame_id") != self.frame_id or not finite_number(obj.get("timestamp_s")) or
+                   abs(obj["timestamp_s"]-now_s) > 1e-6 for obj in (road, state)):
+                raise ValueError("lattice_frame_or_time_mismatch")
+            speed, yaw = state.get("speed_mps"), state.get("yaw_rate_rps")
+            if not finite_number(speed) or speed < 0 or not finite_number(yaw):
+                raise ValueError("invalid_motion_state")
+            ages = {"road": road.get("source_age_s"), **(state.get("source_age_s") or {})}
+            deadlines = []
+            for name in ("road", "wheel_speed", "imu_angular_velocity"):
+                limit = self.settings.max_source_age_s
+                if source_timeout_s is not None:
+                    timeout = source_timeout_s.get(name)
+                    if not finite_number(timeout) or timeout <= 0:
+                        raise ValueError("invalid_source_timeout")
+                    limit = min(limit, timeout)
+                age = ages.get(name)
+                if not finite_number(age) or not 0 <= age < limit:
+                    raise ValueError("stale_"+name)
+                deadlines.append(limit-age)
+            obstacle_points = []
+            if cfg.obstacle_check_enabled:
+                if (not isinstance(obstacles, dict) or not obstacles.get("available") or
+                    obstacles.get("frame_id") != self.frame_id or not finite_number(obstacles.get("timestamp_s")) or
+                    abs(obstacles["timestamp_s"]-now_s) > 1e-6):
+                    raise ValueError("obstacles_unavailable_or_unaligned")
+                age = obstacles.get("source_age_s")
+                limit = min(self.settings.max_source_age_s, (source_timeout_s or {}).get("obstacles", self.settings.max_source_age_s))
+                if not finite_number(age) or not 0 <= age < limit:
+                    raise ValueError("stale_obstacles")
+                raw = obstacles.get("points_xyz_m")
+                if not isinstance(raw, (list, tuple)) or len(raw) > cfg.max_obstacle_points:
+                    raise ValueError("obstacle_point_cap_or_missing")
+                for p in raw:
+                    if not isinstance(p, (tuple, list)) or len(p) != 3 or not all(finite_number(v) for v in p):
+                        raise ValueError("invalid_obstacle_point")
+                    # Do not discard close objects on the basis of height.
+                    if -cfg.rear_extent_m-0.5 <= p[0] <= cfg.horizon_m+cfg.front_extent_m+0.5 and abs(p[1]) <= 3:
+                        obstacle_points.append((p[0], p[1]))
+                ages["obstacles"] = age
+                deadlines.append(limit-age)
+            ref["source_ages_s"] = ages
+            obstacle_index = {}
+            for ox, oy in obstacle_points:
+                obstacle_index.setdefault((math.floor(ox/0.25), math.floor(oy/0.25)), []).append((ox, oy))
+            model = self._model(vehicle_limits)
+            if speed > model["speed_max_mps"]:
+                raise ValueError("initial_speed_exceeds_model")
+            keys = ("centerline_xy", "left_boundary_xy", "right_boundary_xy")
+            points = [CenterlinePlanner._points(road.get(k)) for k in keys]
+            if any(p is None for p in points):
+                raise ValueError("invalid_road_geometry")
+            near, far = max(p[0][0] for p in points), min(p[-1][0] for p in points)
+            if near > cfg.max_near_gap_m+1e-9 or far <= near or far-near < 0.3:
+                raise ValueError("insufficient_lattice_coverage")
+            if near > 1e-6 and not cfg.clear_start_assumed:
+                raise ValueError("near_gap_requires_clear_start_assumption")
+            for p in points:
+                if any(b[0]-a[0] > self.settings.max_sample_gap_m+1e-8 for a, b in zip(p, p[1:])):
+                    raise ValueError("road_sample_gap")
+            # All three curves share exactly the same observed x support.
+            clipped = []
+            for p in points:
+                clipped.append([(near, CenterlinePlanner._interpolate(p, near)),
+                                *[(x, y) for x, y in p if near < x < far],
+                                (far, CenterlinePlanner._interpolate(p, far))])
+            extension = near+model["rear_extent_m"]+0.15
+            if extension > cfg.max_extension_m:
+                raise ValueError("extension_limit")
+            curve, left, right = [LatticeCurve(p, extension, cfg.geometry_step_m) for p in clipped]
+            s0, d0 = curve.project_origin()
+            rx, ry, tx, ty, k, dk = curve.at_s(s0)
+            heading_error = -math.atan2(ty, tx)
+            if abs(heading_error) > 0.5 or abs(d0) > 0.4:
+                raise ValueError("initial_frenet_domain")
+            a = 1-k*d0
+            dprime = a*math.tan(heading_error)
+            # Explicit low-speed forward approximation; no divide by near zero.
+            initial_k = yaw/speed if speed >= 0.05 else 0.0
+            if speed < 0.05 and abs(yaw) > 0.05:
+                raise ValueError("low_speed_yaw_inconsistent")
+            dsecond = (initial_k*(a*a+dprime*dprime)**1.5-k*(a*a+2*dprime*dprime)-dk*d0*dprime)/a
+            sdot = speed/math.hypot(a, dprime)
+            diag["initialization"] = {"s0": s0, "d0": d0, "dprime": dprime, "dsecond": dsecond,
+                                      "curvature_method": "yaw_over_speed" if speed >= 0.05 else "low_speed_zero_assumption",
+                                      "acceleration_method": "zero_start_assumption"}
+            diag["near_support"] = {"observed_x_start_m": near, "extension_m": extension,
+                                     "method": "c2_curvature_fade", "clear_start_assumed": cfg.clear_start_assumed}
+            # Trim for full body, with extra allowance for orientation projection.
+            end_x = far-math.hypot(model["front_extent_m"], model["width_m"]/2)-0.02
+            if _stop_before_x is not None:
+                end_x = min(end_x, _stop_before_x)
+            end_s = min(s0+cfg.horizon_m, _lattice_interp(curve.arc, end_x))
+            horizon = end_s-s0
+            if horizon < cfg.minimum_output_m:
+                raise ValueError("insufficient_body_supported_horizon")
+            reference_record = curve.record()
+            # Transform previous path using measured current twist over the actual
+            # short frame interval. It is a scoring hint only, never a fallback.
+            previous = []
+            if self.previous is not None:
+                dt = now_s-self.previous["timestamp_s"]
+                if 0 < dt < self.previous["valid_for_s"]:
+                    turn = yaw*dt
+                    dx = speed*dt if abs(yaw) < 1e-8 else speed*math.sin(turn)/yaw
+                    dy = 0 if abs(yaw) < 1e-8 else speed*(1-math.cos(turn))/yaw
+                    c, sn = math.cos(turn), math.sin(turn)
+                    previous = [(c*(p[0]-dx)+sn*(p[1]-dy), -sn*(p[0]-dx)+c*(p[1]-dy)) for p in self.previous["points"]]
+                    if any(b[0] <= a[0] for a, b in zip(previous, previous[1:])):
+                        previous = []
+            if self.stop_latched:
+                if not previous:
+                    raise ValueError("planned_stop_requires_explicit_restart")
+                if _stop_before_x is None:
+                    # Commit to the previous stop endpoint in the new frame;
+                    # disappearance of a lidar return never resumes a stop.
+                    return self.plan(road, state, obstacles, vehicle_limits, now_s, source_timeout_s, mvp,
+                                     _stop_before_x=previous[-1][0], _started=started)
+            accepted = []
+            count = 0
+            targets = cfg.samples("terminal_offsets_m")
+            if all(abs(d0-target) > 1e-6 for target in targets):
+                targets.append(d0)  # Preserve current offset as a real option.
+            targets.sort(key=lambda target: (abs(target), target))
+            search_truncated = False
+            for length in sorted(cfg.samples("transition_lengths_m"), reverse=True):
+                if search_truncated:
+                    break
+                for target in targets:
+                    # This is a deliberate search cutoff, NOT a total deadline
+                    # overrun. Reserve 40% for ranking and output revalidation.
+                    if accepted and self.clock()-started >= cfg.budget_s*0.6:
+                        search_truncated = True
+                        break
+                    budget()
+                    row = {"length_m": length, "offset_m": target, "reason": None}
+                    diag["candidates"].append(row)
+                    if length > horizon+1e-8:
+                        row["reason"] = "transition_exceeds_common_horizon"
+                        continue
+                    coeffs = _lattice_lateral(d0, dprime, dsecond, target, length)
+                    grid_n = math.ceil(horizon/cfg.geometry_step_m)
+                    geometries = []
+                    try:
+                        for i in range(grid_n+1):
+                            if i % 8 == 0:
+                                budget()
+                            g = _lattice_geometry(curve, s0, coeffs, length, target, s0+horizon*i/grid_n)
+                            g["steering"] = _lattice_steering(g["curvature"], model)
+                            if abs(g["steering"]) > model["steering_limit_rad"]:
+                                raise ValueError("steering_limit")
+                            if g["support"] == "extrapolated" and (abs(g["d"]-d0) > cfg.blind_lateral_change_m or
+                                   abs(g["steering"]) > cfg.blind_steering_limit_rad):
+                                raise ValueError("blind_correction_limit")
+                            g["clearance"] = self._clearance(g, left, right, obstacle_index, model)
+                            if g["clearance"] < 0:
+                                raise ValueError("body_boundary_or_obstacle_collision")
+                            if geometries and g["x"] <= geometries[-1]["x"]:
+                                raise ValueError("nonmonotonic_cartesian_path")
+                            g["distance"] = (geometries[-1]["distance"]+math.hypot(g["x"]-geometries[-1]["x"],
+                                g["y"]-geometries[-1]["y"])) if geometries else 0.0
+                            geometries.append(g)
+                    except ValueError as error:
+                        row["reason"] = str(error)
+                        continue
+                    lateral = {"coeffs_low_to_high": coeffs, "origin": s0, "scale": length,
+                               "range": [s0, end_s], "transition_end_s": s0+length, "terminal_offset_m": target}
+                    # Current speed must be stoppable within checked full-body path.
+                    distance = sum(math.hypot(b["x"]-a["x"], b["y"]-a["y"]) for a, b in zip(geometries, geometries[1:]))
+                    if speed*model["actuation_delay_s"]+speed**2/(2*model["braking_mps2"])+cfg.hard_margin_m > distance:
+                        row["reason"] = "current_speed_cannot_stop_in_horizon"
+                        continue
+                    times = [(t, v, False) for t in cfg.samples("durations_s") for v in cfg.samples("terminal_speeds_mps")]
+                    # Always include a terminal-stop quintic at the common end.
+                    times.append((cfg.score_time_s, 0.0, True))
+                    for duration, terminal_speed, stopping in times:
+                        if _stop_before_x is not None and not stopping:
+                            continue
+                        if stopping and _stop_before_x is None and any(not v[1]["stop"] for v in accepted):
+                            continue
+                        budget()
+                        count += 1
+                        if count > cfg.max_candidates:
+                            raise TimeoutError("lattice_candidate_cap")
+                        candidate = {**row, "duration_s": duration, "terminal_speed_mps": terminal_speed, "stop": stopping}
+                        diag["candidates"].append(candidate)
+                        try:
+                            # Convert physical terminal speed using terminal Q.
+                            terminal_srate = terminal_speed/geometries[-1]["q"]
+                            if not stopping:
+                                q_table = [(g["s"], g["q"]) for g in geometries]
+                                # Quartic end s depends on the end rate. Resolve
+                                # Q at that actual end, not at the spatial horizon.
+                                for _ in range(6):
+                                    predicted_end = s0+duration*(sdot+terminal_srate)/2
+                                    if not s0 <= predicted_end <= end_s:
+                                        raise ValueError("longitudinal_exceeds_support")
+                                    terminal_srate = terminal_speed/_lattice_interp(q_table, predicted_end)
+                            stop_end, polynomial_duration = end_s, duration
+                            if stopping and sdot > 1e-6:
+                                # Stop promptly rather than crawl all the way to
+                                # the horizon. Short profiles hold their end to
+                                # cover the common 3-second scoring window.
+                                stop_end = min(end_s, s0+sdot*duration/2)
+                                polynomial_duration = 2*(stop_end-s0)/sdot
+                            longitudinal = self._longitudinal(s0, sdot, stop_end, polynomial_duration, terminal_srate, stopping)
+                            motion = self._motion(curve, lateral, longitudinal, model, geometries, speed, budget)
+                            if "spatial_costs" not in row:
+                                row["spatial_costs"] = self._spatial_score(geometries, previous, curve)
+                            costs = self._score(motion, speed, stopping, row["spatial_costs"])
+                            total = sum(getattr(cfg, "weight_"+key)*value for key, value in costs.items())
+                            candidate.update(reason="feasible", costs=costs, cost=total, score=-total)
+                            accepted.append((total, candidate, lateral, longitudinal, geometries, motion))
+                        except ValueError as error:
+                            candidate["reason"] = str(error)
+                    row["reason"] = "geometry_feasible"
+            if not accepted:
+                if _stop_before_x is None and obstacle_points:
+                    # If no full-horizon bypass exists, establish a new common
+                    # STOP horizon before the nearest point inside the road.
+                    # Do not compare short stopped paths against cruise paths.
+                    blockers = [ox for ox, oy in obstacle_points if near <= ox <= far and
+                                right.at_x(ox)[0] <= oy <= left.at_x(ox)[0]]
+                    if blockers:
+                        stop_x = min(blockers)-model["front_extent_m"]-cfg.hard_margin_m-cfg.obstacle_margin_m-0.08
+                        result, stop_diag = self.plan(road, state, obstacles, vehicle_limits, now_s,
+                            source_timeout_s, mvp, _stop_before_x=stop_x, _started=started)
+                        stop_diag["cruise_rejections"] = diag["candidates"]
+                        stop_diag["behavior"] = "obstacle_stop"
+                        return result, stop_diag
+                return fail("no_feasible_lattice_trajectory", "NO_FEASIBLE_PATH")
+            # Behaviour is selected before soft scoring: voluntary long-horizon
+            # stop must not win against safe cruise merely by moving very slowly.
+            cruising = [item for item in accepted if not item[1]["stop"]]
+            if cruising:
+                accepted = cruising
+            minimum = min(item[0] for item in accepted)
+            near_best = [v for v in accepted if v[0] <= minimum+cfg.tie_tolerance]
+            near_best.sort(key=lambda v: (v[1]["costs"]["consistency"] if previous else 0,
+                              -min(g["clearance"] for g in v[4]), v[1]["costs"]["steering"],
+                              v[1]["length_m"], v[1]["offset_m"], v[1]["duration_s"]))
+            ordered = near_best+sorted([v for v in accepted if v not in near_best], key=lambda v: v[0])
+            for _, choice, lateral, longitudinal, geometries, motion in ordered:
+                budget()
+                try:
+                    path, errors = self._compatibility(geometries, left, right, obstacle_index, model, budget,
+                                                      lateral["scale"], max(p["speed"] for p in motion))
+                except ValueError as error:
+                    choice["reason"] = "compatibility_"+str(error)
+                    continue
+                lifetime = min(self.settings.reference_lifetime_s, *deadlines)
+                if self.clock()-started >= lifetime:
+                    raise TimeoutError("source_deadline_during_planning")
+                # A positive preview target permits starting from zero without
+                # replacing the longitudinal initial speed by the desired speed.
+                target_speed = _lattice_interp([(p["t"], p["speed"]) for p in motion], min(cfg.speed_preview_s, longitudinal["duration_s"]))
+                ref.update(valid=True, status="STOP" if choice["stop"] else "TRACK", reason="lattice_selected",
+                           valid_for_s=lifetime, path=path, target_speed_mps=target_speed,
+                           stop_requested=False, stop_reason=None,
+                           planned_stop=choice["stop"], stop_at_path_m=_lattice_interp(
+                               [(g["s"], g["distance"]) for g in geometries], motion[-1]["s"]) if choice["stop"] else None,
+                           speed_profile=[(p["t"], p["speed"]) for p in motion],
+                           longitudinal_profile=longitudinal,
+                           frenet_path={"type": "FRENET_SPATIAL", "reference_curve": reference_record, "lateral": lateral},
+                           control_preview_m=cfg.preview_m, support=diag["near_support"],
+                           operating_profile="lattice_approximate" if ref["model_assumed"] else "lattice_measured")
+                diag.update(selected=choice, output_errors=errors, elapsed_s=self.clock()-started,
+                            longitudinal_candidates=count, consistency_method="short_constant_twist_hint" if previous else "unavailable")
+                self.previous = {"timestamp_s": now_s, "valid_for_s": lifetime,
+                                 "points": [(g["x"], g["y"]) for g in geometries]}
+                self.stop_latched = self.stop_latched or choice["stop"]
+                diag["search_truncated"] = search_truncated
+                diag["selection_scope"] = "best_of_evaluated_feasible_candidates"
+                return ref, diag
+            return fail("no_valid_cartesian_output", "NO_FEASIBLE_PATH")
+        except TimeoutError as error:
+            return fail(str(error), "TIME_BUDGET_EXCEEDED")
+        except (ValueError, TypeError, ArithmeticError) as error:
+            return fail(str(error))
+
+    def _longitudinal(self, s0, initial_rate, end, duration, terminal_speed, stopping):
+        # Normalized coefficients; longitudinal acceleration initially assumed 0.
+        c = [s0, initial_rate*duration, 0.0]
+        if stopping:
+            if initial_rate <= 1e-6:
+                return {"type": "S_REF_OF_TIME", "coeffs_low_to_high": [s0], "duration_s": duration,
+                        "time_range_s": [0.0, duration], "reference_s_range_m": [s0, end], "stop": True}
+            tail = _estimation_solve([[1, 1, 1], [3, 4, 5], [6, 12, 20]],
+                                    [end-s0-c[1], -c[1], 0.0])
+            c += tail
+        else:
+            # Caller supplies the reference-line rate converted from physical speed.
+            change = terminal_speed*duration-c[1]
+            c += [change, -change/2]
+        return {"type": "S_REF_OF_TIME", "coeffs_low_to_high": c, "duration_s": duration,
+                "time_range_s": [0.0, duration], "reference_s_range_m": [s0, end], "stop": stopping}
+
+    def _motion(self, curve, lateral, longitudinal, model, geometries, initial_speed, budget):
+        cfg = self.cfg
+        duration, c = longitudinal["duration_s"], longitudinal["coeffs_low_to_high"]
+        evaluation_time = max(duration, cfg.score_time_s)
+        n = math.ceil(evaluation_time/cfg.time_step_s)
+        if n > 600:
+            raise ValueError("longitudinal_sampling_cap")
+        rates, accelerations = _lattice_derivative(c), _lattice_derivative(c, 2)
+        motion = []
+        position_grid = [g["s"] for g in geometries]
+        def sample_geometry(s):
+            lo, hi = 0, len(geometries)-1
+            while hi-lo > 1:
+                mid = (lo+hi)//2
+                if position_grid[mid] < s:
+                    lo = mid
+                else:
+                    hi = mid
+            a, b = geometries[lo], geometries[hi]
+            u = (s-a["s"])/(b["s"]-a["s"])
+            return {key: a[key]+u*(b[key]-a[key]) for key in ("q", "curvature", "steering", "distance")}
+        for i in range(n+1):
+            if i % 8 == 0:
+                budget()
+            t = evaluation_time*i/n
+            u = min(1.0, t/duration)
+            s = _control_poly_eval(c, u)
+            ds = _control_poly_eval(rates, u)/duration
+            if ds < -1e-7 or not lateral["origin"]-1e-7 <= s <= lateral["range"][1]+1e-7:
+                raise ValueError("longitudinal_reverses_or_exceeds_support")
+            s = min(lateral["range"][1], max(lateral["origin"], s))
+            g = sample_geometry(s)
+            speed = max(0.0, ds)*g["q"]
+            steering = g["steering"]
+            acceleration = 0.0 if not motion else (speed-motion[-1]["speed"])/(t-motion[-1]["t"])
+            steering_rate = 0.0 if not motion else (steering-motion[-1]["steering"])/(t-motion[-1]["t"])
+            remaining = geometries[-1]["distance"]-g["distance"]
+            # Cruise is a soft target, not a reason to reject measured overshoot.
+            # Every profile must still respect the physical/development speed cap.
+            if speed > model["speed_max_mps"]+1e-5:
+                raise ValueError("speed_limit")
+            if acceleration > model["acceleration_max_mps2"]+1e-5 or acceleration < -model["braking_mps2"]-1e-5:
+                raise ValueError("acceleration_limit")
+            if longitudinal["stop"] and acceleration > 1e-4:
+                raise ValueError("stop_trajectory_accelerates")
+            if abs(speed*speed*g["curvature"]) > model["lateral_acceleration_max_mps2"]:
+                raise ValueError("lateral_acceleration_limit")
+            if abs(steering_rate) > model["steering_rate_limit_radps"]:
+                raise ValueError("steering_rate_limit")
+            if not longitudinal["stop"] and speed*model["actuation_delay_s"]+speed**2/(2*model["braking_mps2"])+cfg.hard_margin_m > remaining:
+                raise ValueError("visibility_stopping_limit")
+            motion.append({"t": t, "s": s, "speed": speed, "acceleration": acceleration,
+                           "steering": steering, "steering_rate": steering_rate})
+        if abs(motion[0]["speed"]-initial_speed) > 1e-4:
+            raise ValueError("initial_speed_mismatch")
+        return motion
+
+    def _spatial_score(self, geometries, previous, curve):
+        cfg = self.cfg
+        weighted, denominator, clearance_values = 0.0, 0.0, []
+        consistency = []
+        for a, b in zip(geometries, geometries[1:]):
+            ds = b["s"]-a["s"]
+            for g in (a, b):
+                weight = cfg.blind_center_weight if g["support"] == "extrapolated" else 1.0
+                weighted += ds/2*weight*(g["d"]/cfg.d_scale_m)**2
+                denominator += ds/2*weight
+            clearance_values.append((ds, (max(0, 1-a["clearance"]/cfg.clearance_soft_m)**2+
+                                               max(0, 1-b["clearance"]/cfg.clearance_soft_m)**2)/2))
+        for g in geometries:
+            if g["s"]-geometries[0]["s"] > cfg.consistency_range_m:
+                break
+            if previous:
+                if g["s"] not in self._consistency_cache:
+                    rx, ry, tx, ty, _, _ = curve.at_s(g["s"])
+                    # Intersect previous polyline with the SAME reference normal.
+                    hits = []
+                    for p, q in zip(previous, previous[1:]):
+                        ap = (p[0]-rx)*tx+(p[1]-ry)*ty
+                        aq = (q[0]-rx)*tx+(q[1]-ry)*ty
+                        if ap*aq <= 0 and abs(aq-ap) > 1e-10:
+                            u = -ap/(aq-ap)
+                            px, py = p[0]+u*(q[0]-p[0]), p[1]+u*(q[1]-p[1])
+                            hits.append(-(px-rx)*ty+(py-ry)*tx)
+                    unique = sorted(set(round(v, 10) for v in hits))
+                    self._consistency_cache[g["s"]] = unique[0] if len(unique) == 1 else None
+                old_d = self._consistency_cache[g["s"]]
+                if old_d is not None:
+                    consistency.append(((g["d"]-old_d)/cfg.d_scale_m)**2)
+        peak = max(max(0, 1-g["clearance"]/cfg.clearance_soft_m)**2 for g in geometries)
+        clearance = (1-cfg.clearance_peak_ratio)*sum(ds*v for ds, v in clearance_values)/sum(ds for ds, _ in clearance_values)+cfg.clearance_peak_ratio*peak
+        return {"center": weighted/denominator, "clearance": clearance,
+                "consistency": sum(consistency)/len(consistency) if consistency else 0.0}
+
+    def _score(self, motion, initial_speed, stopping, spatial_costs):
+        cfg = self.cfg
+        steering_cost, motion_cost, total_t = 0.0, 0.0, 0.0
+        for a, b in zip(motion, motion[1:]):
+            dt = max(0.0, min(b["t"], cfg.score_time_s)-a["t"])
+            if dt == 0:
+                break
+            for p in (a, b):
+                steering_cost += dt/2*((p["steering"]/cfg.steering_scale_rad)**2+
+                    cfg.steering_rate_weight*(p["steering_rate"]/cfg.steering_rate_scale_radps)**2)/(1+cfg.steering_rate_weight)
+                desired = max(0.0, initial_speed*(1-p["t"]/cfg.score_time_s)) if stopping else self.settings.cruise_speed_mps
+                motion_cost += dt/2*(((p["speed"]-desired)/cfg.speed_scale_mps)**2+
+                    cfg.acceleration_weight*(p["acceleration"]/cfg.acceleration_scale_mps2)**2)/(1+cfg.acceleration_weight)
+            total_t += dt
+        return {**spatial_costs, "steering": steering_cost/total_t, "motion": motion_cost/total_t}
+
+    def _compatibility(self, geometries, left, right, obstacles, model, budget, transition_length, maximum_speed):
+        cfg = self.cfg
+        # Only expose the continuous initial polynomial portion to the current
+        # single-polynomial consumer. The full Frenet trajectory stays in ref.
+        start_s = geometries[0]["s"]
+        geometries = [g for g in geometries if g["s"] <= start_s+transition_length+1e-8]
+        # Initial position, heading and curvature are interpolation constraints;
+        # solve the remaining cubic..quintic coefficients on normalized x.
+        origin, end = geometries[0]["x"], geometries[-1]["x"]
+        scale = end-origin
+        if scale < cfg.minimum_output_m:
+            raise ValueError("short_output")
+        first = geometries[0]
+        slope = math.tan(first["heading"])
+        c = [first["y"], slope*scale, first["curvature"]*math.hypot(1, slope)**3*scale**2/2]
+        matrix, rhs = [[0.0]*3 for _ in range(3)], [0.0]*3
+        for g in geometries:
+            u = (g["x"]-origin)/scale
+            row = [u**3, u**4, u**5]
+            residual = g["y"]-_control_poly_eval(c, u)
+            for i in range(3):
+                rhs[i] += row[i]*residual
+                for j in range(3):
+                    matrix[i][j] += row[i]*row[j]
+        tail = _estimation_solve(matrix, rhs)
+        if tail is None:
+            raise ValueError("fit_singular")
+        c += tail
+        path = {"type": "CARTESIAN_Y_OF_X", "independent_variable": "x_m", "origin": origin,
+                "scale": scale, "coeffs_low_to_high": c, "range": [origin, end]}
+        errors = {"position_m": 0.0, "heading_rad": 0.0, "curvature_1pm": 0.0}
+        for i, g in enumerate(geometries):
+            if i % 8 == 0:
+                budget()
+            u = (g["x"]-origin)/scale
+            y = _control_poly_eval(c, u)
+            dy = _control_poly_eval(_lattice_derivative(c), u)/scale
+            ddy = _control_poly_eval(_lattice_derivative(c, 2), u)/scale**2
+            third = _control_poly_eval(_lattice_derivative(c, 3), u)/scale**3
+            heading, curvature = math.atan(dy), ddy/math.hypot(1, dy)**3
+            errors["position_m"] = max(errors["position_m"], abs(y-g["y"]))
+            errors["heading_rad"] = max(errors["heading_rad"], abs(wrap_angle(heading-g["heading"])))
+            errors["curvature_1pm"] = max(errors["curvature_1pm"], abs(curvature-g["curvature"]))
+            if (errors["position_m"] > cfg.fit_position_error_m or errors["heading_rad"] > cfg.fit_heading_error_rad or
+                    errors["curvature_1pm"] > cfg.fit_curvature_error_1pm):
+                raise ValueError("fit_error")
+            if abs(_lattice_steering(curvature, model)) > model["steering_limit_rad"]:
+                raise ValueError("fit_steering_limit")
+            curvature_rate_x = third/math.hypot(1, dy)**3-3*dy*ddy**2/math.hypot(1, dy)**5
+            den = 1-(model["rear_axle_from_cg_m"]*curvature)**2
+            steering_rate = abs(curvature_rate_x)*maximum_speed/math.hypot(1, dy)*model["wheelbase_m"]/(math.sqrt(den)*(
+                1+(model["wheelbase_m"]**2-model["rear_axle_from_cg_m"]**2)*curvature**2))
+            if steering_rate > model["steering_rate_limit_radps"] or maximum_speed**2*abs(curvature) > model["lateral_acceleration_max_mps2"]:
+                raise ValueError("fit_motion_limit")
+            if self._clearance({**g, "y": y, "heading": heading}, left, right, obstacles, model) < 0:
+                raise ValueError("fit_collision")
+        return path, errors
 
 
 @dataclass
@@ -1300,6 +2196,23 @@ def control_path_geometry(path):
     return geometry
 
 
+def _planning_control_geometry(reference, now_s):
+    geometry = control_path_geometry(reference.get("path"))
+    if reference.get("planner_version") == "frenet_lattice_v2":
+        preview = reference.get("control_preview_m")
+        bounds = reference["path"]["range"]
+        if not finite_number(preview) or preview <= 0:
+            raise ValueError("invalid_lattice_control_preview")
+        x = min(bounds[1], max(bounds[0], preview))
+        point = evaluate_planning_path(reference, x, now_s)
+        if point is None:
+            raise ValueError("lattice_preview_unavailable")
+        # A planned path starts at the car, so closest-point error alone is zero.
+        geometry.update(path_error_m=point["position_xy_m"][1], path_heading_rad=point["heading_rad"],
+                        curvature_1pm=point["curvature_1pm"], control_preview_x_m=x)
+    return geometry
+
+
 class PolicyController:
     """Single-file forward-only control; failures request the framework stop.
 
@@ -1345,7 +2258,7 @@ class PolicyController:
             if self.settings.mode == "mvp":
                 if reference.get("simulation_only"):
                     raise ValueError("simulation_reference_rejected_for_mvp")
-                geometry = control_path_geometry(reference.get("path"))
+                geometry = _planning_control_geometry(reference, now_s)
                 cfg = self.settings
                 heading = geometry["path_heading_rad"]
                 # Direct normalized PI + heading P, no degree-to-servo map or
@@ -1383,7 +2296,7 @@ class PolicyController:
             if (not all(finite_number(v) for v in (wheelbase, rear, limit, direction))
                     or not 0 < rear < wheelbase or not 0 < limit < math.pi/2 or direction not in (-1, 1)):
                 raise ValueError("invalid_vehicle_control_geometry")
-            geometry = control_path_geometry(reference.get("path"))
+            geometry = _planning_control_geometry(reference, now_s)
             ey, curvature = geometry["path_error_m"], geometry["curvature_1pm"]
             if abs(rear*curvature) >= 1:
                 raise ValueError("curvature_outside_vehicle_geometry")
@@ -1471,6 +2384,12 @@ class PolicyNode(Node):
             self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
             planning_values[name] = self.get_parameter(parameter_name).value
         self.planning_settings = PlanningSettings(**planning_values)
+        lattice_values = {}
+        for name, default in vars(LatticeSettings()).items():
+            parameter_name = f"planning.lattice.{name}"
+            self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
+            lattice_values[name] = self.get_parameter(parameter_name).value
+        self.lattice_settings = LatticeSettings(**lattice_values)
         self.planning_output = None
         self.planning_diagnostics = None
 
@@ -1484,7 +2403,12 @@ class PolicyNode(Node):
         if self.control_settings.enabled:
             if not {"cone_detections", "wheel_speed", "imu_angular_velocity"}.issubset(self.required_sensors):
                 raise ValueError("Integrated control requires cones, wheel_speed and imu_angular_velocity")
-            simulation_planning = self.planning_settings.vehicle_limits_source == "course_simulation"
+            if (self.planning_settings.algorithm == "lattice_v2" and self.lattice_settings.obstacle_check_enabled
+                    and "lidar_cartesian" not in self.required_sensors):
+                raise ValueError("Lattice obstacle checking requires lidar_cartesian")
+            simulation_planning = (self.lattice_settings.model_source == "course_simulation"
+                if self.planning_settings.algorithm == "lattice_v2" else
+                self.planning_settings.vehicle_limits_source == "course_simulation")
             simulation_control = self.control_settings.vehicle_params_source == "course_simulation"
             if self.control_settings.mode == "calibrated" and simulation_planning != simulation_control:
                 raise ValueError("Planning and control simulation profiles must be selected together")
@@ -2281,7 +3205,11 @@ class PolicyNode(Node):
             self.estimation_output["vehicle_limits"] = limits
 
         if is_first_policy_step or not hasattr(self, "planner"):
-            self.planner = CenterlinePlanner(self.planning_settings, self.policy_frame_id)
+            if self.planning_settings.algorithm == "lattice_v2":
+                self.planner = FrenetLatticePlanner(self.planning_settings,
+                    getattr(self, "lattice_settings", LatticeSettings()), self.policy_frame_id)
+            else:
+                self.planner = CenterlinePlanner(self.planning_settings, self.policy_frame_id)
         estimates = self.estimation_output
         source_timeouts = {"road": min(self.estimation_settings.max_source_age_s,
                                       self.sensor_timeout_s["cone_detections"]),
@@ -2291,6 +3219,8 @@ class PolicyNode(Node):
                            "imu_angular_velocity": min(self.estimation_settings.max_source_age_s,
                                                        self.estimation_settings.motion_max_gap_s,
                                                        self.sensor_timeout_s["imu_angular_velocity"])}
+        source_timeouts["obstacles"] = min(self.estimation_settings.max_source_age_s,
+                                          self.sensor_timeout_s["lidar_cartesian"])
         self.planning_output, self.planning_diagnostics = self.planner.plan(
             estimates["road"], estimates["state"], estimates["obstacles"],
             estimates["vehicle_limits"], estimates["state"]["timestamp_s"], source_timeouts,
