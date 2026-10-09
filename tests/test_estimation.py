@@ -28,12 +28,13 @@ names = {"finite_number", "Observation", "EstimationSettings", "FirstOrderSample
          "_estimation_median", "_estimation_solve", "_estimation_fit_boundary", "EstimationPipeline",
          "PlanningSettings", "CenterlinePlanner", "evaluate_planning_path", "planning_vehicle_limits",
          "ControlSettings", "VehicleCalibrationSettings", "ControlPID", "PolicyController", "wrap_angle",
-         "PolicyStopRequest", "RunDistanceLimiter",
+         "PolicyStopRequest", "RunDistanceLimiter", "ControlReferenceManager",
          "_control_poly_eval", "_control_poly_roots", "control_path_geometry"}
 names.update({"LatticeSettings", "LatticeCurve", "FrenetLatticePlanner", "_lattice_interp",
               "_lattice_derivative", "_lattice_lateral", "_lattice_geometry", "_lattice_steering"})
 names.add("evaluate_frenet_path")
 names.add("_planning_control_geometry")
+names.add("_control_cached_geometry")
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in names]
 policy_class = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")

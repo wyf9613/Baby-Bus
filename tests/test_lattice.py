@@ -24,10 +24,10 @@ def fixture(offset=0.0, near=0.0, curve=0.0, speed=0.1, points=()):
 
 
 def planner(**kwargs):
-    # Numerical correctness uses a nonbinding wall budget; deterministic clock
-    # checks exercise timeout separately. Actual runtime is measured by study.
+    # Numerical/source-age contracts use a controlled clock; the explicit
+    # advancing-clock test checks expiry. Wall runtime is measured by study.
     return Planner(Settings(algorithm="lattice_v2", max_source_age_s=0.4, reference_lifetime_s=0.2),
-                   Config(budget_s=5.0, clear_start_assumed=True, **kwargs))
+                   Config(budget_s=5.0, clear_start_assumed=True, **kwargs), clock=lambda: 0.0)
 
 
 class LatticeChecks(unittest.TestCase):

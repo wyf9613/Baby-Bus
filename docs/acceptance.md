@@ -1,12 +1,65 @@
 # AI4R policy acceptance
 
-Status: the 2026-10-08 local V2 lattice/fused-road candidate passes 122 portable tests and
-four numerical closed-loop studies. Its ROS gate and physical runs are not run.
+Status: the 2026-10-09 integrated V2/fused-road/control candidate passes 136 portable
+tests and the installed ROS gate (213 checks). Physical runs are not run.
 The 2026-10-06 car candidate's installed gate and physical runs below are
 historical evidence, not evidence for the new V2 candidate. A complete 3 m
 physical run remains unverified.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
+
+## Control integration after lattice/fused-road, 2026-10-09
+
+Based on `origin/feature/rule-lattice-planner` revision `6245537`, preserving
+perception commit `db312ab`, V2 planning, the cone-only profile, preview-based
+lateral tracking and the existing speed PI/drive feedforward. The control-only
+robustness baseline is retained separately at `138f90d` on `fix/newcar-control`.
+No upstream estimator/planner algorithm, threshold or controller gain changed.
+
+The 1 s / 0.25 m control hold now supports Cartesian polynomials through degree
+five. Curves are sampled at <=0.025 m with <=201 points, transported by incremental
+wheel/gyro motion and queried using V2's existing body-x preview. Tangent headings
+rotate with the body and curvature is preserved; cached curves are not flattened
+into straight lines or fitted beyond their original support. The private
+`control_cached_path_samples` record belongs only to the selected control
+reference; upstream `planning_output` and its public path encoding remain intact.
+
+Upstream predicted roads cannot seed or renew control trust. Their speed
+advisory/preview target is retained, and a later control fallback cannot raise
+the last valid target. V2 stop trajectories clear the cruise cache. New boundary
+or coverage failures, expired road prediction and planner computation-budget
+expiry may use the trusted control cache; no-feasible-path, incompatible-output,
+Frenet-domain, obstacle-input and frame/motion failures retain stopping behavior.
+Neither prediction layer can reset the control hold budget by repeating a frame.
+
+Validation:
+
+- Portable: estimation 53, centerline planning 18, lattice 30, control 35; all
+  136 passed. New integration cases use the actual V2 quintic output, check
+  moving-curve prediction/preview, recovery, upstream prediction non-renewal,
+  speed-advisory retention and stop/collision rejection behavior.
+- ROS Jazzy installed fast gate: 213 checks, zero errors/failures/skips, launch
+  arguments checked against clean pinned interfaces
+  `5f50902ccee44e8370d6e2be85607b3054ffbf98`. Log:
+  `.verification/lattice-control-fast-gate-final.log`. The installed suite tests
+  both V1 and V2 callback paths and the combined default YAML.
+- Old ROS fixtures were updated to provide observed support around the origin
+  and disable estimator bridging when checking legacy control-stop behavior.
+  Partial IMU messages keep the last valid gyro until it expires; tests now
+  exercise that real deadline. Numerical lattice deadline tests use a controlled
+  clock, with advancing-clock timeout tests retained separately.
+- Historical stationary cone replay remains reproducible using
+  `python tools/replay_control_robustness.py --source-ref 138f90d`.
+  That V1 replay is not evidence of V2 physical performance.
+- The unchanged wall-clock lattice study was also exercised locally. On Python
+  3.12, MVP straight and curved studies completed 200 steps; blind-gap and
+  calibrated studies stopped at steps 159 and 21 on source deadlines. All four
+  had calls exceeding the nominal 35 ms budget. Python 3.10 under concurrent
+  container-build load stopped earlier. These measurements do not qualify
+  Jetson timing; the planner budget/settings are preserved for upstream owners.
+  Logs: `.verification/lattice-control-study-py312.log` and
+  `.verification/lattice-control-study.log`. Unit tests separately verify that
+  a real planner computation timeout can transition to the trusted curve cache.
 
 ## Fused-road merge into V2, 2026-10-08
 
@@ -96,6 +149,57 @@ Windows workspace has no provisioned ROS Jazzy environment. Installed YAML,
 real rclpy/DDS timing, message-build and launch checks remain not run for V2.
 Physical steering response, TF, wheel-speed calibration, actual brake/deceleration,
 obstacle accuracy and controlled blind-start assumption also remain not run.
+
+## Control-only robustness candidate, 2026-10-08
+
+Implemented on `fix/newcar-control`; not deployed or merged into main. The
+estimation/planning algorithms, their thresholds, lateral feedback, speed PI
+and sustaining drive feedforward are unchanged. The control boundary handles
+temporary road rejection using a cached, previously trusted straight reference.
+
+`control.robustness_enabled` defaults to false in code and is enabled in the
+supplied MVP YAML. The cache has a 1.0 s / 0.25 m budget from acceptance of the
+last **distinct** trusted cone frame; repeated references from the same sample
+cannot renew either budget. Predictions use incremental wheel/gyro motion,
+retain the original measurement timestamp, and end earlier if motion history
+or observed forward path support is unavailable. New valid road references
+restore tracking without clearing controller integrals or resetting run budgets.
+Other polynomial paths retain the original controller and expiry behavior.
+
+The internal `TRACKING` / `DEGRADED` states preserve the external FSM interface.
+Motion-feedback loss, malformed references, clock anomalies, invalid actions,
+operator stop, execution timeout and run distance/time limits still latch zero
+outputs with explicit restart. Cone missing/empty deadlines may be bridged only
+while the cache is usable and all other required fields remain fresh. Before
+the first trusted path, the original startup checks and neutral-history priming
+apply. Control execution leases are at most 0.2 s and bounded by wheel/gyro
+freshness; upstream road deadlines are not rewritten. Transition diagnostics
+include the rejection cause, source/cache ages, prediction distance and remaining
+path range; periodic status retains the last transition snapshot. To restore
+legacy behavior set `control.robustness_enabled: false` and restart policy.
+
+Verification of the runtime/configuration/test sources:
+
+- Portable tests: estimation 28, planning 17, control 32; all 77 passed.
+- Required installed fast gate passed in an isolated Docker ROS Jazzy environment
+  against clean pinned `dream_interfaces` commit
+  `5f50902ccee44e8370d6e2be85607b3054ffbf98`: 151 checks, zero errors/failures/skips,
+  installed launch arguments checked. Log: `.verification/control-robustness-fast-gate.log`.
+- The new cases exercise dropout/recovery, exact cache budgets, stale cones,
+  unchanged-frame non-renewal, reference leases, independent supervision,
+  incremental translation/rotation, exhausted support/history, callback behavior,
+  operator stop and explicit restart. Legacy disabled-mode cases remain passing.
+- `tools/replay_control_robustness.py` replays 27 full-confidence recorded cone
+  frames with **synthetic stationary motion and deterministic 20 Hz timing**,
+  applying the final Tuesday thresholds. Legacy first rejection is at 1.0 s
+  (`unsupported_road_curvature`); the robustness candidate processes 40 tracking
+  and 30 degraded cycles, stopping at 3.5 s when the hold-time budget expires.
+  Output: `.verification/control-robustness-replay.json`. Run with PyYAML:
+  `python -B tools/replay_control_robustness.py --source-ref 138f90d --output /tmp/control-replay.json`.
+- This partial replay does not reconstruct actual driving: the main driving
+  JSONL records omit per-cone confidence and height. Exact B11/B12/B14 trajectories,
+  physical lateral error and improved physical run length remain unverified;
+  no missing measurements were replaced with guessed confidence values.
 
 ## New-car MVP control trial, 2026-10-06
 

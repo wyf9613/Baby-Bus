@@ -158,7 +158,7 @@ def driving_policy(*args):
 def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.vehicle_params_source": "course_simulation",
-           "planning.vehicle_limits_source": "course_simulation"})
+           "planning.vehicle_limits_source": "course_simulation", "estimation.road_hold_s": 0.0})
 
     def feed_road(empty=False):
         node.wheel_speed_callback(Float32(data=0.0))
@@ -169,9 +169,9 @@ def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
         batch.acquisition_to_publish_latency_s = 0.0
         if not empty:
             for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
-                for i in range(9):
+                for i in range(10):
                     cone = ConeDetection()
-                    cone.position.x, cone.position.y = 0.1+0.3*i, y
+                    cone.position.x, cone.position.y = -0.1+0.3*i, y
                     cone.color, cone.classification_confidence = colour, 0.95
                     batch.detections.append(cone)
         node.cone_detection_callback(batch)
@@ -211,6 +211,61 @@ def test_integrated_control_requires_feedback_and_matching_profiles(make_node):
                   **{"control.enabled": True, "planning.vehicle_limits_source": "course_simulation"})
 
 
+@pytest.mark.parametrize("algorithm", ["centerline", "lattice_v2"])
+def test_mvp_robustness_real_ros_callbacks_degrade_recover_and_stop(make_node, algorithm):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.robustness_enabled": True,
+           "estimation.road_hold_s": 0.0,
+           "planning.algorithm": algorithm, "planning.lattice.obstacle_check_enabled": False,
+           "planning.lattice.budget_s": 5.0, "planning.lattice.clear_start_assumed": True,
+           "control.drive_max": 0.35, "control.mvp_drive_feedforward": 0.30})
+
+    def feed_road(empty=False):
+        node.wheel_speed_callback(Float32(data=0.2))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        if not empty:
+            for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
+                for i in range(10):
+                    cone = ConeDetection()
+                    cone.position.x, cone.position.y = -0.1+0.3*i, y
+                    cone.color, cone.classification_confidence = colour, 0.95
+                    batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    feed_road()
+    request(node, 3)
+    if algorithm == "lattice_v2":
+        node.planner = policy.FrenetLatticePlanner(node.planning_settings, node.lattice_settings,
+                                                  clock=lambda: 0.0)
+        node.previous_policy_step_at = node.test_clock.monotonic
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    node.controller.speed.integral = 0.4
+    node.test_clock.advance(0.05)
+    feed_road(empty=True)
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    assert node.control_diagnostics["tracking_mode"] == "DEGRADED"
+    # V2 speed preview may adjust the integral slightly; recovery must retain
+    # accumulated controller state rather than reinitialize it to zero.
+    assert node.controller.speed.integral == pytest.approx(0.4, abs=1e-4)
+    assert node.action_publisher.messages[-1].drive > 0
+    assert not node.planning_output["valid"]
+    node.test_clock.advance(0.05)
+    feed_road()
+    node.run_policy_step()
+    assert node.control_diagnostics["tracking_mode"] == "TRACKING"
+    assert node.distance_limiter.distance_m > 0
+    request(node, 2)
+    assert node.control_reference_manager.reference is None
+    assert node.action_publisher.messages[-1].drive == 0
+    node.supervision_callback()
+    assert node.action_publisher.messages[-1].steer == 0
+
+
 def test_mvp_real_ros_callbacks_distance_stop_and_restart(make_node):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.mode": "mvp"})
@@ -222,9 +277,9 @@ def test_mvp_real_ros_callbacks_distance_stop_and_restart(make_node):
         node.imu_callback(gyro)
         batch = stamp(node, ConeDetections())
         for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
-            for i in range(9):
+            for i in range(10):
                 cone = ConeDetection()
-                cone.position.x, cone.position.y = 0.1+0.3*i, y
+                cone.position.x, cone.position.y = -0.1+0.3*i, y
                 cone.color, cone.classification_confidence = colour, 0.95
                 batch.detections.append(cone)
         node.cone_detection_callback(batch)
@@ -974,7 +1029,10 @@ def test_student_empty_frame_bridge_preserves_acquisition_and_rejects_missing_gy
     assert road["current_frame"]["visibility"] == "none"
     assert road["centerline_xy"][0][0] == pytest.approx(-0.325)
 
-    node.test_clock.advance(0.05)
+    # A partial IMU message does not erase the previously accepted gyro.
+    # Let that actual gyro sample exceed the estimator's 0.15 s motion limit.
+    node.test_clock.advance(0.16)
+    node.wheel_speed_callback(Float32(data=0.5))
     missing = imu(node, orientation=False)
     missing.angular_velocity_covariance[0] = -1.0
     node.imu_callback(missing)
@@ -1043,6 +1101,10 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.lattice_settings.obstacle_check_enabled is False
         assert node.estimation_settings.road_history_s == 5.0
         assert node.estimation_settings.road_hold_s == 0.2
+
+        assert node.control_settings.robustness_enabled is True
+        assert node.control_settings.reference_hold_max_s == 1.0
+        assert node.control_settings.reference_hold_max_distance_m == 0.25
         assert node.control_settings.max_distance_m == 3.0
         assert node.control_settings.max_run_time_s == 30.0
         assert node.vehicle_settings.valid is False
