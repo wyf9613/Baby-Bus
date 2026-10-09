@@ -35,6 +35,7 @@ names.update({"LatticeSettings", "LatticeCurve", "FrenetLatticePlanner", "_latti
 names.add("evaluate_frenet_path")
 names.add("_planning_control_geometry")
 names.add("_control_cached_geometry")
+names.update({"MvpRecoveryPlanner", "_mvp_plan", "transport_control_reference", "control_reference_snapshot", "AsyncLatticePlanner"})
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in names]
 policy_class = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
@@ -43,6 +44,8 @@ policy_method = next(item for item in policy_class.body if isinstance(item, ast.
 store_method = next(item for item in policy_class.body if isinstance(item, ast.FunctionDef)
                     and item.name == "_store")
 namespace = {"dataclass": dataclass, "math": math, "deepcopy": deepcopy,
+             "json": json, "Path": Path, "__file__": str(SOURCE),
+             **{name: __import__(name) for name in ("queue", "subprocess", "sys", "threading")},
              "time": __import__("time"),
              "Real": __import__("numbers").Real,
              "ConeDetection": SimpleNamespace(COLOR_BLUE=2, COLOR_YELLOW=1)}

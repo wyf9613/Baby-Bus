@@ -1,5 +1,13 @@
 # Baby Bus · ai4r_policy
 
+`mvp2.0` 下周测试版本优先连续运行：20 Hz 控制与独立进程的 10 Hz 规划分开，
+直线、缓弯和偏位/偏角起步优先使用有车身净空检查的中心线跟踪，复杂 lattice
+作为次选。道路短暂失效或规划超时进入限时降级；默认降级目标 0.1 m/s，连续
+3 个新的可信锥桶帧后平滑恢复。保持同一辆车周二实测的转向方向、驱动力前馈
+与速度 PI。启动前在状态 2 静止至少 1 s，以学习 gyro 零偏；不要求先对齐中心线。
+具体实现、模型闭环和实际 ROS 进程证据见 [验收记录](docs/acceptance.md)。
+实车尚未验证；达到 3 m / 30 s、运动反馈失效、明确道路冲突仍会停车。
+
 已在 `scripts/policy_node.py` 接入估计→V2 Frenet lattice 规划→PID 控制→归一化动作。
 V2 包含近端盲区补足、横纵向多项式采样、车身/障碍/运动初筛、固定打分与停车行为，
 输出原始 Frenet 多项式及经过复核的五次以内 Cartesian y(x)，控制侧使用预瞄误差。
@@ -13,7 +21,8 @@ V2 包含近端盲区补足、横纵向多项式采样、车身/障碍/运动初
 重置里程并恢复。3 m 是编码器估计距离，实际停车位置受轮速尺度、打滑和滑行影响。
 可选 `calibrated` 模式仍支持有来源的 `vehicle.*` 参数。上车步骤及老师要求见
 [MVP 接入说明](docs/MVP_INTEGRATION_REVIEW_2026-10-05_CN.md)。
-离线测试与实际 policy 方法的模型闭环通过；完整 ROS gate 和实车验证仍未完成。
+以下段落描述原 V2 接入；`mvp2.0` 的执行策略与参数以上方说明和验收记录为准。
+离线测试与实际 policy 方法的模型闭环通过；实车验证仍未完成。
 详细当前证据见 [验收记录](docs/acceptance.md)。
 
 团队策略仓库，基于 DREAM 课程框架。当前分工见 [四组项目计划](docs/TEAM_PROJECT_PLAN.md)。接口优先沿用 GitHub 中的课程框架代码和配置；框架未定义的组间数据结构再按 Word 接口会议草案补充。状态、道路和规划分别在 `self.estimation_output`、`self.planning_output`；控制诊断在 `self.control_diagnostics`，debug1/debug2 为路径误差（m）和本次累计里程（m），停止原因沿用 policy 状态字符串。算法、字段、调参和联调说明见 [估计模块首版说明](docs/ESTIMATION_V1_CN.md) 与 [V1 规划说明](docs/PLANNING_V1_CN.md)。离线检查命令为 `python3 -B tests/test_estimation.py -v`、`python3 -B tests/test_planning.py -v`、`python3 -B tests/test_control.py -v`；模型测试为 `python offline/control_pid/test_controller.py`（AI4R 环境）。下文为上游使用说明。

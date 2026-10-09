@@ -23,6 +23,8 @@ method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn",
                 "_robust_control_enabled", "_control_health_problem", "_select_control_reference", "_report_control_status",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
                 "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
+method_names.add("_async_planning_cycle")
+method_names.add("_observe_stationary_gyro")
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
 constants = [item for item in tree.body if isinstance(item, ast.Assign) and
              any(isinstance(target, ast.Name) and (target.id.startswith("FSM_STATE") or
@@ -791,6 +793,134 @@ class DistanceChecks(unittest.TestCase):
             limiter.reset(0.0, 0.2)
             self.assertIsNotNone(limiter.advance(speed, now))
             self.assertEqual(limiter.distance_m, 0)
+
+
+class Mvp2RecoveryChecks(unittest.TestCase):
+    def test_initial_prediction_stays_neutral_until_observed_control_trust(self):
+        node = make_node(simulated=False, mvp=True)
+        node.control_settings = replace(node.control_settings, robustness_enabled=True)
+        node.async_planner = object()
+        def cycle(estimates, timeouts):
+            if not hasattr(node, "first_request_seen"):
+                node.first_request_seen = True
+                node.planning_output = {"valid": False, "reason": "planning_pending"}
+                node.planning_diagnostics = {}
+            else:
+                node.planning_output, node.planning_diagnostics = node.planner.plan(
+                    estimates["road"], estimates["state"], estimates["obstacles"],
+                    estimates["vehicle_limits"], estimates["state"]["timestamp_s"], timeouts, mvp=True)
+            return estimates
+        node._async_planning_cycle = cycle
+        feed(node, center=0.05)
+        start(node)
+        node.run_policy_step()
+        node.test_clock.advance(0.05)
+        feed(node, empty=True)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertEqual(node.control_diagnostics["reason"], "awaiting_observed_reference")
+        self.assertFalse(node.control_has_run)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        node.test_clock.advance(0.05)
+        feed(node, center=0.05)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertTrue(node.control_has_run)
+
+    def test_stationary_gyro_bias_learns_freezes_and_keeps_raw_source(self):
+        node = make_node(simulated=False, mvp=True)
+        node.control_settings = replace(node.control_settings, gyro_bias_learning_enabled=True)
+        node.gyro_bias_samples, node.gyro_bias_rps = [], 0.0
+        for _ in range(13):
+            feed(node, yaw=0.07)
+            node._observe_stationary_gyro(0.07, node._monotonic(), node.test_clock.ros_ns)
+            node.test_clock.advance(0.1)
+        self.assertAlmostEqual(node.gyro_bias_rps, 0.07)
+        feed(node, yaw=0.07)
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertAlmostEqual(node.estimation_output["state"]["yaw_rate_rps"], 0.0)
+        self.assertEqual(node.observations["imu_angular_velocity"].value[2], 0.07)
+        node._observe_stationary_gyro(0.1, node._monotonic(), node.test_clock.ros_ns)
+        self.assertAlmostEqual(node.gyro_bias_rps, 0.07)
+
+    def test_noisy_or_moving_stationary_window_cannot_change_gyro_bias(self):
+        for moving in (False, True):
+            node = make_node(simulated=False, mvp=True)
+            node.control_settings = replace(node.control_settings, gyro_bias_learning_enabled=True)
+            node.gyro_bias_samples, node.gyro_bias_rps = [], 0.0
+            for i in range(20):
+                rate = 0.06 if moving else 0.06+0.02*(-1)**i
+                feed(node, speed=0.1 if moving else 0, yaw=rate)
+                node._observe_stationary_gyro(rate, node._monotonic(), node.test_clock.ros_ns)
+                node.test_clock.advance(0.1)
+            self.assertEqual(node.gyro_bias_rps, 0)
+
+    def test_compute_source_expiry_uses_cache_but_motion_loss_stops(self):
+        node = RobustControlChecks().node()
+        node.test_clock.advance(0.05)
+        feed(node, center=0.05, speed=0.2)
+        original = node.planner.plan
+        def expired(*args, **kwargs):
+            ref, diag = original(*args, **kwargs)
+            ref.update(valid=False, reason="source_deadline_during_planning")
+            return ref, diag
+        node.planner.plan = expired
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertEqual(node.control_diagnostics["tracking_mode"], "DEGRADED")
+        node.observations["imu_angular_velocity"] = None
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+
+    def test_degrade_speed_cap_confirm_distinct_frames_and_ramp_up(self):
+        node = RobustControlChecks().node()
+        manager = node.control_reference_manager
+        manager.settings = replace(manager.settings, degraded_speed_mps=0.1, recovery_confirm_frames=3)
+        node.test_clock.advance(0.05)
+        feed(node, empty=True, speed=0.2)
+        node.run_policy_step()
+        self.assertAlmostEqual(manager.last_target_speed_mps, 0.1)
+        for i in range(3):
+            node.test_clock.advance(0.05)
+            feed(node, center=0.05, speed=0.2)
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+            self.assertEqual(manager.mode, "DEGRADED" if i < 2 else "TRACKING")
+            self.assertLessEqual(manager.last_target_speed_mps, 0.1+0.15*0.05+1e-9)
+
+    def test_async_poll_never_queues_more_than_one_job_and_rejects_old_generation(self):
+        node = RobustControlChecks().node()
+        node.lattice_settings = ns["LatticeSettings"](async_enabled=True)
+        node.planning_generation = 10
+        node.last_planning_submit_s = -math.inf
+        node.last_async_fault = None
+        class Worker:
+            ready, pending_at, result = True, None, None
+            process = SimpleNamespace(poll=lambda: None)
+            def poll(self):
+                result, self.result = self.result, None
+                if result:
+                    self.pending_at = None
+                return result
+            def submit(self, job, now):
+                self.pending_at = now
+                self.job = job
+        worker = node.async_planner = Worker()
+        estimates = deepcopy(node.estimation_output)
+        node._async_planning_cycle(estimates, {})
+        self.assertEqual(worker.job["generation"], 10)
+        old_job = worker.job
+        node._async_planning_cycle(estimates, {})
+        self.assertIs(worker.job, old_job)
+        worker.result = {"generation": 9, "reference": {"valid": True}}
+        node._async_planning_cycle(estimates, {})
+        self.assertFalse(node.planning_output["valid"])
+        self.assertEqual(node.planning_output["reason"], "planning_pending")
+        node._change_state(2, "Operator request")
+        self.assertEqual(node.planning_generation, 11)
+        self.assertIsNone(node.control_reference_manager.reference)
 
 
 if __name__ == "__main__":

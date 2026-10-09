@@ -406,5 +406,110 @@ class LatticeChecks(unittest.TestCase):
             self.assertAlmostEqual(actual[4], 0.16/(1+(0.16*x)**2)**1.5, places=6)
 
 
+class Mvp2Checks(unittest.TestCase):
+    def test_actual_worker_starts_without_ros_and_accepts_only_one_job(self):
+        import time
+        worker = ns["AsyncLatticePlanner"]()
+        try:
+            deadline = time.monotonic()+2.0
+            while not worker.ready and time.monotonic() < deadline:
+                time.sleep(0.005)
+            self.assertTrue(worker.ready)
+            _, args, cfg = self.plan()
+            job = {"generation": 42, "frame_id": "base_link", "planning": vars(Settings(algorithm="lattice_v2")),
+                   "lattice": vars(self.config()), "control": vars(cfg), "args": args}
+            self.assertTrue(worker.submit(job, time.monotonic()))
+            self.assertFalse(worker.submit(job, time.monotonic()))
+            result = None
+            while result is None and time.monotonic() < deadline:
+                result = worker.poll()
+                time.sleep(0.005)
+            self.assertIsNotNone(result)
+            self.assertEqual(result["generation"], 42)
+            self.assertTrue(result["reference"]["valid"], result)
+        finally:
+            worker.close()
+        self.assertIsNotNone(worker.process.poll())
+
+    def config(self):
+        return Config(recovery_enabled=True, clear_start_assumed=True, obstacle_check_enabled=False,
+                      geometry_step_m=0.05, time_step_s=0.1, transition_lengths_m="0.6,1.5",
+                      terminal_offsets_m="0.0", max_candidates=16)
+
+    def plan(self, angle=0, offset=0, bend=0, width=1.2):
+        args = fixture(offset=offset, curve=bend, speed=0.0)
+        slope = math.tan(math.radians(angle))
+        for key, shift in (("centerline_xy", 0), ("left_boundary_xy", width/2), ("right_boundary_xy", -width/2)):
+            args[0][key] = [(x, offset+slope*x+bend*x*x+shift*math.hypot(1, slope)) for x, _ in args[0][key]]
+        args.append({"road": 0.4, "wheel_speed": 0.25, "imu_angular_velocity": 0.25})
+        p = Planner(Settings(algorithm="lattice_v2", max_source_age_s=0.4), self.config())
+        control = ns["ControlSettings"](mode="mvp", mvp_lateral_kp=1.5, mvp_heading_kp=1.0)
+        return ns["_mvp_plan"](p, control, args), args, control
+
+    def test_offset_and_thirty_to_fortyfive_degree_start_use_checked_centerline(self):
+        for angle in (-45, -30, 0, 30, 45):
+            for offset in (-0.15, 0, 0.15):
+                with self.subTest(angle=angle, offset=offset):
+                    (ref, diag), args, cfg = self.plan(angle, offset)
+                    self.assertTrue(ref["valid"], (ref["reason"], diag))
+                    self.assertEqual(ref["planner_version"], "mvp2_centerline")
+                    self.assertLessEqual(diag["rollout_steps"], 120)
+                    self.assertGreaterEqual(diag["minimum_clearance_m"], 0)
+                    _, steer, result = ns["PolicyController"](cfg).calculate(ref, args[1], {}, 10, 0.05)
+                    self.assertTrue(result["valid"], result)
+                    if angle and abs(offset) < 0.01:
+                        self.assertGreater(steer*angle, 0)
+
+    def test_gentle_curves_both_directions_keep_curvature_and_preview(self):
+        for bend in (-0.08, -0.03, 0.03, 0.08):
+            (ref, diag), args, cfg = self.plan(bend=bend)
+            self.assertTrue(ref["valid"], (ref["reason"], diag))
+            point = ns["evaluate_planning_path"](ref, 0.35, 10)
+            self.assertGreater(point["curvature_1pm"]*bend, 0)
+            _, steer, result = ns["PolicyController"](cfg).calculate(ref, args[1], {}, 10, 0.05)
+            self.assertTrue(result["valid"], result)
+            self.assertGreater(steer*bend, 0)
+
+    def test_actual_body_outside_corridor_is_not_hidden_by_recovery(self):
+        (accepted, _), _, _ = self.plan(offset=0.5, width=1.8)
+        self.assertTrue(accepted["valid"], accepted["reason"])
+        (ref, diag), _, _ = self.plan(offset=0.6, width=1.0)
+        self.assertFalse(ref["valid"])
+        self.assertEqual(ref["reason"], "recovery_body_boundary_conflict")
+
+    def test_backward_heading_and_short_support_do_not_make_a_recovery_path(self):
+        (ref, _), _, _ = self.plan(angle=80)
+        self.assertFalse(ref["valid"])
+        args = fixture()
+        for key in ("centerline_xy", "left_boundary_xy", "right_boundary_xy"):
+            args[0][key] = args[0][key][:4]
+        args.append({"road": 0.4, "wheel_speed": 0.25, "imu_angular_velocity": 0.25})
+        p = Planner(Settings(algorithm="lattice_v2"), self.config())
+        ref, _ = ns["_mvp_plan"](p, ns["ControlSettings"](mode="mvp"), args)
+        self.assertFalse(ref["valid"])
+
+    def test_low_speed_small_gyro_offset_no_longer_rejects_start(self):
+        (ref, _), args, cfg = self.plan()
+        args[1]["yaw_rate_rps"] = 0.07
+        p = Planner(Settings(algorithm="lattice_v2"), self.config())
+        self.assertTrue(ns["_mvp_plan"](p, cfg, args)[0]["valid"])
+        args[1]["yaw_rate_rps"] = 0.5
+        self.assertFalse(ns["_mvp_plan"](p, cfg, args)[0]["valid"])
+
+    def test_delayed_curve_transport_retains_absolute_expiry_and_heading(self):
+        (ref, _), _, _ = self.plan(bend=0.05)
+        motion = ns["EstimationMotionHistory"](ns["EstimationSettings"]())
+        for stamp in (10.0, 10.05, 10.1):
+            motion.observe("wheel_speed", 0.2, stamp, stamp, stamp)
+            motion.observe("imu_angular_velocity", 0.1, stamp, stamp, stamp)
+        transported = ns["transport_control_reference"](ref, motion, 10.05)
+        self.assertAlmostEqual(transported["timestamp_s"]+transported["valid_for_s"], ref["timestamp_s"]+ref["valid_for_s"])
+        self.assertEqual(ref["timestamp_s"], 10)
+        self.assertNotIn("control_cached_path_samples", ref)
+        self.assertNotEqual(transported["control_cached_path_samples"][0][1], 0)
+        with self.assertRaisesRegex(ValueError, "reference_expired"):
+            ns["transport_control_reference"](ref, motion, 10.3)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,12 +1,97 @@
 # AI4R policy acceptance
 
-Status: the 2026-10-09 integrated V2/fused-road/control candidate passes 136 portable
-tests and the installed ROS gate (213 checks). Physical runs are not run.
+Status: `mvp2.0` extends the 2026-10-09 V2/fused-road/control candidate with
+bounded centerline-first recovery and asynchronous planning. The current
+software/model evidence is recorded below: 149 portable tests passed, and the
+installed ROS gate passed 229 checks with zero errors/failures/skips. Physical
+runs are not run.
 The 2026-10-06 car candidate's installed gate and physical runs below are
 historical evidence, not evidence for the new V2 candidate. A complete 3 m
 physical run remains unverified.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
+
+## MVP2 completion-first candidate, 2026-10-09
+
+20 Hz control/supervision remains in the ROS executor; a single isolated child
+process runs planning at <=10 Hz. At most one request is in flight. Request/run
+generations reject results from before an explicit stop/restart. Delayed valid
+paths are transported using actual motion history; arrival never renews their
+original absolute expiry. Worker failure or >=0.3 s job timeout triggers bounded
+process reconstruction (<=2 Hz), while trusted geometry can bridge the gap.
+Shutdown terminates the child. The child loads only stdlib/pure policy code,
+avoiding ROS/DDS/TF imports during reconstruction. No worker publishes hardware
+commands.
+
+The cone-only profile first tries a quadratic centerline with a bounded rollout
+of the existing lateral P/heading P controller and full approximate body boundary
+checks. Lattice runs only when needed; total compute budget stays 35 ms. Sampling
+is now two lengths, center/current offset and two speeds plus stop, capped at 16
+candidates; geometry/time steps 0.05 m / 0.1 s. Polynomial position/heading and
+curvature are retained, including when the car advances/rotates during a delayed
+result. Control snapshots omit rich Frenet/speed profiles instead of deep-copying
+them each cycle. Robust fitting initializes from <=3N slope pairs and exits IRLS
+at convergence rather than generating all N(N-1)/2 pairs. Input/memory caps stay.
+
+Fixed 0.4 m / 0.5 rad initialization gates no longer decide admission in this
+profile: predicted correction must fit the observed/explicitly extended corridor.
+The forward y(x) domain remains bounded below 1.22 rad (~70 degrees), and body
+conflicts, backwards motion, missing support and invalid motion stay failures.
+This is approximate model validation, not measured trajectory feasibility.
+
+Short road/coverage failures, compute expiry, source expiry during calculation,
+worker faults and purely numerical Cartesian conversion failures can use the
+trusted line/curve cache. No-feasible-path/body conflicts and explicit stop paths
+are not blanket exemptions. Predictions cannot seed trust or renew it. Hold is
+still <=1 s AND <=0.25 m, and ends earlier on motion/support failure. Degraded
+target <=0.1 m/s; recovery requires three distinct trusted camera frames with
+upward target change <=0.15 m/s². Initial neutral priming is <=3 s; a predicted
+first worker result stays neutral until observed control trust exists, preventing
+a one-cycle start followed by a no-cache stop. Fresh wheel/
+gyro and per-field source timestamps remain required; motion gap is 0.25 s.
+
+Same-car Tuesday values are now in the active YAML: direction -1, feedforward
+0.30, drive cap 0.35, speed PI 0.35/0.08, lateral/heading P 1.5/1.0. In state 2,
+fresh near-zero wheel observations plus >=1 s stable gyro samples may learn a
+small bias (abs<=0.12 rad/s, stddev<=0.003); it freezes during each run. The body
+must remain stationary during this neutral interval. Raw messages and their
+independent field freshness are never altered. Run limits remain 3 m / 30 s.
+
+Model study: `/opt/anaconda3/bin/python -B tools/study_mvp2.py` exercises actual
+YAML, estimation, planning, reference management and controller code. Eight
+synthetic 1.2 m wide corridors completed the 3 m software distance limit: straight
+with 0.15 m offset, ±30 degrees with ±0.15 m offset, 45 degrees, ±gentle quadratic
+bends, a larger gentle bend, and a 30-degree curved start with two 0.4 s empty-frame
+intervals plus a 0.2 s worker-result delay. Final lateral errors were 0.005–0.024 m.
+Planning medians 5.2–6.4 ms, per-scene p95 6.5–9.9 ms, max 14.4 ms; no planning
+call exceeded 35 ms. Parent computation medians 5.1–6.0 ms, p95 6.6–10.1 ms;
+two wall-time spikes exceeded 35 ms, max 91.6 ms, during the concurrent ROS gate.
+These are local Python 3.12
+wall-time observations, not target-device CPU utilization or guaranteed deadlines.
+
+The model uses an ideal first-order target-speed response and approximate bicycle
+steering, not a calibrated ESC/grip model; synthetic observations lack camera
+noise and occlusion. The worker port in this study uses deterministic delayed
+delivery. Actual child-process pause/kill/restart is tested separately with ROS.
+Artifacts are `.verification/mvp2-study.json` and `mvp2-study-final.log`.
+
+Final installed gate: `.verification/mvp2-fast-gate-final-pass.log`, 229 reported
+checks = 149 portable cases + 75 actual ROS cases + 5 CTest wrappers; no skips.
+The actual subprocess tests paused and killed the child while continuing sensor
+callbacks/control, observed cache bridging and successful reconstruction, and
+confirmed a subsequent explicit stop remains stopped. Captured maximum control
+call times were below 20 ms (including process reconstruction). Evidence is in
+`.verification/mvp2-worker-paused.json` / `mvp2-worker-killed.json`; installed
+policy/config and tested snapshot match current source byte-for-byte, hashes in
+`.verification/mvp2-tested-source-sha256.json`.
+
+For next week's physical test, load this branch's installed YAML on the same car,
+leave state 2 stationary for >=1 s, then request state 3. Test a continuous
+two-sided gentle curve, offset ±0.15 m and headings ±15/30 degrees before the
+45-degree case. Record run completion, maximum command gap, gyro bias, planning
+elapsed time, TRACKING/DEGRADED transitions and each stop reason. Wider angle
+support is conditional on corridor width and available support. No car deployment,
+hardware enable, main merge or physical run was performed here.
 
 ## Control integration after lattice/fused-road, 2026-10-09
 

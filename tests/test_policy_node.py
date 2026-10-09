@@ -4,6 +4,7 @@ Run through tools/verify_fast.sh on Ubuntu/ROS Jazzy. No sensor driver, serial
 device, vehicle process, or physical actuator is started by these tests.
 """
 import importlib.util
+import json
 import math
 import os
 from pathlib import Path
@@ -1107,12 +1108,101 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.control_settings.reference_hold_max_distance_m == 0.25
         assert node.control_settings.max_distance_m == 3.0
         assert node.control_settings.max_run_time_s == 30.0
+        assert node.lattice_settings.async_enabled is True
+        assert node.lattice_settings.recovery_enabled is True
+        assert node.lattice_settings.update_rate_hz == 10.0
+        assert node.control_settings.mvp_steering_direction == -1.0
+        assert node.control_settings.mvp_drive_feedforward == 0.30
+        assert node.control_settings.drive_max == 0.35
+        assert node.control_settings.degraded_speed_mps == 0.1
         assert node.vehicle_settings.valid is False
         assert node.fsm_state == 2
     finally:
         node.destroy_node()
         context.shutdown()
 
+
+@pytest.mark.parametrize("failure", ["paused", "killed"])
+def test_mvp2_actual_worker_does_not_block_control_and_restarts(make_node, failure):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.robustness_enabled": True,
+           "planning.algorithm": "lattice_v2", "planning.lattice.async_enabled": True,
+           "planning.lattice.recovery_enabled": True, "planning.lattice.clear_start_assumed": True,
+           "planning.lattice.obstacle_check_enabled": False, "planning.lattice.update_rate_hz": 10.0,
+           "planning.reference_lifetime_s": 0.2, "control.startup_grace_s": 3.0,
+           "estimation.motion_max_gap_s": 0.25, "control.degraded_speed_mps": 0.1,
+           "control.drive_max": 0.35, "control.mvp_drive_feedforward": 0.30})
+
+    def step():
+        node.test_clock.advance(0.05)
+        node.wheel_speed_callback(Float32(data=0.0))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        for colour, shift in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.6)):
+            for i in range(13):
+                cone = ConeDetection()
+                x = -0.3+0.25*i
+                cone.position.x, cone.position.y = x, 0.1+0.04*x*x+shift
+                cone.color, cone.classification_confidence = colour, 0.95
+                batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+        began = time.monotonic()
+        node.run_policy_step()
+        return time.monotonic()-began
+
+    step()
+    request(node, 3)
+    deadline = time.monotonic()+3.0
+    while not node.control_has_run and time.monotonic() < deadline:
+        step()
+        time.sleep(0.05)
+    assert node.control_has_run, node.state_reason
+    assert node.control_diagnostics["curvature_1pm"] > 0
+    assert node.action_publisher.messages[-1].steer > 0
+    child = node.async_planner.process
+    timings = []
+    if failure == "paused":
+        child.send_signal(signal.SIGSTOP)
+        try:
+            for _ in range(4):
+                timings.append(step())
+                time.sleep(0.05)
+                assert node.fsm_state == 3, node.state_reason
+                assert node.action_publisher.messages[-1].drive > 0
+        finally:
+            child.send_signal(signal.SIGCONT)
+    else:
+        child.kill()
+        child.wait(timeout=0.5)
+        timings.append(step())
+        assert node.async_planner.process.pid != child.pid
+        assert node.fsm_state == 3, node.state_reason
+    deadline = time.monotonic()+0.9
+    while time.monotonic() < deadline:
+        timings.append(step())
+        assert node.fsm_state == 3, node.state_reason
+        time.sleep(0.05)
+        if node.planning_output.get("valid"):
+            break
+    assert node.planning_output.get("valid"), node.state_reason
+    assert max(timings) < 0.2, timings
+    evidence = Path(os.environ["ROS_LOG_DIR"])/f"mvp2-worker-{failure}.json"
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    evidence.write_text(json.dumps({"failure": failure, "control_call_ms": [t*1000 for t in timings],
+        "max_control_call_ms": max(timings)*1000, "last_planner_elapsed_s": node.last_planner_elapsed_s}, indent=2)+"\n")
+    request(node, 2)
+    assert node.action_publisher.messages[-1].drive == 0
+    old_generation = node.planning_generation
+    for _ in range(3):
+        step()
+        node.supervision_callback()
+    assert node.fsm_state == 2
+    assert node.planning_generation == old_generation
+    assert node.action_publisher.messages[-1].drive == 0
+
+def test_open_loop_yaml_empty_sensor_array(tmp_path):
     # [] has no element from which the ROS YAML parser can infer an array type.
     # Confirm the deliberate open-loop configuration also works through YAML.
     overlay = tmp_path / "open_loop.yaml"

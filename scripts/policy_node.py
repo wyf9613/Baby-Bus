@@ -45,23 +45,34 @@ The nominal operator sequence for running this policy on the actual car is:
 from copy import deepcopy
 from dataclasses import dataclass
 import math
+import json
+import queue
+import subprocess
+import sys
+import threading
+from pathlib import Path
 from numbers import Real
 import time
 import traceback
 
-import rclpy
-from rclpy.clock import Clock, ClockType
-from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
-from rclpy.node import Node
-from rclpy.parameter import Parameter
-from rclpy.qos import QoSProfile, ReliabilityPolicy
-from rclpy.time import Time
-from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
-from sensor_msgs.msg import Imu, LaserScan
-from std_msgs.msg import Float32, Int8, String, UInt16
-from dream_interfaces.msg import (ConeDetection, ConeDetections, DriveAndSteer,
-                                  FiducialDetections)
-from tf2_ros import Buffer, TransformException, TransformListener
+if sys.argv[1:] == ["--planner-worker"]:
+    # The worker uses only the pure definitions below. Do not load ROS/DDS/TF
+    # libraries on every reconstruction; PolicyNode is never instantiated here.
+    Node = object
+else:
+    import rclpy
+    from rclpy.clock import Clock, ClockType
+    from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
+    from rclpy.node import Node
+    from rclpy.parameter import Parameter
+    from rclpy.qos import QoSProfile, ReliabilityPolicy
+    from rclpy.time import Time
+    from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
+    from sensor_msgs.msg import Imu, LaserScan
+    from std_msgs.msg import Float32, Int8, String, UInt16
+    from dream_interfaces.msg import (ConeDetection, ConeDetections, DriveAndSteer,
+                                      FiducialDetections)
+    from tf2_ros import Buffer, TransformException, TransformListener
 
 
 # These values and the request/status topics match the previous AI4R policy.
@@ -403,8 +414,11 @@ def _estimation_fit_boundary(points, settings):
     origin, scale = (x0+x1)/2.0, (x1-x0)/2.0
     degree = 2 if len(points) >= 5 and len({p[0] for p in points}) >= 3 else 1
     basis = [[((p[0]-origin)/scale)**j for j in range(degree+1)] for p in points]
-    slopes = [(b[1]-a[1])/(b[0]-a[0]) for i, a in enumerate(points)
-              for b in points[i+1:] if b[0]-a[0] > 1e-6]
+    # Three fixed baselines keep robust initialization linear in point count;
+    # do not build all N*(N-1)/2 pairs for each side of every camera frame.
+    strides = sorted({1, max(1, len(points)//4), max(1, len(points)//2)})
+    slopes = [(points[i+d][1]-points[i][1])/(points[i+d][0]-points[i][0])
+              for d in strides for i in range(len(points)-d) if points[i+d][0]-points[i][0] > 1e-6]
     if not slopes:
         return None
     slope = _estimation_median(slopes)
@@ -420,9 +434,13 @@ def _estimation_fit_boundary(points, settings):
                    for j in range(degree+1)] for i in range(degree+1)]
         rhs = [sum(w*row[i]*p[1] for w, row, p in zip(weights, basis, points))
                for i in range(degree+1)]
-        coeffs = _estimation_solve(matrix, rhs)
-        if coeffs is None:
+        updated = _estimation_solve(matrix, rhs)
+        if updated is None:
             return None
+        converged = max(abs(a-b) for a, b in zip(coeffs, updated)) < 1e-7
+        coeffs = updated
+        if converged:
+            break
     residuals = [sum(c*b for c, b in zip(coeffs, row))-p[1] for row, p in zip(basis, points)]
     inliers = [i for i, r in enumerate(residuals) if abs(r) <= 2*settings.huber_delta_m]
     if len(inliers) < degree+1 or len(inliers) < 0.6*len(points):
@@ -1356,6 +1374,14 @@ class LatticeSettings:
     preview_m: float = 0.35
     speed_preview_s: float = 0.3
     minimum_output_m: float = 0.4
+    # Optional MVP2 execution and simple, checked centerline recovery.
+    async_enabled: bool = False
+    recovery_enabled: bool = False
+    worker_timeout_s: float = 0.3
+    recovery_speed_mps: float = 0.12
+    initial_heading_max_rad: float = 1.22
+    low_speed_yaw_tolerance_rps: float = 0.12
+    update_rate_hz: float = 10.0
 
     def __post_init__(self):
         csv = {"transition_lengths_m", "terminal_offsets_m", "durations_s", "terminal_speeds_mps"}
@@ -1370,9 +1396,9 @@ class LatticeSettings:
                 if name != "terminal_offsets_m" and any(v <= 0 for v in samples):
                     raise ValueError("lattice lengths, durations and speeds must be positive")
             elif isinstance(value, bool):
-                if name not in ("obstacle_check_enabled", "clear_start_assumed"):
+                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled"):
                     raise ValueError("invalid lattice boolean")
-            elif name in ("obstacle_check_enabled", "clear_start_assumed"):
+            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled"):
                 raise ValueError("lattice flags must be booleans")
             elif not finite_number(value) or value <= 0:
                 raise ValueError("lattice numeric settings must be finite and positive: " + name)
@@ -1384,6 +1410,10 @@ class LatticeSettings:
             raise ValueError("lattice body must cover both axles")
         if self.geometry_step_m > 0.05 or self.time_step_s > 0.1 or self.horizon_m > 3:
             raise ValueError("lattice checking resolution/range exceeds bounded domain")
+        if self.initial_heading_max_rad >= math.pi/2 or self.worker_timeout_s > 1.0:
+            raise ValueError("recovery must stay forward and worker timeout <= 1 s")
+        if self.update_rate_hz > 20.0:
+            raise ValueError("planning rate must not exceed 20 Hz")
         if any(t < self.score_time_s for t in self.samples("durations_s")):
             raise ValueError("all longitudinal candidates must cover the common scoring window")
         count = len(self.samples("transition_lengths_m"))*(len(self.samples("terminal_offsets_m"))+1)*(
@@ -1818,13 +1848,14 @@ class FrenetLatticePlanner:
             s0, d0 = curve.project_origin()
             rx, ry, tx, ty, k, dk = curve.at_s(s0)
             heading_error = -math.atan2(ty, tx)
-            if abs(heading_error) > 0.5 or abs(d0) > 0.4:
+            if (abs(heading_error) > (cfg.initial_heading_max_rad if cfg.recovery_enabled else 0.5)
+                    or (not cfg.recovery_enabled and abs(d0) > 0.4)):
                 raise ValueError("initial_frenet_domain")
             a = 1-k*d0
             dprime = a*math.tan(heading_error)
             # Explicit low-speed forward approximation; no divide by near zero.
             initial_k = yaw/speed if speed >= 0.05 else 0.0
-            if speed < 0.05 and abs(yaw) > 0.05:
+            if speed < 0.05 and abs(yaw) > (cfg.low_speed_yaw_tolerance_rps if cfg.recovery_enabled else 0.05):
                 raise ValueError("low_speed_yaw_inconsistent")
             dsecond = (initial_k*(a*a+dprime*dprime)**1.5-k*(a*a+2*dprime*dprime)-dk*d0*dprime)/a
             sdot = speed/math.hypot(a, dprime)
@@ -2215,6 +2246,300 @@ class FrenetLatticePlanner:
         return path, errors
 
 
+class MvpRecoveryPlanner:
+    """Bounded local centerline following, with a controller rollout.
+
+    Uses observed two-sided corridors and the existing approximate vehicle.
+    It makes no global route decision. K <= 120 footprint checks; no candidate
+    product or quintic output conversion. Only the worker runs these checks.
+    """
+    def __init__(self, planner, control):
+        self.planner, self.control = planner, control
+
+    def plan(self, road, state, obstacles, limits, now_s, timeouts):
+        started, cfg = time.perf_counter(), self.planner.cfg
+        ref = {"valid": False, "reason": "recovery_unavailable", "timestamp_s": now_s,
+               "frame_id": self.planner.frame_id, "vehicle_reference_point": "cg_ground_projection",
+               "target_speed_mps": 0.0, "stop_requested": True, "valid_for_s": 0.0}
+        diag = {"planner": "bounded_centerline", "rollout_steps": 0}
+        try:
+            if cfg.obstacle_check_enabled:
+                raise ValueError("recovery_requires_cone_only_profile")
+            if not road.get("valid"):
+                if (cfg.clear_start_assumed and not self.planner.observed_origin_seen
+                        and road.get("status") == "near_field_unobserved"):
+                    road = road.get("forward_geometry") or {}
+                    if not road.get("geometry_valid") or not road.get("time_aligned"):
+                        raise ValueError("invalid_recovery_road")
+                else:
+                    raise ValueError("invalid_recovery_road")
+            if (not state.get("valid", state.get("speed_valid") and state.get("yaw_rate_valid"))
+                    or state.get("frame_id") != self.planner.frame_id
+                    or road.get("frame_id") != self.planner.frame_id
+                    or abs(road.get("timestamp_s", math.inf)-now_s) > 1e-6):
+                raise ValueError("recovery_frame_or_motion_invalid")
+            remaining = [self.planner.settings.reference_lifetime_s]
+            ages = state.get("source_age_s") or {}
+            for name in ("wheel_speed", "imu_angular_velocity"):
+                remaining.append(timeouts.get(name, 0.15)-ages.get(name, math.inf))
+            age = road.get("source_age_s", math.inf)
+            remaining.append(min(self.planner.settings.max_source_age_s, timeouts.get("road", 0.4))-age)
+            if road.get("degraded"):
+                remaining.append(road.get("prediction_remaining_s", 0.0))
+            lifetime = min(remaining)
+            if not finite_number(lifetime) or lifetime <= 0:
+                raise ValueError("source_deadline_during_planning")
+            points = [CenterlinePlanner._points(road.get(k)) for k in
+                      ("centerline_xy", "left_boundary_xy", "right_boundary_xy")]
+            if any(p is None or len(p) > 201 for p in points):
+                raise ValueError("invalid_recovery_geometry")
+            near, far = max(p[0][0] for p in points), min(p[-1][0] for p in points)
+            if near > cfg.max_near_gap_m or far-near < cfg.minimum_output_m:
+                raise ValueError("insufficient_lattice_coverage")
+            model = self.planner._model(limits)
+            if not finite_number(state.get("speed_mps")) or not 0 <= state["speed_mps"] <= model["speed_max_mps"]:
+                raise ValueError("invalid_recovery_speed")
+            if state["speed_mps"] < 0.05 and abs(state["yaw_rate_rps"]) > cfg.low_speed_yaw_tolerance_rps:
+                raise ValueError("low_speed_yaw_inconsistent")
+            extension = max(0.0, near+model["rear_extent_m"]+0.15)
+            if extension > cfg.max_extension_m or (near > 0 and not cfg.clear_start_assumed):
+                raise ValueError("extension_limit")
+            clipped = [[(near, CenterlinePlanner._interpolate(p, near)),
+                        *[(x, y) for x, y in p if near < x < far],
+                        (far, CenterlinePlanner._interpolate(p, far))] for p in points]
+            # Quadratic fit on normalized coordinates: fixed 3x3 solve, O(N).
+            center = clipped[0]
+            origin, scale = near, far-near
+            rows = [[1.0, (x-origin)/scale, ((x-origin)/scale)**2] for x, _ in center]
+            coeffs = _estimation_solve([[sum(r[i]*r[j] for r in rows) for j in range(3)] for i in range(3)],
+                                      [sum(r[i]*p[1] for r, p in zip(rows, center)) for i in range(3)])
+            if coeffs is None or max(abs(_control_poly_eval(coeffs, r[1])-p[1]) for r, p in zip(rows, center)) > 0.04:
+                raise ValueError("recovery_fit_error")
+            left, right = [LatticeCurve(p, extension, 0.05) for p in clipped[1:]]
+            lo, hi = max(0.0, near-extension), min(cfg.horizon_m, far-math.hypot(model["front_extent_m"], model["width_m"]/2)-0.04)
+            if hi-lo < cfg.minimum_output_m:
+                raise ValueError("insufficient_body_supported_horizon")
+            def geometry(x):
+                u = (x-origin)/scale
+                y = _control_poly_eval(coeffs, u)
+                dy = (coeffs[1]+2*coeffs[2]*u)/scale
+                curvature = 2*coeffs[2]/scale**2/math.hypot(1, dy)**3
+                return y, math.atan(dy), curvature
+            if abs(geometry(0.0)[1]) >= cfg.initial_heading_max_rad:
+                raise ValueError("initial_frenet_domain")
+            # Check the predicted controller response from the actual body pose,
+            # rather than rejecting a fixed lateral offset or testing only the
+            # centerline footprint. This is an approximate rollout, not calibration.
+            if (state["speed_mps"]*model["actuation_delay_s"]+state["speed_mps"]**2/(2*model["braking_mps2"])
+                    +cfg.hard_margin_m > hi-lo):
+                raise ValueError("current_speed_cannot_stop_in_horizon")
+            x = y = heading = delta = 0.0
+            if state["speed_mps"] >= 0.05:
+                initial_k = state["yaw_rate_rps"]/state["speed_mps"]
+                if abs(model["rear_axle_from_cg_m"]*initial_k) >= 1:
+                    raise ValueError("initial_curvature_outside_model")
+                delta = math.atan(model["wheelbase_m"]*initial_k/
+                                  math.sqrt(1-(model["rear_axle_from_cg_m"]*initial_k)**2))
+            step = 0.025
+            minimum_clearance = math.inf
+            for i in range(120):
+                curvature = math.cos(math.atan(model["rear_axle_from_cg_m"]/model["wheelbase_m"]*math.tan(delta)))*math.tan(delta)/model["wheelbase_m"]
+                g = {"x": x, "y": y, "heading": heading, "curvature": curvature, "q": 1.0}
+                clearance = self.planner._clearance(g, left, right, [], model)
+                minimum_clearance = min(minimum_clearance, clearance)
+                if clearance < 0:
+                    raise ValueError("recovery_body_boundary_conflict")
+                diag["rollout_steps"] = i+1
+                if x >= hi-step:
+                    break
+                px = min(hi, max(lo, x+cfg.preview_m*math.cos(heading)))
+                py, tangent, k = geometry(px)
+                ey = -math.sin(heading)*(px-x)+math.cos(heading)*(py-y)
+                steer = self.control.mvp_lateral_kp*ey+self.control.mvp_heading_kp*wrap_angle(tangent-heading)
+                steer = max(-self.control.steering_max_normalized, min(self.control.steering_max_normalized, steer))
+                requested = steer*model["steering_limit_rad"]
+                # Rate limit using the faster of observed/commanded crawl speeds.
+                ds_time = step/max(state["speed_mps"], cfg.recovery_speed_mps)
+                change = model["steering_rate_limit_radps"]*ds_time
+                delta += max(-change, min(change, requested-delta))
+                beta = math.atan(model["rear_axle_from_cg_m"]/model["wheelbase_m"]*math.tan(delta))
+                nx = x+step*math.cos(heading+beta)
+                if nx <= x:
+                    raise ValueError("recovery_not_forward")
+                x, y = nx, y+step*math.sin(heading+beta)
+                heading = wrap_angle(heading+step*math.cos(beta)*math.tan(delta)/model["wheelbase_m"])
+                if time.perf_counter()-started >= min(cfg.budget_s, lifetime):
+                    raise ValueError("lattice_time_budget_exceeded")
+            else:
+                raise ValueError("recovery_rollout_cap")
+            elapsed = time.perf_counter()-started
+            if elapsed >= min(cfg.budget_s, lifetime):
+                raise ValueError("lattice_time_budget_exceeded" if cfg.budget_s <= lifetime
+                                 else "source_deadline_during_planning")
+            if near <= 0 <= far:
+                self.planner.observed_origin_seen = True
+            correction = abs(geometry(0.0)[0]) > 0.08 or abs(geometry(0.0)[1]) > 0.15
+            speed = min(self.planner.settings.cruise_speed_mps,
+                        cfg.recovery_speed_mps if correction else self.planner.settings.cruise_speed_mps)
+            if road.get("degraded"):
+                speed = min(speed, self.planner.settings.cruise_speed_mps*road["recommended_speed_scale"])
+            ref.update(valid=True, reason="centerline_recovery" if correction else "centerline_tracking",
+                       planner_version="mvp2_centerline", schema_version="planning_reference_v2",
+                       valid_for_s=lifetime, stop_requested=False, planned_stop=False, target_speed_mps=speed,
+                       control_preview_m=cfg.preview_m,
+                       path={"type": "CARTESIAN_Y_OF_X", "independent_variable": "x_m", "origin": origin,
+                             "scale": scale, "coeffs_low_to_high": coeffs, "range": [lo, hi]},
+                       simulation_only=cfg.model_source == "course_simulation", operating_profile="mvp2_local_corridor")
+            diag.update(minimum_clearance_m=minimum_clearance, correction=correction)
+        except (ValueError, TypeError, ArithmeticError) as error:
+            ref["reason"] = str(error)
+            diag.update(reason=str(error), body_conflict=str(error) == "recovery_body_boundary_conflict")
+        diag["elapsed_s"] = time.perf_counter()-started
+        return ref, diag
+
+
+def _mvp_plan(planner, control, args):
+    """Simple feasible corridor first; lattice only when it adds a solution."""
+    if planner.cfg.recovery_enabled and control.mode == "mvp" and not planner.stop_latched:
+        ref, simple = MvpRecoveryPlanner(planner, control).plan(*args)
+        if ref["valid"]:
+            return ref, simple
+        if simple.get("elapsed_s", 0) >= planner.cfg.budget_s:
+            return ref, simple
+    else:
+        simple = None
+    ref, diag = planner.plan(*args, mvp=control.mode == "mvp",
+                             _started=planner.clock()-simple["elapsed_s"] if simple else None)
+    if simple:
+        diag["centerline_attempt"] = simple
+        diag["centerline_rejection"] = simple.get("reason")
+        # An observed corridor conflict is never hidden by the cache.
+        if not ref["valid"] and simple.get("body_conflict"):
+            ref["reason"] = "recovery_body_boundary_conflict"
+    if ref.get("reason") == "no_valid_cartesian_output":
+        conversion_reasons = {row.get("reason") for row in diag.get("candidates", [])
+                              if str(row.get("reason", "")).startswith("compatibility_")}
+        if conversion_reasons and conversion_reasons <= {
+                "compatibility_fit_singular", "compatibility_fit_error", "compatibility_short_output"}:
+            ref["reason"] = "cartesian_conversion_failed"
+    return ref, diag
+
+
+def _planner_worker_main():
+    planner, generation = None, None
+    sys.stdout.write('{"ready":true}\n')
+    sys.stdout.flush()
+    for line in sys.stdin:
+        job = {}
+        try:
+            job = json.loads(line)
+            if planner is None or generation != job["generation"]:
+                planner = FrenetLatticePlanner(PlanningSettings(**job["planning"]),
+                                              LatticeSettings(**job["lattice"]), job["frame_id"])
+                generation = job["generation"]
+            ref, diag = _mvp_plan(planner, ControlSettings(**job["control"]), job["args"])
+            result = {"generation": generation, "reference": ref, "diagnostics": diag, "road": job["args"][0]}
+        except Exception as error:
+            result = {"generation": job.get("generation"), "error": str(error)}
+        sys.stdout.write(json.dumps(result, allow_nan=False)+"\n")
+        sys.stdout.flush()
+
+
+class AsyncLatticePlanner:
+    """One worker process, one in-flight job, no ROS-thread pipe writes/waits.
+
+    I/O threads carry bounded plain dictionaries. The child imports this same
+    script, never initializes ROS and never publishes actuator commands.
+    """
+    def __init__(self):
+        self.requests, self.results = queue.Queue(maxsize=1), queue.Queue(maxsize=1)
+        self.pending_at = None
+        self.ready = False
+        self.process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--planner-worker"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
+        threading.Thread(target=self._write, daemon=True).start()
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _write(self):
+        try:
+            while True:
+                job = self.requests.get()
+                if job is None:
+                    return
+                self.process.stdin.write(json.dumps(job, allow_nan=False)+"\n")
+                self.process.stdin.flush()
+        except (OSError, ValueError):
+            return
+
+    def _read(self):
+        try:
+            for line in self.process.stdout:
+                result = json.loads(line)
+                if result.get("ready"):
+                    self.ready = True
+                else:
+                    self.results.put_nowait(result)
+        except (OSError, ValueError, queue.Full):
+            return
+
+    def submit(self, job, now_s):
+        if self.pending_at is not None or not self.ready:
+            return False
+        self.requests.put_nowait(job)
+        self.pending_at = now_s
+        return True
+
+    def poll(self):
+        try:
+            result = self.results.get_nowait()
+        except queue.Empty:
+            return None
+        self.pending_at = None
+        return result
+
+    def close(self):
+        try:
+            self.requests.put_nowait(None)
+        except queue.Full:
+            pass
+        if self.process.poll() is None:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=0.05)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=0.1)
+        for pipe in (self.process.stdin, self.process.stdout):
+            pipe.close()
+
+
+def transport_control_reference(reference, motion, now_s):
+    """Reframe a delayed polynomial once; preserve acquisition/absolute expiry."""
+    old = reference["timestamp_s"]
+    remaining = old+reference["valid_for_s"]-now_s
+    if remaining <= 0:
+        raise ValueError("reference_expired")
+    pose, problem = motion.pose_between(old, now_s)
+    if problem:
+        raise ValueError("Control delayed path motion: " + problem)
+    lo, hi = reference["path"]["range"]
+    count = min(200, max(1, math.ceil((hi-lo)/0.025)))
+    samples = []
+    for i in range(count+1):
+        point = evaluate_planning_path(reference, min(hi, lo+(hi-lo)*i/count), old)
+        if point is None:
+            raise ValueError("invalid_delayed_path")
+        samples.append((*motion.transform_xy(point["position_xy_m"], pose),
+                        wrap_angle(point["heading_rad"]-pose["yaw_rad"]), point["curvature_1pm"]))
+    if samples[-1][0] <= max(0, samples[0][0]) or any(b[0] <= a[0] for a, b in zip(samples, samples[1:])):
+        raise ValueError("Control delayed path support exhausted")
+    # Nested planner records are read-only here; only this new envelope and
+    # newly created geometry change. Avoid copying a whole Frenet trace.
+    result = dict(reference)
+    result.update(timestamp_s=now_s, valid_for_s=remaining, control_cached_path_samples=samples)
+    return result
+
+
 @dataclass
 class ControlSettings:
     """Forward-only candidate with direct MVP and optional calibrated profiles.
@@ -2254,12 +2579,20 @@ class ControlSettings:
     robustness_enabled: bool = False
     reference_hold_max_s: float = 1.0
     reference_hold_max_distance_m: float = 0.25
+    degraded_speed_mps: float = 0.2
+    speed_recovery_accel_mps2: float = 0.15
+    recovery_confirm_frames: int = 1
+    gyro_bias_learning_enabled: bool = False
+    gyro_bias_window_s: float = 1.0
+    gyro_bias_max_rps: float = 0.12
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
             raise ValueError("control.enabled must be bool")
         if not isinstance(self.robustness_enabled, bool):
             raise ValueError("control.robustness_enabled must be bool")
+        if not isinstance(self.gyro_bias_learning_enabled, bool):
+            raise ValueError("control.gyro_bias_learning_enabled must be bool")
         if self.mode not in ("mvp", "calibrated"):
             raise ValueError("control.mode must be mvp or calibrated")
         if self.vehicle_params_source not in ("upstream", "course_simulation"):
@@ -2270,9 +2603,13 @@ class ControlSettings:
                 raise ValueError(f"control.{name} must be finite and nonnegative")
         for name in ("derivative_tau_s", "drive_max", "steering_max_normalized",
                      "max_dt_s", "startup_grace_s", "max_distance_m", "max_run_time_s",
-                     "reference_hold_max_s", "reference_hold_max_distance_m"):
+                     "reference_hold_max_s", "reference_hold_max_distance_m", "gyro_bias_window_s", "gyro_bias_max_rps"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
+        if (not finite_number(self.degraded_speed_mps) or self.degraded_speed_mps <= 0
+                or not finite_number(self.speed_recovery_accel_mps2) or self.speed_recovery_accel_mps2 <= 0
+                or not isinstance(self.recovery_confirm_frames, int) or self.recovery_confirm_frames < 1):
+            raise ValueError("invalid control speed recovery settings")
         if self.drive_max > 1 or self.steering_max_normalized > 1:
             raise ValueError("control action limits must not exceed 1")
         if not finite_number(self.mvp_steering_direction) or self.mvp_steering_direction not in (-1.0, 1.0):
@@ -2509,7 +2846,7 @@ def _planning_control_geometry(reference, now_s):
     if "control_cached_path_samples" in reference:
         return _control_cached_geometry(reference)
     geometry = control_path_geometry(reference.get("path"))
-    if reference.get("planner_version") == "frenet_lattice_v2":
+    if reference.get("planner_version") in ("frenet_lattice_v2", "mvp2_centerline"):
         preview = reference.get("control_preview_m")
         bounds = reference["path"]["range"]
         if not finite_number(preview) or preview <= 0:
@@ -2554,7 +2891,7 @@ def _control_cached_geometry(reference):
                 "closest_x_m": x, "closest_y_m": y,
                 "path_degree": len(reference["path"]["coeffs_low_to_high"])-1,
                 "closest_at_range_end": index == 0 and t == 0 or index == len(points)-2 and t == 1}
-    if reference.get("planner_version") == "frenet_lattice_v2":
+    if reference.get("planner_version") in ("frenet_lattice_v2", "mvp2_centerline"):
         preview = reference.get("control_preview_m")
         if not finite_number(preview) or preview <= 0:
             raise ValueError("invalid_lattice_control_preview")
@@ -2564,6 +2901,17 @@ def _control_cached_geometry(reference):
         geometry.update(path_error_m=y, path_heading_rad=heading, curvature_1pm=curvature,
                         control_preview_x_m=preview)
     return geometry
+
+
+def control_reference_snapshot(reference):
+    """Small independent control envelope; upstream rich records stay intact."""
+    selected = {k: v for k, v in reference.items() if k not in
+                ("frenet_path", "speed_profile", "longitudinal_profile", "support", "control_cached_path_samples")}
+    if "path" in selected:
+        selected["path"] = deepcopy(selected["path"])
+    if "control_cached_path_samples" in reference:
+        selected["control_cached_path_samples"] = [tuple(p) for p in reference["control_cached_path_samples"]]
+    return selected
 
 
 class ControlReferenceManager:
@@ -2579,7 +2927,10 @@ class ControlReferenceManager:
         "unsupported_road_curvature", "insufficient_near_or_far_coverage",
         "not_straight_enough", "outside_v1_offset_or_heading_domain",
         "invalid_estimates_or_boundaries", "insufficient_lattice_coverage",
-        "expired_road_prediction", "lattice_time_budget_exceeded"})
+        "expired_road_prediction", "lattice_time_budget_exceeded",
+        "source_deadline_during_planning", "planning_pending", "planning_worker_timeout",
+        "planning_worker_unavailable", "insufficient_body_supported_horizon",
+        "lattice_candidate_cap", "cartesian_conversion_failed"})
 
     def __init__(self, settings):
         self.settings = settings
@@ -2592,6 +2943,9 @@ class ControlReferenceManager:
         self.endpoints = None
         self.curve_samples = None
         self.last_target_speed_mps = None
+        self.last_selection_s = None
+        self.recovery_frames = 0
+        self.recovering = False
         self.mode = "TRACKING"
         self.diagnostics = {}
 
@@ -2612,6 +2966,7 @@ class ControlReferenceManager:
                 or execution_lifetime_s <= 0):
             raise ValueError("Control recovery motion feedback unavailable")
         source_stamp = road.get("measurement_timestamp_s")
+        new_frame = finite_number(source_stamp) and source_stamp != self.source_stamp_s
         usable = reference.get("valid") is True
         if usable:
             stamp, lifetime = reference.get("timestamp_s"), reference.get("valid_for_s")
@@ -2652,7 +3007,7 @@ class ControlReferenceManager:
                 raise ValueError("Control road sample moved backwards")
             if (not road.get("degraded")
                     and (self.reference is None or source_stamp != self.source_stamp_s)):
-                self.reference = deepcopy(reference)
+                self.reference = control_reference_snapshot(reference)
                 self.source_stamp_s = source_stamp
                 self.accepted_at_s, self.accepted_distance_m = monotonic_s, distance_m
                 self.frame_time_s = stamp
@@ -2660,14 +3015,18 @@ class ControlReferenceManager:
                 self.endpoints = [(x, _control_poly_eval(coeffs, (x-path["origin"])/path["scale"]))
                                   for x in path["range"]]
                 self.curve_samples = None
-                if len(coeffs) > 2:
+                if "control_cached_path_samples" in reference:
+                    self.curve_samples = [tuple(p) for p in reference["control_cached_path_samples"]]
+                    _control_cached_geometry(reference)
+                    self.endpoints = [self.curve_samples[0][:2], self.curve_samples[-1][:2]]
+                elif len(coeffs) > 2:
                     lo, hi = path["range"]
                     count = max(1, math.ceil((hi-lo)/0.025))
                     if count > 200:
                         raise ValueError("Control cache curve sampling limit")
                     samples = []
                     for i in range(count+1):
-                        x = lo+(hi-lo)*i/count
+                        x = min(hi, lo+(hi-lo)*i/count)
                         point = evaluate_planning_path(reference, x, now_s)
                         if point is None:
                             raise ValueError("Control cache curve sample unavailable")
@@ -2700,16 +3059,34 @@ class ControlReferenceManager:
                               "coeffs_low_to_high": [intercept, slope],
                               "range": [max(0.0, x0), x1]}
 
-        selected = deepcopy(reference if usable else self.reference)
+        selected = control_reference_snapshot(reference if usable else self.reference)
         if not usable:
             selected["path"] = predicted_path
             if self.curve_samples is not None:
                 selected["path"] = deepcopy(self.reference["path"])
-                selected["control_cached_path_samples"] = deepcopy(self.curve_samples)
+                selected["control_cached_path_samples"] = list(self.curve_samples)
             selected["target_speed_mps"] = min(selected["target_speed_mps"], self.last_target_speed_mps)
         selected.update(timestamp_s=now_s, valid_for_s=execution_lifetime_s)
-        self.last_target_speed_mps = selected["target_speed_mps"]
-        self.mode = "TRACKING" if usable and not road.get("degraded") else "DEGRADED"
+        healthy = usable and not road.get("degraded")
+        waiting = not usable and reason == "planning_pending"
+        if healthy and (self.recovering or self.mode == "DEGRADED"):
+            self.recovering = True
+            if new_frame:
+                self.recovery_frames += 1
+            if self.recovery_frames >= self.settings.recovery_confirm_frames:
+                self.recovering = False
+        elif not healthy and not waiting:
+            self.recovering, self.recovery_frames = True, 0
+        self.mode = ("TRACKING" if (healthy or waiting and self.mode == "TRACKING")
+                     and not self.recovering else "DEGRADED")
+        target = selected["target_speed_mps"]
+        if self.mode == "DEGRADED":
+            target = min(target, self.settings.degraded_speed_mps)
+        if self.last_target_speed_mps is not None and self.last_selection_s is not None:
+            target = min(target, self.last_target_speed_mps+self.settings.speed_recovery_accel_mps2*
+                         max(0.0, monotonic_s-self.last_selection_s))
+        selected["target_speed_mps"] = self.last_target_speed_mps = target
+        self.last_selection_s = monotonic_s
         self.diagnostics = {
             "tracking_mode": self.mode, "upstream_rejection_reason": (
                 "upstream_road_prediction" if usable and road.get("degraded") else None if usable else reason),
@@ -2930,6 +3307,19 @@ class PolicyNode(Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        self.planning_generation = 0
+        self.last_planning_submit_s = -math.inf
+        self.last_async_fault = None
+        self.last_worker_restart_s = -math.inf
+        self.last_planner_elapsed_s = None
+        self.async_planner = None
+        self.gyro_bias_rps = 0.0
+        self.gyro_bias_samples = []
+        if self.lattice_settings.async_enabled:
+            if (self.planning_settings.algorithm != "lattice_v2" or not self._robust_control_enabled()
+                    or self.policy_update_mode != "timer"):
+                raise ValueError("Async planning requires robust MVP lattice control in timer mode")
+            self.async_planner = AsyncLatticePlanner()
 
         self.fsm_state = FSM_STATE_PUBLISHING_ZERO_ACTIONS
         self.state_reason = "Startup: waiting for an explicit policy request"
@@ -3346,6 +3736,8 @@ class PolicyNode(Node):
                 else:
                     value = rotate_vector(body_from_sensor, measurement)
                 accepted = self._store(name, value, stamp, now, ros_now)
+                if accepted and name == "imu_angular_velocity":
+                    self._observe_stationary_gyro(value[2], now, ros_now)
                 if accepted and name == "imu_orientation" and self.heading_reference is not None:
                     heading = wrap_angle(roll_pitch_yaw(value)[2] - self.heading_reference)
                     self.heading_publisher.publish(Float32(data=math.degrees(heading)))
@@ -3702,8 +4094,14 @@ class PolicyNode(Node):
                            for name, obs in self.observations.items()}
         receipt_ros_ns = {name: None if obs is None else obs.received_ros_ns
                           for name, obs in self.observations.items()}
+        motion_observations = observations
+        if (getattr(self, "control_settings", ControlSettings()).gyro_bias_learning_enabled
+                and observations.get("imu_angular_velocity") is not None):
+            rates = observations["imu_angular_velocity"]
+            motion_observations = {**observations, "imu_angular_velocity":
+                (rates[0], rates[1], rates[2]-getattr(self, "gyro_bias_rps", 0.0))}
         self.estimation_output = self.estimator.update(
-            observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
+            motion_observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
             self.get_clock().now().nanoseconds / 1e9, receipt_ros_ns)
 
         # Supply explicit car calibration at the integration boundary without
@@ -3731,10 +4129,17 @@ class PolicyNode(Node):
                                                        self.sensor_timeout_s["imu_angular_velocity"])}
         source_timeouts["obstacles"] = min(self.estimation_settings.max_source_age_s,
                                           self.sensor_timeout_s["lidar_cartesian"])
-        self.planning_output, self.planning_diagnostics = self.planner.plan(
-            estimates["road"], estimates["state"], estimates["obstacles"],
-            estimates["vehicle_limits"], estimates["state"]["timestamp_s"], source_timeouts,
-            mvp=getattr(self, "control_settings", ControlSettings()).mode == "mvp")
+        if getattr(self, "async_planner", None) is not None:
+            estimates = self._async_planning_cycle(estimates, source_timeouts)
+        else:
+            args = (estimates["road"], estimates["state"], estimates["obstacles"],
+                    estimates["vehicle_limits"], estimates["state"]["timestamp_s"], source_timeouts)
+            if self.planning_settings.algorithm == "lattice_v2":
+                self.planning_output, self.planning_diagnostics = _mvp_plan(
+                    self.planner, getattr(self, "control_settings", ControlSettings()), args)
+            else:
+                self.planning_output, self.planning_diagnostics = self.planner.plan(
+                    *args, mvp=getattr(self, "control_settings", ControlSettings()).mode == "mvp")
 
         control = getattr(self, "control_settings", ControlSettings())
         if control.enabled:
@@ -3746,10 +4151,21 @@ class PolicyNode(Node):
             # control step; any fault after tracking requires explicit resume.
             if (not self.planning_output["valid"] and not self.control_has_run
                     and estimates["state"]["valid"]
-                    and estimates["road"]["status"] == "missing_motion_history"
+                    and (estimates["road"]["status"] == "missing_motion_history"
+                         or (getattr(self, "async_planner", None) is not None
+                             and self.planning_output.get("reason") in ControlReferenceManager.SOFT_REASONS))
                     and policy_elapsed_s < control.startup_grace_s):
                 self.control_diagnostics = {"valid": False, "stop_requested": False,
                                             "reason": "priming_motion_history"}
+                return 0.0, 0.0, None, None, None
+            if (getattr(self, "async_planner", None) is not None and not self.control_has_run
+                    and estimates["road"].get("degraded")
+                    and policy_elapsed_s < control.startup_grace_s):
+                # A predicted first result cannot establish control trust. Stay
+                # neutral until an observed result arrives, rather than drive
+                # once and then lock-stop on the next pending worker cycle.
+                self.control_diagnostics = {"valid": False, "stop_requested": False,
+                                            "reason": "awaiting_observed_reference"}
                 return 0.0, 0.0, None, None, None
             selected_reference = self.planning_output
             if self._robust_control_enabled():
@@ -3792,7 +4208,86 @@ class PolicyNode(Node):
         # =====================================
         return drive_action, steering_action, camera_pan_action, debug1, debug2
 
-    # ---- Control-only reference recovery; upstream algorithms stay unchanged --
+    def _observe_stationary_gyro(self, rate, now, ros_now):
+        """Learn only during publishing-zero with fresh near-zero wheel speed.
+
+        Operator must leave the body stationary during the neutral interval.
+        A fixed per-run bias is subtracted only downstream, preserving raw
+        observations, source identity and independent IMU-field freshness.
+        """
+        cfg = self.control_settings
+        if not cfg.gyro_bias_learning_enabled:
+            return
+        samples = self.gyro_bias_samples
+        wheel = self.observations.get("wheel_speed")
+        if (self.fsm_state != FSM_STATE_PUBLISHING_ZERO_ACTIONS
+                or not self._fresh("wheel_speed", now, ros_now) or wheel.value > 0.005
+                or abs(rate) > cfg.gyro_bias_max_rps):
+            samples.clear()
+            return
+        if samples and now-samples[-1][0] < 0.05:
+            return
+        samples.append((now, rate))
+        while len(samples) > 32 or len(samples) > 2 and now-samples[1][0] >= cfg.gyro_bias_window_s:
+            samples.pop(0)
+        if len(samples) >= 10 and now-samples[0][0]+1e-9 >= cfg.gyro_bias_window_s:
+            mean = sum(v for _, v in samples)/len(samples)
+            if sum((v-mean)**2 for _, v in samples)/len(samples) <= 0.003**2:
+                self.gyro_bias_rps = mean
+
+    def _async_planning_cycle(self, estimates, source_timeouts):
+        now = self._monotonic()
+        stamp = estimates["state"]["timestamp_s"]
+        worker = self.async_planner
+        result = worker.poll()
+        pending_age = None if worker.pending_at is None else now-worker.pending_at
+        failed = worker.process.poll() is not None
+        if failed or pending_age is not None and pending_age >= self.lattice_settings.worker_timeout_s:
+            self.last_async_fault = "planning_worker_unavailable" if failed else "planning_worker_timeout"
+            if now-getattr(self, "last_worker_restart_s", -math.inf) >= 0.5:
+                worker.close()
+                self.async_planner = worker = AsyncLatticePlanner()
+                self.last_worker_restart_s = now
+        accepted = False
+        selected_estimates = estimates
+        if result is not None and result.get("generation") == self.planning_generation:
+            if result.get("error"):
+                self.last_async_fault = "planning_worker_unavailable"
+            else:
+                ref = result["reference"]
+                self.planning_diagnostics = result["diagnostics"]
+                self.last_planner_elapsed_s = result["diagnostics"].get("elapsed_s")
+                if ref.get("valid"):
+                    try:
+                        transported = transport_control_reference(ref, self.motion_history, stamp)
+                        road = dict(result["road"])
+                        road["timestamp_s"] = stamp
+                        self.planning_output = transported
+                        selected_estimates = {**estimates, "road": road}
+                        self.last_async_fault = None
+                        accepted = True
+                    except (ValueError, TypeError, ArithmeticError) as error:
+                        self.last_async_fault = "source_deadline_during_planning"
+                        self.planning_diagnostics["discarded_result"] = str(error)
+                else:
+                    self.last_async_fault = ref.get("reason")
+        if not accepted:
+            reason = self.last_async_fault or "planning_pending"
+            self.planning_output = {"valid": False, "reason": reason, "timestamp_s": stamp,
+                                    "valid_for_s": 0.0, "stop_requested": True}
+            self.planning_diagnostics = {"async": True, "reason": reason, "pending_age_s": pending_age}
+        if (worker.process.poll() is None and worker.ready and worker.pending_at is None
+                and now-self.last_planning_submit_s >= 1.0/self.lattice_settings.update_rate_hz):
+            job = {"generation": self.planning_generation, "frame_id": self.policy_frame_id,
+                   "planning": vars(self.planning_settings), "lattice": vars(self.lattice_settings),
+                   "control": vars(self.control_settings),
+                   "args": [estimates["road"], estimates["state"], estimates["obstacles"],
+                            estimates["vehicle_limits"], stamp, source_timeouts]}
+            worker.submit(deepcopy(job), now)
+            self.last_planning_submit_s = now
+        return selected_estimates
+
+    # ---- Bounded reference recovery and control execution ---------------------
     def _robust_control_enabled(self):
         cfg = self.control_settings
         return cfg.enabled and cfg.mode == "mvp" and cfg.robustness_enabled
@@ -3832,11 +4327,15 @@ class PolicyNode(Node):
     def _report_control_status(self):
         manager = self.control_reference_manager
         self.control_diagnostics.update(manager.diagnostics)
+        self.control_diagnostics["gyro_bias_rps"] = getattr(self, "gyro_bias_rps", 0.0)
+        self.control_diagnostics["last_planner_elapsed_s"] = getattr(self, "last_planner_elapsed_s", None)
         if manager.reference is None:
             return
+        self.state_reason = "Control: " + str({**manager.diagnostics,
+            "gyro_bias_rps": self.control_diagnostics["gyro_bias_rps"],
+            "last_planner_elapsed_s": self.control_diagnostics["last_planner_elapsed_s"]})
         if manager.mode != getattr(self, "last_control_tracking_mode", None):
             self.last_control_tracking_mode = manager.mode
-            self.state_reason = "Control: " + str(manager.diagnostics)
             self.get_logger().info(self.state_reason)
             self.publish_state()
 
@@ -3866,6 +4365,11 @@ class PolicyNode(Node):
         self._change_state(requested, "Operator request")
 
     def _change_state(self, state, reason):
+        if hasattr(self, "gyro_bias_samples"):
+            self.gyro_bias_samples.clear()
+        self.planning_generation = getattr(self, "planning_generation", 0)+1
+        self.last_planning_submit_s = -math.inf
+        self.last_async_fault = None
         self.fsm_state = state
         self.state_reason = reason
         # An internal consumer must not mistake the previous run's estimate
@@ -3952,6 +4456,12 @@ class PolicyNode(Node):
         if self.fsm_state != FSM_STATE_NOT_PUBLISHING_ACTIONS and self.context.ok():
             self.publish_zero_actions()
 
+    def destroy_node(self):
+        if getattr(self, "async_planner", None) is not None:
+            self.async_planner.close()
+            self.async_planner = None
+        return super().destroy_node()
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -3974,4 +4484,7 @@ def main(args=None):
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] == ["--planner-worker"]:
+        _planner_worker_main()
+    else:
+        main()
