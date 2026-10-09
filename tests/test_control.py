@@ -19,6 +19,7 @@ ns = dict(api["namespace"])
 tree = ast.parse(api["SOURCE"].read_text(encoding="utf-8"))
 subject = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
 method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn", "run_policy_step",
+                "_robust_control_enabled", "_control_health_problem", "_select_control_reference", "_report_control_status",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
                 "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
@@ -110,6 +111,183 @@ def feed(node, center=0.1, speed=0.0, yaw=0.0, delay=0.0, empty=False):
 
 def start(node):
     node.fsm_transition_request_callback(SimpleNamespace(data=3))
+
+
+class RobustControlChecks(unittest.TestCase):
+    def node(self, speed=0.2, yaw=0.0):
+        node = make_node(simulated=False, mvp=True)
+        node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp", robustness_enabled=True,
+            drive_max=0.35, mvp_drive_feedforward=0.30)
+        node.controller = ns["PolicyController"](node.control_settings)
+        feed(node, center=0.05, speed=speed, yaw=yaw)
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3)
+        return node
+
+    def tick(self, node, speed=0.2, yaw=0.0, cones=False, empty=False):
+        node.test_clock.advance(0.05)
+        if cones or empty:
+            feed(node, center=0.05, speed=speed, yaw=yaw, empty=empty)
+        else:
+            now, ros = node.test_clock.monotonic, node.test_clock.ros_ns
+            node._store("wheel_speed", speed, None, now, ros)
+            node._store("imu_angular_velocity", (0.0, 0.0, yaw), ros, now, ros)
+        node.supervision_callback()
+        node.run_policy_step()
+
+    def test_empty_frame_degrades_and_recovers_without_reset(self):
+        node = self.node()
+        manager = node.control_reference_manager
+        controller = node.controller
+        node.controller.speed.integral = 0.4
+        self.tick(node, empty=True)
+        self.assertEqual(node.fsm_state, 3)
+        self.assertEqual(manager.mode, "DEGRADED")
+        self.assertEqual(node.controller.speed.integral, 0.4)
+        self.assertIs(node.controller, controller)
+        self.assertFalse(node.planning_output["valid"])
+        self.assertEqual(node.control_diagnostics["upstream_rejection_reason"], "invalid_estimates")
+        self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+        self.tick(node, cones=True)
+        self.assertEqual(manager.mode, "TRACKING")
+        self.assertIs(node.controller, controller)
+        self.assertGreater(node.distance_limiter.distance_m, 0)
+        self.assertEqual(node.policy_started_at, 1.0)
+
+    def test_same_frame_and_missing_cones_never_renew_time_budget(self):
+        node = self.node(speed=0.0)
+        accepted = node.control_reference_manager.accepted_at_s
+        for _ in range(19):
+            self.tick(node, speed=0.0)
+            self.assertEqual(node.fsm_state, 3)
+            self.assertEqual(node.control_reference_manager.accepted_at_s, accepted)
+        self.assertEqual(node.control_reference_manager.mode, "DEGRADED")
+        self.tick(node, speed=0.0)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("hold time exhausted", node.state_reason)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        self.assertIsNone(node.control_reference_manager.reference)
+        self.tick(node, speed=0.0, cones=True)
+        self.assertEqual(node.fsm_state, 2)
+
+    def test_distance_budget_has_independent_supervision(self):
+        node = self.node(speed=0.5)
+        for _ in range(9):
+            self.tick(node, speed=0.5, empty=True)
+            self.assertEqual(node.fsm_state, 3)
+        node.test_clock.advance(0.05)
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("hold distance exhausted", node.state_reason)
+
+    def test_fresh_frame_renews_budget_but_stop_and_restart_clear_cache(self):
+        node = self.node(speed=0.0)
+        for _ in range(12):
+            self.tick(node, speed=0.0)
+        self.tick(node, speed=0.0, cones=True)
+        self.assertAlmostEqual(node.control_reference_manager.accepted_at_s, 1.65)
+        node.fsm_transition_request_callback(SimpleNamespace(data=2))
+        self.assertIsNone(node.control_reference_manager.reference)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        node.test_clock.advance(0.05)
+        feed(node, speed=0.0, empty=True)
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 2)  # No usable initial path to predict.
+
+    def test_execution_deadline_is_separate_from_short_upstream_lifetime(self):
+        node = self.node(speed=0.0)
+        node.planning_settings.reference_lifetime_s = 0.01
+        for _ in range(4):
+            self.tick(node, speed=0.0, cones=True)
+            self.assertEqual(node.fsm_state, 3)
+            self.assertEqual(node.planning_output["valid_for_s"], 0.01)
+            self.assertAlmostEqual(node.last_control_reference_deadline_s,
+                                   node.estimation_output["state"]["timestamp_s"]+0.2)
+
+    def test_execution_gap_stops_even_with_trusted_cache(self):
+        node = self.node(speed=0.0)
+        node.test_clock.advance(0.2)
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("reference expired", node.state_reason)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+    def test_motion_loss_is_not_hidden_by_cone_loss(self):
+        node = self.node(speed=0.0)
+        node.test_clock.advance(0.05)
+        feed(node, speed=0.0, empty=True)
+        node.observations["imu_angular_velocity"] = None
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("imu_angular_velocity", node.state_reason)
+
+    def test_soft_planning_rejections_use_cache_and_hard_rejections_stop(self):
+        for reason in ("v1_requires_both_boundaries", "unsupported_road_curvature",
+                       "insufficient_near_or_far_coverage", "not_straight_enough",
+                       "outside_v1_offset_or_heading_domain", "stale_road"):
+            with self.subTest(reason=reason):
+                node = self.node(speed=0.0)
+                node.planner.plan = lambda *args, **kwargs: (
+                    {"valid": False, "reason": reason}, {})
+                self.tick(node, speed=0.0, empty=True)
+                self.assertEqual(node.fsm_state, 3)
+                self.assertEqual(node.control_reference_manager.mode, "DEGRADED")
+        for reason in ("frame_mismatch", "invalid_geometry", "stale_wheel_speed", "invalid_clock"):
+            with self.subTest(reason=reason):
+                node = self.node(speed=0.0)
+                node.planner.plan = lambda *args, **kwargs: (
+                    {"valid": False, "reason": reason}, {})
+                self.tick(node, speed=0.0, empty=True)
+                self.assertEqual(node.fsm_state, 2)
+                self.assertIn(reason, node.state_reason)
+
+    def test_incremental_prediction_matches_total_motion_and_updates_actions(self):
+        node = self.node(speed=0.2, yaw=0.1)
+        original = deepcopy(node.control_reference_manager.endpoints)
+        initial_steer = node.action_publisher.messages[-1].steer
+        for _ in range(6):
+            self.tick(node, speed=0.2, yaw=0.1, empty=True)
+            self.assertEqual(node.fsm_state, 3)
+        angle = 0.03
+        dx, dy = 2*math.sin(angle), 2*(1-math.cos(angle))
+        for (x, y), actual in zip(original, node.control_reference_manager.endpoints):
+            expected = (math.cos(angle)*(x-dx)+math.sin(angle)*(y-dy),
+                        -math.sin(angle)*(x-dx)+math.cos(angle)*(y-dy))
+            for value, oracle in zip(actual, expected):
+                self.assertAlmostEqual(value, oracle, places=10)
+        self.assertNotEqual(node.action_publisher.messages[-1].steer, initial_steer)
+        self.assertAlmostEqual(node.control_diagnostics["original_source_age_s"], 0.3)
+
+    def test_motion_gap_and_exhausted_support_stop(self):
+        node = self.node()
+        node.motion_history.samples["imu_angular_velocity"].clear()
+        self.tick(node, empty=True)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("missing_motion_history", node.state_reason)
+        node = self.node()
+        node.control_reference_manager.endpoints = [(0.0, 0.05), (0.001, 0.05)]
+        self.tick(node, empty=True)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("support exhausted", node.state_reason)
+
+    def test_runtime_distance_and_clock_limits_still_stop(self):
+        node = self.node()
+        node.distance_limiter.maximum_m = 0.01
+        self.tick(node, empty=True)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("Distance limit", node.state_reason)
+        node = self.node()
+        node.policy_started_at -= 30
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("Run time limit", node.state_reason)
+        node = self.node()
+        node.test_clock.ros_ns -= 1
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("clock moved backwards", node.state_reason)
 
 
 class ControlChecks(unittest.TestCase):

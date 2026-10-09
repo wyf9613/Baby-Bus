@@ -1052,10 +1052,17 @@ class ControlSettings:
     # Measured normalized effort needed to sustain the selected crawl speed.
     # Optional and zero by default; stop/invalid paths bypass this compensation.
     mvp_drive_feedforward: float = 0.0
+    # Control-only recovery from transient road failures; legacy code defaults
+    # stay off. Shipped MVP YAML enables it. These are experiment budgets.
+    robustness_enabled: bool = False
+    reference_hold_max_s: float = 1.0
+    reference_hold_max_distance_m: float = 0.25
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
             raise ValueError("control.enabled must be bool")
+        if not isinstance(self.robustness_enabled, bool):
+            raise ValueError("control.robustness_enabled must be bool")
         if self.mode not in ("mvp", "calibrated"):
             raise ValueError("control.mode must be mvp or calibrated")
         if self.vehicle_params_source not in ("upstream", "course_simulation"):
@@ -1065,7 +1072,8 @@ class ControlSettings:
             if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"control.{name} must be finite and nonnegative")
         for name in ("derivative_tau_s", "drive_max", "steering_max_normalized",
-                     "max_dt_s", "startup_grace_s", "max_distance_m", "max_run_time_s"):
+                     "max_dt_s", "startup_grace_s", "max_distance_m", "max_run_time_s",
+                     "reference_hold_max_s", "reference_hold_max_distance_m"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
         if self.drive_max > 1 or self.steering_max_normalized > 1:
@@ -1300,6 +1308,124 @@ def control_path_geometry(path):
     return geometry
 
 
+class ControlReferenceManager:
+    """MVP straight-reference cache; never edits the upstream planning output.
+
+    Cache budgets start at acceptance of a DISTINCT observed cone frame. Motion
+    is integrated incrementally, preserving the original source timestamp. The
+    manager generates geometry, never cached actuator commands. Prediction may
+    end earlier than its budgets when observed support or motion history ends.
+    """
+    SOFT_REASONS = frozenset({
+        "invalid_estimates", "stale_road", "v1_requires_both_boundaries",
+        "unsupported_road_curvature", "insufficient_near_or_far_coverage",
+        "not_straight_enough", "outside_v1_offset_or_heading_domain"})
+
+    def __init__(self, settings):
+        self.settings = settings
+        self.clear()
+
+    def clear(self):
+        self.reference = None
+        self.source_stamp_s = self.accepted_at_s = self.accepted_distance_m = None
+        self.frame_time_s = None
+        self.endpoints = None
+        self.mode = "TRACKING"
+        self.diagnostics = {}
+
+    def problem(self, monotonic_s, distance_m):
+        if self.reference is None:
+            return "No trusted control reference"
+        elapsed, distance = monotonic_s-self.accepted_at_s, distance_m-self.accepted_distance_m
+        if not all(finite_number(v) and v >= 0 for v in (elapsed, distance)):
+            return "Control cache clock/distance invalid"
+        if elapsed+1e-9 >= self.settings.reference_hold_max_s:
+            return "Control reference hold time exhausted"
+        if distance+1e-9 >= self.settings.reference_hold_max_distance_m:
+            return "Control reference hold distance exhausted"
+        return None
+
+    def select(self, reference, road, state, motion, now_s, monotonic_s, distance_m, execution_lifetime_s):
+        if (state.get("valid") is not True or not finite_number(execution_lifetime_s)
+                or execution_lifetime_s <= 0):
+            raise ValueError("Control recovery motion feedback unavailable")
+        source_stamp = road.get("measurement_timestamp_s")
+        usable = reference.get("valid") is True
+        if usable:
+            stamp, lifetime = reference.get("timestamp_s"), reference.get("valid_for_s")
+            if not all(finite_number(v) for v in (stamp, lifetime)) or lifetime <= 0 or stamp > now_s:
+                raise ValueError("Invalid upstream control reference timestamp")
+            if (reference.get("frame_id") != state.get("frame_id")
+                    or reference.get("vehicle_reference_point") != "cg_ground_projection"
+                    or abs(stamp-state.get("timestamp_s", math.inf)) > 1e-6):
+                raise ValueError("control_frame_or_time_mismatch")
+            if reference.get("stop_requested") or reference.get("target_speed_mps") == 0:
+                return reference
+            usable = now_s < stamp+lifetime
+        reason = reference.get("reason") if not reference.get("valid") else "reference_expired"
+        if not usable and reason not in self.SOFT_REASONS | {"reference_expired"}:
+            raise ValueError("Planning: " + str(reason))
+
+        path = reference.get("path") if usable else None
+        straight = (isinstance(path, dict) and path.get("type") == "CARTESIAN_Y_OF_X"
+                    and path.get("independent_variable") == "x_m"
+                    and isinstance(path.get("coeffs_low_to_high"), (list, tuple))
+                    and 1 <= len(path["coeffs_low_to_high"]) <= 2)
+        if usable and not straight:
+            # Other path encodings keep their original control/deadline behavior.
+            self.clear()
+            return reference
+        if usable:
+            control_path_geometry(path)  # Validate the full polynomial contract.
+            if not finite_number(source_stamp) or source_stamp > now_s:
+                raise ValueError("Invalid trusted road timestamp")
+            if self.source_stamp_s is not None and source_stamp < self.source_stamp_s:
+                raise ValueError("Control road sample moved backwards")
+            if self.reference is None or source_stamp != self.source_stamp_s:
+                self.reference = deepcopy(reference)
+                self.source_stamp_s = source_stamp
+                self.accepted_at_s, self.accepted_distance_m = monotonic_s, distance_m
+                self.frame_time_s = stamp
+                coeffs = path["coeffs_low_to_high"]
+                self.endpoints = [(x, _control_poly_eval(coeffs, (x-path["origin"])/path["scale"]))
+                                  for x in path["range"]]
+
+        if not usable:
+            problem = self.problem(monotonic_s, distance_m)
+            if problem:
+                raise ValueError(problem)
+        if self.reference is not None:
+            pose, problem = motion.pose_between(self.frame_time_s, now_s)
+            if problem:
+                raise ValueError("Control cache motion: " + problem)
+            endpoints = [motion.transform_xy(p, pose) for p in self.endpoints]
+            (x0, y0), (x1, y1) = endpoints
+            if (not all(finite_number(v) for point in endpoints for v in point)
+                    or x1 <= max(0.0, x0)):
+                raise ValueError("Control cached path support exhausted")
+            slope = (y1-y0)/(x1-x0)
+            intercept = y0-slope*x0
+            self.endpoints, self.frame_time_s = endpoints, now_s
+            predicted_path = {"type": "CARTESIAN_Y_OF_X", "independent_variable": "x_m",
+                              "origin": 0.0, "scale": 1.0,
+                              "coeffs_low_to_high": [intercept, slope],
+                              "range": [max(0.0, x0), x1]}
+
+        selected = deepcopy(reference if usable else self.reference)
+        if not usable:
+            selected["path"] = predicted_path
+        selected.update(timestamp_s=now_s, valid_for_s=execution_lifetime_s)
+        self.mode = "TRACKING" if usable else "DEGRADED"
+        self.diagnostics = {
+            "tracking_mode": self.mode, "upstream_rejection_reason": None if usable else reason,
+            "original_measurement_timestamp_s": self.source_stamp_s,
+            "original_source_age_s": now_s-self.source_stamp_s,
+            "cache_age_s": monotonic_s-self.accepted_at_s,
+            "prediction_distance_m": distance_m-self.accepted_distance_m,
+            "remaining_path_range_m": list(selected["path"]["range"])}
+        return selected
+
+
 class PolicyController:
     """Single-file forward-only control; failures request the framework stop.
 
@@ -1492,6 +1618,8 @@ class PolicyNode(Node):
                     1.0/self.policy_update_rate_hz >= self.planning_settings.reference_lifetime_s):
                 raise ValueError("Integrated control timer period must be shorter than the planning reference lifetime")
         self.controller = PolicyController(self.control_settings, self.policy_frame_id)
+        self.control_reference_manager = ControlReferenceManager(self.control_settings)
+        self.last_control_tracking_mode = None
         self.distance_limiter = RunDistanceLimiter(self.control_settings.max_distance_m, self.control_settings.max_dt_s)
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
@@ -1923,7 +2051,7 @@ class PolicyNode(Node):
         now, ros_now = self._times()
         if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
             return
-        problem = self.health_problem(now, ros_now) or self._control_problem(now, ros_now)
+        problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
@@ -1968,7 +2096,7 @@ class PolicyNode(Node):
         now, ros_now = self._times()
         if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
             return
-        problem = self.health_problem(now, ros_now)
+        problem = self._control_health_problem(now, ros_now)
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
@@ -2311,7 +2439,13 @@ class PolicyNode(Node):
                 self.control_diagnostics = {"valid": False, "stop_requested": False,
                                             "reason": "priming_motion_history"}
                 return 0.0, 0.0, None, None, None
-            if not self.planning_output["valid"]:
+            selected_reference = self.planning_output
+            if self._robust_control_enabled():
+                try:
+                    selected_reference = self._select_control_reference(estimates)
+                except (ValueError, TypeError, ArithmeticError) as error:
+                    raise PolicyStopRequest("Control reference: " + str(error)) from error
+            if not selected_reference["valid"]:
                 reason = "Planning: " + str(self.planning_output["reason"])
                 self.get_logger().warning("Planning rejection details: " + str({
                     "reason": self.planning_output["reason"],
@@ -2326,14 +2460,16 @@ class PolicyNode(Node):
                 }))
                 raise PolicyStopRequest(reason)
             drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
-                self.planning_output, estimates["state"], estimates["vehicle_params"],
+                selected_reference, estimates["state"], estimates["vehicle_params"],
                 self.get_clock().now().nanoseconds/1e9, dt)
             if not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]:
                 reason = "Control: " + self.control_diagnostics["reason"]
                 raise PolicyStopRequest(reason)
             self.control_has_run = True
             self.last_control_reference_deadline_s = (
-                self.planning_output["timestamp_s"]+self.planning_output["valid_for_s"])
+                selected_reference["timestamp_s"]+selected_reference["valid_for_s"])
+            if self._robust_control_enabled():
+                self._report_control_status()
             # Existing debug topics: lateral error (m), per-run distance (m).
             # The existing state string reports planning/control stop reasons.
             debug1 = self.control_diagnostics["path_error_m"]
@@ -2343,6 +2479,54 @@ class PolicyNode(Node):
         # END OF: INSERT POLICY CODE ABOVE HERE
         # =====================================
         return drive_action, steering_action, camera_pan_action, debug1, debug2
+
+    # ---- Control-only reference recovery; upstream algorithms stay unchanged --
+    def _robust_control_enabled(self):
+        cfg = self.control_settings
+        return cfg.enabled and cfg.mode == "mvp" and cfg.robustness_enabled
+
+    def _control_health_problem(self, monotonic_now, ros_now_ns):
+        problem = self.health_problem(monotonic_now, ros_now_ns)
+        if not problem or not self._robust_control_enabled():
+            return problem
+        # Only cone availability may be bridged. Never exempt wheel/gyro or any
+        # other required field, even if the cone fault is the first in the list.
+        for name in self.required_sensors:
+            if name != "cone_detections" and not self._fresh(name, monotonic_now, ros_now_ns):
+                return f"Required sensor {name} is missing or stale"
+        manager = getattr(self, "control_reference_manager", None)
+        if manager is None or manager.reference is None:
+            return problem
+        cache_problem = manager.problem(monotonic_now, self.distance_limiter.distance_m)
+        if cache_problem:
+            return cache_problem + "; explicit resume required"
+        return None
+
+    def _select_control_reference(self, estimates):
+        if not hasattr(self, "control_reference_manager"):
+            self.control_reference_manager = ControlReferenceManager(self.control_settings)
+        state = estimates["state"]
+        # Execution cadence is independent of the planner's remaining ROAD
+        # lifetime. Fresh motion is checked each cycle; the original source
+        # timestamps and hold budgets are kept independently in the cache.
+        ages = state.get("source_age_s") or {}
+        remaining = [self.sensor_timeout_s[name]-ages.get(name, math.inf)
+                     for name in ("wheel_speed", "imu_angular_velocity")]
+        return self.control_reference_manager.select(
+            self.planning_output, estimates["road"], state, self.motion_history,
+            state["timestamp_s"], self._monotonic(), self.distance_limiter.distance_m,
+            min(0.2, self.control_settings.max_dt_s, *remaining))
+
+    def _report_control_status(self):
+        manager = self.control_reference_manager
+        self.control_diagnostics.update(manager.diagnostics)
+        if manager.reference is None:
+            return
+        if manager.mode != getattr(self, "last_control_tracking_mode", None):
+            self.last_control_tracking_mode = manager.mode
+            self.state_reason = "Control: " + str(manager.diagnostics)
+            self.get_logger().info(self.state_reason)
+            self.publish_state()
 
     # ---- State requests, watchdog, and publication ---------------------------
     def fsm_transition_request_callback(self, msg):
@@ -2379,6 +2563,9 @@ class PolicyNode(Node):
         self.planning_output = None
         self.planning_diagnostics = None
         self.controller.clear()
+        if hasattr(self, "control_reference_manager"):
+            self.control_reference_manager.clear()
+        self.last_control_tracking_mode = None
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
@@ -2407,6 +2594,12 @@ class PolicyNode(Node):
                 monotonic_now-self.policy_started_at >= self.control_settings.max_run_time_s):
             return "Run time limit reached; explicit resume required"
         deadline = self.last_control_reference_deadline_s
+        manager = getattr(self, "control_reference_manager", None)
+        if (self._robust_control_enabled() and manager is not None
+                and manager.mode == "DEGRADED"):
+            problem = manager.problem(monotonic_now, self.distance_limiter.distance_m)
+            if problem:
+                return problem + "; explicit resume required"
         if deadline is not None and ros_now_ns/1e9 >= deadline:
             return "Control reference expired; explicit resume required"
         if (not self.control_has_run and self.policy_started_at is not None
@@ -2417,7 +2610,7 @@ class PolicyNode(Node):
     def supervision_callback(self):
         now, ros_now = self._times()
         if self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION:
-            problem = self.health_problem(now, ros_now) or self._control_problem(now, ros_now)
+            problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
             if problem:
                 self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
         elif self.fsm_state == FSM_STATE_PUBLISHING_ZERO_ACTIONS:

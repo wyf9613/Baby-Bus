@@ -31,6 +31,8 @@
     # Missing/stale REQUIRED data stops the policy in publishing-zero state.
     # Recovery needs another explicit state-3 request. Optional missing/expired
     # values are None in the student code (arrays have an availability flag).
+    # Control MVP robustness below may bridge ONLY a running cone-stream fault
+    # using bounded trusted-path prediction; initial admission stays unchanged.
     # cone_detection mode must require cone_detections; fiducial_detection mode
     # must require fiducial_detections; lidar mode must require lidar_scan,
     # lidar_cartesian, or both. lidar_scan requires the original radial scan;
@@ -204,6 +206,13 @@
     control:
       enabled: true
       mode: mvp
+      # Control-only straight-path prediction on transient road rejection.
+      # Budgets start at the last DISTINCT trusted cone frame's acceptance;
+      # unchanged frames never extend them. No automatic restart after state 2.
+      # Requires fresh wheel/gyro, usable motion history and remaining support.
+      robustness_enabled: true
+      reference_hold_max_s: 1.0
+      reference_hold_max_distance_m: 0.25
       # Optional calibrated mode only: must match planning's simulation profile.
       # MVP uses direct normalized steering and ignores this geometry selector.
       vehicle_params_source: upstream
@@ -239,7 +248,8 @@
       steering_max_normalized: 0.5
       max_dt_s: 0.2
       # Before FIRST control only: neutral priming of delayed camera history.
-      # Once tracking, any invalid path stops and needs an explicit resume.
+      # Once tracking, robustness may bridge transient road rejection within
+      # the budgets above. A completed stop still needs an explicit resume.
       startup_grace_s: 0.5
 
     # The optional measured vehicle.* inlet is used only by the later calibrated
