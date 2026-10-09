@@ -298,13 +298,13 @@ class RobustControlChecks(unittest.TestCase):
 
 
 class RobustLatticeIntegrationChecks(unittest.TestCase):
-    def node(self):
+    def node(self, direct=False):
         node = make_node(simulated=False, mvp=True)
         node.estimation_settings = replace(node.estimation_settings, road_hold_s=0)
         node.planning_settings = replace(node.planning_settings, algorithm="lattice_v2",
                                         max_source_age_s=0.4, reference_lifetime_s=0.2)
         node.lattice_settings = ns["LatticeSettings"](obstacle_check_enabled=False, budget_s=5.0,
-                                                     clear_start_assumed=True)
+                                                     clear_start_assumed=True, direct_sample_output=direct)
         node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp", robustness_enabled=True,
             drive_max=0.35, mvp_drive_feedforward=0.30)
         node.controller = ns["PolicyController"](node.control_settings)
@@ -354,6 +354,33 @@ class RobustLatticeIntegrationChecks(unittest.TestCase):
         self.assertEqual(node.planning_output["reason"], "lattice_time_budget_exceeded")
         self.assertEqual(node.control_diagnostics["tracking_mode"], "DEGRADED")
         self.assertEqual(node.control_reference_manager.accepted_at_s, accepted)
+
+    def test_direct_sample_cache_bridges_motion_and_recovers_without_refitting(self):
+        node = self.node(direct=True)
+        original = deepcopy(node.control_reference_manager.curve_samples)
+        self.assertEqual(node.planning_output["path"]["type"], "CARTESIAN_SAMPLES")
+        accepted = node.control_reference_manager.accepted_at_s
+        for _ in range(3):
+            node.test_clock.advance(0.05)
+            feed(node, speed=0.2, empty=True)
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+            self.assertEqual(node.control_diagnostics["tracking_mode"], "DEGRADED")
+            self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+            self.assertEqual(node.control_reference_manager.accepted_at_s, accepted)
+        for old, new in zip(original, node.control_reference_manager.curve_samples):
+            self.assertAlmostEqual(new[0], old[0]-0.03, places=8)
+            self.assertEqual(new[3], old[3])
+        node.test_clock.advance(0.05)
+        feed(node, center=0.1, speed=0.2)
+        node.run_policy_step()
+        self.assertEqual(node.control_diagnostics["tracking_mode"], "TRACKING")
+        node.planner.plan = lambda *args, **kwargs: ({"valid": False, "reason": "no_feasible_lattice_trajectory"}, {})
+        node.test_clock.advance(0.05)
+        feed(node, center=0.1, speed=0.2)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
 
     def test_upstream_prediction_cannot_renew_trust_or_undo_slowdown(self):
         node = self.node()

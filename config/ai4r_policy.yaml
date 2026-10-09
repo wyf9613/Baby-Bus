@@ -218,6 +218,8 @@
         # MVP2: 10 Hz worker process; control remains 20 Hz. One in-flight job.
         # Prefer a bounded centerline/controller rollout for straight/gentle
         # curves and offset starts; lattice is the secondary search.
+        # Export checked lattice points directly; no quintic Cartesian refit.
+        direct_sample_output: true
         async_enabled: true
         recovery_enabled: true
         update_rate_hz: 10.0

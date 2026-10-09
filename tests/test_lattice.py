@@ -95,6 +95,10 @@ class LatticeChecks(unittest.TestCase):
         node.lattice_settings = Config(budget_s=5, clear_start_assumed=True, obstacle_check_enabled=False)
         control_api["feed"](node, center=0.0, speed=0.2)
         control_api["start"](node)
+        # This checks prediction ages/geometry on the synthetic node clock.
+        # Real elapsed expiry and actual subprocess deadlines have separate tests.
+        node.planner = Planner(node.planning_settings, node.lattice_settings, clock=lambda: 0.0)
+        node.previous_policy_step_at = node.test_clock.monotonic
         node.run_policy_step()
         self.assertEqual(node.fsm_state, 3, node.state_reason)
         deadlines = []
@@ -406,6 +410,117 @@ class LatticeChecks(unittest.TestCase):
             self.assertAlmostEqual(actual[4], 0.16/(1+(0.16*x)**2)**1.5, places=6)
 
 
+class DirectSampleChecks(unittest.TestCase):
+    def test_checked_samples_match_raw_frenet_and_cover_full_horizon(self):
+        for bend, offset in ((0, 0.1), (0.04, 0), (-0.04, -0.1), (0.12, 0)):
+            args = fixture(curve=bend, offset=offset)
+            before = deepcopy(args)
+            ref, diag = planner(direct_sample_output=True).plan(*args)
+            self.assertTrue(ref["valid"], (ref["reason"], diag))
+            decoded = json.loads(json.dumps(ref))
+            points = decoded["path"]["samples_xy_heading_curvature"]
+            self.assertLessEqual(len(points), 201)
+            lateral = decoded["frenet_path"]["lateral"]
+            for i, point in enumerate(points):
+                s = lateral["range"][0]+(lateral["range"][1]-lateral["range"][0])*i/(len(points)-1)
+                raw = ns["evaluate_frenet_path"](decoded, s, 10.01)
+                for value, key in zip(point, ("x", "y", "heading", "curvature")):
+                    self.assertAlmostEqual(value, raw[key], places=8)
+                query = ns["evaluate_planning_path"](decoded, point[0], 10.01)
+                self.assertAlmostEqual(query["position_xy_m"][1], point[1])
+            self.assertGreater(lateral["range"][1]-lateral["range"][0], diag["selected"]["length_m"])
+            self.assertEqual(diag["output_errors"]["conversion"], "none")
+            self.assertEqual(args, before)
+            self.assertIsNone(ns["evaluate_planning_path"](decoded, points[-1][0]+0.01, 10.01))
+            self.assertIsNone(ns["evaluate_planning_path"](decoded, points[0][0], 10.2))
+
+    def test_fit_error_no_longer_rejects_checked_trajectory(self):
+        args = fixture()
+        for key, side in (("centerline_xy", 0), ("left_boundary_xy", 0.5), ("right_boundary_xy", -0.5)):
+            args[0][key] = [(x, 0.15*math.sin(2*x)+side) for x, _ in args[0][key]]
+        cfg = dict(geometry_step_m=0.05, time_step_s=0.1, transition_lengths_m="0.6,1.5",
+                   terminal_offsets_m="0.0", max_candidates=16, obstacle_check_enabled=False)
+        legacy, old_diag = planner(**cfg).plan(*args)
+        self.assertFalse(legacy["valid"])
+        self.assertEqual(legacy["reason"], "no_valid_cartesian_output")
+        self.assertTrue(any(c["reason"] == "compatibility_fit_error" for c in old_diag["candidates"]))
+        p = planner(direct_sample_output=True, **cfg)
+        p._compatibility = lambda *args: self.fail("Direct output must not refit")
+        ref, diag = p.plan(*args)
+        self.assertTrue(ref["valid"], (ref["reason"], diag))
+        self.assertEqual(ref["path"]["type"], "CARTESIAN_SAMPLES")
+
+    def test_sample_preview_interpolates_tangent_and_retains_curve_direction(self):
+        for bend in (-0.08, 0.08):
+            args = fixture(curve=bend)
+            ref, diag = planner(direct_sample_output=True).plan(*args)
+            self.assertTrue(ref["valid"], ref["reason"])
+            _, steer, result = ns["PolicyController"](ns["ControlSettings"](mode="mvp")).calculate(
+                ref, args[1], {}, 10.01, 0.05)
+            self.assertTrue(result["valid"], result)
+            self.assertGreater(steer*bend, 0)
+            self.assertGreater(result["curvature_1pm"]*bend, 0)
+            self.assertAlmostEqual(result["control_preview_x_m"], 0.35)
+            self.assertIsNone(result["path_degree"])
+
+    def test_invalid_sample_contract_cannot_publish_driving_action(self):
+        args = fixture()
+        ref, _ = planner(direct_sample_output=True).plan(*args)
+        for problem in ("nan", "order", "cap", "bounds", "row", "heading", "variable"):
+            bad = deepcopy(ref)
+            points = bad["path"]["samples_xy_heading_curvature"]
+            points[:] = [list(p) for p in points]
+            if problem == "nan": points[1][1] = math.nan
+            if problem == "order": points[1][0] = points[0][0]
+            if problem == "cap": points[:] = points*202
+            if problem == "bounds": bad["path"]["range"][1] += 1
+            if problem == "row": points[1] = None
+            if problem == "heading": points[1][2] = math.pi
+            if problem == "variable": bad["path"]["independent_variable"] = "time_s"
+            self.assertIsNone(ns["evaluate_planning_path"](bad, 0.35, 10.01), problem)
+            drive, steer, result = ns["PolicyController"](ns["ControlSettings"](mode="mvp")).calculate(
+                bad, args[1], {}, 10.01, 0.05)
+            self.assertFalse(result["valid"], problem)
+            self.assertEqual((drive, steer), (0, 0))
+
+    def test_delayed_and_repeated_transport_preserve_samples_and_original_expiry(self):
+        ref, _ = planner(direct_sample_output=True).plan(*fixture(curve=0.08))
+        before = deepcopy(ref)
+        motion = ns["EstimationMotionHistory"](ns["EstimationSettings"]())
+        for t in (10, 10.05, 10.1):
+            motion.observe("wheel_speed", 0.2, t, t, t)
+            motion.observe("imu_angular_velocity", 0.1, t, t, t)
+        first = ns["transport_control_reference"](ref, motion, 10.05)
+        twice = ns["transport_control_reference"](first, motion, 10.1)
+        once = ns["transport_control_reference"](ref, motion, 10.1)
+        original = ref["path"]["samples_xy_heading_curvature"]
+        self.assertEqual(len(original), len(once["control_cached_path_samples"]))
+        for a, b, raw in zip(twice["control_cached_path_samples"], once["control_cached_path_samples"], original):
+            for x, y in zip(a, b): self.assertAlmostEqual(x, y, places=8)
+            self.assertEqual(a[3], raw[3])
+        self.assertAlmostEqual(twice["timestamp_s"]+twice["valid_for_s"], 10.2)
+        self.assertEqual(ref, before)
+        g = ns["evaluate_planning_path"](once, 0.35, 10.1)
+        self.assertAlmostEqual(g["heading_rad"], ns["_planning_control_geometry"](once, 10.1)["path_heading_rad"])
+
+    def test_raw_collision_stop_and_time_budget_still_apply(self):
+        wall = [(1.5, y, 0) for y in (-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45)]
+        ref, _ = planner(direct_sample_output=True).plan(*fixture(points=wall))
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertTrue(ref["planned_stop"])
+        self.assertAlmostEqual(ref["speed_profile"][-1][1], 0, places=6)
+        args = fixture()
+        args[0]["left_boundary_xy"] = [(x, 0.1) for x, _ in args[0]["left_boundary_xy"]]
+        args[0]["right_boundary_xy"] = [(x, -0.1) for x, _ in args[0]["right_boundary_xy"]]
+        self.assertFalse(planner(direct_sample_output=True).plan(*args)[0]["valid"])
+        tick = iter(i*0.01 for i in range(1000))
+        p = Planner(Settings(), Config(direct_sample_output=True, clear_start_assumed=True), clock=lambda: next(tick))
+        timed, _ = p.plan(*fixture())
+        self.assertFalse(timed["valid"])
+        self.assertEqual(timed["target_speed_mps"], 0)
+        self.assertEqual(timed["status"], "TIME_BUDGET_EXCEEDED")
+
+
 class Mvp2Checks(unittest.TestCase):
     def test_actual_worker_starts_without_ros_and_accepts_only_one_job(self):
         import time
@@ -417,7 +532,8 @@ class Mvp2Checks(unittest.TestCase):
             self.assertTrue(worker.ready)
             _, args, cfg = self.plan()
             job = {"generation": 42, "frame_id": "base_link", "planning": vars(Settings(algorithm="lattice_v2")),
-                   "lattice": vars(self.config()), "control": vars(cfg), "args": args}
+                   "lattice": vars(Config(direct_sample_output=True, clear_start_assumed=True, obstacle_check_enabled=False)),
+                   "control": vars(cfg), "args": args}
             self.assertTrue(worker.submit(job, time.monotonic()))
             self.assertFalse(worker.submit(job, time.monotonic()))
             result = None
@@ -427,6 +543,7 @@ class Mvp2Checks(unittest.TestCase):
             self.assertIsNotNone(result)
             self.assertEqual(result["generation"], 42)
             self.assertTrue(result["reference"]["valid"], result)
+            self.assertEqual(result["reference"]["path"]["type"], "CARTESIAN_SAMPLES")
         finally:
             worker.close()
         self.assertIsNotNone(worker.process.poll())

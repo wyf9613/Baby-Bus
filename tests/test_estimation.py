@@ -34,7 +34,7 @@ names.update({"LatticeSettings", "LatticeCurve", "FrenetLatticePlanner", "_latti
               "_lattice_derivative", "_lattice_lateral", "_lattice_geometry", "_lattice_steering"})
 names.add("evaluate_frenet_path")
 names.add("_planning_control_geometry")
-names.add("_control_cached_geometry")
+names.update({"_control_cached_geometry", "_control_sample_points", "_control_sample_at"})
 names.update({"MvpRecoveryPlanner", "_mvp_plan", "transport_control_reference", "control_reference_snapshot", "AsyncLatticePlanner"})
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in names]

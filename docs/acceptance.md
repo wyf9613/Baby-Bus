@@ -2,14 +2,71 @@
 
 Status: `mvp2.0` extends the 2026-10-09 V2/fused-road/control candidate with
 bounded centerline-first recovery and asynchronous planning. The current
-software/model evidence is recorded below: 149 portable tests passed, and the
-installed ROS gate passed 229 checks with zero errors/failures/skips. Physical
+software/model evidence is recorded below; the direct-sample update passed
+156 portable tests and 236 installed gate checks, with zero errors, failures
+or skips. Physical
 runs are not run.
 The 2026-10-06 car candidate's installed gate and physical runs below are
 historical evidence, not evidence for the new V2 candidate. A complete 3 m
 physical run remains unverified.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
+
+## MVP2 direct-sample update, 2026-10-09
+
+The active YAML now selects `planning.lattice.direct_sample_output: true`.
+Secondary lattice exports its original checked x/y/tangent/curvature grid,
+including support beyond the lateral transition; no Cartesian quintic fit or
+fit revalidation runs. Original raw trajectory body/obstacle/motion checks and
+planned-stop behavior remain. Centerline-first recovery and 20 Hz control /
+10 Hz asynchronous planning remain. The shared evaluator, controller, delayed
+transport and trusted-motion cache accept both polynomial and sampled paths.
+The sample interface and complexity bounds are in `PLANNING_V2_CN.md`.
+
+156 portable cases passed: estimation 53, planning 18, lattice 43, control 42.
+New cases compare every exported point to the raw Frenet evaluator, exercise a
+nominal S curve rejected by legacy fitting, check preview sign, reject malformed
+samples, preserve sample count/curvature/absolute expiry over repeated motion
+transport, retain raw collision/stop/time limits, and run the actual native
+worker with the direct lattice output. Integrated control moves/holds/recovers
+the sampled cache and still locks stop on hard no-feasible-path rejection.
+
+`/opt/anaconda3/bin/python -B tools/study_lattice_output.py --repeats 30` compares
+identical shipped secondary search settings in six synthetic 1 m wide scenes.
+Full-search comparisons freeze the planner clock; 35 ms runs use a real clock.
+Full-search medians change from 9.75–14.86 ms to 8.48–13.10 ms (8–27% lower,
+per scene). A synthetic S curve y=0.15 sin(2x) failed legacy Cartesian output in
+30/30 runs but direct samples were accepted in 30/30, with raw candidate checks
+intact. It establishes output admission, not physical S-curve tracking.
+In real-clock runs direct accepted 179/180 versus legacy 150/180: one direct
+straight-case scheduling spike reached 43 ms and correctly returned budget
+expiry. No hard deadline or target-CPU guarantee is claimed. Artifacts:
+`.verification/lattice-direct-output-study.json` and its `.log`.
+
+The updated shipped-profile model study still completes all eight 3 m scenarios.
+Forcing the secondary lattice (disabling centerline recovery only in the study)
+also completes four 3 m runs: offset straight, both gentle bends and a bend with
+short empty-frame/worker-delay intervals. Final lateral errors were
+0.00075–0.00958 m. Planning medians 15.7–18.1 ms, p95 18.5–23.4 ms; two wall-time
+spikes exceeded 35 ms during concurrent ROS work; all runs still completed. Parent
+computation medians 4.8–5.4 ms, maximum 14.8 ms in these four runs. This remains
+an approximate ideal target-speed/bicycle model, not ESC, camera or tire
+validation. Artifacts: `.verification/mvp2-direct-output-study.json` and
+`.verification/direct-lattice-closed-loop.json`.
+
+The actual ROS child pause/kill/rebuild tests now disable the simple primary so
+they exercise direct sampled lattice output through real JSON pipes. The first
+full gate passed all 75 ROS cases but an older synthetic prediction-age test
+hit its real calculation deadline under concurrent load; that geometry test
+now uses the controlled planner clock, consistent with its synthetic node time.
+Independent advancing-clock and actual-worker expiry checks retain real timeout
+coverage. Final gate: `.verification/direct-output-fast-gate-final-pass.log`, 236 reported
+checks = 156 portable cases + 75 actual ROS cases + 5 CTest wrappers, zero
+errors/failures/skips. The snapshot and installed policy/config match the current
+source byte-for-byte; hashes are in
+`.verification/direct-output-tested-source-sha256.json`. Actual pause/kill timing
+artifacts are `.verification/direct-output-mvp2-worker-paused.json` and
+`.verification/direct-output-mvp2-worker-killed.json`. No hardware was launched.
 
 ## MVP2 completion-first candidate, 2026-10-09
 

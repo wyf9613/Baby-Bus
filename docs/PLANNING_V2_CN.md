@@ -1,5 +1,31 @@
 # V2 Frenet lattice planner 实现与联调
 
+## mvp2.0 直接采样接口，2026-10-09
+
+当前 YAML 开启 `planning.lattice.direct_sample_output: true`。lattice 次选直接
+导出候选阶段已完成车身/障碍/转向检查的完整 Frenet 轨迹采样点；候选的速度、
+加速度、转向速率和停车距离检查仍在选择前完成。不会再为控制器拟合 Cartesian
+五次曲线或因该拟合的误差重新筛掉已可行轨迹。中心线主路径仍是二次曲线。
+开关默认 false，旧 V2 多项式消费者可保持兼容；本分支配置明确开启新接口。
+
+内部 `planning_reference_v2.path` 新增表示：
+
+- `type: CARTESIAN_SAMPLES`，`independent_variable: x_m`。
+- `range: [first_x, last_x]`，须与采样端点一致。
+- `samples_xy_heading_curvature`：2–201 个 `[x_m, y_m, heading_rad, curvature_1pm]`，
+  x 严格递增、值有限、切线向前；使用原始已检查采样网格，不抽稀、不外推。
+- frame、时间、有效期、目标速度、planned_stop 和原始 `frenet_path` 保留。
+
+控制器继续使用 0.35 m body-x 预瞄，在相邻采样间插值位置、切线航向和曲率。
+延迟结果与短时丢帧缓存通过轮速/gyro 历史刚体变换所有点与航向，保留曲率；
+结果到达不续期，预测不续信任。控制内部可复用不可变的采样元组，避免反复
+深拷贝完整轨迹。导出/验证/运动补偿 O(N)，预瞄二分查找 O(log N)，N≤201；
+控制含最近点诊断的总体复杂度仍为 O(N)。没有增加候选数、规划频率或队列。
+
+车身和运动可行性仍基于现有离散检查与近似车辆模型；采样间插值不是连续时间
+轨迹的数学保证。局部向前、有限观测支持的适用范围保持，实车尚未验证。
+最新耗时、S 弯拟合失败回归和 ROS 证据见 [验收记录](acceptance.md)。
+
 ## mvp2.0 连续运行配置，2026-10-09
 
 当前 YAML 在原 lattice 前增加简单中心线主路径：对支持范围内的中心线做固定

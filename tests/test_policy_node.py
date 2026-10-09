@@ -1108,6 +1108,7 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.control_settings.reference_hold_max_distance_m == 0.25
         assert node.control_settings.max_distance_m == 3.0
         assert node.control_settings.max_run_time_s == 30.0
+        assert node.lattice_settings.direct_sample_output is True
         assert node.lattice_settings.async_enabled is True
         assert node.lattice_settings.recovery_enabled is True
         assert node.lattice_settings.update_rate_hz == 10.0
@@ -1127,7 +1128,8 @@ def test_mvp2_actual_worker_does_not_block_control_and_restarts(make_node, failu
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.mode": "mvp", "control.robustness_enabled": True,
            "planning.algorithm": "lattice_v2", "planning.lattice.async_enabled": True,
-           "planning.lattice.recovery_enabled": True, "planning.lattice.clear_start_assumed": True,
+           "planning.lattice.recovery_enabled": False, "planning.lattice.direct_sample_output": True,
+           "planning.lattice.clear_start_assumed": True,
            "planning.lattice.obstacle_check_enabled": False, "planning.lattice.update_rate_hz": 10.0,
            "planning.reference_lifetime_s": 0.2, "control.startup_grace_s": 3.0,
            "estimation.motion_max_gap_s": 0.25, "control.degraded_speed_mps": 0.1,
@@ -1159,6 +1161,7 @@ def test_mvp2_actual_worker_does_not_block_control_and_restarts(make_node, failu
         step()
         time.sleep(0.05)
     assert node.control_has_run, node.state_reason
+    assert node.planning_output["path"]["type"] == "CARTESIAN_SAMPLES"
     assert node.control_diagnostics["curvature_1pm"] > 0
     assert node.action_publisher.messages[-1].steer > 0
     child = node.async_planner.process

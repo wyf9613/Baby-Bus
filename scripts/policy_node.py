@@ -1026,7 +1026,7 @@ def planning_vehicle_limits(upstream, settings):
 
 
 def evaluate_planning_path(reference, x_m, now_s):
-    """Shared V1 consumer evaluator. Invalid/expired/out-of-range means None.
+    """Shared polynomial/sample evaluator. Invalid/expired/out-of-range means None.
 
     Reusing this geometry in a later body frame additionally needs motion
     alignment; checking its deadline alone does not perform that alignment.
@@ -1038,6 +1038,12 @@ def evaluate_planning_path(reference, x_m, now_s):
             or lifetime <= 0 or not stamp <= now_s < stamp+lifetime):
         return None
     path = reference.get("path") or {}
+    if "control_cached_path_samples" in reference or path.get("type") == "CARTESIAN_SAMPLES":
+        try:
+            point = _control_sample_at(_control_sample_points(reference), x_m)
+        except (ValueError, TypeError, ArithmeticError):
+            return None
+        return {"position_xy_m": point[:2], "heading_rad": point[2], "curvature_1pm": point[3]}
     coeffs, bounds = path.get("coeffs_low_to_high"), path.get("range")
     origin, scale = path.get("origin"), path.get("scale")
     if (path.get("type") != "CARTESIAN_Y_OF_X" or path.get("independent_variable") != "x_m"
@@ -1377,6 +1383,7 @@ class LatticeSettings:
     # Optional MVP2 execution and simple, checked centerline recovery.
     async_enabled: bool = False
     recovery_enabled: bool = False
+    direct_sample_output: bool = False
     worker_timeout_s: float = 0.3
     recovery_speed_mps: float = 0.12
     initial_heading_max_rad: float = 1.22
@@ -1396,9 +1403,9 @@ class LatticeSettings:
                 if name != "terminal_offsets_m" and any(v <= 0 for v in samples):
                     raise ValueError("lattice lengths, durations and speeds must be positive")
             elif isinstance(value, bool):
-                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled"):
+                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "direct_sample_output"):
                     raise ValueError("invalid lattice boolean")
-            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled"):
+            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "direct_sample_output"):
                 raise ValueError("lattice flags must be booleans")
             elif not finite_number(value) or value <= 0:
                 raise ValueError("lattice numeric settings must be finite and positive: " + name)
@@ -2022,10 +2029,13 @@ class FrenetLatticePlanner:
             for _, choice, lateral, longitudinal, geometries, motion in ordered:
                 budget()
                 try:
-                    path, errors = self._compatibility(geometries, left, right, obstacle_index, model, budget,
-                                                      lateral["scale"], max(p["speed"] for p in motion))
+                    if cfg.direct_sample_output:
+                        path, errors = self._sampled_output(geometries, budget)
+                    else:
+                        path, errors = self._compatibility(geometries, left, right, obstacle_index, model, budget,
+                                                          lateral["scale"], max(p["speed"] for p in motion))
                 except ValueError as error:
-                    choice["reason"] = "compatibility_"+str(error)
+                    choice["reason"] = ("sample_output_" if cfg.direct_sample_output else "compatibility_")+str(error)
                     continue
                 lifetime = min(self.settings.reference_lifetime_s, *deadlines)
                 if self.clock()-started >= lifetime:
@@ -2045,7 +2055,7 @@ class FrenetLatticePlanner:
                            frenet_path={"type": "FRENET_SPATIAL", "reference_curve": reference_record, "lateral": lateral},
                            control_preview_m=cfg.preview_m, support=diag["near_support"],
                            operating_profile="lattice_approximate" if ref["model_assumed"] else "lattice_measured")
-                diag.update(selected=choice, output_errors=errors, elapsed_s=self.clock()-started,
+                diag.update(selected=choice, output_errors=errors, output_encoding=path["type"], elapsed_s=self.clock()-started,
                             longitudinal_candidates=count, consistency_method="short_constant_twist_hint" if previous else "unavailable")
                 self.previous = {"timestamp_s": now_s, "valid_for_s": lifetime,
                                  "points": [(g["x"], g["y"]) for g in geometries]}
@@ -2186,6 +2196,29 @@ class FrenetLatticePlanner:
                     cfg.acceleration_weight*(p["acceleration"]/cfg.acceleration_scale_mps2)**2)/(1+cfg.acceleration_weight)
             total_t += dt
         return {**spatial_costs, "steering": steering_cost/total_t, "motion": motion_cost/total_t}
+
+    def _sampled_output(self, geometries, budget):
+        """Reuse the full checked Frenet geometry, with no Cartesian refit.
+
+        Body/obstacle/steering checks ran at these exact points and longitudinal
+        limits ran before selection. Export at most 201 points, O(N); do not
+        decimate the checked grid or add another trajectory search.
+        """
+        if not 2 <= len(geometries) <= 201:
+            raise ValueError("sampling_cap")
+        points = []
+        for i, g in enumerate(geometries):
+            if i % 8 == 0:
+                budget()
+            points.append((g["x"], g["y"], g["heading"], g["curvature"]))
+        path = {"type": "CARTESIAN_SAMPLES", "independent_variable": "x_m",
+                "range": [points[0][0], points[-1][0]],
+                "samples_xy_heading_curvature": points}
+        _control_sample_points({"path": path})
+        if points[-1][0]-points[0][0] < self.cfg.minimum_output_m:
+            raise ValueError("short_output")
+        budget()
+        return path, {"conversion": "none", "sample_count": len(points)}
 
     def _compatibility(self, geometries, left, right, obstacles, model, budget, transition_length, maximum_speed):
         cfg = self.cfg
@@ -2514,7 +2547,7 @@ class AsyncLatticePlanner:
 
 
 def transport_control_reference(reference, motion, now_s):
-    """Reframe a delayed polynomial once; preserve acquisition/absolute expiry."""
+    """Reframe a delayed curve once; preserve acquisition/absolute expiry."""
     old = reference["timestamp_s"]
     remaining = old+reference["valid_for_s"]-now_s
     if remaining <= 0:
@@ -2522,15 +2555,20 @@ def transport_control_reference(reference, motion, now_s):
     pose, problem = motion.pose_between(old, now_s)
     if problem:
         raise ValueError("Control delayed path motion: " + problem)
-    lo, hi = reference["path"]["range"]
-    count = min(200, max(1, math.ceil((hi-lo)/0.025)))
-    samples = []
-    for i in range(count+1):
-        point = evaluate_planning_path(reference, min(hi, lo+(hi-lo)*i/count), old)
-        if point is None:
-            raise ValueError("invalid_delayed_path")
-        samples.append((*motion.transform_xy(point["position_xy_m"], pose),
-                        wrap_angle(point["heading_rad"]-pose["yaw_rad"]), point["curvature_1pm"]))
+    if ("control_cached_path_samples" in reference
+            or reference["path"].get("type") == "CARTESIAN_SAMPLES"):
+        original = _control_sample_points(reference)
+    else:
+        lo, hi = reference["path"]["range"]
+        count = min(200, max(1, math.ceil((hi-lo)/0.025)))
+        original = []
+        for i in range(count+1):
+            point = evaluate_planning_path(reference, min(hi, lo+(hi-lo)*i/count), old)
+            if point is None:
+                raise ValueError("invalid_delayed_path")
+            original.append((*point["position_xy_m"], point["heading_rad"], point["curvature_1pm"]))
+    samples = [(*motion.transform_xy(p[:2], pose), wrap_angle(p[2]-pose["yaw_rad"]), p[3])
+               for p in original]
     if samples[-1][0] <= max(0, samples[0][0]) or any(b[0] <= a[0] for a, b in zip(samples, samples[1:])):
         raise ValueError("Control delayed path support exhausted")
     # Nested planner records are read-only here; only this new envelope and
@@ -2843,7 +2881,8 @@ def control_path_geometry(path):
 
 
 def _planning_control_geometry(reference, now_s):
-    if "control_cached_path_samples" in reference:
+    if ("control_cached_path_samples" in reference
+            or (reference.get("path") or {}).get("type") == "CARTESIAN_SAMPLES"):
         return _control_cached_geometry(reference)
     geometry = control_path_geometry(reference.get("path"))
     if reference.get("planner_version") in ("frenet_lattice_v2", "mvp2_centerline"):
@@ -2861,6 +2900,52 @@ def _planning_control_geometry(reference, now_s):
     return geometry
 
 
+def _control_sample_points(reference):
+    """Validate bounded body-x samples: x[m], y[m], heading[rad], curvature[1/m].
+
+    Private transported samples take precedence over the original-frame path.
+    Strictly increasing x retains the current forward-only preview contract.
+    """
+    path = reference.get("path") or {}
+    transported = "control_cached_path_samples" in reference
+    if not transported and (path.get("type") != "CARTESIAN_SAMPLES"
+                            or path.get("independent_variable") != "x_m"):
+        raise ValueError("unsupported_path_encoding")
+    points = (reference["control_cached_path_samples"] if transported else
+              path.get("samples_xy_heading_curvature"))
+    if (not isinstance(points, (list, tuple)) or not 2 <= len(points) <= 201
+            or any(not isinstance(p, (list, tuple)) or len(p) != 4
+                   or not all(finite_number(v) for v in p) for p in points)
+            or any(b[0] <= a[0] for a, b in zip(points, points[1:]))
+            or points[-1][0] <= max(0.0, points[0][0])
+            or any(abs(p[2]) >= math.pi/2 for p in points)):
+        raise ValueError("invalid_control_cached_curve")
+    if not transported:
+        bounds = path.get("range")
+        if (not isinstance(bounds, (list, tuple)) or len(bounds) != 2
+                or not all(finite_number(v) for v in bounds)
+                or bounds[0] != points[0][0] or bounds[1] != points[-1][0]):
+            raise ValueError("invalid_sample_path_range")
+    return points
+
+
+def _control_sample_at(points, x):
+    """Binary lookup with position/tangent/curvature interpolation; no extrapolation."""
+    if not points[0][0] <= x <= points[-1][0]:
+        raise ValueError("outside_supported_range")
+    lo, hi = 0, len(points)-1
+    while hi-lo > 1:
+        mid = (lo+hi)//2
+        if points[mid][0] < x:
+            lo = mid
+        else:
+            hi = mid
+    a, b = points[lo], points[hi]
+    t = (x-a[0])/(b[0]-a[0])
+    return (x, a[1]+t*(b[1]-a[1]), wrap_angle(a[2]+t*wrap_angle(b[2]-a[2])),
+            a[3]+t*(b[3]-a[3]))
+
+
 def _control_cached_geometry(reference):
     """Query transported Cartesian curve samples without refitting or flattening.
 
@@ -2868,11 +2953,7 @@ def _control_cached_geometry(reference):
     curvature. Interpolation is confined to observed path support; V2 retains
     its body-x preview convention, while V1 uses the nearest segment.
     """
-    points = reference["control_cached_path_samples"]
-    if (not isinstance(points, (list, tuple)) or not 2 <= len(points) <= 201
-            or any(len(p) != 4 or not all(finite_number(v) for v in p) for p in points)
-            or any(b[0] <= a[0] for a, b in zip(points, points[1:])) or points[-1][0] <= 0):
-        raise ValueError("invalid_control_cached_curve")
+    points = _control_sample_points(reference)
 
     def interpolate(a, b, t):
         return (a[0]+t*(b[0]-a[0]), a[1]+t*(b[1]-a[1]),
@@ -2889,15 +2970,16 @@ def _control_cached_geometry(reference):
     geometry = {"path_error_m": -x*math.sin(heading)+y*math.cos(heading),
                 "path_heading_rad": heading, "curvature_1pm": curvature,
                 "closest_x_m": x, "closest_y_m": y,
-                "path_degree": len(reference["path"]["coeffs_low_to_high"])-1,
+                "path_degree": (len(reference["path"]["coeffs_low_to_high"])-1
+                                if reference["path"]["type"] == "CARTESIAN_Y_OF_X" else None),
+                "path_encoding": reference["path"]["type"],
                 "closest_at_range_end": index == 0 and t == 0 or index == len(points)-2 and t == 1}
     if reference.get("planner_version") in ("frenet_lattice_v2", "mvp2_centerline"):
         preview = reference.get("control_preview_m")
         if not finite_number(preview) or preview <= 0:
             raise ValueError("invalid_lattice_control_preview")
         preview = max(points[0][0], min(points[-1][0], preview))
-        a, b = next((a, b) for a, b in zip(points, points[1:]) if a[0] <= preview <= b[0])
-        _, y, heading, curvature = interpolate(a, b, (preview-a[0])/(b[0]-a[0]))
+        _, y, heading, curvature = _control_sample_at(points, preview)
         geometry.update(path_error_m=y, path_heading_rad=heading, curvature_1pm=curvature,
                         control_preview_x_m=preview)
     return geometry
@@ -2908,7 +2990,14 @@ def control_reference_snapshot(reference):
     selected = {k: v for k, v in reference.items() if k not in
                 ("frenet_path", "speed_profile", "longitudinal_profile", "support", "control_cached_path_samples")}
     if "path" in selected:
-        selected["path"] = deepcopy(selected["path"])
+        path = selected["path"]
+        if path.get("type") == "CARTESIAN_SAMPLES":
+            selected["path"] = {k: deepcopy(v) for k, v in path.items() if k != "samples_xy_heading_curvature"}
+            # Immutable geometry is safe to share between control envelopes.
+            selected["path"]["samples_xy_heading_curvature"] = tuple(
+                tuple(p) for p in path["samples_xy_heading_curvature"])
+        else:
+            selected["path"] = deepcopy(path)
     if "control_cached_path_samples" in reference:
         selected["control_cached_path_samples"] = [tuple(p) for p in reference["control_cached_path_samples"]]
     return selected
@@ -2987,7 +3076,8 @@ class ControlReferenceManager:
             raise ValueError("Planning: " + str(reason))
 
         path = reference.get("path") if usable else None
-        supported = (isinstance(path, dict) and path.get("type") == "CARTESIAN_Y_OF_X"
+        sampled = isinstance(path, dict) and path.get("type") == "CARTESIAN_SAMPLES"
+        supported = sampled or (isinstance(path, dict) and path.get("type") == "CARTESIAN_Y_OF_X"
                     and path.get("independent_variable") == "x_m"
                     and isinstance(path.get("coeffs_low_to_high"), (list, tuple))
                     and 1 <= len(path["coeffs_low_to_high"]) <= 6)
@@ -3000,7 +3090,10 @@ class ControlReferenceManager:
             # extend their original deadline without an observed control cache.
             return reference
         if usable:
-            control_path_geometry(path)  # Validate the full polynomial contract.
+            if sampled:
+                _control_sample_points(reference)
+            else:
+                control_path_geometry(path)  # Validate the polynomial contract.
             if not finite_number(source_stamp) or source_stamp > now_s:
                 raise ValueError("Invalid trusted road timestamp")
             if self.source_stamp_s is not None and source_stamp < self.source_stamp_s:
@@ -3011,15 +3104,15 @@ class ControlReferenceManager:
                 self.source_stamp_s = source_stamp
                 self.accepted_at_s, self.accepted_distance_m = monotonic_s, distance_m
                 self.frame_time_s = stamp
-                coeffs = path["coeffs_low_to_high"]
-                self.endpoints = [(x, _control_poly_eval(coeffs, (x-path["origin"])/path["scale"]))
-                                  for x in path["range"]]
                 self.curve_samples = None
-                if "control_cached_path_samples" in reference:
-                    self.curve_samples = [tuple(p) for p in reference["control_cached_path_samples"]]
-                    _control_cached_geometry(reference)
+                if sampled or "control_cached_path_samples" in reference:
+                    self.curve_samples = [tuple(p) for p in _control_sample_points(reference)]
                     self.endpoints = [self.curve_samples[0][:2], self.curve_samples[-1][:2]]
-                elif len(coeffs) > 2:
+                else:
+                    coeffs = path["coeffs_low_to_high"]
+                    self.endpoints = [(x, _control_poly_eval(coeffs, (x-path["origin"])/path["scale"]))
+                                      for x in path["range"]]
+                if self.curve_samples is None and len(coeffs) > 2:
                     lo, hi = path["range"]
                     count = max(1, math.ceil((hi-lo)/0.025))
                     if count > 200:
