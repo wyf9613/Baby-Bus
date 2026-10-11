@@ -1,0 +1,54 @@
+{
+  "id": "cstar_full_path_loss_v2",
+  "direction": "maximize",
+  "discount": 1.0,
+  "horizon_s": 3.0,
+  "definition": {
+    "type": "cstar_full_path_loss_v2",
+    "settings": {
+      "horizon_s": 3.0,
+      "dt_s": 0.05,
+      "discount": 1.0,
+      "position_weight": 1.0,
+      "heading_weight": 0.2,
+      "speed_weight": 0.2,
+      "drive_rate_weight": 0.01,
+      "steering_rate_weight": 0.05,
+      "position_scale_m": 0.1,
+      "heading_scale_rad": 0.1,
+      "speed_scale_mps": 0.1,
+      "drive_rate_scale_per_s": 1.0,
+      "steering_rate_scale_per_s": 1.0,
+      "max_horizon_s": 60.0,
+      "speed_reward_weight": 0.5,
+      "speed_reward_scale_mps": 0.2,
+      "terminal_position_weight": 2.0,
+      "terminal_speed_weight": 0.2,
+      "completion_tolerance_m": 0.15,
+      "stop_speed_tolerance_mps": 0.02,
+      "stop_settle_s": 0.5,
+      "failure_loss": 1000000.0
+    },
+    "target": "negative_expected_full_path_cost",
+    "state_columns": [
+      "x_m",
+      "y_m",
+      "motion_heading_rad",
+      "speed_mps"
+    ],
+    "control_columns": [
+      "drive_normalized",
+      "steer_normalized"
+    ],
+    "frame": "decision_base_link",
+    "sampling": "interval_end_states",
+    "reference": "full_frenet_path_original_timing_then_terminal_speed_extension",
+    "horizon_policy": "complete_spatial_path_or_planned_stop",
+    "normalization": "time_average_plus_terminal_cost",
+    "speed_utility": "mean_positive_velocity_along_reference_on_moving_stages",
+    "horizon_s_meaning": "minimum_sampling_duration_not_truncation",
+    "constraints": "native_dynamics_input_and_safety_hard_constraints",
+    "zero_speed_heading": "body_heading_plus_kinematic_steering_direction",
+    "failure_encoding": "declared_failure_loss_not_a_feasible_solution"
+  }
+}

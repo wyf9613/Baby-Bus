@@ -1,5 +1,12 @@
 # V2 Frenet lattice planner 实现与联调
 
+独立训练分支接入：plan(..., collect_candidates=True) 可导出通过硬筛选与
+Cartesian 输出复核的候选；可选 candidate_scorer(proposal) 用有限回报分数选择。
+巡航/停车行为优先及全部安全条件保留，默认未传参数仍使用规则排序。
+监督标签与实际 controller/plant 闭环见
+[训练管线](../offline/lattice_training/README.md)。该分支不改变 live YAML，
+不自动在 ROS 节点启用学习选择器。
+
 2026-10-08，分支 `feature/rule-lattice-planner`。运行实现仍全部位于
 `scripts/policy_node.py`，参数位于 `config/ai4r_policy.yaml`。
 当前 YAML 选择 `planning.algorithm: lattice_v2`；`centerline` 保留旧版入口。

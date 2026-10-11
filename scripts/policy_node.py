@@ -1689,7 +1689,7 @@ class FrenetLatticePlanner:
         return clearance
 
     def plan(self, road, state, obstacles, vehicle_limits, now_s, source_timeout_s=None, mvp=False,
-             _stop_before_x=None, _started=None):
+             _stop_before_x=None, _started=None, collect_candidates=False, candidate_scorer=None):
         self.sequence += 1
         started, cfg = self.clock() if _started is None else _started, self.cfg
         self._consistency_cache = {}
@@ -1715,6 +1715,8 @@ class FrenetLatticePlanner:
                 raise TimeoutError("lattice_time_budget_exceeded")
 
         try:
+            if not isinstance(collect_candidates, bool) or (candidate_scorer is not None and not callable(candidate_scorer)):
+                raise ValueError("invalid_lattice_candidate_interface")
             if not finite_number(now_s) or not isinstance(road, dict) or not isinstance(state, dict):
                 raise ValueError("invalid_lattice_input")
             if (not road.get("valid") and road.get("status") == "near_field_unobserved"
@@ -1863,7 +1865,8 @@ class FrenetLatticePlanner:
                     # Commit to the previous stop endpoint in the new frame;
                     # disappearance of a lidar return never resumes a stop.
                     return self.plan(road, state, obstacles, vehicle_limits, now_s, source_timeout_s, mvp,
-                                     _stop_before_x=previous[-1][0], _started=started)
+                                     _stop_before_x=previous[-1][0], _started=started,
+                                     collect_candidates=collect_candidates, candidate_scorer=candidate_scorer)
             accepted = []
             count = 0
             targets = cfg.samples("terminal_offsets_m")
@@ -1972,7 +1975,8 @@ class FrenetLatticePlanner:
                     if blockers:
                         stop_x = min(blockers)-model["front_extent_m"]-cfg.hard_margin_m-cfg.obstacle_margin_m-0.08
                         result, stop_diag = self.plan(road, state, obstacles, vehicle_limits, now_s,
-                            source_timeout_s, mvp, _stop_before_x=stop_x, _started=started)
+                            source_timeout_s, mvp, _stop_before_x=stop_x, _started=started,
+                            collect_candidates=collect_candidates, candidate_scorer=candidate_scorer)
                         stop_diag["cruise_rejections"] = diag["candidates"]
                         stop_diag["behavior"] = "obstacle_stop"
                         return result, stop_diag
@@ -1988,6 +1992,10 @@ class FrenetLatticePlanner:
                               -min(g["clearance"] for g in v[4]), v[1]["costs"]["steering"],
                               v[1]["length_m"], v[1]["offset_m"], v[1]["duration_s"]))
             ordered = near_best+sorted([v for v in accepted if v not in near_best], key=lambda v: v[0])
+            # Optional offline/learned selection operates only AFTER native hard
+            # checks, behavior priority and Cartesian compatibility. Defaults
+            # keep the first rule-ranked compatible output and existing budget.
+            exported, selected_output, selected_score = [], None, -math.inf
             for _, choice, lateral, longitudinal, geometries, motion in ordered:
                 budget()
                 try:
@@ -2004,7 +2012,8 @@ class FrenetLatticePlanner:
                 target_speed = _lattice_interp([(p["t"], p["speed"]) for p in motion], min(cfg.speed_preview_s, longitudinal["duration_s"]))
                 if road.get("degraded") and not choice["stop"]:
                     target_speed = min(target_speed, desired_speed)
-                ref.update(valid=True, status="STOP" if choice["stop"] else "TRACK", reason="lattice_selected",
+                candidate_ref = deepcopy(ref)
+                candidate_ref.update(valid=True, status="STOP" if choice["stop"] else "TRACK", reason="lattice_selected",
                            valid_for_s=lifetime, path=path, target_speed_mps=target_speed,
                            stop_requested=False, stop_reason=None,
                            planned_stop=choice["stop"], stop_at_path_m=_lattice_interp(
@@ -2014,13 +2023,50 @@ class FrenetLatticePlanner:
                            frenet_path={"type": "FRENET_SPATIAL", "reference_curve": reference_record, "lateral": lateral},
                            control_preview_m=cfg.preview_m, support=diag["near_support"],
                            operating_profile="lattice_approximate" if ref["model_assumed"] else "lattice_measured")
-                diag.update(selected=choice, output_errors=errors, elapsed_s=self.clock()-started,
-                            longitudinal_candidates=count, consistency_method="short_constant_twist_hint" if previous else "unavailable")
-                self.previous = {"timestamp_s": now_s, "valid_for_s": lifetime,
-                                 "points": [(g["x"], g["y"]) for g in geometries]}
+                points_xy = [(g["x"], g["y"]) for g in geometries]
+                candidate_id = "|".join(format(choice[key], ".12g") for key in
+                    ("length_m", "offset_m", "duration_s", "terminal_speed_mps"))+"|"+str(int(choice["stop"]))
+                proposal = {"candidate_id": candidate_id, "reference": candidate_ref,
+                            "descriptor": deepcopy(choice), "trajectory_xy_m": points_xy,
+                            "minimum_clearance_m": min(g["clearance"] for g in geometries),
+                            "output_errors": errors}
+                model_score = 0.0
+                if candidate_scorer is not None:
+                    try:
+                        model_score = candidate_scorer(deepcopy(proposal))
+                    except Exception as error:
+                        raise ValueError("candidate_scorer_failed:"+type(error).__name__) from error
+                    if not finite_number(model_score):
+                        raise ValueError("nonfinite_candidate_score")
+                    choice["model_score"] = model_score
+                    proposal["descriptor"]["model_score"] = model_score
+                if collect_candidates:
+                    exported.append(deepcopy(proposal))
+                if selected_output is None or (candidate_scorer is not None and model_score > selected_score):
+                    selected_output, selected_score = proposal, model_score
+                if not collect_candidates and candidate_scorer is None:
+                    break
+            if selected_output is not None:
+                if collect_candidates or candidate_scorer is not None:
+                    # A final callback can consume the remaining budget even
+                    # when no further candidate iteration follows it.
+                    budget()
+                    if self.clock()-started >= selected_output["reference"]["valid_for_s"]:
+                        raise TimeoutError("source_deadline_during_planning")
+                ref, choice = selected_output["reference"], selected_output["descriptor"]
+                diag.update(selected=choice, output_errors=selected_output["output_errors"],
+                            elapsed_s=self.clock()-started, longitudinal_candidates=count,
+                            consistency_method="short_constant_twist_hint" if previous else "unavailable")
+                self.previous = {"timestamp_s": now_s, "valid_for_s": ref["valid_for_s"],
+                                 "points": selected_output["trajectory_xy_m"]}
                 self.stop_latched = self.stop_latched or choice["stop"]
                 diag["search_truncated"] = search_truncated
-                diag["selection_scope"] = "best_of_evaluated_feasible_candidates"
+                diag["selection_scope"] = ("best_of_compatible_feasible_candidates" if candidate_scorer is not None
+                                           else "best_of_evaluated_feasible_candidates")
+                if collect_candidates:
+                    diag["candidate_references"] = exported
+                if collect_candidates or candidate_scorer is not None:
+                    diag["selected_candidate_id"] = selected_output["candidate_id"]
                 return ref, diag
             return fail("no_valid_cartesian_output", "NO_FEASIBLE_PATH")
         except TimeoutError as error:

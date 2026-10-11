@@ -1,0 +1,804 @@
+{
+  "format": "lattice_policy_evaluation_v1",
+  "model_provenance": {
+    "dataset_sha256": "51931a90743a20491cb31df66783a6e5207bd92225f5052d6bedb6c55f38685a",
+    "seed": 0,
+    "hidden": 32,
+    "epochs": 150,
+    "learning_rate": 0.005,
+    "normalization": "X_training_rows_only_no_y_scaler",
+    "checkpoint": "lowest_validation_score_rmse",
+    "optimizer": "Adam",
+    "activation": "tanh",
+    "pair_weight": 0.25,
+    "l2": 0.0001,
+    "output_activation": "sigmoid",
+    "training_target_transform": {
+      "name": "sigmoid",
+      "temperature": 1.0,
+      "offset": 0.0,
+      "input": "aggregated_candidate_raw_cstar_return",
+      "order": "after_trial_arithmetic_mean",
+      "output_space": "sigmoid_of_aggregated_cstar_return"
+    },
+    "loss": "decision_weighted_MSE_plus_within_decision_pair_difference_MSE",
+    "pipeline_code_sha256": {
+      "__init__.py": "fed9d0b38c56c06ffddc597a9eaef9fcd31995d586d0fa10f4e323555cb00097",
+      "__main__.py": "6e7df2905e5abc3ffb36f8068c3d5bc8b5ede64a6b1e5e7d4ebf715b93cc4022",
+      "cstar.py": "8b05c1cd51b6457d11372f51210ee5c0042e824046c0ff31adab5a6924e919b2",
+      "dataset.py": "6d0fe822dcf0fc7ba1701fc58d5e9e501689e8c44c1c6b1a5a2d21c2177d2820",
+      "evaluation.py": "b42e84ed4598bf2608fc755d85e2a27eb98df83542d65f5a0b19c86384e52b2c",
+      "features.py": "d6774dd04e81d06a431123dabfa05fc3182fac48bab5bbaf2da80a153cd60571",
+      "model.py": "df9f51c17d9db4499504c310d17373d24d65a09c82af3fc7dfef362f7cbf8f7e",
+      "objective.py": "22d2d5bd7a286fc9867203d297395a966c9c9849dbc30dee646fcec1598f5241",
+      "pipeline.py": "5e6965b10355f764f8c3273d4480ce5390074edb79373f789da76d5508f92e33",
+      "plots.py": "a93640bfa3b6cb472ae50739a8cb071b27a9dc484865a69de90a33f1b44a0a4d",
+      "roads.py": "3763ab5e5464817be09dace7efcd09247eae94181f2d10c088c549825fa3a03e",
+      "source.py": "22892f4222f9e82915f32626e7f12f0a1666beb185f5d28d79d17cf59b4ca9e6",
+      "visualize.py": "490fc3871cfd89399d245697d0a8372aaa5a7be5d7b388d1346d1bfdb9965591"
+    },
+    "objective": {
+      "id": "cstar_full_path_loss_v2",
+      "direction": "maximize",
+      "discount": 1.0,
+      "horizon_s": 3.0,
+      "definition": {
+        "type": "cstar_full_path_loss_v2",
+        "settings": {
+          "horizon_s": 3.0,
+          "dt_s": 0.05,
+          "discount": 1.0,
+          "position_weight": 1.0,
+          "heading_weight": 0.2,
+          "speed_weight": 0.2,
+          "drive_rate_weight": 0.01,
+          "steering_rate_weight": 0.05,
+          "position_scale_m": 0.1,
+          "heading_scale_rad": 0.1,
+          "speed_scale_mps": 0.1,
+          "drive_rate_scale_per_s": 1.0,
+          "steering_rate_scale_per_s": 1.0,
+          "max_horizon_s": 60.0,
+          "speed_reward_weight": 0.5,
+          "speed_reward_scale_mps": 0.2,
+          "terminal_position_weight": 2.0,
+          "terminal_speed_weight": 0.2,
+          "completion_tolerance_m": 0.15,
+          "stop_speed_tolerance_mps": 0.02,
+          "stop_settle_s": 0.5,
+          "failure_loss": 1000000.0
+        },
+        "target": "negative_expected_full_path_cost",
+        "state_columns": [
+          "x_m",
+          "y_m",
+          "motion_heading_rad",
+          "speed_mps"
+        ],
+        "control_columns": [
+          "drive_normalized",
+          "steer_normalized"
+        ],
+        "frame": "decision_base_link",
+        "sampling": "interval_end_states",
+        "reference": "full_frenet_path_original_timing_then_terminal_speed_extension",
+        "horizon_policy": "complete_spatial_path_or_planned_stop",
+        "normalization": "time_average_plus_terminal_cost",
+        "speed_utility": "mean_positive_velocity_along_reference_on_moving_stages",
+        "horizon_s_meaning": "minimum_sampling_duration_not_truncation",
+        "constraints": "native_dynamics_input_and_safety_hard_constraints",
+        "zero_speed_heading": "body_heading_plus_kinematic_steering_direction",
+        "failure_encoding": "declared_failure_loss_not_a_feasible_solution"
+      }
+    },
+    "label_source": {
+      "name": "internal_cstar_native_env",
+      "version": "6",
+      "execution_assumption": "cstar",
+      "solver_settings": {
+        "population": 4,
+        "iterations": 1,
+        "max_evaluations": 8,
+        "max_wall_s": 30.0,
+        "drive_sigma": 0.025,
+        "steering_sigma": 0.08,
+        "tolerance": 1e-05,
+        "safety_margin_m": 0.02,
+        "speed_max_mps": 0.5,
+        "acceleration_max_mps2": 1.0,
+        "lateral_acceleration_max_mps2": 1.0
+      },
+      "objective_sha256": "1e77c0f78da773b12419d840f70f774b35465c086da3ce63fa341ba8cc899aeb",
+      "performance_trials": "one_nominal_plus_seeded_gain_bias_delay_trials",
+      "road_randomization": {
+        "source_notebook": "AI4R/ad_gym_unified_rl_mpc_training_and_evaluation.ipynb",
+        "source_notebook_sha256": "0a6725ce363b94d83bb4dd1727caf88c7a193363113d62eac19b0cc6cca26ac2",
+        "source_cell": "clean-random-road-distribution",
+        "source_fragment": "dreamgym 0.2.2 road_core/random_generation.py generate_random_road_spec",
+        "source_fragment_sha256": "6ca75671d8ea85818f978b6b1465fedb0f255083cca0ba60351aff3f4661e4d0",
+        "adaptation": "baby_bus_nested_v04_connected_passage_obstacles_v2",
+        "settings": {
+          "element_count_min": 8,
+          "element_count_max": 10,
+          "straight_probability": 0.55,
+          "straight_length_min_m": 2.0,
+          "straight_length_max_m": 4.0,
+          "radius_min_m": 4.5,
+          "radius_max_m": 8.0,
+          "sweep_min_deg": 20.0,
+          "sweep_max_deg": 35.0,
+          "first_length_min_m": 6.0,
+          "first_length_max_m": 8.0,
+          "lane_width_min_m": 1.0,
+          "lane_width_max_m": 1.2,
+          "cone_spacing_m": 0.5,
+          "speed_limit_min_kph": 0.72,
+          "speed_limit_max_kph": 1.08,
+          "max_heading_deg": 120.0,
+          "obstacle_count_min": 3,
+          "obstacle_count_max": 6,
+          "obstacle_length_min_m": 0.2,
+          "obstacle_length_max_m": 0.35,
+          "obstacle_width_min_m": 0.16,
+          "obstacle_width_max_m": 0.28,
+          "obstacle_spacing_m": 3.5,
+          "minimum_passage_m": 0.55,
+          "obstacle_edge_clearance_m": 0.04
+        }
+      },
+      "collection_settings": {
+        "kinds": [
+          "randomized"
+        ],
+        "decisions": 3,
+        "until_road_end": true,
+        "max_segments": 100,
+        "starts_per_road": 2,
+        "planner_profiles": [
+          "standard",
+          "wide"
+        ],
+        "segment_resampling_attempts": 6,
+        "trials": 2,
+        "evaluation_steps": 60,
+        "max_near_gap_m": 1.2,
+        "max_extension_m": 1.6,
+        "allow_unobserved_origin": true,
+        "require_cartesian_compatibility": false
+      },
+      "sampling": {
+        "selection": "uniform_without_replacement",
+        "segment_horizon": "complete_candidate_spatial_path",
+        "state_transition": "complete_actual_env_terminal_snapshot",
+        "resample_only_if": "completed_cstar_terminal_region_illegal",
+        "no_policy_or_reward_selection": true,
+        "initial_planner_filter": false,
+        "initial_sampling_domain": "physical_free_space_v2"
+      },
+      "plant": {
+        "version": "0.4.0",
+        "source_sha256": {
+          "autonomous_driving_env.py": "d56bcb588c3f5527b1b39f93866517be3b4d4fb205787513b4c951a67823ded1",
+          "bicycle_model_dynamic.py": "bde96a17741e189cbd30e2bf86adfe302db238399421e24abd5d064c3fb029f2",
+          "road.py": "104d4ec7b6ce03937f951d97954d3a95ee4fad506ca42419bf7986ec877077c7"
+        },
+        "notebook_sha256": "2bb6e89fc3a37fbc027dc0863b3da492d6af34b8a543672c5833b488c1a5d9c6",
+        "bicycle_model_config": {
+          "axle_geometry": {
+            "front_axle_distance_from_center_of_mass_m": 0.198,
+            "rear_axle_distance_from_center_of_mass_m": 0.132
+          },
+          "mass_properties": {
+            "mass_kg": 3.0,
+            "yaw_moment_of_inertia_kg_m2": 0.05562500000000001
+          },
+          "longitudinal_force_model": {
+            "normalized_motor_command_force_gain_n": 10.0,
+            "quadratic_aerodynamic_drag_coefficient_kg_per_m": 1.0,
+            "direction_change_latch": {
+              "forward_to_reverse": true
+            }
+          },
+          "steering": {
+            "physical_front_wheel_angle_offset_from_request_rad": 0.0,
+            "requested_front_wheel_angle_magnitude_limit_rad": 0.7853981633974483,
+            "physical_front_wheel_angle_rate_bounds_rad_per_s": {
+              "lower": -1.5707963267948966,
+              "upper": 1.5707963267948966
+            }
+          },
+          "kinematic_dynamic_transition": {
+            "body_longitudinal_speed_range_mps": {
+              "lower": 138.88888888888889,
+              "upper": 166.66666666666666
+            }
+          },
+          "body_geometry": {
+            "front_extent_from_center_of_mass_m": 0.29700000000000004,
+            "rear_extent_from_center_of_mass_m": 0.198,
+            "width_m": 0.25
+          }
+        },
+        "integration_config": {
+          "method": "rk4",
+          "environment_step_duration_s": 0.05,
+          "substep_count": 1
+        }
+      }
+    },
+    "label_aggregation": "negative_arithmetic_mean_of_cstar_tracking_losses",
+    "target": "negative_expected_full_path_cost",
+    "training_code_sha256": "d608bfcced520bfba950d211e492d5cc6bdaec249079100cb3f21addaacc2fb0",
+    "dataset_training_eligible": true,
+    "dataset_reported_training_eligible": false,
+    "training_readiness": {
+      "eligible": true,
+      "basis": "validated_candidate_labels_and_nonempty_fit_splits",
+      "split_rows": {
+        "test": 699,
+        "train": 3295,
+        "validation": 942
+      },
+      "insufficient_splits": [],
+      "minimum_training_rows": 2,
+      "requires_complete_road_rollout": false
+    },
+    "road_coverage_complete": false,
+    "coverage_override_applied": false,
+    "legacy_coverage_override_requested": false,
+    "training_scope": "candidate_supervision",
+    "collection_coverage": {
+      "roads": [
+        {
+          "scene_id": "road:9da60e0c47290b258bc16c93",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 22,
+          "completed_sequences": 0,
+          "visited_progress_m": 34.07054956098971,
+          "visited_fraction": 0.9711987859653589,
+          "progress_intervals_m": [
+            [
+              0.2944988076932966,
+              34.365048368683006
+            ]
+          ],
+          "road_length_m": 35.08092272492292
+        },
+        {
+          "scene_id": "road:1f4e112bb5b24909c308164f",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 12,
+          "completed_sequences": 0,
+          "visited_progress_m": 12.054829298019795,
+          "visited_fraction": 0.38448988658452876,
+          "progress_intervals_m": [
+            [
+              10.450187551607323,
+              16.47197948459859
+            ],
+            [
+              23.73651936961292,
+              29.769556734641448
+            ]
+          ],
+          "road_length_m": 31.352786428543897
+        },
+        {
+          "scene_id": "road:4c3c4ec24e279a35dac52d7f",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 26,
+          "completed_sequences": 0,
+          "visited_progress_m": 29.971707315906595,
+          "visited_fraction": 0.862797454811739,
+          "progress_intervals_m": [
+            [
+              3.8983100336848695,
+              33.870017349591464
+            ]
+          ],
+          "road_length_m": 34.73782537113114
+        },
+        {
+          "scene_id": "road:5f49ca503d8bd2dd0ed88674",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 18,
+          "completed_sequences": 0,
+          "visited_progress_m": 19.787373449635773,
+          "visited_fraction": 0.5527065421700031,
+          "progress_intervals_m": [
+            [
+              7.998114309985974,
+              20.151065929994683
+            ],
+            [
+              27.415497298642922,
+              35.049919128269984
+            ]
+          ],
+          "road_length_m": 35.80086707848215
+        },
+        {
+          "scene_id": "road:0ba997a707b2d8614a730540",
+          "split": "validation",
+          "sequences": 4,
+          "decisions": 26,
+          "completed_sequences": 0,
+          "visited_progress_m": 33.65561315440873,
+          "visited_fraction": 0.9237560581955756,
+          "progress_intervals_m": [
+            [
+              2.154080423126738,
+              35.80969357753546
+            ]
+          ],
+          "road_length_m": 36.43344241785014
+        },
+        {
+          "scene_id": "road:5a23e3adf557db1eaecbf6db",
+          "split": "validation",
+          "sequences": 4,
+          "decisions": 11,
+          "completed_sequences": 0,
+          "visited_progress_m": 14.023659772777307,
+          "visited_fraction": 0.46840015578047445,
+          "progress_intervals_m": [
+            [
+              2.642399354731284,
+              6.6595754443296284
+            ],
+            [
+              17.632515364428556,
+              27.63899904760752
+            ]
+          ],
+          "road_length_m": 29.939485714752387
+        },
+        {
+          "scene_id": "road:822ba13d1e31cd120c4f5258",
+          "split": "test",
+          "sequences": 4,
+          "decisions": 11,
+          "completed_sequences": 0,
+          "visited_progress_m": 14.379598616610691,
+          "visited_fraction": 0.5093173485097138,
+          "progress_intervals_m": [
+            [
+              8.93637489138164,
+              9.253811132597882
+            ],
+            [
+              12.998736334860505,
+              27.060898710254953
+            ]
+          ],
+          "road_length_m": 28.233082298661266
+        },
+        {
+          "scene_id": "road:e0ab0c6cbbbc7e705abc5551",
+          "split": "test",
+          "sequences": 4,
+          "decisions": 24,
+          "completed_sequences": 0,
+          "visited_progress_m": 18.089757537602054,
+          "visited_fraction": 0.6582825476654838,
+          "progress_intervals_m": [
+            [
+              8.577487623871226,
+              26.667245161473282
+            ]
+          ],
+          "road_length_m": 27.480232617065578
+        },
+        {
+          "scene_id": "road:2dd6be322547f1c76b846833",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 28,
+          "completed_sequences": 0,
+          "visited_progress_m": 29.56200250620133,
+          "visited_fraction": 0.7786482430678509,
+          "progress_intervals_m": [
+            [
+              6.8982327322182275,
+              36.46023523841956
+            ]
+          ],
+          "road_length_m": 37.96579876649811
+        },
+        {
+          "scene_id": "road:4b95521be22850b43bca420f",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 4,
+          "completed_sequences": 0,
+          "visited_progress_m": 4.020579397483418,
+          "visited_fraction": 0.12208138960427219,
+          "progress_intervals_m": [
+            [
+              11.539982413430206,
+              13.55224402546152
+            ],
+            [
+              20.83418151167911,
+              22.842499297131212
+            ]
+          ],
+          "road_length_m": 32.933597909690896
+        },
+        {
+          "scene_id": "road:eed774c36aa0636d3db50463",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 11,
+          "completed_sequences": 0,
+          "visited_progress_m": 14.044960787926003,
+          "visited_fraction": 0.4905583244350257,
+          "progress_intervals_m": [
+            [
+              9.102706331596691,
+              23.147667119522694
+            ]
+          ],
+          "road_length_m": 28.630562541368622
+        },
+        {
+          "scene_id": "road:5e263b1d04ca4666d8345781",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 10,
+          "completed_sequences": 0,
+          "visited_progress_m": 12.329371577728754,
+          "visited_fraction": 0.3498008212046636,
+          "progress_intervals_m": [
+            [
+              8.67099587383269,
+              12.976966335428147
+            ],
+            [
+              25.73291334580823,
+              33.75631446194153
+            ]
+          ],
+          "road_length_m": 35.24683428491727
+        },
+        {
+          "scene_id": "road:d137b2bd9f8ccc84ffaaeedf",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 0,
+          "completed_sequences": 0,
+          "visited_progress_m": 0,
+          "visited_fraction": 0.0,
+          "progress_intervals_m": [],
+          "road_length_m": 31.298628599137963
+        },
+        {
+          "scene_id": "road:75df8aaadbe27831f4523fda",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 5,
+          "completed_sequences": 0,
+          "visited_progress_m": 4.046367237887882,
+          "visited_fraction": 0.1257104982986815,
+          "progress_intervals_m": [
+            [
+              4.426997112267686,
+              4.704899286268604
+            ],
+            [
+              27.662457872507392,
+              31.430922936394357
+            ]
+          ],
+          "road_length_m": 32.18798185235037
+        },
+        {
+          "scene_id": "road:ed35c3f14347ca8b22780048",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 4,
+          "completed_sequences": 0,
+          "visited_progress_m": 4.042312920128058,
+          "visited_fraction": 0.11804499588899244,
+          "progress_intervals_m": [
+            [
+              8.79948881434305,
+              10.837014897836646
+            ],
+            [
+              30.89894262754972,
+              32.90372946418418
+            ]
+          ],
+          "road_length_m": 34.24383125845828
+        },
+        {
+          "scene_id": "road:98739ae43cf3e6d17d98432f",
+          "split": "train",
+          "sequences": 4,
+          "decisions": 5,
+          "completed_sequences": 0,
+          "visited_progress_m": 10.027411390949343,
+          "visited_fraction": 0.3405767368930611,
+          "progress_intervals_m": [
+            [
+              4.556336522994537,
+              14.583747913943881
+            ]
+          ],
+          "road_length_m": 29.442443669010444
+        }
+      ],
+      "missing_label_roads": [
+        "road:d137b2bd9f8ccc84ffaaeedf"
+      ],
+      "missing_goal_roads": [
+        "road:9da60e0c47290b258bc16c93",
+        "road:1f4e112bb5b24909c308164f",
+        "road:4c3c4ec24e279a35dac52d7f",
+        "road:5f49ca503d8bd2dd0ed88674",
+        "road:0ba997a707b2d8614a730540",
+        "road:5a23e3adf557db1eaecbf6db",
+        "road:822ba13d1e31cd120c4f5258",
+        "road:e0ab0c6cbbbc7e705abc5551",
+        "road:2dd6be322547f1c76b846833",
+        "road:4b95521be22850b43bca420f",
+        "road:eed774c36aa0636d3db50463",
+        "road:5e263b1d04ca4666d8345781",
+        "road:d137b2bd9f8ccc84ffaaeedf",
+        "road:75df8aaadbe27831f4523fda",
+        "road:ed35c3f14347ca8b22780048",
+        "road:98739ae43cf3e6d17d98432f"
+      ],
+      "illegal_initial_episodes": [],
+      "require_road_end": true,
+      "training_eligible": false,
+      "empty_splits": []
+    },
+    "best_epoch": 150
+  },
+  "dataset_sha256": "51931a90743a20491cb31df66783a6e5207bd92225f5052d6bedb6c55f38685a",
+  "objective": {
+    "id": "cstar_full_path_loss_v2",
+    "direction": "maximize",
+    "discount": 1.0,
+    "horizon_s": 3.0,
+    "definition": {
+      "type": "cstar_full_path_loss_v2",
+      "settings": {
+        "horizon_s": 3.0,
+        "dt_s": 0.05,
+        "discount": 1.0,
+        "position_weight": 1.0,
+        "heading_weight": 0.2,
+        "speed_weight": 0.2,
+        "drive_rate_weight": 0.01,
+        "steering_rate_weight": 0.05,
+        "position_scale_m": 0.1,
+        "heading_scale_rad": 0.1,
+        "speed_scale_mps": 0.1,
+        "drive_rate_scale_per_s": 1.0,
+        "steering_rate_scale_per_s": 1.0,
+        "max_horizon_s": 60.0,
+        "speed_reward_weight": 0.5,
+        "speed_reward_scale_mps": 0.2,
+        "terminal_position_weight": 2.0,
+        "terminal_speed_weight": 0.2,
+        "completion_tolerance_m": 0.15,
+        "stop_speed_tolerance_mps": 0.02,
+        "stop_settle_s": 0.5,
+        "failure_loss": 1000000.0
+      },
+      "target": "negative_expected_full_path_cost",
+      "state_columns": [
+        "x_m",
+        "y_m",
+        "motion_heading_rad",
+        "speed_mps"
+      ],
+      "control_columns": [
+        "drive_normalized",
+        "steer_normalized"
+      ],
+      "frame": "decision_base_link",
+      "sampling": "interval_end_states",
+      "reference": "full_frenet_path_original_timing_then_terminal_speed_extension",
+      "horizon_policy": "complete_spatial_path_or_planned_stop",
+      "normalization": "time_average_plus_terminal_cost",
+      "speed_utility": "mean_positive_velocity_along_reference_on_moving_stages",
+      "horizon_s_meaning": "minimum_sampling_duration_not_truncation",
+      "constraints": "native_dynamics_input_and_safety_hard_constraints",
+      "zero_speed_heading": "body_heading_plus_kinematic_steering_direction",
+      "failure_encoding": "declared_failure_loss_not_a_feasible_solution"
+    }
+  },
+  "label_source": {
+    "name": "internal_cstar_native_env",
+    "version": "6",
+    "execution_assumption": "cstar",
+    "solver_settings": {
+      "population": 4,
+      "iterations": 1,
+      "max_evaluations": 8,
+      "max_wall_s": 30.0,
+      "drive_sigma": 0.025,
+      "steering_sigma": 0.08,
+      "tolerance": 1e-05,
+      "safety_margin_m": 0.02,
+      "speed_max_mps": 0.5,
+      "acceleration_max_mps2": 1.0,
+      "lateral_acceleration_max_mps2": 1.0
+    },
+    "objective_sha256": "1e77c0f78da773b12419d840f70f774b35465c086da3ce63fa341ba8cc899aeb",
+    "performance_trials": "one_nominal_plus_seeded_gain_bias_delay_trials",
+    "road_randomization": {
+      "source_notebook": "AI4R/ad_gym_unified_rl_mpc_training_and_evaluation.ipynb",
+      "source_notebook_sha256": "0a6725ce363b94d83bb4dd1727caf88c7a193363113d62eac19b0cc6cca26ac2",
+      "source_cell": "clean-random-road-distribution",
+      "source_fragment": "dreamgym 0.2.2 road_core/random_generation.py generate_random_road_spec",
+      "source_fragment_sha256": "6ca75671d8ea85818f978b6b1465fedb0f255083cca0ba60351aff3f4661e4d0",
+      "adaptation": "baby_bus_nested_v04_connected_passage_obstacles_v2",
+      "settings": {
+        "element_count_min": 8,
+        "element_count_max": 10,
+        "straight_probability": 0.55,
+        "straight_length_min_m": 2.0,
+        "straight_length_max_m": 4.0,
+        "radius_min_m": 4.5,
+        "radius_max_m": 8.0,
+        "sweep_min_deg": 20.0,
+        "sweep_max_deg": 35.0,
+        "first_length_min_m": 6.0,
+        "first_length_max_m": 8.0,
+        "lane_width_min_m": 1.0,
+        "lane_width_max_m": 1.2,
+        "cone_spacing_m": 0.5,
+        "speed_limit_min_kph": 0.72,
+        "speed_limit_max_kph": 1.08,
+        "max_heading_deg": 120.0,
+        "obstacle_count_min": 3,
+        "obstacle_count_max": 6,
+        "obstacle_length_min_m": 0.2,
+        "obstacle_length_max_m": 0.35,
+        "obstacle_width_min_m": 0.16,
+        "obstacle_width_max_m": 0.28,
+        "obstacle_spacing_m": 3.5,
+        "minimum_passage_m": 0.55,
+        "obstacle_edge_clearance_m": 0.04
+      }
+    },
+    "collection_settings": {
+      "kinds": [
+        "randomized"
+      ],
+      "decisions": 3,
+      "until_road_end": true,
+      "max_segments": 100,
+      "starts_per_road": 2,
+      "planner_profiles": [
+        "standard",
+        "wide"
+      ],
+      "segment_resampling_attempts": 6,
+      "trials": 2,
+      "evaluation_steps": 60,
+      "max_near_gap_m": 1.2,
+      "max_extension_m": 1.6,
+      "allow_unobserved_origin": true,
+      "require_cartesian_compatibility": false
+    },
+    "sampling": {
+      "selection": "uniform_without_replacement",
+      "segment_horizon": "complete_candidate_spatial_path",
+      "state_transition": "complete_actual_env_terminal_snapshot",
+      "resample_only_if": "completed_cstar_terminal_region_illegal",
+      "no_policy_or_reward_selection": true,
+      "initial_planner_filter": false,
+      "initial_sampling_domain": "physical_free_space_v2"
+    },
+    "plant": {
+      "version": "0.4.0",
+      "source_sha256": {
+        "autonomous_driving_env.py": "d56bcb588c3f5527b1b39f93866517be3b4d4fb205787513b4c951a67823ded1",
+        "bicycle_model_dynamic.py": "bde96a17741e189cbd30e2bf86adfe302db238399421e24abd5d064c3fb029f2",
+        "road.py": "104d4ec7b6ce03937f951d97954d3a95ee4fad506ca42419bf7986ec877077c7"
+      },
+      "notebook_sha256": "2bb6e89fc3a37fbc027dc0863b3da492d6af34b8a543672c5833b488c1a5d9c6",
+      "bicycle_model_config": {
+        "axle_geometry": {
+          "front_axle_distance_from_center_of_mass_m": 0.198,
+          "rear_axle_distance_from_center_of_mass_m": 0.132
+        },
+        "mass_properties": {
+          "mass_kg": 3.0,
+          "yaw_moment_of_inertia_kg_m2": 0.05562500000000001
+        },
+        "longitudinal_force_model": {
+          "normalized_motor_command_force_gain_n": 10.0,
+          "quadratic_aerodynamic_drag_coefficient_kg_per_m": 1.0,
+          "direction_change_latch": {
+            "forward_to_reverse": true
+          }
+        },
+        "steering": {
+          "physical_front_wheel_angle_offset_from_request_rad": 0.0,
+          "requested_front_wheel_angle_magnitude_limit_rad": 0.7853981633974483,
+          "physical_front_wheel_angle_rate_bounds_rad_per_s": {
+            "lower": -1.5707963267948966,
+            "upper": 1.5707963267948966
+          }
+        },
+        "kinematic_dynamic_transition": {
+          "body_longitudinal_speed_range_mps": {
+            "lower": 138.88888888888889,
+            "upper": 166.66666666666666
+          }
+        },
+        "body_geometry": {
+          "front_extent_from_center_of_mass_m": 0.29700000000000004,
+          "rear_extent_from_center_of_mass_m": 0.198,
+          "width_m": 0.25
+        }
+      },
+      "integration_config": {
+        "method": "rk4",
+        "environment_step_duration_s": 0.05,
+        "substep_count": 1
+      }
+    }
+  },
+  "prediction_space": "sigmoid_of_aggregated_cstar_return",
+  "training_target_transform": {
+    "name": "sigmoid",
+    "temperature": 1.0,
+    "offset": 0.0,
+    "input": "aggregated_candidate_raw_cstar_return",
+    "order": "after_trial_arithmetic_mean",
+    "output_space": "sigmoid_of_aggregated_cstar_return"
+  },
+  "splits": {
+    "train": {
+      "rows": 3295,
+      "decisions": 145,
+      "prediction_rmse": 0.041579568013169796,
+      "prediction_space": "sigmoid_of_aggregated_cstar_return",
+      "score_prediction_rmse": 0.041579568013169796,
+      "learned_selected_mean_return": 0.42892930869934676,
+      "rule_selected_mean_return": 0.2323865949628601,
+      "oracle_mean_return": 0.46592477537612226,
+      "learned_mean_regret": 0.03699546667677547,
+      "rule_mean_regret": 0.23353818041326216,
+      "pairwise_accuracy": 0.8029508049688326
+    },
+    "validation": {
+      "rows": 942,
+      "decisions": 37,
+      "prediction_rmse": 0.09794668434471832,
+      "prediction_space": "sigmoid_of_aggregated_cstar_return",
+      "score_prediction_rmse": 0.09794668434471832,
+      "learned_selected_mean_return": 0.29992182824619323,
+      "rule_selected_mean_return": 0.1773189839128549,
+      "oracle_mean_return": 0.4011190239700116,
+      "learned_mean_regret": 0.10119719572381841,
+      "rule_mean_regret": 0.22380004005715676,
+      "pairwise_accuracy": 0.6849194082578935
+    },
+    "test": {
+      "rows": 699,
+      "decisions": 35,
+      "prediction_rmse": 0.059392850084174345,
+      "prediction_space": "sigmoid_of_aggregated_cstar_return",
+      "score_prediction_rmse": 0.059392850084174345,
+      "learned_selected_mean_return": 0.4245090030619004,
+      "rule_selected_mean_return": 0.27920881560954564,
+      "oracle_mean_return": 0.48424921496705825,
+      "learned_mean_regret": 0.059740211905157825,
+      "rule_mean_regret": 0.20504039935751261,
+      "pairwise_accuracy": 0.7684052907412029
+    }
+  }
+}

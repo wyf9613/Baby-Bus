@@ -98,7 +98,12 @@ class SimulationContracts(unittest.TestCase):
             self.assertEqual(sensors["lidar_cartesian"]["points_xyz"], [])
             self.assertTrue(observation["sensor_available"]["lidar_cartesian"])
             self.assertTrue(observation["estimation"]["state"]["valid"])
-            self.assertTrue(observation["estimation"]["road"]["valid"])
+            road = observation["estimation"]["road"]
+            # The V2 branch deliberately refuses unobserved near road. Its
+            # separate forward geometry is available for explicit startup use.
+            self.assertFalse(road["valid"])
+            self.assertEqual(road["status"], "near_field_unobserved")
+            self.assertTrue(road["forward_geometry"]["geometry_valid"])
             self.assertNotIn("ground_truth", observation)
             self.assertIn("ground_truth", info["evaluation"])
             self.assertFalse(observation["estimation"]["vehicle_limits"]["valid"])
@@ -145,7 +150,9 @@ class SimulationContracts(unittest.TestCase):
             self.assertEqual(third["sensor_stamp_ns"]["cone_detections"], 1_100_000_000)
             self.assertAlmostEqual(second["sensor_age_s"]["cone_detections"], 0.1)
             road = second["estimation"]["road"]
-            self.assertTrue(road["valid"], road["status"])
+            self.assertEqual(road["status"], "near_field_unobserved")
+            road = road["forward_geometry"]
+            self.assertTrue(road["geometry_valid"])
             self.assertEqual(road["measurement_timestamp_s"], 1.0)
             self.assertEqual(road["timestamp_s"], second["timestamp_s"])
             self.assertTrue(road["motion_compensated"])

@@ -1,5 +1,17 @@
 # Baby Bus · ai4r_policy
 
+2026-10-10：[完整 policy 训练管线](offline/lattice_training/README.md) 已连接原 env、
+native lattice 和训练用 C* 数值求解，自动生成实际执行标签，训练并导出候选评分器，
+完成排序和闭环对比。唯一入口为 run，无需外部 C* 数据。
+默认使用从 upskill 片段适配的随机长道路、沿路分散初态和多套 lattice 采样参数；
+采集均匀随机选取候选，以完整 C* 执行终态接续下一段，仅非法终点触发候选重抽。
+随机障碍保留连续通行空间；C* 评分覆盖完整空间路径，加入速度收益和终点完成约束。
+整路 evaluation 脚本支持最高分选路、完整 trace 和道路位置的全部候选可视化。
+初始位置不按感知/规划可用性筛选。同一路的所有变体保留在同一数据分区。
+独立 feature/lattice-training-pipeline 保留原 env、控制组和其他分支代码。
+当前[评分模型与训练记录](offline/lattice_training/artifacts/2026-10-11-augmented-sigmoid/README.md)
+随训练分支提供，含扩充前后的模型及固定验证/测试集对照。
+
 已在 `scripts/policy_node.py` 接入估计→V2 Frenet lattice 规划→PID 控制→归一化动作。
 V2 包含近端盲区补足、横纵向多项式采样、车身/障碍/运动初筛、固定打分与停车行为，
 输出原始 Frenet 多项式及经过复核的五次以内 Cartesian y(x)，控制侧使用预瞄误差。

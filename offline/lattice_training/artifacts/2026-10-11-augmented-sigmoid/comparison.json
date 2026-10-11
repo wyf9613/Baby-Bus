@@ -1,0 +1,86 @@
+{
+  "train": {
+    "previous_model_on_same_labels": {
+      "rows": 3295,
+      "decisions": 145,
+      "prediction_rmse": 0.08030768208576032,
+      "prediction_space": "sigmoid_of_aggregated_cstar_return",
+      "score_prediction_rmse": 0.08030768208576032,
+      "learned_selected_mean_return": -3447.877673886835,
+      "rule_selected_mean_return": 0.2323865949628601,
+      "oracle_mean_return": 0.46592477537612226,
+      "learned_mean_regret": 3448.343598662212,
+      "rule_mean_regret": 0.23353818041326216,
+      "pairwise_accuracy": 0.7501681689761873
+    },
+    "expanded_train_model": {
+      "rows": 3295,
+      "decisions": 145,
+      "prediction_rmse": 0.041579568013169796,
+      "prediction_space": "sigmoid_of_aggregated_cstar_return",
+      "score_prediction_rmse": 0.041579568013169796,
+      "learned_selected_mean_return": 0.42892930869934676,
+      "rule_selected_mean_return": 0.2323865949628601,
+      "oracle_mean_return": 0.46592477537612226,
+      "learned_mean_regret": 0.03699546667677547,
+      "rule_mean_regret": 0.23353818041326216,
+      "pairwise_accuracy": 0.8029508049688326
+    }
+  },
+  "validation": {
+    "previous_model_on_same_labels": {
+      "rows": 942,
+      "decisions": 37,
+      "prediction_rmse": 0.10334979986855514,
+      "prediction_space": "sigmoid_of_aggregated_cstar_return",
+      "score_prediction_rmse": 0.10334979986855514,
+      "learned_selected_mean_return": 0.22913033206464994,
+      "rule_selected_mean_return": 0.1773189839128549,
+      "oracle_mean_return": 0.4011190239700116,
+      "learned_mean_regret": 0.1719886919053617,
+      "rule_mean_regret": 0.22380004005715676,
+      "pairwise_accuracy": 0.6498859203650549
+    },
+    "expanded_train_model": {
+      "rows": 942,
+      "decisions": 37,
+      "prediction_rmse": 0.09794668434471832,
+      "prediction_space": "sigmoid_of_aggregated_cstar_return",
+      "score_prediction_rmse": 0.09794668434471832,
+      "learned_selected_mean_return": 0.29992182824619323,
+      "rule_selected_mean_return": 0.1773189839128549,
+      "oracle_mean_return": 0.4011190239700116,
+      "learned_mean_regret": 0.10119719572381841,
+      "rule_mean_regret": 0.22380004005715676,
+      "pairwise_accuracy": 0.6849194082578935
+    }
+  },
+  "test": {
+    "previous_model_on_same_labels": {
+      "rows": 699,
+      "decisions": 35,
+      "prediction_rmse": 0.07428697852890029,
+      "prediction_space": "sigmoid_of_aggregated_cstar_return",
+      "score_prediction_rmse": 0.07428697852890029,
+      "learned_selected_mean_return": 0.4451273825934181,
+      "rule_selected_mean_return": 0.27920881560954564,
+      "oracle_mean_return": 0.48424921496705825,
+      "learned_mean_regret": 0.039121832373640086,
+      "rule_mean_regret": 0.20504039935751261,
+      "pairwise_accuracy": 0.7972298477664088
+    },
+    "expanded_train_model": {
+      "rows": 699,
+      "decisions": 35,
+      "prediction_rmse": 0.059392850084174345,
+      "prediction_space": "sigmoid_of_aggregated_cstar_return",
+      "score_prediction_rmse": 0.059392850084174345,
+      "learned_selected_mean_return": 0.4245090030619004,
+      "rule_selected_mean_return": 0.27920881560954564,
+      "oracle_mean_return": 0.48424921496705825,
+      "learned_mean_regret": 0.059740211905157825,
+      "rule_mean_regret": 0.20504039935751261,
+      "pairwise_accuracy": 0.7684052907412029
+    }
+  }
+}

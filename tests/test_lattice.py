@@ -31,6 +31,61 @@ def planner(**kwargs):
 
 
 class LatticeChecks(unittest.TestCase):
+    def test_candidate_collection_keeps_default_rule_selection(self):
+        original, collecting = planner(), planner()
+        original.clock = collecting.clock = lambda: 0.0
+        expected, _ = original.plan(*fixture())
+        actual, diagnostics = collecting.plan(*fixture(), collect_candidates=True)
+        self.assertEqual(actual, expected)
+        candidates = diagnostics["candidate_references"]
+        self.assertGreater(len(candidates), 1)
+        self.assertTrue(all(item["reference"]["valid"] and not item["reference"]["planned_stop"]
+                            and item["minimum_clearance_m"] >= 0 for item in candidates))
+
+    def test_scorer_ranks_compatible_candidates_without_mutating_outputs(self):
+        active = planner()
+        active.clock = lambda: 0.0
+        def score(candidate):
+            candidate["reference"]["valid"] = False
+            return candidate["descriptor"]["terminal_speed_mps"]
+        reference, diagnostics = active.plan(*fixture(), collect_candidates=True, candidate_scorer=score)
+        self.assertTrue(reference["valid"])
+        self.assertEqual(diagnostics["selected"]["model_score"], max(
+            item["descriptor"]["model_score"] for item in diagnostics["candidate_references"]))
+        self.assertTrue(all(item["reference"]["valid"] for item in diagnostics["candidate_references"]))
+
+    def test_scorer_failure_requests_stop_and_unsafe_inputs_are_not_scored(self):
+        active = planner()
+        active.clock = lambda: 0.0
+        reference, _ = active.plan(*fixture(), candidate_scorer=lambda candidate: float("nan"))
+        self.assertFalse(reference["valid"])
+        self.assertIsNone(reference["path"])
+        self.assertTrue(reference["stop_requested"])
+        self.assertEqual(reference["reason"], "nonfinite_candidate_score")
+        visited = []
+        reference, _ = active.plan(*fixture(points=[(0.0, 0.0, 0.0)]),
+                                  candidate_scorer=lambda candidate: visited.append(candidate) or 0.0)
+        self.assertFalse(reference["valid"])
+        self.assertEqual(visited, [])
+
+    def test_scorer_cannot_publish_after_its_final_callback_consumes_deadline(self):
+        priming = planner()
+        priming.clock = lambda: 0.0
+        count = len(priming.plan(*fixture(), collect_candidates=True)[1]["candidate_references"])
+        active = planner()
+        clock, calls = [0.0], [0]
+        active.clock = lambda: clock[0]
+        def late_score(candidate):
+            calls[0] += 1
+            if calls[0] == count:
+                clock[0] = 0.5
+            return 1.0
+        reference, _ = active.plan(*fixture(), candidate_scorer=late_score)
+        self.assertEqual(calls[0], count)
+        self.assertFalse(reference["valid"])
+        self.assertEqual(reference["status"], "TIME_BUDGET_EXCEEDED")
+        self.assertIsNone(reference["path"])
+
     def test_observed_rear_support_needs_no_extension_and_roundtrips(self):
         for start in (-1.5, -0.5, -0.348):
             args = fixture()

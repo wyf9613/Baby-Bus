@@ -1,0 +1,59 @@
+{
+  "model_loaded": true,
+  "bounded_finite_predictions": true,
+  "checkpoint_matches_training_report": true,
+  "previous_holdout_metrics_match": true,
+  "holdout_arrays_unchanged": {
+    "validation": true,
+    "test": true
+  },
+  "normalization_expanded_Train_only": true,
+  "target_and_Cstar_objective_unchanged": true,
+  "training_readiness": {
+    "eligible": true,
+    "basis": "validated_candidate_labels_and_nonempty_fit_splits",
+    "split_rows": {
+      "test": 699,
+      "train": 3295,
+      "validation": 942
+    },
+    "insufficient_splits": [],
+    "minimum_training_rows": 2,
+    "requires_complete_road_rollout": false
+  },
+  "legacy_metadata_training_eligible": false,
+  "coverage_override_applied": false,
+  "road_coverage_complete": false,
+  "frozen_changes": [],
+  "protected_changes": [],
+  "protected_file_count": 205,
+  "git_refs_unchanged": true,
+  "best_epoch": 150,
+  "label_distributions": {
+    "train": {
+      "rows": 3295,
+      "decision_states": 145,
+      "labelled_roads": 11,
+      "large_failure_penalty_rows": 13,
+      "selected_large_failure_penalty_rows": 0
+    },
+    "validation": {
+      "rows": 942,
+      "decision_states": 37,
+      "labelled_roads": 2,
+      "large_failure_penalty_rows": 0,
+      "selected_large_failure_penalty_rows": 0
+    },
+    "test": {
+      "rows": 699,
+      "decision_states": 35,
+      "labelled_roads": 2,
+      "large_failure_penalty_rows": 1,
+      "selected_large_failure_penalty_rows": 0
+    }
+  },
+  "closed_loop_evaluation_run": false,
+  "unit_test_suite_run": false,
+  "public_scoring_cli_matches_checkpoint": true,
+  "public_scoring_candidates": 18
+}

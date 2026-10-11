@@ -1,12 +1,682 @@
 # AI4R policy acceptance
 
-Status: the 2026-10-08 local V2 lattice/fused-road candidate passes 122 portable tests and
-four numerical closed-loop studies. Its ROS gate and physical runs are not run.
-The 2026-10-06 car candidate's installed gate and physical runs below are
-historical evidence, not evidence for the new V2 candidate. A complete 3 m
-physical run remains unverified.
-Upstream gates on `jah` and the earlier entries below are historical evidence.
-Release identity requires a published annotated tag and successful release CI.
+Last full training/integration suite result: 53 checks passed on 2026-10-10.
+Later offline option changes are covered by the recorded experiments below.
+The run and collect commands share one pipeline
+and one training test file. Eight-road collection has the incomplete-road
+coverage described below. C* is a constrained numerical approximation, not a proven global optimum.
+The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
+Historical V2/controller/physical evidence below remains separate.
+
+## Retraining on expanded Train, 2026-10-11
+
+The user authorized retraining. Actual frozen corpus:3295 Train candidates/145
+states/11 labelled roads,942 validation/37/two and699 test/35/two. Same from-scratch
+seed0,140-32-1 tanh/sigmoid,Adam/.005,150 epochs,pair weight.25,L2.0001,T=1 target
+sigmoid(mean(raw C* returns)). Validation score RMSE selects epoch150; test is
+excluded from fitting/model selection/hyperparameter changes. No coverage override
+is required; provenance records candidate readiness=true,legacy reported flag=false,
+road coverage=false and candidate_supervision. Labels/rewards/data remain unchanged.
+
+Validation old/new selected raw mean return .229130/.299922; pair accuracy
+.649886/.684919; score RMSE .103350/.097947. Test old/new return .445127/.424509;
+pair accuracy .797230/.768405; score RMSE .074287/.059393. Calibration improves on
+both holdouts and validation selection improves; test selection/ranking regresses
+slightly. Both models are preserved. Best validation is at this run's final epoch;
+no convergence or whole-road performance claim. Train score RMSE .041580.
+
+Saved-model/source/schema/target checks, finite0-1 predictions, expanded-Train-only
+normalization, matching saved metrics and unchanged old holdout metrics are checked.
+Every original validation/test array, frozen input/previous model file,205 protected
+files and Git refs remain unchanged. Public score CLI ran on a new-road recorded
+decision and its scores/argmax match frozen-feature inference. No unit suite or new
+policy closed-loop run. Artifacts under .verification/augmented-sigmoid-training-20261011:
+model.json,model.training.json,evaluation.json,training.png,comparison.png,
+comparison.json,verification.json and REPORT.md.
+Later fixed-label ranking diagnosis:Test has8014 non-tied pairs;1078 correct→wrong,
+847 wrong→correct,net231 lost. The three largest selected-return regressions,all
+seed201,account for212 of those net lost pairs. In an initial-state candidate pair
+with the same1.5m transition and-.221226m offset,the .3m/s candidate's raw return
+.517249 exceeds .1m/s candidate's .212864. Old scores .608090/.577746 order them
+correctly; new scores .426740/.608027 reverse them. Test road200 selection improves
+slightly (.477012→.477864) while road201 drops (.430514→.400055). Regression includes
+medium return gaps and persists in state-averaged ranking; it is a real local
+generalization regression. The current score/difference-MSE objective and RMSE
+checkpoint criterion do not guarantee maximizing ordering accuracy or selected
+return. A single fit cannot isolate data distribution,scaling,capacity or training
+length as the cause. No algorithm/target change or new fit was made for diagnosis.
+Details:augmented-sigmoid-training-20261011/ranking_diagnosis.json and .md.
+
+## Candidate label readiness separated from whole-road coverage, 2026-10-11
+
+The user questioned rejection of labelled candidates when the random episode
+does not reach the road end. That gate conflated collection coverage with sample
+validity. Candidate supervision targets the full C* execution of each candidate,
+not an episode-to-road-end return. A later planning failure does not invalidate
+previous labels; a requested road with no candidates supplies no rows. Declared
+failure labels remain valid penalized supervision and are not filtered out.
+
+The shared training entry now validates the existing source/label/objective/hash/
+schema/split contract, then requires at least two Train rows and a nonempty
+Validation split. It recomputes readiness for legacy frozen metadata without
+changing it; provenance records both the original reported flag and computed
+readiness. The old override option remains accepted for command compatibility
+but no exception is needed. Collection and append also store sample readiness
+separately from road_coverage_complete; absent requested road goals/labels stay
+visible as diagnostics and do not prevent valid rows reaching training. Missing
+required label splits still stop collection/training. C* trial completion,
+constraints, failure penalties and objective checks are unchanged.
+
+The current merged corpus loads with3295/942/699 Train/validation/test rows and is
+trainable despite legacy training_eligible=false,seed8's missing labels and zero
+road goals. The previous existing coverage assertion was updated to the new
+contract. No new tests or unit suite, recollection, relabeling or policy training
+were run for this correction. Frozen datasets/checkpoints and non-feature files
+are protected by .verification/candidate-label-readiness-20261011 snapshots.
+
+## Train-only augmentation, 2026-10-11
+
+The user authorized adding another random-road batch entirely to Train. The
+augment CLI reuses collect_dataset and its existing full C* label generation;
+PipelineSettings permits empty validation/test seeds only for explicit train-only
+collection. Import still requires all three splits by default. New labels retain
+their full producer provenance; compatibility ignores only batch seed lists and
+split scope, retaining solver/plant/objective/sampling/other settings checks.
+Encoding now streams one decision at a time. The merge concatenates already
+validated NPZ rows, checks road/group disjointness, and compares every holdout
+array. It writes a separate dataset; existing datasets and models are preserved.
+Coverage/eligibility flags remain truthful; augmentation does not train a model.
+
+Actual preflight confirms eight new road identities at seeds 4-11, lengths
+28.63-37.97m, disjoint from all original splits, and matching C* plant/sampling
+contracts. Plan: two initial states and standard/wide lattice per road, 32 chains,
+two full trials per candidate, same population4/iteration1/evaluations8/30s solver
+budget, near1.2/extension1.6m and authorized origin override. Original validation
+942 rows/37 states/two roads and test699/35/two roads remain fixed. Output:
+.verification/train-augmentation-20261011. This is a preflight/launch record;
+completion, actual additions and preservation checks belong in the new run.json,
+augmentation.json and verification.json. No unit tests were added or run.
+The background job is running (actual Python PID74504; venv launcher PID46088).
+The first two actual decisions completed 36 candidates/72 successful trials and
+continued from 6.898m to 10.910m in about56s. This confirms new Train collection
+and full-state continuation have started, not completion of encoding/merge.
+Startup hashes for the original datasets/models,205 protected files and Git refs
+are unchanged. The runner will audit again after automatic merge.
+The job has now finished all32 sequences and merged successfully in35.21min:
+67 new decisions,1392 candidates,2784 trials (2776 successful). Seven of the
+eight new roads produced labels; seed8's four sequences all stopped at
+insufficient_lattice_coverage before a decision. Endings:25 planning failures,
+seven completed planned stops,zero road goals. Merged Train is3295 rows/145
+decisions/11 labelled roads; validation942/37/two and test699/35/two are unchanged.
+All holdout arrays, original datasets/models,205 protected files and Git refs
+passed the final preservation audit; merged source/schema/hash checks load.
+No retraining yet. At merge time the historical training_eligible flag remained
+false,with missing-label seed8 and missing road goals recorded. The later
+candidate-readiness correction above supersedes that coverage-based rejection;
+the frozen metadata and collection evidence were not rewritten.
+Actual artifacts: augmentation.json, verification.json, REPORT.md, dataset/ and
+addition/road_coverage.png under .verification/train-augmentation-20261011.
+
+## Sigmoid-target fit on the same frozen data, 2026-10-11
+
+The user authorized retraining with sigmoid targets. The shared train_model now
+uses sigmoid(mean(raw C* trial returns)), T=1, offset=0, after trial aggregation.
+The original objective, failure penalties, frozen labels, splits and previous
+checkpoint remain unchanged. The MLP uses a sigmoid output, no raw-y scaler;
+decision-weighted MSE and candidate-difference MSE operate in score space.
+V3 checkpoints and inference explicitly record the output space and transform;
+the preceding v2 raw-return checkpoint remains readable with identical metrics.
+
+Same 140-32-1 tanh/Adam/.005/seed 0/150 epochs. Validation score RMSE chooses epoch
+49, test excluded from fitting and model selection. Test score RMSE .074287;
+raw-label selected mean return .445127 versus previous .295319 and rule .279209
+(oracle .484249); pairwise accuracy .797230 versus previous .524582; mean regret
+.039122 versus previous .188930. Calibration RMSE in different output spaces is
+not directly comparable. The six large failure labels remain, saturated to score
+zero; no such candidate was selected in the frozen train/validation/test groups.
+
+Reloaded model/source/schema/objective and finite bounded predictions checked;
+reported metrics match the saved checkpoint. Frozen NPZ/metadata/records and
+previous training outputs, 205 protected files and Git refs remain unchanged.
+Partial-road experimental override remains explicit, training_eligible=false,
+zero collected road goals. This is labelled-candidate evaluation on test's 35
+existing decisions from two roads; no new policy closed-loop run or unit suite.
+The public score CLI also ran on one recorded decision; scores/argmax agree with
+the frozen-feature predictions and declare predicted_score. The existing model
+learning/roundtrip check was updated to the new target space without adding or
+running tests.
+Artifacts: .verification/eight-road-sigmoid-training-20261011/model.json,
+model.training.json, evaluation.json, training.png, comparison.png,
+comparison.json, verification.json and REPORT.md.
+
+## First policy fit on the frozen eight-road data, 2026-10-11
+
+The user authorized starting training despite the incomplete road-goal coverage.
+The shared train_model now supports an explicit allow_incomplete_coverage option;
+the new train CLI reuses it without collecting/relabeling. Default coverage refusal
+remains. The exception is limited to missing goals with labelled roads, legal
+initial states and all three splits present; source/label/objective/hash/schema and
+split checks remain. Original dataset metadata stays training_eligible=false.
+
+Actual run: 140-32-1 tanh MLP, Adam/.005, seed 0, 150 epochs; 1903/942/699 rows
+at 78/37/35 train/validation/test decisions. Validation RMSE selects epoch 14;
+test never participates in training or checkpoint selection. The saved model marks
+partial_road_coverage_experiment and retains coverage and the explicit override.
+Test label selection: learned .295319 versus rule .279209 mean return; oracle
+.484249; learned pairwise accuracy .524582 and mean regret .188930 versus rule
+.205040. This is a weak first fit, not evidence of completed roads or robust control.
+Five train labels and one test label carry approximately -500000 failure penalties;
+validation labels have no such penalties, while validation prediction RMSE is
+5783.16. The extreme training targets affect score calibration; no failure labels
+were dropped or reward terms changed.
+
+Checkpoint load/source/schema checks and finite predictions passed. Frozen NPZ and
+metadata hashes, 197 protected non-training files and Git refs remain unchanged.
+No closed-loop evaluation or unit-test suite was run in this training turn.
+Artifacts: .verification/eight-road-training-20261011/model.json, model.training.json,
+evaluation.json, training.png, verification.json and REPORT.md.
+
+## New eight-road collection started, 2026-10-11
+
+The user requested deleting old data before recollection. Nine obsolete training,
+model and contract-check directories (100 files, 448.25MiB) were removed from this
+feature's .verification directory after resolved-path checks. Diagnostic reports
+and figures remain; historical dataset/model output links below no longer resolve.
+The active output is .verification/eight-road-collection-20261011, with cleanup.json,
+run.json and collection.log. It requests eight fixed random roads at train seeds
+0/1/2/3, validation 100/101 and test 200/201; two physical initial draws and
+standard/wide profiles per road, 32 random chains until goal/STOP/explicit failure.
+Native Frenet export and the authorized origin-support override are enabled at
+1.2/1.6m limits; vehicle, 80-degree camera, road width and .5m cone spacing retain
+the current defaults. Two actual C* trials per candidate, population 4, one CEM
+iteration and at most 8 evaluations match the prior full collection budget.
+This section records launch, not successful completion. Final metrics/eligibility
+must come from the new summary; no policy training was requested for this run.
+The collection subsequently finished 32 chains / 150 decisions / 3544 candidates /
+7088 trials (7082 successful) in 136.58min plus 63.03s encoding. All eight roads
+have labels but zero sequences reached the road goal (25 planning failures, seven
+planned stops); metadata remains incomplete_coverage and training_eligible=false.
+The later explicit experimental training authorization is recorded above.
+
+## Native Frenet training export, 2026-10-10
+
+The user selected the smaller change: consume the existing native Frenet output
+instead of truncating a Cartesian reference and changing its timing/labels.
+Only the offline training factory bypasses the Cartesian approximation stage;
+the native caller still performs all original Frenet body/obstacle/motion/range
+checks. C* fully executes the original supported curve, restores its terminal
+snapshot, then samples the next native candidates. No reference truncation,
+new fitting algorithm, objective change, original env edit or live/native change.
+References mark frenet_native, path=None and output_errors=None.
+--require-cartesian-compatibility restores the legacy adapter in the same pipeline
+for comparison. Export semantics native_frenet_export_v1 enter the source signature;
+old corpus/checkpoint signatures are rejected rather than silently mixed.
+
+Exact replay of the illustrated 20.344m failure: old mode has no valid Cartesian
+output; native mode returns 9 candidates. Candidate 1|-0.125|3|0.2|0 completes its
+full 2m reference in 10.25s with .009693m endpoint error and all step constraints.
+At its actual terminal progress 22.354m, the next rollout returns 39 candidates.
+The public highest-rule-score visualize CLI then executes 17 complete segments /
+3418 steps from the original start, reaches 34.362m on the 35.081m road, and
+explicitly stops at insufficient_geometry (goal 34.584m not reached). No complete
+eight-road dataset claim. Full-path and segment continuation behavior are verified
+through the actual plant; no unit-test suite was added or rerun for this change.
+Artifacts: .verification/frenet-export-20261010/case.json and rule-evaluation/.
+The real collect CLI also froze three straight scenes with one decision each:
+54 candidates / 54 successful full-C* trials, imported train/validation/test NPZ,
+96.60s collection plus 1.26s encoding. Native references have path=None and no
+fabricated Cartesian errors; dataset loading validates the new export signature.
+This is contract verification, not eight-road training or a policy-training run.
+Final scope check: 197 protected file hashes and all Git refs unchanged. Detailed
+report and continuation plot: .verification/frenet-export-20261010/REPORT.md.
+
+## Temporary offline origin-support override, 2026-10-10
+
+User-authorized --allow-unobserved-origin is now available in collect/run and
+visualize, default off. It applies only to course_simulation with an explicit
+clear-start assumption, after observed_origin_seen is true, and only for
+near_field_unobserved with validated, aligned, two-sided forward_geometry.
+The offline query adapter admits that bounded geometry to native planning;
+raw estimation remains invalid, history/observed-origin/STOP state is retained.
+Native gap/extension, freshness, frame/time, body/obstacle/motion checks and actual
+C* step constraints remain. No native planner, original env or live YAML edits.
+Diagnostics and references explicitly mark assumed origin support and override use.
+
+The saved seed 0 failure was replayed exactly: max state error 0; raw observation
+unchanged, history age 2.4s and support beginning at .404608m. Default rejects;
+enabled returns 27 marked candidates. Smaller near/extension bounds, stale road,
+single-side or unaligned forward geometry still reject.
+Eight paired uniform-random full-C* sequences at 1.2/1.6m support limits completed
+24 segments / 46.496m with the guard versus 53 / 104.660m with the offline override.
+Both completed 0 roads. The accepted common-prefix terminal states match exactly;
+all 77 accepted segments completed their references and passed each-step constraints.
+Remaining endings include no_feasible_lattice_trajectory, no_valid_cartesian_output,
+insufficient_body_supported_horizon, planned STOP, and one insufficient_geometry.
+The experiment took 174.22s, including 48.27s guarded and 124.30s enabled.
+
+The public visualize CLI additionally executed the rule maximum on seed 0 with
+the option: 10 complete segments / 2009 steps, final progress 20.344m, explicit
+no_valid_cartesian_output failure. Two candidate probes, PNG and HTML generated.
+An actual blocked collect CLI recorded the flag and rejected empty/incomplete data.
+No complete labelled corpus or policy training was produced. Scope checks confirm
+197 protected hashes, vehicle/dynamics and Git refs unchanged. This did not rerun
+the unit-test suite; the native ROS fast gate limitation above remains.
+Evidence: .verification/origin-support-20261010/REPORT.md, replay.json, chains.json,
+verification.json, comparison.png, random_chains.png and rule-evaluation/.
+
+## Environment settings comparison, 2026-10-10
+
+Fetched origin/feature/rule-lattice-planner: the upstream tip remains 5068e9b.
+Kept the notebook .25m width / .495m body length and all vehicle dynamics,
+80-degree camera, 24 detections and original sensor timing. No native planner,
+estimator, original planner_sim or live configuration edits were made.
+The training package now exposes cone_spacing_m in road settings and explicit
+offline max_near_gap_m / max_extension_m options shared by collection and evaluation.
+Original defaults remain .5m cones and .9/1.3m support limits.
+
+Six configurations were probed with the same eight road geometry seeds and 16
+identical legal initial states, at standard/wide profiles (32 queries each).
+Admitted initial queries: original 12; .25m cones 22; .9-1.0m road 12;
+1.2/1.6m support limits 29; dense cones plus support limits 28; all three 28.
+All 48 road/config passage checks passed with the unchanged inflated vehicle.
+Each configuration then ran eight actual full-C* uniform-random candidate chains
+using initial 0/wide. Original: 9 complete segments; dense: 11; narrower: 6;
+larger near limit: 24; dense plus near: 15; all three: 19.
+All 84 accepted segments completed their references and passed step constraints.
+The larger near setting executed an initial segment on 8/8 roads and reached a
+second valid decision on 7/8, but no configuration completed any road (0/48).
+Later near_field_unobserved and finite end-support limitations remain visible.
+
+These are diagnostics, not a labelled corpus: only randomly selected candidates
+were executed. No policy was trained and no costly all-candidate collection was
+restarted against a configuration already observed to fail whole-road coverage.
+Static probes took 25.73s; continuous diagnostics took 129.97s. Defaults stay
+unchanged. Evidence: .verification/environment-settings-20261010/REPORT.md,
+comparison.json, chains.json, comparison.png, random_chains.png and verification.json.
+Scope audit confirmed 197 protected file hashes, Git refs and vehicle/dynamics
+unchanged. No physical vehicle activity. The prior 53-test result below precedes
+these option additions; this experiment did not rerun that test suite.
+The public RoadEvaluation entry additionally executed the rule maximum on seed 0:
+3 complete segments / 618 steps, then an explicit invalid_estimates_or_boundaries
+fault. Two point probes and PNG/HTML outputs were produced with the same support
+settings. An actual collect CLI blocked-scene check recorded 1.2/1.6m options,
+reported incomplete coverage with dataset=null and produced no model. The required
+ROS fast gate was attempted and stopped at the still-missing pinned dream_interfaces.
+
+## Eight-road coverage bug audit and corrected safety checks, 2026-10-10
+
+The earlier v5 corpus below is retained as diagnostic history, not current
+training evidence. Train seed 0's nine decisions are four chains (3/3/2/1),
+154 alternatives at nine states. Their merged visited progress is 9.369m,
+26.7% of the 35.081m road. The other three train geometries have no labels.
+
+Reproduction found two physically illegal initial draws: seed 0/I1 extends
+its inflated rear body .0306m before the finite road, and seed 2/I2 intersects
+an obstacle. The old C* predictor/trial checks omitted finite start/end planes.
+V6 now enforces those bounds for the complete body at initialization and every
+prediction/replay step. Initial progress is drawn once from conservative physical
+free-space intervals, with a body-aware start and obstacle cross-sections
+excluded. No planner/perception acceptance filter or replacement draw is used.
+Twenty-four seeded initial-draw checks passed. Warmup termination is explicit;
+road evaluation checks initial safety before declaring the goal reached.
+
+Candidate enumeration now queries a planner copy rather than prematurely
+committing the native rule choice; actual selected execution commits the path.
+The observed-origin guard is preserved. Coverage figures draw actual intermediate
+trace points per chain, with failures, goals, decision counts and visited fraction.
+Collect/run share a coverage gate; missing requested road labels or missing goals
+in until-road-end mode save diagnostics, mark data training_eligible=false, and
+stop training. Independent train_model also rejects that metadata. V5 internal
+datasets/checkpoints are rejected instead of silently reusing incomplete safety.
+
+The 18 startup failures have common forward support .939-1.190m versus the
+native .9m near-gap limit. A diagnostic-only 80/120-degree camera comparison
+with identical old poses/actions changed initial candidate availability from
+14/32 to 30/32, with physical state replay error 0. Runtime remains 80 degrees;
+planner/perception modules were not changed. The eight subsequent
+invalid_estimates_or_boundaries cases are four near_field_unobserved, three
+insufficient_geometry and one single_side_width_unknown. Three of the four
+near-field cases would admit a fresh planner, but resetting observed_origin_seen
+would bypass a native safety guard and was not used as a repair. All three STOP
+endings had STOP-only candidate sets, not random picks from mixed cruise/STOP.
+
+A separate end-support probe starts at road_length-2.5m with zero lateral/heading
+error, .2m/s and diagnostic 120-degree FOV. Seven roads provide candidates whose
+maximum reference endpoint is .210-.564m short of the current goal; seed 100
+has no valid Cartesian output. The shared last-cone progress is .157-.517m short
+of physical road end. This identifies an unvalidated goal/support configuration,
+not proof of global impossibility. No goal shortening, tolerance relaxation,
+ground-truth policy input or top-reward transition was introduced.
+
+Final 53 tests passed in 420.034s, including native actual CLI, complete-path
+labels, whole-road visualization and the new safety/coverage/query/rendering
+regressions. A first regression run exposed the old 1.4m obstacle example's
+insufficient .6m transition space after correcting the initial rear footprint;
+the controlled example was moved to 1.6m and the whole suite rerun successfully.
+Source/vehicle parameters are unchanged. Evidence and corrected figures are in
+.verification/eight-road-bug-audit-20261010. The ROS fast gate still stops at
+the absent pinned dream_interfaces checkout. No physical vehicle activity.
+
+## Historical fixed eight-road continuous collection, 2026-10-10
+
+The single shared collector now supports --until-road-end, with a separately
+reported 100-segment ceiling. Collection and evaluation use the same body-safe
+road goal, road_length minus front_extent minus .2m. The collect command only
+collects, validates and freezes data; it refuses to overwrite an existing corpus.
+Random choice, complete C* execution, full terminal snapshot inheritance and
+retry-only-after-completed-illegal-endpoint semantics are preserved. Planner,
+solver, replay and serialization phases are timed; each episode checkpoints its
+real ending. No native planner/perception or vehicle configuration was changed.
+
+The package README's eight-road command exited 0: train seeds 0/1/2/3,
+validation 100/101, test 200/201, two stratified initial draws per road and
+standard/wide profiles. It used the previous smoke run's 8-evaluation C* budget,
+two trials per candidate, and complete spatial/timed STOP paths. Benchmark
+collection ran without concurrent regression tests.
+
+- Eight generated geometries, 32 attempted sequences; five geometries provided labels.
+- 30 decisions, 537 candidates; train/validation/test rows 154/190/193.
+- 1074 trials, 1072 complete successful executions; two execution-constraint
+  violations remain explicit failed labels.
+- Collection/labeling 909.2849s (15.15 minutes); encoding 9.3930s.
+- Full trial replay 533.9503s (58.7%), C* solving 345.7088s (38.0%);
+  average 1.6933s per candidate. The maximum decision took 84.3990s.
+- Sixteen adjacent decision pairs were checked for identical inherited terminal
+  vehicle state/control and observation timestamp. Nominal replay max state error 0.
+- Longest sequence four complete segments, approximately 8m. No segment ceiling hit.
+- Zero sequences reached the road goal: 29 native planning failures and three
+  completed planned STOP references. These are not successful whole-road drives.
+
+The 29 planning failures were insufficient_lattice_coverage (18),
+invalid_estimates_or_boundaries (8), insufficient_body_supported_horizon (1),
+and no_valid_cartesian_output (2). Train roads 1/2/3 produced no candidates from
+either initial draw, so the current train rows come only from road 0. Initial
+draws were not redrawn to select an accepted start. This is a measured partial
+coverage corpus, not eight complete road sequences or sufficient training coverage.
+The measured cost cannot be reported as the cost of fully traversing eight roads.
+
+Evidence: .verification/eight-road-collection-20261010 contains immutable measured
+decisions, the frozen NPZ/metadata, collection log, phase/road analysis, REPORT.md,
+road_coverage.png and collection_timing.png. The report figures were inspected.
+No policy was trained in this collection run; repeated epochs can consume the
+same saved dataset without new C* solves or simulator labels.
+
+All 45 training/integration cases passed in 388.557s after collection, including
+multi-segment terminal-state inheritance, until-road-end versus an explicit
+segment-ceiling failure, overwrite refusal and the existing run/visualization
+CLIs. Frozen data hashes and current pipeline source fingerprints match. The
+scope audit found no changes to 201 protected files, the copied fragment's two
+upskill source files or any of 15 Git refs. The required ROS gate was attempted
+with local Git Bash and stopped at the missing pinned dream_interfaces path;
+no ROS or hardware acceptance is claimed.
+
+## Full spatial-path scoring, passable random obstacles and visualization, 2026-10-10
+
+The shared target is now cstar_full_path_loss_v2 / negative_expected_full_path_cost.
+Each cruise keeps the native authored time prefix, then follows the original
+Frenet geometry at its terminal physical speed until the entire admitted spatial
+path ends (normally 2m). STOP executes its complete timed stop and settling hold.
+Duration is aligned to .05s and checked against the explicit 60s maximum. A 3s
+prefix is never passed off as the full spatial score. Costs use time-average
+tracking/control terms, positive along-reference speed utility (weight .5,
+scale .2m/s), terminal position/speed costs, and endpoint completion constraints.
+Position tolerance is .15m, stop speed tolerance .02m/s. Optimization, actual
+trial labels and evaluation share that definition; old 3s checkpoints are rejected.
+
+Random generation adds 3-6 rectangles (.20-.35m long, .16-.28m wide), at least
+3.5m apart, with 3m clear end zones. One random obstacle side per road preserves
+an opposite-side connected corridor, minimum .55m. Native geometry checks an
+inflated .35m full car along the reserved route at .1m intervals; failed layouts
+are rejected. Ten seeded checks passed. This does not prove continuous swept
+safety or guarantee that the native planner finds the geometric corridor.
+Obstacle/speed annotation variants share geometry IDs for partition isolation.
+
+The actual full-path training command in the current package README exited 0.
+It produced 156 candidates in eight decisions, 312 successful nominal/perturbed
+full env trials, durations 7.05-20.20s and maximum nominal replay error 0. Train/
+validation/test are 78/36/42 candidates. Collection took about 349s while the
+integration suite ran concurrently. The 60-epoch checkpoint reloads and scores;
+held-out RMSE .183702, pairwise accuracy .634033, learned/rule regret
+.006855/.004376. The corpus establishes pipeline operation, not ranking superiority.
+Only layout changes followed collection; measured records were re-encoded and
+deterministically retrained to retain current code fingerprints, with matched
+evaluation repeated. Native inverse-heading transient and curvature feedforward
+are optimization initializers only; constrained CEM remains approximate.
+
+evaluation.py shares complete candidate execution between run and visualize.py.
+Evaluation strictly executes argmax of the requested rule/policy numeric score,
+including overriding native near-best tie ranking; training transitions remain
+uniform random. visualize.py accepts given road JSON, exports the complete actual
+trace/reference/speed/candidate figures and serves a localhost interactive page.
+The page adds arbitrary road positions, restores actual execution history when
+available, or generates declared local initial observations, and shows admitted
+and rejected native geometries with reasons. It never fills missing perception.
+
+The 16m given-road example with two randomly placed obstacles reached the body-safe
+road endpoint at progress 15.667m: eight complete segments, 1038 actual steps,
+51.9s simulated driving, no collision/offroad, about 5.5s wall time with 8-evaluation
+solver budget. Its evaluation.png and point-candidate figures were inspected.
+Adding a 7m position through the page returned 31 admitted and 10 rejected
+candidates; score maximum selection and real-state display were verified.
+The broader 35.081m random curved case stopped at 12.315m with native
+no_valid_cartesian_output; that failure remains visible rather than showing a
+successful whole-road drive. Original planner/perception admission was preserved.
+
+Full-path scoring costs more: sampled 7.75-7.8s candidates took .3-.4s at 8 evaluations
+and about 1.5-2.1s at the 64 budget (40 actual evaluations), plus env replay.
+Default large collection can take tens of minutes to hours; no 3s truncation was
+introduced as a shortcut. All 43 tests passed, including complete spatial endpoint,
+speed preference/standing-still rejection, passage checks, full actual CLI and
+visualization/inspection export. The single training test file is retained.
+
+## Historical uniform 3s C* segment collection, 2026-10-09
+
+The following 3s target and completion evidence are historical. They are superseded
+by full spatial-path duration and the versioned objective above.
+
+Collection now follows the requested state-transition rule: independently label
+all admitted candidates, uniformly sample one without consulting policy/reward,
+execute its complete C* horizon (default 3s/60 steps), and inherit the actual full
+terminal env snapshot. Position, body/motion state, steering, hidden direction
+latch, last applied action, sensor queues, estimator history and RNG are retained.
+
+Only a completed C* terminal state outside the spatially legal region triggers
+another candidate draw from the same original snapshot, without replacement.
+The endpoint check covers the inflated full body, lateral boundaries, finite road
+endpoints and obstacles. Low reward and tracking error do not trigger resampling.
+Solve failure or incomplete execution has no full successor: it ends that episode
+with an explicit fault, rather than trying a higher-scoring candidate or redrawing
+the initial state. Bounded exhausted illegal-endpoint attempts are also explicit.
+
+Initial positions are drawn once and no longer filtered by native planner
+availability. Missing perception/candidates remain reported failures. Earlier
+figures' accepted starts meant valid native planning after camera warmup; they
+were not C* terminal legality checks. New coverage figures distinguish unfiltered
+Initial draw from Legal C* endpoint. Rule/learned choice remains only in inference
+and closed-loop evaluation; neither selects collection successors.
+
+The same single run entry/test file remains. Checks cover full 3s state/action
+continuity, retained hidden/sensor/RNG history, reward-independent random draws,
+only completed illegal endpoints causing retries, bounded retry exhaustion,
+unfiltered startup, finite-road endpoint guards and actual CLI execution.
+
+The complete run in .verification/segment-random-run exited 0 using the current
+README command (seeds 0/1, 100, 200; two initial draws/profiles; two C* segments;
+two trials; 4/1/8 solve budget; 40 epochs; six evaluation steps). It produced 16
+decision groups, 188 candidate labels and 376 successful execution trials. All
+16 sampled successors executed the full 60 controls. Eight actual segment links
+have exactly zero state and previous-action mismatch; their time intervals are
+3s within 9e-16. Fourteen of 16 chosen candidates were not the maximum measured
+reward candidate, and legal endpoints were retained regardless.
+
+All eight requested initial positions were kept. Eight of the 16 profile episodes
+had no native candidate due to insufficient coverage and remain explicit empty
+episodes, without an initialization retry. No completed illegal endpoint occurred
+in this nominal smoke run; the only-illegal-endpoint retry predicate and bounded
+exhaustion are exercised by controlled unit cases. No C* safety constraints were
+removed to create invalid endpoint examples. Nominal prediction/replay error is 0.
+Collection took about 67s; current dataset/model code hashes match final source.
+
+All 38 training checks passed on final source. Scope audit again confirms 201
+protected non-training files, the upskill sources and 15 branch refs unchanged.
+This small model has test RMSE .064113, pairwise accuracy .332298 and learned/rule
+regret .123634/.011571; it establishes sampling/state continuity, not improved
+model quality. Existing ROS provisioning/physical qualification limits remain.
+
+## Historical random roads with first-action collection, 2026-10-09
+
+The following run describes the earlier sampler, superseded by complete random
+C* segment transitions above. Its accepted-start filter, behavior-model option,
+decision stride and code fingerprints are historical, not current defaults.
+
+The same feature now adapts the upskill notebook's clean-random-road-distribution
+cell and Dream Gym 0.2.2 random_generation.py fragment into roads.py. Attribution,
+source hashes and adapted settings are recorded; the source project is never
+read at training runtime. The existing pinned Dream Gym 0.4 accepts the generated
+nested road/lane/cone definitions. Vehicle dynamics/integration are unchanged.
+
+Default roads have 8-10 straight/arc segments, a 6-8m first straight, 2-4m other
+straights, 4.5-8m radii, 20-35 degree arcs, and 1-1.2m width. Initial progress is
+stratified across [.12m, road_length-3m]; lateral/heading/speed also vary. The
+native lattice local horizon remains 2m (the old full straight road was 10m).
+The heading bound reduces loops without proving non-intersection or continuous
+curvature. Random obstacles are not generated; deterministic obstacle/blocked
+cases remain available through the same pipeline.
+
+Collection combines rule/random/optional checkpoint selection with standard,
+conservative or wide sampling profiles of the same native planner. Every actual
+step consumes fresh env feedback, replans, solves C* and applies its first action.
+Decision stride only controls the expensive all-candidate labeling frequency.
+All variants of a road share its geometry hash and one data split. The checkpoint
+fingerprint is retained when learned collection is enabled; native rule baseline
+IDs are preserved independently of the behavior choice.
+
+Initial perception/planning rejection triggers bounded deterministic retries
+within the same progress stratum. Failed initialization remains an empty
+collection episode or explicit failed evaluation, not a fabricated observation.
+This conditions the observed data on current native perception/planner coverage.
+The default seed set is still finite; epochs do not generate new roads.
+
+The random-road run exited 0 with:
+
+    python -B -u -m offline.lattice_training run --output .verification/random-road-run --kinds randomized --train-seeds 0,1 --validation-seeds 100 --test-seeds 200 --starts-per-road 2 --rollout-behaviors rule,random --planner-profiles standard,conservative --decisions 2 --decision-stride 2 --trials 2 --population 4 --iterations 1 --max-evaluations 8 --epochs 60 --evaluation-steps 6
+
+Its four roads are 28.233/31.353/35.081/36.433m long. Of eight requested initial
+positions, six were accepted, spanning .190-32.141m. Two exhausted native coverage
+retries, producing eight empty episodes across the actor/profile combinations.
+The 24 accepted episodes produced 48 decision groups and 496 candidate rows:
+train 248/24, validation 160/16, test 88/8. All 992 nominal/performance trials
+passed recorded constraints, and maximum nominal prediction/replay error was 0.
+Collection took about 347s with the deliberately small numerical solve budget.
+
+The current export reloads and scores successfully; its dataset/model code hashes
+match source. Whole-road coverage, training and local execution PNGs were visually
+inspected; the coverage titles were adjusted and the unchanged measured records
+were re-encoded/retrained with matching provenance. Matched closed-loop evaluation
+was repeated against that final export.
+
+Test RMSE is .013394 and pairwise accuracy .770270. Test learned/rule regret is
+.007892/.008934, while validation learned/rule regret is .010856/.005136. The
+small corpus therefore does not establish a general ranking improvement. Its
+accepted training starts happen to be on straights while validation starts are
+on arcs; train/validation RMSE is .008447/.067563. A separate default-seed start
+probe found 13/16 initial states accepted on training seeds 0-7, including curved
+starts on seed 2. Larger road coverage still requires generating actual labels.
+
+The two selectors each have three matched test evaluations: one initialization
+failure, one six-step actual execution, and the blocked planning failure. The
+executed case has rule/learned return -.00002624/-.00005074, with no recorded
+collision or road departure. Both failure cases retain -1e6 encoding, so the mean
+return is dominated by failures. Six steps is a smoke check, not a completed
+long-road drive or physical safety qualification.
+
+An existing C*-trained checkpoint was also used for learned data collection on
+road seeds 2/100/200. It produced five decisions and 58 candidates; four decisions
+had behavior selections differing from their separately retained native rule
+baseline. Its model fingerprint is stored in learned-rollout-check.collection.json
+under the same ignored output directory. This is a collection check, not another
+training entry point or a second implementation.
+
+All 33 tests in tests/test_lattice_training.py pass. New checks cover native road
+construction, reproducibility, long-road start stratification, retained notebook
+physics, different candidate profiles with unchanged local horizon, deterministic
+retries, retained failures, base-road split isolation, and actual per-step feedback
+producing different subsequent states under rule/random behavior.
+
+Scope audit found all 201 protected non-training files, both upskill source files,
+and all 15 existing branch refs unchanged. The pre-existing tracked changes from
+earlier feature work remain preserved. The original ROS dependency limitation
+below still applies.
+
+## Native env, C* and policy training, 2026-10-09
+
+feature/lattice-training-pipeline contains the training C* solver and calls the
+existing planner_sim through reset/fork/step. The flow is native observations ->
+actual compatible lattice candidates -> constrained native-plant optimization ->
+full env execution -> negative shared tracking-loss labels -> supervised scoring
+policy -> ranking and actual closed-loop evaluation -> model/data/report export.
+
+C* performs multi-start CEM direct shooting over all 120 normalized control
+variables for 3s/.05s. Each prediction clones the full pinned BicycleModelDynamic
+instance including hidden direction latch, invokes its integration kernel and
+checks full body/road/obstacle and operating-domain constraints. Every successful
+solve is replayed in the full env. Predicted loss never replaces measured labels.
+Solver diagnostics report evaluation/time limits and approximate/failed status;
+global_optimum_proven is false. No PI controller was restored or pretrained.
+
+Performance trials record seeds, gains/bias and request-delay history. All
+candidates at a decision fork the same full state; nominal prediction/replay
+maximum state error was 0 in the verified corpus. Plant/Notebook/integration
+identity, code hashes and source settings are attached to the model/data.
+Current 140-feature inputs exclude future/ground-truth/controller state.
+
+The earlier four-template command exited 0 (historical run before random-road
+collection and its expanded defaults):
+
+    python -B -u -m offline.lattice_training run --output .verification/cstar-training-run --kinds straight,left_curve,right_curve,obstacle --train-seeds 0,1 --validation-seeds 100 --test-seeds 200 --decisions 2 --trials 2 --population 8 --iterations 3 --max-evaluations 28 --epochs 120 --evaluation-steps 60
+
+It produced 241 real candidates / 28 decision groups: train 111/14, validation
+74/7, test 56/7. All 482 nominal/performance execution trials passed recorded
+constraints. Outputs in ignored .verification/cstar-training-run include actual
+decisions/configurations, hash-checked NPZ, model.json, ranking/evaluation reports,
+closed_loop.json, summary.json and training/closed-loop PNGs. Saved pipeline code
+hashes describe that earlier implementation; the exported model reloads and
+scores against the same unchanged native planner source.
+
+Held-out return RMSE is 0.038049 and pairwise accuracy 0.577586. Learned selection
+regret 0.026310 is worse than rule regret 0.023285; this initial checkpoint does
+not establish a ranking improvement. Actual matched 60-step evaluations on seed
+200 use straight/left/right/obstacle plus blocked. The three clear-scene returns
+are rule -0.147843/-0.058446/-0.074549 versus learned
+-0.022129/-0.001438/-0.011461; obstacle is -0.163747 for both. These limited
+examples do not establish general driving quality.
+
+STOP commits its original timed trajectory instead of requesting a lattice
+restart mid-stop. Both obstacle episodes executed all 60 steps without collision
+or road departure. With the recorded performance deviation, endpoint speed is
+0.008816m/s, above the declared .005m/s stop threshold: stop_completed is false.
+Blocked returns no native candidate and is explicitly a planning failure for
+both selectors with -1e6 encoding. Zero simulated collisions is not successful
+completion, especially for the blocked episode that terminates before actuation.
+
+All 25 tests/test_lattice_training.py checks pass, including actual env/prediction
+equivalence through braking/reverse latch, physical wheel-rate bounds, parent
+state isolation, deterministic solving, full-body constraints, wall-budget
+failure, persistent delay, committed STOP and the complete actual CLI. Renderer
+plots were inspected. Requirements pin the tested NumPy/Gymnasium/Matplotlib
+and inherit the original Dream Gym git pin; no new dependency install was needed.
+
+The CONTRIBUTING fast command was attempted. WSL initially denied startup; the
+escalated retry reached the actual script and stopped at realpath for the missing
+pinned dream_interfaces checkout. No installed ROS or physical qualification is
+claimed. Simulated contact/boundary checks are discrete, not continuous swept
+safety proof, and offline solver/planner timing is not the live 35ms admission.
+
+Implementation is restricted to the training package/test and its own README/
+acceptance sections. Original native planner/controller source, planner_sim,
+control_pid, live configuration, other worktrees and branch references are
+outside this change. No commit, push, merge, release or hardware operation was
+performed.
 
 ## Fused-road merge into V2, 2026-10-08
 

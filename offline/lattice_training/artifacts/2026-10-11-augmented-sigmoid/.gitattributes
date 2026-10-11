@@ -1,0 +1,2 @@
+# Preserve the recorded artifact bytes so the SHA256 manifest is portable.
+* -text whitespace=cr-at-eol

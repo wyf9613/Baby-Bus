@@ -1,0 +1,4 @@
+-r ../planner_sim/requirements.txt
+numpy==2.3.5
+gymnasium==1.4.0
+matplotlib==3.11.2
