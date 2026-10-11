@@ -59,13 +59,19 @@ MPC 读取 `self.planning_output`，经适配器 `reference_trajectory_from_plan
 
 | Planning 字段 | MPC 怎么用 |
 | --- | --- |
-| `valid` | False 时属于**可容忍失效**：在 `reference_dropout_tolerance_s` 内继续执行上一步的计划，超时就锁停 |
-| `stop_requested` | 和 `valid=True` 同时出现时是**停车请求**：立即走 `stop` 分支，零动作并锁停。不会被当成可容忍失效 |
+| `valid` | False 且没有明确停车请求时属于**可容忍失效**：在 `reference_dropout_tolerance_s` 内继续执行上一步的计划，超时就锁停 |
+| `stop_requested` | True 表示明确停车请求，即使 `valid=False`、`path=None` 也立即走 `stop` 分支；异步规划的 `reason=planning_pending` 是等待结果，仍走限时失效处理 |
 | `frame_id`、`timestamp_s` | 必须是 `base_link`；时间戳用来判断参考是否过期 |
 | `valid_for_s` | 参考的有效期；过期也属于可容忍失效（`ref_expired_or_future`） |
-| `path` | 目前只认 `CARTESIAN_Y_OF_X` 多项式（`coeffs_low_to_high`、`range`），按 `mpc.reference_spacing_m` = 0.05 m 采样成点列 |
-| `target_speed_mps` | 每个点的目标速度；为 0 时零油门（`zero_target`） |
+| `path` | V1/V2 的 `CARTESIAN_Y_OF_X` 支持 1–6 个 `coeffs_low_to_high`，按 `origin`、`scale`、`range` 采样；V2 的 `CARTESIAN_SAMPLES` 原样转为 MPC 点列，不重新拟合或重采样。存在 `control_cached_path_samples` 时优先使用运动补偿后的点列 |
+| `target_speed_mps` | 暂时填入每个 MPC 点；V2 里它是 0.3 s preview speed，不代表整段预测时域的完整速度计划 |
+| `speed_profile` | V2 的相对时间、车速点列经检查后传入 MPC；shadow 按 `planning_output.timestamp_s` 和执行延迟插值得到每个预测步的速度目标。执行模式仍使用现有的 `target_speed_mps` |
+| `planned_stop`、`stop_at_path_m` | shadow 可用完整时间速度目标观察候选减速动作；执行模式仍立即锁停。当前尚无经实车验证的制动约束和停车位置约束，不能把 shadow 候选当成实车停车能力 |
 | `simulation_only` | 记录到日志 |
+
+V2 障碍墙离线联调可运行 `MPC_TEST_QP_SOLVER=dense python3 -B tools/replay_v2_mpc_wall.py`。
+脚本从本地 `origin/mvp2.0` 读取真实 Planning V2 代码，不 fetch/merge，生成同一障碍墙场景的多项式与 direct-samples 输出，再送入当前 MPC；需要另选本地提交时传 `--planning-ref`。
+在 `ae74be4` 上两种编码均通过 adapter，shadow 的 1 s 模型预测为 x≈0.097 m、v≈0.094 m/s；Planning 的停车点是 0.15 m，速度表到 3 s 才为零。这里用的是人工标记的离线车辆模型，且只核对第一段预测：**不能据此证明实车可在 0.15 m 停住**。没有制动模型时 shadow 拒绝停车轨迹，执行模式始终锁停。开放执行还需要实测制动参数、完整停车位置约束和分阶段实车验证。
 
 两种规划配置：
 - **mvp**（实车配置使用，`control.mode: mvp`）：只检查几何、时效和工作范围，不要求实测的车身轮廓和制动参数；路径从实际观测到的最近点开始（实车约 0.9 m 处）。
@@ -124,6 +130,7 @@ MPC 读取 `self.planning_output`，经适配器 `reference_trajectory_from_plan
 | `applied_drive`、`applied_steer_action` | 实际下发的值（shadow 下为 0） |
 | `e_y_m`、`e_psi_rad` | 横向误差（车在路径左侧为正）、航向误差 |
 | `speed_mps`、`v_ref_mps` | 实测速度、参考速度 |
+| `reference_speed_mode`、`v_ref_end_mps`、`planned_stop` | 当前使用固定速度还是时间速度表、预测末端目标速度，以及 Planning 是否选择停车 |
 | `pred_e_y_end_m`、`pred_v_end_mps` | 预测时域末端的横向误差和速度 |
 | `delta_est_rad` | 用已下发指令回放出的前轮角估计（没有轮角传感器） |
 | `solve_s`、`step_s`、`step_p95_s`、`iterations` | 求解耗时、单步耗时、最近 200 步的 p95、OSQP 迭代数 |

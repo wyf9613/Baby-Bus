@@ -118,6 +118,44 @@ def arc_trajectory(kappa, speed=0.3, length=2.0, stamp=10.0):
     return dict(straight_trajectory(stamp=stamp), points=points)
 
 
+def sampled_planning_reference(samples=None, **changes):
+    """Minimal Planning V2 direct-sample fixture; no V2 planner code is copied here."""
+    if samples is None:
+        samples = [(0.0, 0.0, 0.0, 0.0),
+                   (0.4, 0.02, 0.10, 0.25),
+                   (0.8, 0.08, 0.20, 0.30)]
+    reference = {
+        "schema_version": "planning_reference_v2", "planner_version": "frenet_lattice_v2",
+        "trajectory_id": 7, "timestamp_s": 10.0, "valid_for_s": 0.2,
+        "frame_id": "base_link", "valid": True, "status": "TRACK", "reason": "lattice_selected",
+        "path": {"type": "CARTESIAN_SAMPLES", "independent_variable": "x_m",
+                 "range": [samples[0][0], samples[-1][0]],
+                 "samples_xy_heading_curvature": samples},
+        "target_speed_mps": 0.2, "speed_profile": [(0.0, 0.1), (0.3, 0.2)],
+        "stop_requested": False, "planned_stop": False, "stop_at_path_m": None,
+        "simulation_only": False, "source_ages_s": {"road": 0.03},
+    }
+    reference.update(changes)
+    return reference
+
+
+def polynomial_planning_reference(**changes):
+    """The six-coefficient Cartesian contract in the supplied V2 TRACK example."""
+    scale = 1.503577128405933
+    reference = sampled_planning_reference(
+        path={"type": "CARTESIAN_Y_OF_X", "independent_variable": "x_m",
+              "origin": 1.5612511283791264e-17, "scale": scale,
+              "coeffs_low_to_high": [0.0, 2.0758433190161614e-17,
+                                     -2.8959348802485634e-18, 0.18300401514045272,
+                                     -0.22811181694406457, 0.0911132856371081],
+              "range": [1.5612511283791264e-17, scale]},
+        target_speed_mps=0.11753259656518582,
+        speed_profile=[(0.0, 0.1151498937749875),
+                       (0.3, 0.11753259656518582), (3.0, 0.2)])
+    reference.update(changes)
+    return reference
+
+
 class Adapter(unittest.TestCase):
     def test_planning_reference_becomes_point_list_with_original_time(self):
         ref, _ = Planner(PlanSettings(vehicle_limits_source="course_simulation")).plan(*plan_fixture(0.05, 0.02))
@@ -153,6 +191,27 @@ class Adapter(unittest.TestCase):
             ctrl.step(traj, 0.3, 0.05, 10.05, False)
         self.assertEqual(ctrl.last_debug["branch"], "stop")
 
+    def test_v2_no_path_stop_is_immediate_but_async_pending_can_hold(self):
+        ref = {"schema_version": "planning_reference_v2", "valid": False, "path": None,
+               "stop_requested": True, "reason": "no_feasible_lattice_trajectory",
+               "timestamp_s": 10.05, "frame_id": "base_link"}
+        ctrl = verified(reference_dropout_tolerance_s=0.3)
+        ctrl.step(straight_trajectory(), 0.3, 0.0, 10.0, True)
+        stop = adapt(ref, 0.05)
+        self.assertTrue(stop["valid"])
+        self.assertTrue(stop["stop_required"])
+        with self.assertRaises(Stop):
+            ctrl.step(stop, 0.3, 0.05, 10.05, False)
+        self.assertEqual(ctrl.last_debug["branch"], "stop")
+
+        pending = adapt(dict(ref, reason="planning_pending"), 0.05)
+        self.assertFalse(pending["valid"])
+        self.assertTrue(pending["stop_required"])
+        ctrl = verified(reference_dropout_tolerance_s=0.3)
+        ctrl.step(straight_trajectory(), 0.3, 0.0, 10.0, True)
+        held = ctrl.step(pending, 0.3, 0.05, 10.05, False)
+        self.assertEqual(held["debug"]["branch"], "plan_hold")
+
     def test_clipped_path_end_adds_no_near_duplicate_point(self):
         ref, _ = Planner(PlanSettings(vehicle_limits_source="course_simulation")).plan(*plan_fixture())
         lo = ref["path"]["range"][0]
@@ -167,6 +226,155 @@ class Adapter(unittest.TestCase):
         ref, _ = Planner(PlanSettings(vehicle_limits_source="course_simulation")).plan(*plan_fixture())
         ref["frame_id"] = "odom"
         self.assertFalse(adapt(ref, 0.05)["valid"])
+
+    def test_v2_direct_samples_preserve_checked_geometry_without_refitting(self):
+        ref = sampled_planning_reference()
+        traj = adapt(ref, 0.05)
+        self.assertTrue(traj["valid"], traj["reason"])
+        self.assertEqual((traj["timestamp_s"], traj["valid_for_s"], traj["path_id"]), (10.0, 0.2, 7))
+        self.assertEqual(len(traj["points"]), len(ref["path"]["samples_xy_heading_curvature"]))
+        for point, sample in zip(traj["points"], ref["path"]["samples_xy_heading_curvature"]):
+            self.assertEqual((point["x_m"], point["y_m"], point["yaw_rad"], point["curvature_1pm"]),
+                             tuple(sample))
+            self.assertEqual(point["target_speed_mps"], ref["target_speed_mps"])
+        expected_s = math.hypot(0.4, 0.02) + math.hypot(0.4, 0.06)
+        self.assertAlmostEqual(traj["points"][-1]["s_m"], expected_s)
+
+    def test_v2_six_coefficient_track_reference_uses_normalized_x_and_derivatives(self):
+        ref = polynomial_planning_reference()
+        traj = adapt(ref, 0.05)
+        self.assertTrue(traj["valid"], traj["reason"])
+        self.assertFalse(traj["stop_required"])
+        self.assertEqual((traj["timestamp_s"], traj["valid_for_s"]), (10.0, 0.2))
+        self.assertGreater(len(traj["points"]), 20)
+        self.assertAlmostEqual(traj["points"][0]["x_m"], ref["path"]["range"][0])
+        self.assertAlmostEqual(traj["points"][0]["y_m"], 0.0)
+        self.assertTrue(all(b["s_m"] > a["s_m"] for a, b in zip(traj["points"], traj["points"][1:])))
+        point = traj["points"][len(traj["points"])//2]
+        coeffs = ref["path"]["coeffs_low_to_high"]
+        scale, origin = ref["path"]["scale"], ref["path"]["origin"]
+        u = (point["x_m"]-origin)/scale
+        y = sum(c*u**i for i, c in enumerate(coeffs))
+        dy = sum(i*c*u**(i-1) for i, c in enumerate(coeffs) if i)/scale
+        ddy = sum(i*(i-1)*c*u**(i-2) for i, c in enumerate(coeffs) if i > 1)/scale**2
+        self.assertAlmostEqual(point["y_m"], y)
+        self.assertAlmostEqual(point["yaw_rad"], math.atan(dy))
+        self.assertAlmostEqual(point["curvature_1pm"], ddy/(1+dy*dy)**1.5)
+        self.assertEqual(point["target_speed_mps"], ref["target_speed_mps"])
+        self.assertLess(ref["path"]["range"][1]-traj["points"][-1]["x_m"], 0.05)
+        self.assertIsNotNone(errors(traj, 10, 0.1, 0.0, 0.6)[0])
+
+    def test_v2_polynomial_rejects_invalid_coefficients_and_normalization(self):
+        for change in ({"coeffs_low_to_high": []}, {"coeffs_low_to_high": [0.0]*7},
+                       {"coeffs_low_to_high": [0.0, float("nan")]},
+                       {"scale": 0.0}, {"scale": 1e-300}, {"range": [1.0, 0.0]},
+                       {"independent_variable": "time_s"}):
+            with self.subTest(change=change):
+                ref = polynomial_planning_reference()
+                ref["path"].update(change)
+                traj = adapt(ref, 0.05)
+                self.assertFalse(traj["valid"])
+                self.assertTrue(traj["stop_required"])
+        self.assertFalse(adapt(polynomial_planning_reference(), math.inf)["valid"])
+
+    def test_v2_transported_samples_override_original_frame_samples(self):
+        ref = sampled_planning_reference()
+        transported = [(-0.1, -0.02, 0.02, 0.10),
+                       (0.3, 0.01, 0.08, 0.20),
+                       (0.7, 0.06, 0.16, 0.25)]
+        ref["control_cached_path_samples"] = transported
+        traj = adapt(ref, 0.05)
+        self.assertTrue(traj["valid"], traj["reason"])
+        self.assertEqual([(p["x_m"], p["y_m"], p["yaw_rad"], p["curvature_1pm"])
+                          for p in traj["points"]], transported)
+
+    def test_v2_direct_samples_reject_malformed_contracts(self):
+        cases = {
+            "too_few": [(0.0, 0.0, 0.0, 0.0)],
+            "non_increasing_x": [(0.0, 0.0, 0.0, 0.0), (0.0, 0.1, 0.1, 0.2)],
+            "nonfinite": [(0.0, 0.0, 0.0, 0.0), (0.5, float("nan"), 0.1, 0.2)],
+            "backward_heading": [(0.0, 0.0, 0.0, 0.0), (0.5, 0.1, math.pi/2, 0.2)],
+        }
+        for name, samples in cases.items():
+            with self.subTest(name=name):
+                self.assertFalse(adapt(sampled_planning_reference(samples), 0.05)["valid"])
+        ref = sampled_planning_reference()
+        ref["path"]["range"] = [0.1, 0.8]
+        self.assertFalse(adapt(ref, 0.05)["valid"])
+
+    def test_v2_planned_stop_retains_profile_for_shadow_and_exec_still_locks(self):
+        ref = sampled_planning_reference(planned_stop=True, status="STOP", stop_at_path_m=0.6,
+                                         target_speed_mps=0.1,
+                                         speed_profile=[(0.0, 0.2), (1.0, 0.1), (2.0, 0.0), (3.0, 0.0)])
+        traj = adapt(ref, 0.05)
+        self.assertTrue(traj["valid"])
+        self.assertFalse(traj["stop_required"])
+        self.assertEqual(traj["speed_profile"], ref["speed_profile"])
+        self.assertTrue(traj["planned_stop"])
+        self.assertGreater(len(traj["points"]), 1)
+        ctrl = verified(reference_dropout_tolerance_s=0.5)
+        ctrl.step(straight_trajectory(), 0.3, 0.0, 10.0, True)
+        with self.assertRaises(Stop):
+            ctrl.step(traj, 0.3, 0.05, 10.05, False)
+        self.assertEqual(ctrl.last_debug["branch"], "stop")
+        self.assertEqual(ctrl.last_debug["reject_reason"], "planned_stop_execution_not_qualified")
+
+    def test_v2_planned_stop_requires_a_valid_zero_terminal_profile(self):
+        for profile in (None, [(0.0, 0.2), (1.0, 0.1)],
+                        [(0.0, 0.2), (0.0, 0.1), (1.0, 0.0)],
+                        [(0.0, 0.2), (1.0, float("nan"))]):
+            ref = sampled_planning_reference(planned_stop=True, stop_at_path_m=0.6,
+                                             speed_profile=profile)
+            traj = adapt(ref, 0.05)
+            self.assertTrue(traj["valid"])
+            self.assertTrue(traj["stop_required"])
+
+    def test_shadow_stop_profile_must_cover_the_prediction_horizon(self):
+        ref = sampled_planning_reference(planned_stop=True, stop_at_path_m=0.6,
+                                         speed_profile=[(0.0, 0.2), (0.2, 0.0)])
+        ctrl = Controller(Settings(enabled=True, shadow=True, vehicle_params_source="course_simulation",
+                                   qp_solver="dense"))
+        result = ctrl.step(adapt(ref, 0.05), 0.2, 0.0, 10.0, True)
+        self.assertEqual(result["debug"]["branch"], "stop")
+        self.assertEqual(result["debug"]["reject_reason"], "speed_profile_horizon_short")
+        self.assertEqual((result["drive"], result["steer"]), (0.0, 0.0))
+
+    def test_shadow_uses_profile_time_from_planning_stamp_and_actuation_delay(self):
+        seen = []
+
+        class Recorder:
+            def solve(self, points, z0, cap, last_drive, nominal=None, **kwargs):
+                seen.append(kwargs)
+                return {"inputs": [(0.0, 0.0)]*10, "drive0": 0.0, "steer0": 0.0,
+                        "delta0": 0.0, "iterations": 1, "solve_s": 0.0,
+                        "pred_e_y": [0.0], "pred_v": [0.1]}, None
+
+        vehicle = measured(drive_deadband=0.25, brake_gain_n=5.0, drive_delay_s=0.1)
+        ctrl = Controller(Settings(enabled=True, shadow=True, vehicle_params_source="vehicle",
+                                   max_step_time_s=1.0), vehicle, solver=Recorder())
+        ref = sampled_planning_reference(planned_stop=True, stop_at_path_m=0.6,
+                                         speed_profile=[(0.0, 0.2), (1.0, 0.1), (2.0, 0.0), (3.0, 0.0)])
+        traj = adapt(ref, 0.05)
+        result = ctrl.step(traj, 0.2, 0.0, 10.05, True)
+        self.assertEqual(result["debug"]["branch"], "shadow")
+        self.assertEqual((result["drive"], result["steer"]), (0.0, 0.0))
+        self.assertTrue(seen[0]["allow_braking"])
+        self.assertEqual(len(seen[0]["speed_targets"]), 10)
+        self.assertAlmostEqual(seen[0]["speed_targets"][0], 0.175)
+        self.assertAlmostEqual(result["debug"]["v_ref_mps"], 0.175)
+
+    def test_shadow_stop_profile_reaches_the_actual_mpc_solver(self):
+        vehicle = measured(drive_deadband=0.3, brake_gain_n=5.0)
+        ctrl = Controller(Settings(enabled=True, shadow=True, vehicle_params_source="vehicle",
+                                   qp_solver="dense", max_step_time_s=1.0), vehicle)
+        ref = sampled_planning_reference(planned_stop=True, stop_at_path_m=0.6,
+                                         speed_profile=[(0.0, 0.2), (0.5, 0.08),
+                                                        (1.0, 0.0), (3.0, 0.0)])
+        result = ctrl.step(adapt(ref, 0.05), 0.2, 0.0, 10.0, True)
+        self.assertEqual(result["debug"]["branch"], "shadow")
+        self.assertEqual(result["drive"], 0.0)
+        self.assertLess(result["debug"]["candidate_drive"], vehicle.drive_deadband)
+        self.assertLess(result["debug"]["pred_v_end_mps"], 0.2)
 
 
 class ReferenceErrors(unittest.TestCase):
@@ -289,6 +497,17 @@ class SolverChecks(unittest.TestCase):
         solver = self.solver if vehicle is None else Solver(Settings(), vehicle)
         traj = straight_trajectory() if traj is None else traj
         return solver.solve(traj["points"], [0.0, 0.0, 0.0, speed, delta], cap, last_drive)
+
+    def test_shadow_stop_profile_can_request_measured_drag_brake(self):
+        vehicle = measured(drive_deadband=0.3, brake_gain_n=5.0)
+        solver = Solver(Settings(qp_solver="dense"), vehicle)
+        points = straight_trajectory(start_x=0.0, length=2.0, speed=0.2)["points"]
+        speeds = [max(0.0, 0.2-0.03*(k+1)) for k in range(10)]
+        out, why = solver.solve(points, [0.0, 0.0, 0.0, 0.2, 0.0], 0.3, 0.3,
+                                moving=True, speed_targets=speeds, allow_braking=True)
+        self.assertIsNone(why)
+        self.assertLess(out["drive0"], vehicle.drive_deadband)
+        self.assertLess(out["pred_v"][-1], 0.2)
 
     def test_centred_holds_and_offsets_steer_back_symmetrically(self):
         out, why = self.solve()
