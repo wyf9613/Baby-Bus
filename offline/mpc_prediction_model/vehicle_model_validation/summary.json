@@ -1,0 +1,137 @@
+{
+  "notebook": "docs/ad_gym_system_project_v2026_09_18.ipynb",
+  "initial_state": [
+    0,
+    0,
+    0,
+    1,
+    0
+  ],
+  "bicycle_model_config": {
+    "axle_geometry": {
+      "front_axle_distance_from_center_of_mass_m": 0.198,
+      "rear_axle_distance_from_center_of_mass_m": 0.132
+    },
+    "mass_properties": {
+      "mass_kg": 3.0,
+      "yaw_moment_of_inertia_kg_m2": 0.05562500000000001
+    },
+    "longitudinal_force_model": {
+      "normalized_motor_command_force_gain_n": 10.0,
+      "quadratic_aerodynamic_drag_coefficient_kg_per_m": 1.0,
+      "direction_change_latch": {
+        "forward_to_reverse": true
+      }
+    },
+    "steering": {
+      "physical_front_wheel_angle_offset_from_request_rad": 0.0,
+      "requested_front_wheel_angle_magnitude_limit_rad": 0.7853981633974483,
+      "physical_front_wheel_angle_rate_bounds_rad_per_s": {
+        "lower": -1.5707963267948966,
+        "upper": 1.5707963267948966
+      }
+    },
+    "kinematic_dynamic_transition": {
+      "body_longitudinal_speed_range_mps": {
+        "lower": 138.88888888888889,
+        "upper": 166.66666666666666
+      }
+    },
+    "body_geometry": {
+      "front_extent_from_center_of_mass_m": 0.29700000000000004,
+      "rear_extent_from_center_of_mass_m": 0.198,
+      "width_m": 0.25
+    }
+  },
+  "integration_config": {
+    "method": "rk4",
+    "environment_step_duration_s": 0.05,
+    "substep_count": 1
+  },
+  "cases": {
+    "straight": {
+      "steps": 200,
+      "dt_s": 0.05,
+      "position_rmse_m": 4.894318394028917e-19,
+      "position_max_m": 6.938893903907228e-18,
+      "state_rmse": {
+        "x_m": 4.894318394028917e-19,
+        "y_m": 0.0,
+        "heading_rad": 0.0,
+        "vx_mps": 0.0,
+        "steering_rad": 0.0
+      },
+      "state_max_abs_error": {
+        "x_m": 6.938893903907228e-18,
+        "y_m": 0.0,
+        "heading_rad": 0.0,
+        "vx_mps": 0.0,
+        "steering_rad": 0.0
+      },
+      "expected_latch_mismatch": false
+    },
+    "turn": {
+      "steps": 200,
+      "dt_s": 0.05,
+      "position_rmse_m": 1.2657696973182054e-06,
+      "position_max_m": 2.0968098472417875e-06,
+      "state_rmse": {
+        "x_m": 9.286599533417677e-07,
+        "y_m": 8.60095121314083e-07,
+        "heading_rad": 8.085774054186347e-07,
+        "vx_mps": 0.0,
+        "steering_rad": 0.0
+      },
+      "state_max_abs_error": {
+        "x_m": 2.0711412591634115e-06,
+        "y_m": 1.739633519237671e-06,
+        "heading_rad": 1.5097202714642322e-06,
+        "vx_mps": 0.0,
+        "steering_rad": 0.0
+      },
+      "expected_latch_mismatch": false
+    },
+    "slalom": {
+      "steps": 200,
+      "dt_s": 0.05,
+      "position_rmse_m": 6.90235161338101e-08,
+      "position_max_m": 1.7099875105716732e-07,
+      "state_rmse": {
+        "x_m": 2.9265390794117707e-08,
+        "y_m": 6.251226024662612e-08,
+        "heading_rad": 2.1674566646745215e-08,
+        "vx_mps": 0.0,
+        "steering_rad": 6.474574653884775e-19
+      },
+      "state_max_abs_error": {
+        "x_m": 6.838246058293862e-08,
+        "y_m": 1.567826570791908e-07,
+        "heading_rad": 3.593118996780831e-08,
+        "vx_mps": 0.0,
+        "steering_rad": 6.938893903907228e-18
+      },
+      "expected_latch_mismatch": false
+    },
+    "brake": {
+      "steps": 200,
+      "dt_s": 0.05,
+      "position_rmse_m": 13.224157349282454,
+      "position_max_m": 25.462221811181266,
+      "state_rmse": {
+        "x_m": 13.224157349282454,
+        "y_m": 0.0,
+        "heading_rad": 0.0,
+        "vx_mps": 2.7833465142734277,
+        "steering_rad": 0.0
+      },
+      "state_max_abs_error": {
+        "x_m": 25.462221811181266,
+        "y_m": 0.0,
+        "heading_rad": 0.0,
+        "vx_mps": 3.1622775930394718,
+        "steering_rad": 0.0
+      },
+      "expected_latch_mismatch": true
+    }
+  }
+}

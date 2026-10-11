@@ -27,7 +27,7 @@ tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 names = {"finite_number", "Observation", "EstimationSettings", "FirstOrderSampleFilter", "EstimationMotionHistory",
          "_estimation_median", "_estimation_solve", "_estimation_fit_boundary", "EstimationPipeline",
          "PlanningSettings", "CenterlinePlanner", "evaluate_planning_path", "planning_vehicle_limits",
-         "ControlSettings", "VehicleCalibrationSettings", "ControlPID", "PolicyController", "wrap_angle",
+         "ControlSettings", "VehicleParamsSettings", "ControlPID", "PolicyController", "wrap_angle",
          "PolicyStopRequest", "RunDistanceLimiter", "ControlReferenceManager",
          "_control_poly_eval", "_control_poly_roots", "control_path_geometry"}
 names.update({"LatticeSettings", "LatticeCurve", "FrenetLatticePlanner", "_lattice_interp",

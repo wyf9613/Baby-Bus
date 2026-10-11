@@ -22,7 +22,7 @@ subject = next(item for item in tree.body if isinstance(item, ast.ClassDef) and 
 method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn", "run_policy_step",
                 "_robust_control_enabled", "_control_health_problem", "_select_control_reference", "_report_control_status",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
-                "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
+                "_budgets_active", "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
 method_names.add("_async_planning_cycle")
 method_names.add("_observe_stationary_gyro")
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
@@ -80,7 +80,7 @@ def make_node(simulated=True, mvp=False):
     node.planning_settings = ns["PlanningSettings"](vehicle_limits_source="course_simulation" if simulated else "upstream")
     node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp" if mvp else "calibrated",
         vehicle_params_source="course_simulation" if simulated else "upstream")
-    node.vehicle_settings = ns["VehicleCalibrationSettings"]()
+    node.vehicle_settings = ns["VehicleParamsSettings"]()
     node.controller = ns["PolicyController"](node.control_settings)
     node.distance_limiter = ns["RunDistanceLimiter"](3.0, node.control_settings.max_dt_s)
     node.estimation_output = node.planning_output = node.planning_diagnostics = node.control_diagnostics = None
@@ -750,6 +750,29 @@ class ControlChecks(unittest.TestCase):
         self.assertAlmostEqual(geometry["closest_y_m"], 0.12)
         self.assertAlmostEqual(geometry["path_heading_rad"], math.atan(0.05))
 
+    def test_distance_and_time_budgets_also_guard_mpc_execution(self):
+        node = make_node(simulated=False, mvp=True)
+        node.control_settings = ns["ControlSettings"](enabled=False, mode="mvp", max_run_time_s=5.0)
+        node.mpc_settings = SimpleNamespace(enabled=True, shadow=True)
+        self.assertFalse(node._budgets_active())
+        node.mpc_settings.shadow = False
+        self.assertTrue(node._budgets_active())
+        node.distance_limiter = ns["RunDistanceLimiter"](0.01, 0.2)
+        feed(node, speed=0.2)
+        node.distance_limiter.reset(node._monotonic(), 0.2)
+        node.policy_started_at = node._monotonic()
+        node.test_clock.advance(0.1)
+        feed(node, speed=0.2)
+        problem = node._control_problem(node._monotonic(), node.test_clock.ros_ns)
+        self.assertIn("Distance limit reached", problem)
+        node.distance_limiter = ns["RunDistanceLimiter"](3.0, 0.2)
+        node.distance_limiter.reset(node._monotonic(), 0.0)
+        node.test_clock.advance(0.1)
+        feed(node, speed=0.0)
+        node.policy_started_at = node._monotonic()-5.0
+        problem = node._control_problem(node._monotonic(), node.test_clock.ros_ns)
+        self.assertIn("Run time limit", problem)
+
     def test_invalid_settings_and_incomplete_calibration_are_rejected(self):
         for values in ({"drive_max": 2.0}, {"enabled": 1}, {"max_dt_s": 0}, {"speed_ki": float("nan")},
                        {"mode": "unknown"}, {"max_distance_m": 0}, {"max_run_time_s": float("inf")},
@@ -757,17 +780,19 @@ class ControlChecks(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ns["ControlSettings"](**values)
         with self.assertRaises(ValueError):
-            ns["VehicleCalibrationSettings"](valid=True)
+            ns["VehicleParamsSettings"](valid=True)
         with self.assertRaises(ValueError):
-            ns["VehicleCalibrationSettings"](steering_direction=0.0)
+            ns["VehicleParamsSettings"](valid=True, source="synthetic_measurement_fixture")
 
     def test_measured_record_inlet_drives_actual_policy(self):
         node = make_node(simulated=False)
         # Synthetic measurement fixture only, not a statement about a real car.
-        node.vehicle_settings = ns["VehicleCalibrationSettings"](valid=True, source="synthetic_measurement_fixture",
-            wheelbase_m=0.33, rear_axle_from_cg_m=0.132, steering_limit_rad=math.pi/4,
-            front_extent_m=0.297, rear_extent_m=0.198, width_m=0.25, speed_max_mps=0.5,
-            braking_deceleration_mps2=0.5, actuation_delay_s=0.1, safety_margin_m=0.05)
+        node.vehicle_settings = ns["VehicleParamsSettings"](valid=True, source="synthetic_measurement_fixture",
+            wheelbase_m=0.33, rear_axle_from_cg_m=0.132, body_front_extent_from_cg_m=0.297,
+            body_rear_extent_from_cg_m=0.198, body_width_m=0.25, steering_gain_rad=math.pi/4,
+            steering_min_rad=-math.pi/4, steering_max_rad=math.pi/4, steering_rate_limit_rad_s=math.pi/2,
+            drive_max=1.0, steering_delay_s=0.1, mass_kg=3.0, motor_gain_n=10.0, drag_kg_per_m=1.0,
+            speed_max_mps=0.5, braking_deceleration_mps2=0.5, safety_margin_m=0.05)
         feed(node)
         start(node)
         node.run_policy_step()

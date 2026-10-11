@@ -295,6 +295,130 @@
         speed_preview_s: 0.3
         minimum_output_m: 0.4
 
+    # Vehicle parameters from identification (docs/vehicle-params-test-plan.md); field names
+    # match offline/vehicle_identification/vehicle_params.py. valid: false = NOT approved for the
+    # car: the zero defaults below are placeholders, never facts. Set valid: true only with every
+    # value measured and a source label naming the record (run ids, date). A valid record also
+    # replaces the estimator's unmeasured vehicle_params/vehicle_limits for Planning.
+    vehicle:
+      valid: false
+      source: "unmeasured"
+      wheelbase_m: 0.0
+      rear_axle_from_cg_m: 0.0
+      body_front_extent_from_cg_m: 0.0   # tyres and attachments included, no margin
+      body_rear_extent_from_cg_m: 0.0
+      body_width_m: 0.0
+      # Equivalent bicycle front-wheel angle: delta = gain * steering_action + offset (rad, left +).
+      # A negative gain means a positive request turns right.
+      steering_gain_rad: 0.0
+      steering_offset_rad: 0.0
+      steering_min_rad: 0.0              # measured working end points, may be asymmetric
+      steering_max_rad: 0.0
+      steering_rate_limit_rad_s: 0.0     # physical wheel-angle rate, not the command slew
+      drive_min: 0.0                     # normalized working range; the MPC never sends < 0
+      drive_max: 0.0
+      drive_response_model: ""
+      braking_behavior: ""
+      steering_delay_s: 0.0
+      drive_delay_s: 0.0
+      # Numeric drive response used by the MPC:
+      #   m*dv/dt = gain*(drive - drive_deadband) - drag_kg_per_m*v*|v|,
+      # gain = motor_gain_n at or above the deadband, brake_gain_n below it (ESC drag brake).
+      mass_kg: 0.0
+      motor_gain_n: 0.0
+      drag_kg_per_m: 0.0
+      drive_deadband: 0.0
+      brake_gain_n: 0.0
+      # Static friction at rest: drive_breakaway must hold breakaway_wait_s before motion.
+      drive_breakaway: 0.0
+      breakaway_wait_s: 0.0
+      # Planning limits (operating domain, m/s, m/s^2, m).
+      speed_max_mps: 0.0
+      braking_deceleration_mps2: 0.0
+      safety_margin_m: 0.0
+
+    # Vehicle-model MPC (drive and steering), OFF unless an overlay enables it:
+    #   ros2 launch ai4r_policy ai4r_policy.launch.py params_file:=<share>/config/ai4r_policy_mpc_prototype.yaml
+    # Prediction is the course model of offline/mpc_prediction_model with the vehicle record chosen
+    # by vehicle_params_source: "vehicle" (vehicle.* above) or "course_simulation" (notebook values,
+    # shadow only; pair it with planning.vehicle_limits_source: course_simulation).
+    # shadow: false is refused unless vehicle.valid is true and v_exec_max_mps > 0.
+    mpc:
+      enabled: false
+      # true: compute and log candidates, always apply zero drive/steer, never stop on rejection.
+      shadow: true
+      vehicle_params_source: "vehicle"
+      v_exec_max_mps: 0.0          # execution speed cap; must be > 0 for shadow: false
+      overspeed_margin_mps: 0.1    # execution stops above v_exec_max_mps + this margin
+      # Execution only: tolerable rejections (reference unavailable, late update, over budget)
+      # shorter than this keep executing the last solved input sequence (drive never raised);
+      # anything longer, or any other rejection, still locks. 0 = off.
+      reference_dropout_tolerance_s: 0.0
+      # Start from rest when vehicle.drive_breakaway > 0: breakaway drive until moving_speed_mps,
+      # lock if no motion within breakaway_timeout_s; at most max_restarts returns to rest per run.
+      moving_speed_mps: 0.05
+      breakaway_timeout_s: 1.5
+      breakaway_ramp_per_s: 0.0    # start drive rises from vehicle.drive_breakaway (capped at drive_max)
+      max_restarts: 3
+      # Integral action: drive bias from the model's one-step speed residual (0 gain = off).
+      drive_bias_gain: 0.0
+      drive_bias_max: 0.05
+      dt_hard_max_s: 0.4           # dt_max_s < dt <= this holds the last plan; above it locks
+      horizon_n: 10
+      dt_pred_s: 0.1               # fixed prediction step; measured dt is only range-checked
+      dt_max_s: 0.2
+      sqp_iterations: 1            # 1 = real-time iteration on the shifted previous solution
+      # Weights: lateral (1/m^2), heading (1/rad^2), speed (s^2/m^2), steering angle against
+      # curvature feedforward and its change (1/rad^2), drive against steady state and its change.
+      q_ey: 20.0
+      q_epsi: 5.0
+      q_v: 10.0
+      r_delta: 1.0
+      r_ddelta: 2.0
+      r_drive: 1.0
+      r_ddrive: 2.0
+      terminal_scale: 5.0
+      max_backward_extension_m: 0.6
+      reference_spacing_m: 0.05
+      max_step_time_s: 0.05
+      solver_time_limit_s: 0.03
+      solver_max_iter: 400
+      constraint_tolerance: 0.0001
+      # QP solver: osqp (needs the osqp package) or dense (exact active-set solver, numpy only;
+      # use it where osqp is not installed, e.g. the car Jetsons as of 2026-10-08).
+      qp_solver: osqp
+      # planning: use the Planning V1 reference (straight roads only).
+      # estimation_centerline: BYPASS Planning, quadratic fit of the estimator centerline (bends
+      # allowed, no body-clearance/stopping-distance checks); needs bypass_acknowledged to execute.
+      reference_source: planning
+      bypass_acknowledged: false
+      bypass_target_speed_mps: 0.2
+      bypass_max_curvature_1pm: 0.8
+      bypass_max_fit_error_m: 0.04
+      bypass_min_forward_m: 1.0
+      bypass_fit_max_x_m: 1.5
+      bypass_max_source_age_s: 0.2
+      bypass_valid_for_s: 0.1
+    # Vehicle identification: startup-only, one sequence per explicit state-3 request.
+    # Set policy_update_mode: timer and required_sensors: [wheel_speed] above.
+    # Optional IMU remains per-field valid/fresh; require imu_angular_velocity
+    # as well if the experiment needs yaw data. Record before requesting state 3.
+    id_test:
+      mode: "off"                   # off / steering / drive / brake (keep off quoted)
+      confirmed: false              # review the sequence and limits on site first
+      negative_drive_confirmed: false # brake mode only, after confirming ESC rules
+      durations_s: [1.0]            # one duration per stage; all three arrays align
+      drive_values: [0.0]           # normalized motor effort, NOT target speed
+      steering_values: [0.0]        # normalized request, NOT wheel angle
+      drive_min: 0.0               # reviewed working limits; no motion defaults
+      drive_max: 0.0
+      steering_abs_max: 0.0
+      speed_limit_mps: 0.0         # must be > start_speed_max_mps for an active test
+      start_speed_max_mps: 0.03    # measured unsigned speed threshold, not proof of rest
+      settle_s: 2.0               # zeros before/after sequence, NOT active braking
+      max_dt_s: 0.15              # larger scheduling gap aborts rather than skipping ahead
+      max_run_s: 30.0             # includes both settle intervals; at most 120 s
+
     # Single-file control integration. Bare node defaults remain the teaching
     # starter (disabled); this supplied configuration selects closed-loop code.
     # Startup is still state 2, with separate vehicle Enable and policy state 3.
@@ -360,9 +484,10 @@
       # Neutral priming allows worker startup and delayed camera history.
       startup_grace_s: 3.0
 
-    # The optional measured vehicle.* inlet is used only by the later calibrated
-    # profile; MVP does not require completing that record. No hardware-node
-    # configuration is changed by this policy.
+    # The calibrated profile reads its geometry from the vehicle.* record above;
+    # MVP does not require completing that record. control.enabled and
+    # mpc.enabled are mutually exclusive. No hardware-node configuration is
+    # changed by this policy.
 
     # ADD YOUR OWN PARAMETER: also declare and read it in policy_node.py.
     # Example for the commented controller in that file:

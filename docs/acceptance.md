@@ -12,6 +12,36 @@ physical run remains unverified.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
 
+## Planning V2 + MPC integration checkpoint, 2026-10-11
+
+Local branch `ying/planning-v2-mpc-integration` combines `origin/mvp2.0`
+(`ae74be4`) with the MPC adapter branch (`28c0b82`). This is a review
+checkpoint, not a merged/deployed controller. The active base YAML still has
+`control.enabled: true` and `mpc.enabled: false`; no MPC actuation or car run
+was performed.
+
+Portable Estimation/Planning/Lattice/Control tests passed (157/157). The
+Estimation/Planning/Control plus MPC adapter/config/node-entry selection passed
+(141/141). The V2 synthetic obstacle-wall replay passed for polynomial and
+direct-sample encodings, but reports `full_stop_position_verified: false`.
+The larger 201-test offline run was not clean: wall-clock MPC budget assertions
+intermittently rejected steps on this laptop (observed 63-170 ms against a
+50 ms test setting); the focused bend case also failed twice at 63-76 ms.
+Do not interpret these runs as Jetson timing or physical stopping evidence.
+The required installed ROS fast gate could not start because the pinned
+`dream_interfaces` checkout is absent here; ROS Jazzy is absent too.
+
+Before an MPC-on-V2 shadow configuration is usable, the startup condition that
+currently permits async V2 only with robust MVP control must be reconciled with
+MPC mode. An accepted async V2 result is already motion-transported by the
+policy node into `planning_output`, and the MPC adapter prefers its
+`control_cached_path_samples`. Unlike MVP, MPC does not use
+`ControlReferenceManager` to bridge pending planner frames; its separate
+dropout behavior still needs integration review. Transport also advances the
+reference timestamp without shifting the time-based `speed_profile`, so MPC
+shadow speed-target timing needs correction. No team-branch
+merge or human safety/interface review is claimed by this local checkpoint.
+
 ## MVP2 direct-sample update, 2026-10-09
 
 The active YAML now selects `planning.lattice.direct_sample_output: true`.
@@ -787,6 +817,32 @@ This records approval of those three student-facing files. Review of the wider
 cross-repository changes and final MR verification remains separate.
 
 ## Observed software evidence
+
+### Vehicle-identification test workflow, local candidate, 2026-10-04
+
+Uncommitted work on `feature/vehicle-identification`, based on Baby-Bus main
+`4e86a436475cdfe4b525f6801d598b10696385d9`, adds a disabled-by-default finite
+identification sequence in the existing policy script, a subscription-only
+JSONL recorder, offline measurement tools and operator instructions.
+
+On Windows / Python 3.12, `python -B
+offline/vehicle_identification/test_vehicle_identification.py` passed 17 tests.
+These cover the actual scheduler, selected actual policy methods with replaced
+transport/clock, request limits, explicit restart, stale data, speed/timing
+abort, geometry, steering conversion/fitting, angle-response summaries and log
+export. They are not ROS/DDS or physical-device evidence. YAML preview passed
+using PyYAML 6.0.2 and confirmed mode `off` with all request limits at zero.
+Three additional installed-ROS regression tests were added to the existing
+suite but have not been executed on this host.
+
+The required `AI4R_INTERFACES_SOURCE=... bash tools/verify_fast.sh` was attempted
+and stopped because the pinned `dream_interfaces` checkout is absent. This host
+also lacks a provisioned Ubuntu/ROS Jazzy environment. The full installed gate,
+recorder ROS subscriptions, deployment and physical tests are **not run**.
+Run the gate in the course development environment before nonzero trials.
+No vehicle was enabled, no firmware or live robot configuration was changed,
+and no measured parameter values were generated. See the concise
+[operator guide](../offline/vehicle_identification/README.md).
 
 ### Student lidar mounting configuration, 2026-09-30
 

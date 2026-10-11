@@ -1,0 +1,3372 @@
+{
+ "calibration": {
+  "sim": {
+   "start_delay_s": 0.5,
+   "peak_speed_mps": 0.261,
+   "steady_speed_mps": 0.202,
+   "completed": true,
+   "stop": null
+  },
+  "car_B12": {
+   "start_delay_s": 0.53,
+   "peak_speed_mps": 0.333,
+   "steady_speed_mps": 0.2
+  }
+ },
+ "matrix": {
+  "MVP": {
+   "summary": {
+    "runs": 25,
+    "completed": 0,
+    "stops": [
+     "Planning: insufficient_near_or_far_coverage",
+     "Planning: stale_road"
+    ],
+    "lateral_max_m": 0.15,
+    "lateral_rmse_mean_m": 0.061,
+    "peak_speed_max_mps": 0.261,
+    "speed_rmse_mean_mps": 0.006,
+    "drive_jumps_mean": 1,
+    "mpc_step_p95_ms_max": 0.0
+   },
+   "runs": [
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.12,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.4,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 86,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.804,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.005,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.81,
+     "final_y_m": -0.001,
+     "final_speed_mps": 0.204,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.0,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 78,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.722,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.73,
+     "final_y_m": 0.0,
+     "final_speed_mps": 0.205,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.12,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.4,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 86,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.804,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.005,
+     "lateral_max_m": 0.003,
+     "lateral_rmse_m": 0.002,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.81,
+     "final_y_m": -0.002,
+     "final_speed_mps": 0.204,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.0,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 78,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.722,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.002,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.73,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.205,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.15,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": 0.149,
+     "final_speed_mps": 0.12,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.4,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 86,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.804,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.005,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.112,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.8,
+     "final_y_m": 0.053,
+     "final_speed_mps": 0.204,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.0,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 78,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.722,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.117,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.72,
+     "final_y_m": 0.063,
+     "final_speed_mps": 0.205,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.15,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": 0.149,
+     "final_speed_mps": 0.12,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.5,
+      "reason": "Planning: insufficient_near_or_far_coverage",
+      "planning": "insufficient_near_or_far_coverage",
+      "road": "observed"
+     },
+     "steps": 8,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.002,
+     "peak_speed_mps": 0.03,
+     "start_delay_s": null,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.15,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.0,
+     "final_y_m": 0.15,
+     "final_speed_mps": 0.061,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.0,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 78,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.722,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.118,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.72,
+     "final_y_m": 0.063,
+     "final_speed_mps": 0.205,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.15,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": -0.148,
+     "final_speed_mps": 0.12,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.4,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 86,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.804,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.005,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.107,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.8,
+     "final_y_m": -0.044,
+     "final_speed_mps": 0.204,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.0,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 78,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.722,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.11,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.72,
+     "final_y_m": -0.051,
+     "final_speed_mps": 0.205,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.15,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": -0.149,
+     "final_speed_mps": 0.12,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.4,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 86,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.804,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.005,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.108,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.8,
+     "final_y_m": -0.045,
+     "final_speed_mps": 0.204,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 4.0,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 78,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.722,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.11,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.72,
+     "final_y_m": -0.051,
+     "final_speed_mps": 0.205,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.012,
+     "peak_speed_mps": 0.12,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.02,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.158,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.27
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.121,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.289
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.007,
+     "peak_speed_mps": 0.067,
+     "start_delay_s": 0.55,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.09,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.305
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.12,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": 0.0
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": 0.0,
+     "final_speed_mps": 0.12,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": 0.03
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.6,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 10,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.009,
+     "peak_speed_mps": 0.091,
+     "start_delay_s": 0.5,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.01,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.12,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": -0.03
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 0.5,
+      "reason": "Planning: stale_road",
+      "planning": "stale_road",
+      "road": "observed"
+     },
+     "steps": 8,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 0.002,
+     "peak_speed_mps": 0.03,
+     "start_delay_s": null,
+     "speed_rmse_mps": null,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": false,
+     "branches": {},
+     "reject_reasons": {},
+     "final_x_m": 0.0,
+     "final_y_m": 0.0,
+     "final_speed_mps": 0.061,
+     "max_abs_e_y_m": NaN,
+     "step_p95_ms": 0.0,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 4,
+      "conditions": {
+       "gap_probability": 0.2
+      }
+     }
+    }
+   ]
+  },
+  "MPC N=10": {
+   "summary": {
+    "runs": 25,
+    "completed": 24,
+    "stops": [
+     "ref_invalid:invalid_estimates"
+    ],
+    "lateral_max_m": 0.15,
+    "lateral_rmse_mean_m": 0.034,
+    "peak_speed_max_mps": 0.293,
+    "speed_rmse_mean_mps": 0.005,
+    "drive_jumps_mean": 1,
+    "mpc_step_p95_ms_max": 3.0
+   },
+   "runs": [
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.5,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 305,
+      "plan_hold": 8
+     },
+     "reject_reasons": {
+      "stale_road": 4,
+      "invalid_estimates": 4
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.027,
+     "step_p95_ms": 2.5,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.029,
+     "step_p95_ms": 2.6,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.006,
+     "peak_speed_mps": 0.243,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.001,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.087,
+     "step_p95_ms": 2.6,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.007,
+     "peak_speed_mps": 0.244,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.002,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 304,
+      "plan_hold": 8
+     },
+     "reject_reasons": {
+      "stale_road": 4,
+      "invalid_estimates": 4
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.067,
+     "step_p95_ms": 2.5,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.006,
+     "peak_speed_mps": 0.242,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.002,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.071,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.282,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.069,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 282,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": 0.008,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.185,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.007,
+     "peak_speed_mps": 0.284,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.069,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 296,
+      "plan_hold": 6
+     },
+     "reject_reasons": {
+      "stale_road": 3,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.008,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.17,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.006,
+     "peak_speed_mps": 0.279,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.069,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 282,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.008,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.162,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.009,
+     "peak_speed_mps": 0.278,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.07,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 280,
+      "plan_hold": 22
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12,
+      "outside_v1_offset_or_heading_domain": 2
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.008,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.176,
+     "step_p95_ms": 3.0,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 301,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.008,
+     "peak_speed_mps": 0.293,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.009,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.068,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 291,
+      "plan_hold": 10
+     },
+     "reject_reasons": {
+      "insufficient_near_or_far_coverage": 2,
+      "outside_v1_offset_or_heading_domain": 2,
+      "stale_road": 3,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.009,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.188,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 301,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.006,
+     "peak_speed_mps": 0.281,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.01,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.069,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 279,
+      "plan_hold": 22
+     },
+     "reject_reasons": {
+      "insufficient_near_or_far_coverage": 2,
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.008,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.181,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.006,
+     "peak_speed_mps": 0.276,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.068,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 282,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.008,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.155,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.007,
+     "peak_speed_mps": 0.273,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.068,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 296,
+      "plan_hold": 6
+     },
+     "reject_reasons": {
+      "stale_road": 3,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.007,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.169,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.007,
+     "peak_speed_mps": 0.278,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.067,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 282,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.008,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.16,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 301,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.008,
+     "peak_speed_mps": 0.272,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.01,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.068,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 281,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.008,
+     "final_speed_mps": 0.202,
+     "max_abs_e_y_m": 0.163,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 301,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.007,
+     "peak_speed_mps": 0.265,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.068,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 295,
+      "plan_hold": 6
+     },
+     "reject_reasons": {
+      "stale_road": 3,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.006,
+     "final_speed_mps": 0.199,
+     "max_abs_e_y_m": 0.199,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 301,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.009,
+     "peak_speed_mps": 0.277,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.067,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 281,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.007,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.183,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 292,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.001,
+     "peak_speed_mps": 0.285,
+     "start_delay_s": 0.55,
+     "speed_rmse_mps": 0.009,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 272,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.209,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.27
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.0,
+     "peak_speed_mps": 0.242,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.289
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 341,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.008,
+     "peak_speed_mps": 0.205,
+     "start_delay_s": 0.8,
+     "speed_rmse_mps": 0.014,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 321,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.186,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.305
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.5,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": 0.0
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.001,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.019,
+     "lateral_rmse_m": 0.014,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.019,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.046,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": 0.03
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.01,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.02,
+     "lateral_rmse_m": 0.014,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.02,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.046,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": -0.03
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 6.15,
+      "reason": "ref_invalid:invalid_estimates",
+      "planning": "invalid_estimates",
+      "road": "unavailable"
+     },
+     "steps": 121,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 1.087,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 98,
+      "plan_hold": 23,
+      "ref_invalid": 1
+     },
+     "reject_reasons": {
+      "stale_road": 5,
+      "invalid_estimates": 19
+     },
+     "final_x_m": 1.09,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.028,
+     "step_p95_ms": 2.4,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 4,
+      "conditions": {
+       "gap_probability": 0.2
+      }
+     }
+    }
+   ]
+  },
+  "MPC N=8": {
+   "summary": {
+    "runs": 25,
+    "completed": 24,
+    "stops": [
+     "ref_invalid:invalid_estimates"
+    ],
+    "lateral_max_m": 0.15,
+    "lateral_rmse_mean_m": 0.036,
+    "peak_speed_max_mps": 0.285,
+    "speed_rmse_mean_mps": 0.005,
+    "drive_jumps_mean": 1,
+    "mpc_step_p95_ms_max": 3.1
+   },
+   "runs": [
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 305,
+      "plan_hold": 8
+     },
+     "reject_reasons": {
+      "stale_road": 4,
+      "invalid_estimates": 4
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.027,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.029,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.243,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.001,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.087,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.243,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.002,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 304,
+      "plan_hold": 8
+     },
+     "reject_reasons": {
+      "stale_road": 4,
+      "invalid_estimates": 4
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.067,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.242,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.071,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 303,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.003,
+     "peak_speed_mps": 0.274,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.073,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 283,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": 0.011,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.185,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 303,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.275,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.072,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 297,
+      "plan_hold": 6
+     },
+     "reject_reasons": {
+      "stale_road": 3,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.011,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.171,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 303,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.271,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.072,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 283,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.011,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.162,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 303,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.007,
+     "peak_speed_mps": 0.271,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.073,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 281,
+      "plan_hold": 22
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12,
+      "outside_v1_offset_or_heading_domain": 2
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.01,
+     "final_speed_mps": 0.202,
+     "max_abs_e_y_m": 0.177,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.281,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.072,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 10
+     },
+     "reject_reasons": {
+      "insufficient_near_or_far_coverage": 2,
+      "outside_v1_offset_or_heading_domain": 2,
+      "stale_road": 3,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 2.99,
+     "final_y_m": 0.012,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.189,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.003,
+     "peak_speed_mps": 0.274,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.009,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.073,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 280,
+      "plan_hold": 22
+     },
+     "reject_reasons": {
+      "insufficient_near_or_far_coverage": 2,
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": 0.011,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.181,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 303,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.269,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.071,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 283,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.011,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.155,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 303,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.267,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.071,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 297,
+      "plan_hold": 6
+     },
+     "reject_reasons": {
+      "stale_road": 3,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.01,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.169,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 303,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.271,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.07,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 283,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.01,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.16,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.266,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.009,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.071,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 282,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.011,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.163,
+     "step_p95_ms": 3.1,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.008,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.071,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 296,
+      "plan_hold": 6
+     },
+     "reject_reasons": {
+      "stale_road": 3,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.009,
+     "final_speed_mps": 0.199,
+     "max_abs_e_y_m": 0.199,
+     "step_p95_ms": 2.3,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 302,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.005,
+     "peak_speed_mps": 0.271,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.07,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 282,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.01,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.183,
+     "step_p95_ms": 2.2,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 292,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.001,
+     "peak_speed_mps": 0.285,
+     "start_delay_s": 0.55,
+     "speed_rmse_mps": 0.009,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 272,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.209,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.3,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.27
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.0,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.2,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.289
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 341,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.008,
+     "peak_speed_mps": 0.205,
+     "start_delay_s": 0.8,
+     "speed_rmse_mps": 0.014,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 321,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.186,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.305
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": 0.0
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.0,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.021,
+     "lateral_rmse_m": 0.016,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.021,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.048,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": 0.03
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.009,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.022,
+     "lateral_rmse_m": 0.016,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.022,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.048,
+     "step_p95_ms": 2.1,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": -0.03
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 6.15,
+      "reason": "ref_invalid:invalid_estimates",
+      "planning": "invalid_estimates",
+      "road": "unavailable"
+     },
+     "steps": 121,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 1.086,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 98,
+      "plan_hold": 23,
+      "ref_invalid": 1
+     },
+     "reject_reasons": {
+      "stale_road": 5,
+      "invalid_estimates": 19
+     },
+     "final_x_m": 1.09,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.028,
+     "step_p95_ms": 2.0,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 4,
+      "conditions": {
+       "gap_probability": 0.2
+      }
+     }
+    }
+   ]
+  },
+  "MPC N=5": {
+   "summary": {
+    "runs": 25,
+    "completed": 24,
+    "stops": [
+     "ref_invalid:invalid_estimates"
+    ],
+    "lateral_max_m": 0.15,
+    "lateral_rmse_mean_m": 0.039,
+    "peak_speed_max_mps": 0.284,
+    "speed_rmse_mean_mps": 0.004,
+    "drive_jumps_mean": 1,
+    "mpc_step_p95_ms_max": 1.8
+   },
+   "runs": [
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.003,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 305,
+      "plan_hold": 8
+     },
+     "reject_reasons": {
+      "stale_road": 4,
+      "invalid_estimates": 4
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.027,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.029,
+     "step_p95_ms": 1.8,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.001,
+     "peak_speed_mps": 0.242,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.087,
+     "step_p95_ms": 1.5,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.001,
+     "peak_speed_mps": 0.242,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 304,
+      "plan_hold": 8
+     },
+     "reject_reasons": {
+      "stale_road": 4,
+      "invalid_estimates": 4
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.068,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 312,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.001,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.001,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 292,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.071,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": 0.0,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 305,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.002,
+     "peak_speed_mps": 0.26,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.005,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.079,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 285,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": 0.017,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.185,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 305,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.003,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.078,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 298,
+      "plan_hold": 7
+     },
+     "reject_reasons": {
+      "stale_road": 4,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 2.99,
+     "final_y_m": 0.017,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.171,
+     "step_p95_ms": 1.7,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 305,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.002,
+     "peak_speed_mps": 0.259,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.079,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 285,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": 0.017,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.162,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 305,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.258,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.079,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 283,
+      "plan_hold": 22
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12,
+      "outside_v1_offset_or_heading_domain": 2
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.017,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.177,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 305,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.009,
+     "peak_speed_mps": 0.264,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.078,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 294,
+      "plan_hold": 11
+     },
+     "reject_reasons": {
+      "insufficient_near_or_far_coverage": 2,
+      "outside_v1_offset_or_heading_domain": 2,
+      "stale_road": 4,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.017,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.192,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 305,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.007,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.079,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 283,
+      "plan_hold": 22
+     },
+     "reject_reasons": {
+      "insufficient_near_or_far_coverage": 2,
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.017,
+     "final_speed_mps": 0.201,
+     "max_abs_e_y_m": 0.182,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": 0.15,
+      "heading": 0.0,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 305,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.003,
+     "peak_speed_mps": 0.26,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.005,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.076,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 285,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.016,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.155,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 305,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.259,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.005,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.076,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 298,
+      "plan_hold": 7
+     },
+     "reject_reasons": {
+      "stale_road": 4,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.016,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.169,
+     "step_p95_ms": 1.5,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 305,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.004,
+     "peak_speed_mps": 0.261,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.005,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.076,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 285,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.016,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.16,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.02,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 304,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.0,
+     "peak_speed_mps": 0.258,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.007,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.076,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 284,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.016,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.163,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 1
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 304,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.001,
+     "peak_speed_mps": 0.255,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.077,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 298,
+      "plan_hold": 6
+     },
+     "reject_reasons": {
+      "stale_road": 3,
+      "invalid_estimates": 3
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.015,
+     "final_speed_mps": 0.199,
+     "max_abs_e_y_m": 0.199,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 2
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 304,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.002,
+     "peak_speed_mps": 0.263,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.006,
+     "lateral_max_m": 0.15,
+     "lateral_rmse_m": 0.076,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 284,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.015,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.183,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "offset": -0.15,
+      "heading": 0.08,
+      "noise": 0.05,
+      "seed": 3
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 292,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.0,
+     "peak_speed_mps": 0.284,
+     "start_delay_s": 0.55,
+     "speed_rmse_mps": 0.009,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 272,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 2.99,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.209,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 1.8,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.27
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.009,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.289
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 341,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.007,
+     "peak_speed_mps": 0.205,
+     "start_delay_s": 0.8,
+     "speed_rmse_mps": 0.014,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 321,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.186,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "d0": 0.305
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.003,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.0,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.0,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.035,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": 0.0
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.009,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.027,
+     "lateral_rmse_m": 0.019,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": 0.027,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.053,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": 0.03
+     }
+    },
+    {
+     "locked_stop": null,
+     "steps": 313,
+     "terminated": null,
+     "completed": true,
+     "distance_m": 3.008,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.0,
+     "lateral_max_m": 0.027,
+     "lateral_rmse_m": 0.019,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 293,
+      "plan_hold": 20
+     },
+     "reject_reasons": {
+      "stale_road": 8,
+      "invalid_estimates": 12
+     },
+     "final_x_m": 3.0,
+     "final_y_m": -0.027,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.054,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 1,
+      "steering_offset_rad": -0.03
+     }
+    },
+    {
+     "locked_stop": {
+      "time_s": 6.15,
+      "reason": "ref_invalid:invalid_estimates",
+      "planning": "invalid_estimates",
+      "road": "unavailable"
+     },
+     "steps": 121,
+     "terminated": null,
+     "completed": false,
+     "distance_m": 1.086,
+     "peak_speed_mps": 0.241,
+     "start_delay_s": 0.65,
+     "speed_rmse_mps": 0.001,
+     "lateral_max_m": 0.001,
+     "lateral_rmse_m": 0.0,
+     "drive_jumps": 1,
+     "mpc_enabled": true,
+     "branches": {
+      "solved": 98,
+      "plan_hold": 23,
+      "ref_invalid": 1
+     },
+     "reject_reasons": {
+      "stale_road": 5,
+      "invalid_estimates": 19
+     },
+     "final_x_m": 1.09,
+     "final_y_m": 0.001,
+     "final_speed_mps": 0.2,
+     "max_abs_e_y_m": 0.028,
+     "step_p95_ms": 1.6,
+     "scenario": {
+      "noise": 0.02,
+      "seed": 4,
+      "conditions": {
+       "gap_probability": 0.2
+      }
+     }
+    }
+   ]
+  }
+ }
+}
