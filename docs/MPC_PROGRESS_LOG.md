@@ -2,6 +2,27 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-12（晚）：G2 包用 V2 回放 —— 有效率基本没变
+
+`tools/replay_policy_bag.py`，参数为 `make_deploy_yaml.py --mode mpc-shadow` 生成的 V2 配置（源码 `d61da16`），V2 同步调用，不含异步延迟和暂存。逐帧结果：`car-evidence/g2-20261008-162044/replay-v2.json`。
+
+| 包 | V1 回放有效（10-08） | **V2 回放有效** | 主要原因（V2） |
+| --- | --- | --- | --- |
+| A 居中 | 74% | 81% | `invalid_recovery_road` 15% |
+| B 左偏 10 cm | 4% | 4% | `insufficient_lattice_coverage` 75% |
+| D 车头左偏 | 76% | 77% | `insufficient_lattice_coverage` 18% |
+| A2 居中（起点后移） | 47% | 47% | 两侧共同覆盖不足 52% |
+| B2 左偏（起点后移） | 12% | 7% | 共同覆盖不足 77%；**硬停车** `recovery_body_boundary_conflict` 11% |
+| C 右偏 10 cm | 65% | 65% | `insufficient_lattice_coverage` 21% |
+| E 车头右偏 | 10% | 10% | 只看到一侧 76% |
+
+结论：
+1. **V2 加新估计器没有改善这批数据的有效率**，三个主因和 10-08 一样：两侧共同覆盖不足（20%，估计组）；只看到一侧（13%，估计组 + Planning 组）；车偏位时近处空缺超过 0.9 m（B 75%，Planning 组的 `max_near_gap_m`）。
+2. **多帧融合在这批数据上没被用到**：7 个包没有一帧达到 `observed_with_history` 或 `observed`。推车只有约 0.8 m，没走过约 0.9 m 的相机近处盲区，V2 全程靠起步假设补出的近处道路（`near_field_unobserved`）。要评估融合效果，下次上车得推或开过 1.5 m 以上。
+3. **新增的硬停车**：B2 有 50 帧、E 有 6 帧、B 有 5 帧是 `recovery_body_boundary_conflict`（车身离边界太近）。这不属于瞬时原因，执行模式下会立即锁停。车左偏 10 cm 时会触发，需要和 Planning 组核对 1 m 路宽下的车身余量。
+
+下次 G2 复测要加上：推或开过 1.5 m 以上的场景，以及偏位 5 cm 的场景（看车身余量的边界）。
+
 ## 2026-10-12（傍晚）：门禁通过；Gym 测试改为 V2 口径
 
 **WSL 门禁**（源码 `cb9d746`）：ROS 门禁 242 项、离线 166 + 6 + 18 项全部通过。证据 `~/ai4r-evidence/ros-20261012-155219/`。
