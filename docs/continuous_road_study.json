@@ -1,6 +1,35 @@
 {
   "baseline_commit": "1b759ed",
-  "current_policy_sha256": "e0282c3bab6c8e7e3b52befd394a2eb2ff24132a83e5c94322c0a90a4a5de711",
+  "previous_continuous_commit": "af4aac7",
+  "current_policy_sha256": "51a0cb5ce12dcc0555c4fd4074282b8e8b606c9aa80e84ae9e070c8ad3607cdc",
+  "current_config_sha256": "a04616756ec6c7c8efbe211f1bcc772c6a39f7ff94d0f744d68e679f68e57ee7",
+  "current_estimation_profile": {
+    "speed_tau_s": 0.15,
+    "yaw_rate_tau_s": 0.08,
+    "max_source_age_s": 1.5,
+    "motion_max_gap_s": 0.25,
+    "motion_max_interval_s": 0.5,
+    "history_propagation": "continuous",
+    "continuous_road_output": true,
+    "road_prediction_max_distance_m": 0.5,
+    "history_merge_single_side": true,
+    "history_merge_radius_m": 0.08,
+    "road_history_mode": "distance",
+    "road_history_max_s": 30.0,
+    "road_history_s": 5.0,
+    "road_rear_support_m": 1.0,
+    "road_hold_s": 0.8,
+    "min_cone_confidence": 0.25,
+    "road_forward_max_m": 4.0,
+    "road_min_coverage_m": 0.3,
+    "road_sample_spacing_m": 0.1,
+    "road_max_gap_m": 2.0,
+    "huber_delta_m": 0.15,
+    "road_width_min_m": 0.3,
+    "road_width_max_m": 2.5,
+    "road_max_abs_slope": 2.0,
+    "known_lane_width_m": 0.0
+  },
   "limits": "Synthetic Windows Python; no ROS, detector, target CPU or physical car.",
   "baseline": {
     "scenarios": {
@@ -189,15 +218,313 @@
           "degraded": false,
           "source_s": 10.6
         }
+      ],
+      "long_camera_pause": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": false,
+          "status": "motion_interval_too_long",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": false,
+          "status": "motion_interval_too_long",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.65,
+          "valid": false,
+          "status": "motion_interval_too_long",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.7,
+          "valid": false,
+          "status": "unavailable",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.75,
+          "valid": false,
+          "status": "unavailable",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.8,
+          "valid": false,
+          "status": "unavailable",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.85,
+          "valid": false,
+          "status": "unavailable",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.9,
+          "valid": false,
+          "status": "unavailable",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.95,
+          "valid": false,
+          "status": "unavailable",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 11.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 11.0
+        }
+      ],
+      "consecutive_empty_frames": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.45
+        },
+        {
+          "now_s": 10.5,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.5
+        },
+        {
+          "now_s": 10.55,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.55
+        },
+        {
+          "now_s": 10.6,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.6
+        },
+        {
+          "now_s": 10.65,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.65
+        },
+        {
+          "now_s": 10.7,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.7
+        },
+        {
+          "now_s": 10.75,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.75
+        },
+        {
+          "now_s": 10.8,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.8
+        },
+        {
+          "now_s": 10.85,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.85
+        },
+        {
+          "now_s": 10.9,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.9
+        },
+        {
+          "now_s": 10.95,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.95
+        },
+        {
+          "now_s": 11.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 11.0
+        }
       ]
     },
     "dense_full_update_samples": 1300,
-    "median_ms": 0.3533,
-    "p95_ms": 2.7265,
-    "max_ms": 4.8881,
+    "median_ms": 0.3594,
+    "p95_ms": 2.7123,
+    "max_ms": 4.5303,
     "world_center_rmse_m": 3.977467757652028e-16
   },
-  "continuous": {
+  "previous_continuous": {
     "scenarios": {
       "straight": [
         {
@@ -384,12 +711,803 @@
           "degraded": false,
           "source_s": 10.6
         }
+      ],
+      "long_camera_pause": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.65,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.7,
+          "valid": false,
+          "status": "unavailable",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.75,
+          "valid": false,
+          "status": "prediction_deadline_expired",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.8,
+          "valid": false,
+          "status": "prediction_deadline_expired",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.85,
+          "valid": false,
+          "status": "prediction_deadline_expired",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.9,
+          "valid": false,
+          "status": "prediction_deadline_expired",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.95,
+          "valid": false,
+          "status": "prediction_deadline_expired",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 11.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 11.0
+        }
+      ],
+      "consecutive_empty_frames": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.45
+        },
+        {
+          "now_s": 10.5,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.5
+        },
+        {
+          "now_s": 10.55,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.55
+        },
+        {
+          "now_s": 10.6,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.6
+        },
+        {
+          "now_s": 10.65,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.65
+        },
+        {
+          "now_s": 10.7,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.7
+        },
+        {
+          "now_s": 10.75,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.75
+        },
+        {
+          "now_s": 10.8,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.8
+        },
+        {
+          "now_s": 10.85,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.85
+        },
+        {
+          "now_s": 10.9,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.9
+        },
+        {
+          "now_s": 10.95,
+          "valid": false,
+          "status": "insufficient_geometry",
+          "degraded": false,
+          "source_s": 10.95
+        },
+        {
+          "now_s": 11.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 11.0
+        }
       ]
     },
     "dense_full_update_samples": 1300,
-    "median_ms": 1.006,
-    "p95_ms": 2.6658,
-    "max_ms": 3.4074,
+    "median_ms": 1.0428,
+    "p95_ms": 2.7934,
+    "max_ms": 4.7449,
     "world_center_rmse_m": 4.604043374747364e-16
+  },
+  "continuous": {
+    "scenarios": {
+      "straight": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.6
+        }
+      ],
+      "turn": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.6
+        }
+      ],
+      "long_camera_pause": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.65,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.7,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.75,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.8,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.85,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.9,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.95,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 11.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 11.0
+        }
+      ],
+      "consecutive_empty_frames": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.65,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.7,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.75,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.8,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.85,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.9,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.95,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 11.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 11.0
+        }
+      ]
+    },
+    "dense_full_update_samples": 1300,
+    "median_ms": 0.4004,
+    "p95_ms": 2.7951,
+    "max_ms": 3.3123,
+    "world_center_rmse_m": 4.641695786999e-16
   }
 }

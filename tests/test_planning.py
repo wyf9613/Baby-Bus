@@ -262,7 +262,9 @@ class PlanningChecks(unittest.TestCase):
             value = match[2]
             scalars[match[1]] = (value == "true" if value in ("true", "false") else
                                  float(value) if value[0] in "-0123456789" else value)
-        self.assertEqual(scalars, vars(Settings()))
+        expected = vars(Settings())
+        expected["max_source_age_s"] = 1.5  # Road continuity profile; motion has its own cap.
+        self.assertEqual(scalars, expected)
 
 
 if __name__ == "__main__":

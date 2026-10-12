@@ -885,10 +885,17 @@ def test_student_empty_frame_bridge_preserves_acquisition_and_rejects_missing_gy
     assert node.action_publisher.messages[-1].steer == 0.0
 
 
-def test_continuous_timer_estimates_between_frames_but_keeps_camera_health_stop(make_node):
+@pytest.mark.parametrize("wide", [False, True])
+def test_continuous_timer_estimates_between_frames_but_keeps_camera_health_stop(make_node, wide):
+    extra = {"estimation.history_propagation": "continuous",
+             "estimation.continuous_road_output": True}
+    if wide:
+        profile = yaml.safe_load((SHARE / "config/ai4r_policy.yaml").read_text())["/**/ai4r_policy"]["ros__parameters"]
+        extra.update({"estimation."+key: value for key, value in profile["estimation"].items()})
+        extra.update({"sensor_timeout_s.cone_detections": profile["sensor_timeout_s"]["cone_detections"],
+                      "cone_empty_timeout_s": profile["cone_empty_timeout_s"]})
     node = make_node(required=["cone_detections", "wheel_speed", "imu_angular_velocity"],
-                     **{"estimation.history_propagation": "continuous",
-                        "estimation.continuous_road_output": True})
+                     **extra)
     node.wheel_speed_callback(Float32(data=0.2))
     gyro = imu(node, orientation=False)
     gyro.angular_velocity_covariance[0] = 0.0
@@ -905,7 +912,7 @@ def test_continuous_timer_estimates_between_frames_but_keeps_camera_health_stop(
     request(node, 3)
     node.run_policy_step()
     assert node.estimation_output["road"]["valid"]
-    for _ in range(9):
+    for _ in range(26 if wide else 9):
         node.test_clock.advance(0.05)
         node.wheel_speed_callback(Float32(data=0.2))
         gyro = imu(node, orientation=False)
@@ -918,7 +925,7 @@ def test_continuous_timer_estimates_between_frames_but_keeps_camera_health_stop(
         assert road["measurement_timestamp_s"] == original_stamp_s
         assert road["timestamp_s"] == node.estimation_output["state"]["timestamp_s"]
     assert road["degraded"] and road["status"] == "predicted_history"
-    node.test_clock.advance(0.05)
+    node.test_clock.advance(0.2 if wide else 0.05)
     node.supervision_callback()
     assert node.fsm_state == 2  # Camera deadline is NOT bypassed by history.
     assert node.action_publisher.messages[-1].drive == 0.0
@@ -980,6 +987,11 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.policy_update_rate_hz == 20.0
         assert node.required_sensors == ["cone_detections", "wheel_speed", "imu_angular_velocity"]
         assert node.estimation_settings.continuous_road_output
+        assert node.estimation_settings.road_hold_s == 0.8
+        assert node.estimation_settings.max_source_age_s == 1.5
+        assert node.sensor_timeout_s["cone_detections"] == 1.5
+        assert node.cone_empty_timeout_s == 2.0
+        assert node.planning_settings.max_source_age_s == 1.5
     finally:
         node.destroy_node()
         context.shutdown()

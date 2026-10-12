@@ -228,7 +228,13 @@ class EstimationChecks(unittest.TestCase):
         expected = vars(Settings())
         expected.update(history_propagation="continuous", road_history_mode="distance",
                         history_merge_single_side=True, history_merge_radius_m=0.08,
-                        continuous_road_output=True)
+                        continuous_road_output=True, max_source_age_s=1.5,
+                        motion_max_gap_s=0.25, motion_max_interval_s=0.5,
+                        road_prediction_max_distance_m=0.5, road_history_max_s=30.0,
+                        road_rear_support_m=1.0, road_hold_s=0.8, min_cone_confidence=0.25,
+                        road_forward_max_m=4.0, road_min_coverage_m=0.3,
+                        road_max_gap_m=2.0, huber_delta_m=0.15,
+                        road_width_min_m=0.3, road_width_max_m=2.5, road_max_abs_slope=2.0)
         self.assertEqual(scalars, expected)
         self.assertEqual(vars(Settings(**scalars)), scalars)
 
@@ -1185,6 +1191,142 @@ class ContinuousRoadOutputChecks(unittest.TestCase):
         pipeline = self.pipeline(road_hold_s=0.0)
         self.step(pipeline, 10.0)
         self.assertFalse(self.step(pipeline, 10.05, missing=True)["road"]["valid"])
+
+
+class RelaxedContinuityProfileChecks(unittest.TestCase):
+    def setUp(self):
+        import re
+        config = Path(__file__).resolve().parents[1]/"config"/"ai4r_policy.yaml"
+        inside, values = False, {}
+        for line in config.read_text(encoding="utf-8").splitlines():
+            if line == "    estimation:":
+                inside = True
+                continue
+            if not inside or not line.strip() or line.lstrip().startswith("#"):
+                continue
+            if not line.startswith("      "):
+                break
+            match = re.fullmatch(r"      ([a-z_]+): ([a-z_]+|-?[0-9]+(?:\.[0-9]+)?)", line)
+            self.assertIsNotNone(match, line)
+            value = match[2]
+            values[match[1]] = (value == "true" if value in ("true", "false") else
+                                float(value) if value[0] in "-0123456789" else value)
+        self.settings = Settings(**values)
+
+    def step(self, pipeline, now, **kwargs):
+        return RoadDropoutChecks.step(pipeline, now, speed=kwargs.pop("speed", 0.2),
+                                     yaw=kwargs.pop("yaw", 0.0), **kwargs)["road"]
+
+    def test_eight_failed_10hz_frames_bridge_but_ninth_expires_without_renewing(self):
+        pipeline = Pipeline(self.settings)
+        self.step(pipeline, 10.0)
+        for tick in range(1, 9):
+            road = self.step(pipeline, round(10.0+tick*0.1, 9), left=[], right=[])
+            self.assertTrue(road["valid"], (tick, road["status"]))
+            self.assertTrue(road["degraded"])
+            self.assertEqual(road["measurement_timestamp_s"], 10.0)
+            self.assertAlmostEqual(road["prediction_elapsed_s"], (tick-1)*0.1)
+            self.assertTrue(all(p[5] == 10.0 for p in pipeline._road_cones))
+        road = self.step(pipeline, 10.9, left=[], right=[])
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["prediction_status"], "prediction_deadline_expired")
+
+    def test_camera_pause_past_one_second_and_new_frame_recovery(self):
+        pipeline = Pipeline(self.settings)
+        self.step(pipeline, 10.0)
+        for tick in range(1, 27):
+            road = self.step(pipeline, round(10.0+tick*0.05, 9), stamp=10.0)
+            self.assertTrue(road["valid"], (tick, road["status"]))
+            self.assertEqual(road["measurement_timestamp_s"], 10.0)
+            self.assertLessEqual(len(pipeline._road_cones), 128)
+        self.assertTrue(road["degraded"])
+        fresh = self.step(pipeline, 11.35)
+        self.assertTrue(fresh["valid"], fresh["status"])
+        self.assertFalse(fresh["degraded"])
+
+    def test_low_confidence_and_short_measured_span_are_accepted(self):
+        for confidence, xs in ((0.35, RoadDropoutChecks.XS), (0.95, [-0.1, 0.3])):
+            batch = cones([(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
+            batch["detections"] = [(*p[:4], confidence) for p in batch["detections"]]
+            legacy = Pipeline(Settings()).road(batch, 10_000_000_000, 0.0)
+            relaxed = Pipeline(self.settings).road(batch, 10_000_000_000, 0.0)
+            self.assertFalse(legacy["valid"])
+            self.assertTrue(relaxed["valid"], relaxed["status"])
+
+    def test_larger_boundary_noise_can_fit_without_claiming_exact_measurement(self):
+        xs = RoadDropoutChecks.XS
+        batch = cones([(x, 0.5+(-1)**i*0.12) for i, x in enumerate(xs)],
+                      [(x, -0.5+(-1)**i*0.12) for i, x in enumerate(xs)])
+        legacy = Pipeline(Settings()).road(batch, 10_000_000_000, 0.0)
+        relaxed = Pipeline(self.settings).road(batch, 10_000_000_000, 0.0)
+        self.assertFalse(legacy["valid"])
+        self.assertTrue(relaxed["valid"], relaxed["status"])
+        self.assertGreater(relaxed["boundary_diagnostics"]["left"]["fit_rms_m"], 0.08)
+
+    def test_larger_measured_gap_preserves_real_forward_support(self):
+        xs = [-0.3, 0.0, 0.3, 2.1, 2.4]
+        batch = cones([(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
+        legacy = Pipeline(Settings()).road(batch, 10_000_000_000, 0.0)
+        relaxed = Pipeline(self.settings).road(batch, 10_000_000_000, 0.0)
+        self.assertTrue(relaxed["valid"])
+        self.assertGreater(relaxed["x_range_m"][1], legacy["x_range_m"][1])
+        self.assertLessEqual(relaxed["x_range_m"][1], max(xs))
+
+    def test_expanded_window_is_bounded_and_width_order_still_checked(self):
+        pipeline = Pipeline(self.settings)
+        xs = [-1.0, -0.5, 0.0, 1.0, 2.0, 3.0, 4.0]
+        road = self.step(pipeline, 10.0, left=[(x, 0.5) for x in xs],
+                         right=[(x, -0.5) for x in xs])
+        self.assertTrue(road["valid"])
+        self.assertEqual(road["x_range_m"], [-1.0, 4.0])
+        self.assertLessEqual(len(road["centerline_xy"]), 201)
+        for left_y, right_y in ((-0.5, 0.5), (0.05, -0.05), (2.0, -2.0)):
+            bad = Pipeline(self.settings).road(cones([(x, left_y) for x in xs],
+                                                      [(x, right_y) for x in xs]),
+                                                  10_000_000_000, 0.0)
+            self.assertFalse(bad["valid"])
+
+    def test_wider_profile_still_rejects_motion_gap_and_observation_conflict(self):
+        for fault in ("motion_gap", "conflict"):
+            pipeline = Pipeline(self.settings)
+            self.step(pipeline, 10.0)
+            if fault == "motion_gap":
+                road = self.step(pipeline, 10.3, left=[], right=[])
+            else:
+                road = self.step(pipeline, 10.1,
+                                 left=[(x, 1.0) for x in RoadDropoutChecks.XS], right=[])
+            self.assertFalse(road["valid"], fault)
+            self.assertFalse(pipeline._road_cones, fault)
+
+    def test_wider_hold_is_opt_in_and_still_has_upper_bound(self):
+        for value in (1.01, -0.1, float("inf")):
+            with self.assertRaises(ValueError):
+                Settings(history_propagation="continuous", continuous_road_output=True,
+                         road_hold_s=value)
+        with self.assertRaises(ValueError):
+            Settings(road_hold_s=0.8)
+        self.assertEqual(self.settings.road_hold_s, 0.8)
+
+    def test_wide_prediction_distance_still_expires_before_hold(self):
+        pipeline = Pipeline(self.settings)
+        self.step(pipeline, 10.0, speed=0.8)
+        for tick in range(1, 7):
+            road = self.step(pipeline, round(10.0+tick*0.1, 9), left=[], right=[], speed=0.8)
+            self.assertTrue(road["valid"], road["status"])
+            self.assertAlmostEqual(road["prediction_distance_m"], tick*0.08)
+        road = self.step(pipeline, 10.7, left=[], right=[], speed=0.8)
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["prediction_status"], "prediction_deadline_expired")
+
+    def test_source_age_still_expires_when_hold_would_allow_more(self):
+        pipeline = Pipeline(Settings(**{**vars(self.settings), "road_hold_s": 1.0}))
+        self.step(pipeline, 10.0, speed=0.0)
+        for tick in range(1, 30):
+            road = self.step(pipeline, round(10.0+tick*0.05, 9), stamp=10.0, speed=0.0)
+            self.assertTrue(road["valid"], (tick, road["status"]))
+        road = self.step(pipeline, 11.5, stamp=10.0, speed=0.0)
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["prediction_status"], "prediction_deadline_expired")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,36 @@
 # AI4R policy acceptance
 
+## Wider continuity thresholds, 2026-10-12
+
+At the user's request, the active profile on `feature/continuous-road-output`
+widens the interruption hold to 0.8 s, camera age/watchdog to 1.5 s, empty-cone
+watchdog to 2 s, travelled prediction distance to 0.5 m, motion gap/segment to
+0.25/0.5 s, point lifetime to 30 s, and supported window to [-1,4] m. Confidence,
+coverage, fitting residual, width, slope and cone-gap thresholds are relaxed;
+the association radius stays 0.08 m to avoid deleting adjacent cones. The hold
+validator admits up to 1 s only with continuous output; legacy mode retains
+its 0.25 s cap. Class defaults, fusion algorithms and bounded memory are retained.
+
+The local planning YAML source-age limit matches 1.5 s. No planning algorithm,
+vehicle calibration, action, startup policy or live configuration was changed.
+The old planner still does not consume the prediction speed/lifetime advisories;
+these settings do not establish continuous or qualified physical driving.
+
+90 estimation and 16 planning portable checks pass, including ten new active-
+profile cases for eight failed 10 Hz frames, recovery and all finite deadlines,
+relaxed quality acceptance and preserved hard rejections. The reproducible
+study now records active configuration plus policy hashes and compares baseline,
+initial continuous version `af4aac7`, and this profile. Across 21 output epochs,
+the longer camera pause / consecutive-empty scenarios improve from 15 / 10
+valid initial-continuous outputs to 21 / 21, with correct acquisition provenance.
+Ideal synthetic observations do not quantify real false-positive or drift cost.
+Timings, inputs and configuration are in `continuous_road_study.json`.
+
+ROS configuration/health tests are updated for both the original and active wide
+profiles but not run here. The required fast gate remains blocked by missing
+Bash/ROS Jazzy/colcon. No push or physical execution occurred. Prior evidence
+below is historical and retains the thresholds of its specific revision.
+
 ## Local continuous-road version, 2026-10-12
 
 Branch `feature/continuous-road-output` starts from the user's local baseline

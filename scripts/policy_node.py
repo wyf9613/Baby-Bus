@@ -239,8 +239,11 @@ class EstimationSettings:
                 if value < 0.0:
                     raise ValueError("estimation.history_merge_radius_m must be >= 0")
             elif name == "road_hold_s":
-                if not 0.0 <= value <= 0.25:
-                    raise ValueError("road prediction hold must be in [0, 0.25] seconds")
+                # The continuous version integrates each short motion segment;
+                # admit the requested wider hold there, preserving legacy limits.
+                hold_limit = 1.0 if self.continuous_road_output else 0.25
+                if not 0.0 <= value <= hold_limit:
+                    raise ValueError(f"road prediction hold must be in [0, {hold_limit}] seconds")
             elif value <= 0.0:
                 raise ValueError(f"estimation.{name} must be positive")
         if self.road_width_min_m >= self.road_width_max_m:
