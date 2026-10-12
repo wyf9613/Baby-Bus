@@ -22,6 +22,7 @@ Car conditions (2026-10-06, car .27), all optional so the defaults keep the run 
 """
 import argparse
 from collections import Counter, deque
+from copy import deepcopy
 import json
 import math
 import random
@@ -117,10 +118,32 @@ def load_policy():
                                   "ConeDetection": SimpleNamespace(COLOR_BLUE=2, COLOR_YELLOW=1)})
 
 
-def make_env(offset, heading, noise, seed, lane_width_m=None, cone_spacing_m=None):
-    spec = tune.road_spec("straight")
+def road_spec(road="straight"):
+    """straight; gentle_arc (2 m, R 5 m 45 deg, 4 m, cones on both sides); course (the
+    notebook CONE_ROAD_SPEC unchanged: its R 5 m bend has LEFT cones only and the
+    following straight has sparse, displaced right cones); s_bend (R 3 m, +-60 deg)."""
+    if road in ("straight", "s_bend"):
+        return tune.road_spec(road)
+    spec = deepcopy(tune.CONFIG["CONE_ROAD_SPEC"])
+    if road == "gentle_arc":
+        start, bend = deepcopy(spec["elements"][0]), deepcopy(spec["elements"][1])
+        start["geometry"]["length_m"] = 2.0
+        bend["active_cone_paths"] = {"left_boundary": "regular", "right_boundary": "regular"}
+        end = deepcopy(start)
+        end["geometry"]["length_m"] = 4.0
+        spec["elements"] = [start, bend, end]
+    elif road != "course":
+        raise ValueError(f"unknown road {road!r}")
+    return spec
+
+
+def make_env(offset, heading, noise, seed, lane_width_m=None, cone_spacing_m=None, road="straight",
+             start_progress_m=0.0):
+    spec = road_spec(road)
     if lane_width_m is not None:
-        spec["elements"][0]["lanes"]["reference_lane"]["width_m"] = {"start": lane_width_m, "end": lane_width_m}
+        for element in spec["elements"]:
+            if "lanes" in element:
+                element["lanes"]["reference_lane"]["width_m"] = {"start": lane_width_m, "end": lane_width_m}
     if cone_spacing_m is not None:
         for path in spec["cone_paths"].values():
             path["profiles"]["regular"]["inter_cone_spacing"] = {"distribution": "fixed", "value_m": cone_spacing_m}
@@ -134,7 +157,7 @@ def make_env(offset, heading, noise, seed, lane_width_m=None, cone_spacing_m=Non
         "color_ids": {"destination": "observation"}, "count": {"destination": "observation"}},
         "fixed_noise_seed": seed}
     initial = {"pose": {"mode": "road_relative", "anchor": "reference_line",
-                        "progress": {"unit": "metres", "lower": 0.0, "upper": 0.0},
+                        "progress": {"unit": "metres", "lower": start_progress_m, "upper": start_progress_m},
                         "lateral_offset_m": {"lower": offset, "upper": offset},
                         "heading_error_rad": {"lower": heading, "upper": heading}},
                "body_motion": {"longitudinal_velocity": {"source": "absolute",
@@ -185,12 +208,13 @@ def make_node(api, params):
 
 def run(params, offset=0.0, heading=0.0, noise=0.0, seed=1, duration=20.0, start_time=100.0,
         trigger="cone", cone_latency=CONE_LATENCY_S, latency_jitter=0.0, gap_probability=0.0,
-        plant=None, distance_m=None, lane_width_m=None, cone_spacing_m=None):
+        plant=None, distance_m=None, lane_width_m=None, cone_spacing_m=None, road="straight",
+        start_progress_m=0.0):
     """One closed-loop run. Defaults reproduce the original flow test (cone trigger,
     50 ms latency, course car); the keyword arguments add the car conditions above.
     distance_m ends the run as completed once the wheel-integrated distance reaches it."""
     api = load_policy()
-    env = make_env(offset, heading, noise, seed, lane_width_m, cone_spacing_m)
+    env = make_env(offset, heading, noise, seed, lane_width_m, cone_spacing_m, road, start_progress_m)
     observation, _ = env.reset(seed=seed)
     node = make_node(api, params)
     mpc_on = node.mpc_settings.enabled
@@ -198,7 +222,7 @@ def run(params, offset=0.0, heading=0.0, noise=0.0, seed=1, duration=20.0, start
     rng = random.Random(seed*7919 + 1)
     request, history = (0.0, 0.0), deque(maxlen=int(1.0/ENV_DT)+2)
     result = {"locked_stop": None, "steps": 0, "terminated": None, "completed": False}
-    trace = {"t": [], "speed": [], "drive": [], "lateral": []}
+    trace = {"t": [], "speed": [], "drive": [], "lateral": [], "progress": []}
     last_policy_t, first, skip, distance = None, True, 0, 0.0
     try:
         for step in range(int(duration/ENV_DT)):
@@ -246,11 +270,13 @@ def run(params, offset=0.0, heading=0.0, noise=0.0, seed=1, duration=20.0, start
                 result["steps"] += 1
             distance += speed*ENV_DT
             node.distance_limiter.distance_m = distance
-            pose = state["world_pose"]
+            # Road-relative error from the Gym ground truth (equals world y on the straight).
+            truth = env.unwrapped.get_current_ground_truth()
             trace["t"].append(round(t-start_time, 3))
             trace["speed"].append(speed)
             trace["drive"].append(request[0])
-            trace["lateral"].append(float(pose["y_m"]))
+            trace["lateral"].append(float(truth["lateral_error_from_target_line_m"]))
+            trace["progress"].append(float(truth["reference_line_progress_m"]))
             if distance_m is not None and distance >= distance_m:
                 result["completed"] = True
                 break
@@ -279,6 +305,8 @@ def run(params, offset=0.0, heading=0.0, noise=0.0, seed=1, duration=20.0, start
     result.update(mpc_enabled=mpc_on, branches=dict(branches), reject_reasons=dict(reasons),
                   final_x_m=round(float(state["world_pose"]["x_m"]), 2),
                   final_y_m=round(float(state["world_pose"]["y_m"]), 3),
+                  final_lateral_m=round(trace["lateral"][-1], 3) if trace["lateral"] else None,
+                  final_progress_m=round(trace["progress"][-1], 3) if trace["progress"] else None,
                   final_speed_mps=round(float(state["body_motion"]["longitudinal_velocity_mps"]), 3),
                   max_abs_e_y_m=round(max((abs(d["e_y_m"]) for d in node.debug if d["e_y_m"] is not None),
                                           default=float("nan")), 3),
