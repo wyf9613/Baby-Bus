@@ -2,6 +2,31 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-12（傍晚）：门禁通过；Gym 测试改为 V2 口径
+
+**WSL 门禁**（源码 `cb9d746`）：ROS 门禁 242 项、离线 166 + 6 + 18 项全部通过。证据 `~/ai4r-evidence/ros-20261012-155219/`。
+
+途中两次失败都是测试进程的垃圾回收停顿落进墙钟计时：
+- `test_lattice` 的节点起步检查：截止时间是 0.15 s 的传感器有效期，规划约 40 ms，回收停顿 80–150 ms；
+- `test_mpc` 闭环的 50 ms 单步预算：一步 52.3 ms。
+
+修复（`f6124b0`、`cb9d746`）是在计时前 `gc.collect()` + `gc.freeze()`，只改测试。**实车同样会有回收停顿**，建议节点初始化后 `gc.freeze()`，由 Planning / 集成负责人决定。
+
+**Gym 测试**（`offline/mpc_gym`，现在 10 项：8 通过、2 项预期失败）：
+- `PipelineFlow` 原来同时开着 MVP 和 MPC（实车节点禁止这种组合），现关掉 `control.enabled`。
+- 默认 Gym 场地最近能看到的锥桶约在 1.0 m 处，超过 V2 起步补足上限 0.9 m，起不了步；改用 G2 推车场地（路宽 1 m、锥桶间距 0.3 m）。正常起步和带 2 cm 锥桶噪声的起步都能跑完，不锁停。
+- 偏位和航向起步（+0.15 m；−0.15 m 加 0.08 rad）单独成一项，标为预期失败：−0.15 m 加航向在起步时被拒（`insufficient_lattice_coverage`）；锥桶间距 0.2 m 时中途出现 `near_field_unobserved`；0.72 m 窄路上偏位起步触发 `recovery_body_boundary_conflict`。V1 时这些都能跑完。
+- V1 专有的覆盖门槛测试换成 V2 的安全规则：`clear_start_assumed: false` 时不起步，道路为 `near_field_unobserved`。
+- newcar27 跑完 3 m 的测试标为预期失败（相机断档后道路恢复不了，见下一条）。
+- 课程驱动模型测试的门槛从 0.25 改为拟合死区 0.289。
+- `newcar27_comparison.md` 注明是 V1 时期的结果（`3acd32d`，复现用 `52af5e8`）。`comparison.md` 用的是理想参考，不经过估计和 Planning，不受影响。
+
+**交给估计组 / Planning 组的问题**（Gym 中复现）：
+1. 相机断档超过 `motion_max_interval_s` 后历史清空，近处道路再也恢复不了；
+2. 偏位或航向起步在 V2 下被拒，或者中途失效；
+3. Gym 默认场地最近锥桶约 1.0 m，超过 0.9 m 起步上限；
+4. 回收停顿对实时性的影响。
+
 ## 2026-10-12（下午）：合入 Planning V2（mvp2.0），修复 MPC 对接
 
 **合并**：`f10e15d` 合入 `488dc91`（= `origin/mvp2.0` `ae74be4` + 适配器 `28c0b82`，冲突由 ying 那边解好；`policy_node.py` 与 `488dc91` 逐字相同）。基础 YAML 改为 `lattice_v2`、异步规划、`clear_start_assumed: true`、多帧道路历史（5 s，`road_hold_s` 0.2）、`motion_max_gap_s` 0.25、`road_max_abs_slope` 2.75 和周二 MVP 参数；`mpc:` 段未变。

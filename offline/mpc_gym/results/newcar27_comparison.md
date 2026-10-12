@@ -1,5 +1,7 @@
 # Car .27 in simulation: MVP vs joint MPC
 
+> **Generated at `3acd32d` with Planning V1 and the pre-2026-10-12 estimator.** To reproduce these numbers, check out `52af5e8`. Since the mvp2.0 merge (`f10e15d`) the base YAML selects Planning V2 and the fused estimator; rerunning `newcar27_experiment.py` now measures that chain instead (see docs/MPC_PROGRESS_LOG.md, 2026-10-12).
+
 Simulation only: Dream Gym geometry and cones; longitudinal response, delay, static friction and steering sign of car .27 imposed from `offline/vehicle_identification/results/newcar27_drive_fit.json`; 20 Hz timer, 0.19-0.22 s camera latency, 5 % dropped cone batches. Not car evidence.
 
 ## Calibration (MVP, car settings) against run B12
