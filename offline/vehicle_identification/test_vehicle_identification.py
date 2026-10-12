@@ -14,7 +14,7 @@ import uuid
 
 from record_vehicle_test import clean
 from vehicle_test_tools import (equivalent_angle, export_log, geometry, load_experiment,
-                                save_json, steering_dynamics, steering_fit)
+                                save_json, steering_dynamics, steering_fit, steering_from_arcs)
 
 
 Experiment, DEFAULTS = load_experiment()
@@ -142,6 +142,22 @@ class SequenceTests(unittest.TestCase):
             step = experiment.step(tick / 20, 0.05 if tick else 0, 0)
             self.assertEqual(step["drive"], 0)
             self.assertLessEqual(abs(step["steer"]), 0.2)
+
+    def test_arc_mode_drives_and_steers_within_the_reviewed_limits(self):
+        experiment = Experiment(config(mode="arc", drive_values=[0.3, 0.3], steering_values=[0.25, -0.25],
+                                       drive_max=0.35, steering_abs_max=0.25))
+        steps = [experiment.step(tick/20, 0.05 if tick else 0, 0) for tick in range(31)]
+        staged = [s for s in steps if s["phase"] == "stage"]
+        self.assertEqual({(s["drive"], s["steer"]) for s in staged}, {(0.3, 0.25), (0.3, -0.25)})
+        for bad in (dict(drive_values=[-0.1, 0.3], drive_min=-0.2), dict(steering_values=[0.3, 0.0]),
+                    dict(drive_values=[0.4, 0.3])):
+            with self.assertRaises(ValueError, msg=bad):
+                Experiment(config(**{"mode": "arc", "drive_values": [0.3, 0.3], "steering_values": [0.2, -0.2],
+                                     "drive_max": 0.35, "steering_abs_max": 0.25, **bad}))
+        # The arc mode does not relax the steering-only and drive-only modes.
+        with self.assertRaises(ValueError):
+            Experiment(config(mode="steering", drive_values=[0.3, 0.0], steering_values=[0.2, 0.0],
+                              steering_abs_max=0.25))
 
     def test_missing_invalid_or_fast_speed_aborts(self):
         for speed in (None, math.nan, math.inf, -0.1, True, 0.5, 1):
@@ -297,6 +313,46 @@ class DriveFitFromLogs(unittest.TestCase):
                                  [params[n] for n in fit["NAMES"]], breakaway)
         for name, result in report.items():
             self.assertLess(result["rmse_mps"], 0.035, name)
+
+
+class ArcSteeringFit(unittest.TestCase):
+    """Steering map from steady arcs: delta = atan(L * yaw_rate / speed)."""
+
+    @staticmethod
+    def samples(gain=-0.6, offset=0.02, wheelbase=0.33, noise=0.0):
+        rows, elapsed = [], 2.0
+        for stage, u in enumerate((0.0, 0.25, -0.25, 0.4, -0.4)):
+            delta = gain*u + offset
+            for k in range(40):                     # 2 s per stage at 20 Hz
+                speed = 0.05 if k < 8 else 0.2      # start transient, then steady
+                yaw = speed*math.tan(delta)/wheelbase + noise*((-1)**k)
+                rows.append({"run_id": "r1", "mode": "arc", "phase": "stage", "stage": stage, "steer": u,
+                             "drive": 0.3, "elapsed_s": elapsed, "speed_mps": speed, "body_yaw_rate_rad_s": yaw})
+                elapsed += 0.05
+        rows.append({"run_id": "r1", "mode": "arc", "phase": "tail", "stage": -1, "steer": 0.0,
+                     "drive": 0.0, "elapsed_s": elapsed, "speed_mps": 0.0, "body_yaw_rate_rad_s": 0.0})
+        return rows
+
+    def test_recovers_a_known_steering_map(self):
+        result = steering_from_arcs(self.samples(noise=0.002), 0.33)
+        self.assertAlmostEqual(result["parameters"]["steering_gain_rad"], -0.6, places=2)
+        self.assertAlmostEqual(result["parameters"]["steering_offset_rad"], 0.02, places=2)
+        self.assertLess(result["max_abs_residual_rad"], 0.01)
+        # 0.002 rad/s gyro noise at 0.2 m/s is ~0.2 deg of equivalent angle.
+        self.assertAlmostEqual(result["zero_request_delta_deg"], math.degrees(0.02), delta=0.3)
+        self.assertEqual(result["vehicle_yaml"]["steering_gain_rad"], round(result["parameters"]["steering_gain_rad"], 4))
+
+    def test_wrong_wheelbase_scale_or_missing_arcs_are_rejected(self):
+        with self.assertRaises(ValueError):
+            steering_from_arcs(self.samples(), 33.0)       # centimetres by mistake
+        with self.assertRaises(ValueError):
+            steering_from_arcs([dict(r, mode="steering") for r in self.samples()], 0.33)
+
+    def test_slow_stages_are_skipped_not_fitted(self):
+        rows = [dict(r, speed_mps=0.03) if r["stage"] == 3 else r for r in self.samples()]
+        result = steering_from_arcs(rows, 0.33)
+        self.assertIn("skipped", [s for s in result["stages"] if s["stage"] == 3][0])
+        self.assertEqual(result["points"], 4)
 
 
 if __name__ == "__main__":

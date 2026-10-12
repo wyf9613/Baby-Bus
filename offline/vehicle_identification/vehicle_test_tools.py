@@ -96,6 +96,62 @@ def steering_fit(rows):
     }
 
 
+def steering_from_arcs(samples, wheelbase, skip_s=0.6, min_speed=0.08, min_rows=5):
+    """id_test mode=arc 记录的稳态短弧 -> 等效前轮角 -> steering_fit。
+
+    每段只用开始 skip_s 之后、轮速不低于 min_speed 的样本。曲率取
+    yaw_rate/speed 的中位数（body 系，左正），等效角 delta = atan(L*kappa)，
+    L 为现场实测轴距。轮速无符号且只用于前进段；没有侧滑修正。
+    """
+    length = number(wheelbase, "wheelbase")
+    if not 0.1 <= length <= 1.0:
+        raise ValueError("Wheelbase must be a measured value in metres (0.1-1.0)")
+    stages = {}
+    for row in samples:
+        if row.get("phase") != "stage" or row.get("mode") != "arc":
+            continue
+        stages.setdefault((row.get("run_id"), row["stage"]), []).append(row)
+    if not stages:
+        raise ValueError("No id_test mode=arc stage samples in the log")
+    results, fit_rows = [], []
+    for (run_id, stage), rows in sorted(stages.items(), key=lambda item: (str(item[0][0]), item[0][1])):
+        start = min(number(r["elapsed_s"], "elapsed_s") for r in rows)
+        steady = [r for r in rows if number(r["elapsed_s"], "elapsed_s")-start >= skip_s
+                  and r.get("speed_mps") is not None and r.get("body_yaw_rate_rad_s") is not None
+                  and number(r["speed_mps"], "speed_mps") >= min_speed]
+        steer = {number(r["steer"], "steer") for r in rows}
+        if len(steer) != 1:
+            raise ValueError(f"Stage {stage} of run {run_id} changes its steering request")
+        u = steer.pop()
+        entry = {"run_id": run_id, "stage": stage, "steering_action": u, "samples": len(steady)}
+        if len(steady) < min_rows:
+            entry["skipped"] = f"fewer than {min_rows} steady samples at >= {min_speed} m/s"
+            results.append(entry)
+            continue
+        curvature = statistics.median(number(r["body_yaw_rate_rad_s"], "yaw")/number(r["speed_mps"], "speed")
+                                      for r in steady)
+        delta = math.atan(length*curvature)
+        entry.update(speed_mps=statistics.median(number(r["speed_mps"], "speed") for r in steady),
+                     curvature_1pm=curvature, radius_m=None if curvature == 0 else 1/curvature,
+                     delta_equivalent_deg=math.degrees(delta))
+        results.append(entry)
+        fit_rows.append({"steering_action": str(u), "delta_equivalent_deg": str(math.degrees(delta))})
+    fit = steering_fit(fit_rows)
+    straight = [r["delta_equivalent_deg"] for r in results if r["steering_action"] == 0 and "skipped" not in r]
+    return {"method": "steady arcs: delta = atan(L*yaw_rate/speed)", "wheelbase_m": length,
+            "stages": results, **fit,
+            "zero_request_delta_deg": statistics.mean(straight) if straight else None,
+            "vehicle_yaml": {"steering_gain_rad": round(fit["parameters"]["steering_gain_rad"], 4),
+                             "steering_offset_rad": round(fit["parameters"]["steering_offset_rad"], 4)},
+            "acceptance": "use only if max_abs_residual_rad < 0.03 and both signs are covered"}
+
+
+def read_samples(path):
+    """record_vehicle_test.py JSONL -> list of identification samples."""
+    with Path(path).open(encoding="utf-8") as stream:
+        return [record["data"] for record in map(json.loads, stream) if record.get("event") == "sample"]
+
+
 def save_json(path, result):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("x", encoding="utf-8") as stream:
@@ -210,6 +266,12 @@ def main():
     dynamic.add_argument("--threshold-deg", type=float, required=True, help="由静止角度噪声选定")
     dynamic.add_argument("--hold-samples", type=int, default=3)
     dynamic.add_argument("--output", type=Path, required=True)
+    arcs = sub.add_parser("steering-arcs", help="由 id_test arc 短弧记录（JSONL）推算转向映射")
+    arcs.add_argument("--log", type=Path, required=True, help="record_vehicle_test.py 输出的 JSONL")
+    arcs.add_argument("--wheelbase", type=float, required=True, help="现场实测轴距 m")
+    arcs.add_argument("--skip-s", type=float, default=0.6, help="每段开头丢弃的过渡时间")
+    arcs.add_argument("--min-speed", type=float, default=0.08)
+    arcs.add_argument("--output", type=Path, required=True)
     export = sub.add_parser("export", help="JSONL 导出为样本/事件 CSV 和运行摘要")
     export.add_argument("--log", type=Path, required=True)
     export.add_argument("--output-dir", type=Path, required=True)
@@ -245,6 +307,11 @@ def main():
             with args.csv.open(encoding="utf-8-sig", newline="") as stream:
                 result = steering_dynamics(list(csv.DictReader(stream)), args.threshold_deg, args.hold_samples)
             save_json(args.output, {"status": "candidate_not_validated", "source": str(args.csv), **result})
+        elif args.command == "steering-arcs":
+            result = steering_from_arcs(read_samples(args.log), args.wheelbase, args.skip_s, args.min_speed)
+            save_json(args.output, {"status": "candidate_not_validated", "source": str(args.log), **result})
+            print(json.dumps({k: result[k] for k in ("vehicle_yaml", "fit_rmse_rad", "max_abs_residual_rad",
+                                                     "zero_request_delta_deg")}, indent=2))
         elif args.command == "export":
             export_log(args.log, args.output_dir)
     except ModuleNotFoundError as exc:

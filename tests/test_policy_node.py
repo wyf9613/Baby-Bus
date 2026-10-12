@@ -1394,6 +1394,21 @@ def test_identification_completes_zero_and_requires_explicit_restart(make_node):
     assert not node.pan_publisher.messages
 
 
+def test_identification_arc_mode_publishes_drive_with_steering(make_node):
+    node = identification_node(make_node, **{"id_test.mode": "arc", "id_test.drive_values": [0.1],
+                                             "id_test.steering_values": [0.2],
+                                             "id_test.steering_abs_max": 0.2})
+    node.wheel_speed_callback(Float32(data=0.0))
+    request(node, 3)
+    node.run_policy_step()
+    for _ in range(15):
+        identification_tick(node)
+    staged = [json.loads(m.data) for m in node.identification_publisher.messages]
+    staged = [s for s in staged if s["phase"] == "stage"]
+    assert staged and all(s["mode"] == "arc" and s["drive"] == 0.1 and s["steer"] == 0.2 for s in staged)
+    assert any(m.drive > 0 and m.steer != 0 for m in node.action_publisher.messages)
+
+
 def test_identification_speed_and_timing_abort_without_nonzero_publication(make_node):
     for speed, advance in ((0.6, 0.05), (0.0, 0.3)):
         node = identification_node(make_node)

@@ -7,6 +7,19 @@
 # vehicle.valid: true, mpc.shadow: false, mpc.v_exec_max_mps set deliberately.
 /**/ai4r_policy:
   ros__parameters:
+    # mpc-car-run upstream fixes (docs/UPSTREAM_FIXES_FOR_CAR_CN.md). The code
+    # defaults keep the original Estimation/Planning behaviour; only this overlay
+    # switches them on. Gym evidence: offline/mpc_gym/results/car_readiness.md.
+    estimation:
+      history_propagation: continuous # camera gaps no longer clear the cone history
+      road_history_mode: distance     # keep cones until behind the car, not 5 s
+      history_merge_radius_m: 0.08    # below half the 0.2 m cone spacing
+      history_merge_single_side: true # one-sided frames join the two-sided history
+    planning:
+      lattice:
+        blind_extension_mode: parallel  # straight blind-zone extension, observed width
+        max_near_gap_m: 1.0           # first visible cones reach ~0.95 m when offset (G2 B)
+        max_extension_m: 1.4          # 1.0 + 0.198 rear body + 0.15 support margin
     control:
       enabled: false                  # exactly one controller owns the actions
     vehicle:

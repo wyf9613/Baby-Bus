@@ -4092,7 +4092,7 @@ def mpc_debug_json(debug):
     return json.dumps(clean, separators=(",", ":"))
 # Vehicle-identification policy: pure scheduling logic, no ROS or hardware I/O.
 IDENTIFICATION_DEFAULTS = {
-    "mode": "off",                 # off / steering / drive / brake
+    "mode": "off",                 # off / steering / drive / brake / arc
     "confirmed": False,            # operator has reviewed this specific sequence
     "negative_drive_confirmed": False,
     "durations_s": [1.0],
@@ -4116,8 +4116,8 @@ class IdentificationExperiment:
         self.config = dict(config)
         c = self.config
         self.mode = c["mode"]
-        if self.mode not in ("off", "steering", "drive", "brake"):
-            raise ValueError("id_test.mode must be off, steering, drive or brake")
+        if self.mode not in ("off", "steering", "drive", "brake", "arc"):
+            raise ValueError("id_test.mode must be off, steering, drive, brake or arc")
         self.finished = False
         self.reason = ""
         self.last_elapsed = None
@@ -4157,6 +4157,10 @@ class IdentificationExperiment:
                 raise ValueError("Steering tests require zero drive throughout")
             if self.mode in ("drive", "brake") and steer != 0:
                 raise ValueError("Drive/brake tests require zero steering requests")
+            # arc: constant forward drive with constant steering per stage, for
+            # the steering map from yaw rate / speed (no wheel-angle protractor).
+            if self.mode == "arc" and drive < 0:
+                raise ValueError("Arc tests drive forward only")
             if drive < 0 and (self.mode != "brake" or
                               c["negative_drive_confirmed"] is not True):
                 raise ValueError("Negative drive requires brake mode and ESC confirmation")

@@ -151,14 +151,10 @@ class Newcar27Plant(unittest.TestCase):
         self.assertLess(abs(cal["start_delay_s"] - 0.53), 0.15)
         self.assertLess(abs(cal["steady_speed_mps"] - 0.20), 0.03)
 
-    @unittest.expectedFailure
     def test_deadband_mpc_completes_3m_without_a_locked_stop(self):
-        # KNOWN FAILURE (2026-10-12, see docs/MPC_PROGRESS_LOG.md): on V2 it
-        # reaches 2.14 m, then a ~0.3 s camera gap + 0.19 s latency exceeds
-        # estimation.motion_max_interval_s (0.4 s), the estimator drops its cone
-        # history and the near field stays near_field_unobserved, so V2 never
-        # returns a valid road. Estimation/Planning item; remove the marker
-        # once this passes again.
+        # Failed on V2 before the mpc-car-run estimator/planning switches (camera
+        # gap cleared the cone history, near field never recovered); the car
+        # overlay now enables them. See offline/mpc_gym/results/car_readiness.md.
         result = self.x.run(self.x.mpc_params(), noise=0.02, seed=1)
         self.assertTrue(result["completed"], result["locked_stop"])
         self.assertLess(result["peak_speed_mps"], 0.30)

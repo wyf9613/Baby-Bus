@@ -26,16 +26,20 @@ KEY = "/**/ai4r_policy"
 B12 = {"start_delay_s": 0.53, "peak_speed_mps": 0.333, "steady_speed_mps": 0.20}   # extended-2m.jsonl
 
 
+def merge(target, changes):
+    for key, value in changes.items():
+        if isinstance(value, dict) and isinstance(target.get(key), dict):
+            merge(target[key], value)
+        else:
+            target[key] = value
+
+
 def layered(*names):
-    """Merge YAML files the way ROS applies several params files (later wins, per key)."""
+    """Merge YAML files the way ROS applies several params files: later wins per LEAF
+    parameter, so a nested overlay (planning.lattice.x) keeps the other lattice keys."""
     params = {}
     for name in names:
-        layer = yaml.safe_load((ROOT / "config" / name).read_text(encoding="utf-8"))[KEY]["ros__parameters"]
-        for key, value in layer.items():
-            if isinstance(value, dict):
-                params.setdefault(key, {}).update(value)
-            else:
-                params[key] = value
+        merge(params, yaml.safe_load((ROOT / "config" / name).read_text(encoding="utf-8"))[KEY]["ros__parameters"])
     return params
 
 
