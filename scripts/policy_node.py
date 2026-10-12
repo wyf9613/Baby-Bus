@@ -2577,6 +2577,9 @@ def transport_control_reference(reference, motion, now_s):
     # newly created geometry change. Avoid copying a whole Frenet trace.
     result = dict(reference)
     result.update(timestamp_s=now_s, valid_for_s=remaining, control_cached_path_samples=samples)
+    # speed_profile times are relative to the ORIGINAL planning time; keep it
+    # across repeated transports so consumers do not restart the profile.
+    result.setdefault("speed_profile_timestamp_s", old)
     return result
 
 
@@ -3038,7 +3041,7 @@ def reference_trajectory_from_planning(ref, spacing_m=0.05):
            "valid_for_s": 0.0, "valid": False, "stop_required": True, "status": None,
            "reason": "missing_reference", "path_id": None, "simulation_only": None,
            "source_ages_s": {}, "points": [], "speed_profile": None,
-           "planned_stop": False, "stop_at_path_m": None}
+           "speed_profile_timestamp_s": None, "planned_stop": False, "stop_at_path_m": None}
     if not isinstance(ref, dict):
         return out
     out.update(frame_id=ref.get("frame_id"), timestamp_s=ref.get("timestamp_s"),
@@ -3081,11 +3084,18 @@ def reference_trajectory_from_planning(ref, spacing_m=0.05):
                 or any(b[0] <= a[0] for a, b in zip(profile, profile[1:]))):
             return reject("bad_speed_profile")
         profile = [tuple(row) for row in profile]
+        # Transport advances timestamp_s; the profile keeps its planning-time origin.
+        profile_stamp = ref.get("speed_profile_timestamp_s")
+        profile_stamp = ref["timestamp_s"] if profile_stamp is None else profile_stamp
+        if not finite_number(profile_stamp) or profile_stamp > ref["timestamp_s"] + 1e-9:
+            return reject("bad_speed_profile")
+    else:
+        profile_stamp = None
     stop_at = ref.get("stop_at_path_m")
     if planned_stop and (profile is None or profile[-1][1] > 1e-6
                          or not finite_number(stop_at) or stop_at < 0):
         return reject("bad_planned_stop")
-    out.update(speed_profile=profile, planned_stop=planned_stop,
+    out.update(speed_profile=profile, speed_profile_timestamp_s=profile_stamp, planned_stop=planned_stop,
                stop_at_path_m=stop_at if planned_stop else None)
 
     transported = "control_cached_path_samples" in ref
@@ -3861,7 +3871,14 @@ class MPCController:
                 return reject("stop" if planned_stop else "ref_invalid", "bad_speed_profile")
             if planned_stop and (profile[-1][1] > 1e-6 or self.vehicle.brake_gain_n <= 0):
                 return reject("stop", "braking_model_unavailable")
-            first_time = max(0.0, now_s-stamp) + max(self.vehicle.drive_delay_s, self.vehicle.steering_delay_s)
+            # Profile time is measured from the original planning time, which
+            # motion transport keeps in speed_profile_timestamp_s.
+            profile_stamp = traj.get("speed_profile_timestamp_s")
+            profile_stamp = stamp if profile_stamp is None else profile_stamp
+            if not finite_number(profile_stamp) or profile_stamp > stamp + 1e-9:
+                return reject("stop" if planned_stop else "ref_invalid", "bad_speed_profile")
+            first_time = (max(0.0, now_s-profile_stamp)
+                          + max(self.vehicle.drive_delay_s, self.vehicle.steering_delay_s))
             last_time = first_time + cfg.horizon_n*cfg.dt_pred_s
             if last_time > profile[-1][0] + 1e-9:
                 return reject("stop" if planned_stop else "ref_invalid", "speed_profile_horizon_short")

@@ -364,6 +364,42 @@ class Adapter(unittest.TestCase):
         self.assertAlmostEqual(seen[0]["speed_targets"][0], 0.175)
         self.assertAlmostEqual(result["debug"]["v_ref_mps"], 0.175)
 
+    def test_transported_reference_keeps_the_speed_profile_time_origin(self):
+        transport = namespace["transport_control_reference"]
+        seen = []
+
+        class Recorder:
+            def solve(self, points, z0, cap, last_drive, nominal=None, **kwargs):
+                seen.append(kwargs["speed_targets"])
+                return {"inputs": [(0.0, 0.0)]*10, "drive0": 0.0, "steer0": 0.0,
+                        "delta0": 0.0, "iterations": 1, "solve_s": 0.0,
+                        "pred_e_y": [0.0], "pred_v": [0.1]}, None
+
+        vehicle = measured(drive_deadband=0.25, brake_gain_n=5.0, drive_delay_s=0.1)
+        profile = [(0.0, 0.2), (1.0, 0.1), (2.0, 0.0), (3.0, 0.0)]
+        ref = sampled_planning_reference(planned_stop=True, stop_at_path_m=0.6, speed_profile=profile)
+        once = transport(ref, ShiftMotion(), 10.02)
+        twice = transport(once, ShiftMotion(), 10.05)
+        self.assertEqual((once["speed_profile_timestamp_s"], twice["speed_profile_timestamp_s"]), (10.0, 10.0))
+        self.assertEqual(twice["timestamp_s"], 10.05)
+        for reference in (ref, twice):
+            ctrl = Controller(Settings(enabled=True, shadow=True, vehicle_params_source="vehicle",
+                                       max_step_time_s=1.0), vehicle, solver=Recorder())
+            traj = adapt(reference, 0.05)
+            self.assertEqual(traj["speed_profile_timestamp_s"], 10.0)
+            self.assertEqual(ctrl.step(traj, 0.2, 0.0, 10.05, True)["debug"]["branch"], "shadow")
+        # Same time on the profile whether or not the reference was transported.
+        self.assertEqual(len(seen), 2)
+        for a, b in zip(*seen):
+            self.assertAlmostEqual(a, b)
+        self.assertAlmostEqual(seen[1][0], 0.175)
+
+    def test_speed_profile_origin_after_the_reference_time_is_rejected(self):
+        ref = sampled_planning_reference(speed_profile_timestamp_s=10.1)
+        traj = adapt(ref, 0.05)
+        self.assertFalse(traj["valid"])
+        self.assertEqual(traj["reason"], "bad_speed_profile")
+
     def test_shadow_stop_profile_reaches_the_actual_mpc_solver(self):
         vehicle = measured(drive_deadband=0.3, brake_gain_n=5.0)
         ctrl = Controller(Settings(enabled=True, shadow=True, vehicle_params_source="vehicle",

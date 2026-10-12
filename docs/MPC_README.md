@@ -65,7 +65,7 @@ MPC 读取 `self.planning_output`，经适配器 `reference_trajectory_from_plan
 | `valid_for_s` | 参考的有效期；过期也属于可容忍失效（`ref_expired_or_future`） |
 | `path` | V1/V2 的 `CARTESIAN_Y_OF_X` 支持 1–6 个 `coeffs_low_to_high`，按 `origin`、`scale`、`range` 采样；V2 的 `CARTESIAN_SAMPLES` 原样转为 MPC 点列，不重新拟合或重采样。存在 `control_cached_path_samples` 时优先使用运动补偿后的点列 |
 | `target_speed_mps` | 暂时填入每个 MPC 点；V2 里它是 0.3 s preview speed，不代表整段预测时域的完整速度计划 |
-| `speed_profile` | V2 的相对时间、车速点列经检查后传入 MPC；shadow 按 `planning_output.timestamp_s` 和执行延迟插值得到每个预测步的速度目标。执行模式仍使用现有的 `target_speed_mps` |
+| `speed_profile` | V2 的相对时间、车速点列经检查后传入 MPC；shadow 按速度表的原始规划时刻（`speed_profile_timestamp_s`；运动补偿只推进 `timestamp_s`，不改这个时刻，没有时取 `timestamp_s`）和执行延迟插值得到每个预测步的速度目标。执行模式仍使用现有的 `target_speed_mps` |
 | `planned_stop`、`stop_at_path_m` | shadow 可用完整时间速度目标观察候选减速动作；执行模式仍立即锁停。当前尚无经实车验证的制动约束和停车位置约束，不能把 shadow 候选当成实车停车能力 |
 | `simulation_only` | 记录到日志 |
 
