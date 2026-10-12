@@ -44,6 +44,7 @@ The nominal operator sequence for running this policy on the actual car is:
 
 from copy import deepcopy
 from dataclasses import dataclass
+import gc
 import json
 import math
 import json
@@ -2597,6 +2598,10 @@ def _mvp_plan(planner, control, args):
 
 def _planner_worker_main():
     planner, generation = None, None
+    # Startup objects are permanent: keep them out of later collections so a
+    # full collection cannot stall a planning job (see main()).
+    gc.collect()
+    gc.freeze()
     sys.stdout.write('{"ready":true}\n')
     sys.stdout.flush()
     for line in sys.stdin:
@@ -6169,6 +6174,12 @@ def main(args=None):
     executor = SingleThreadedExecutor()
     try:
         node = PolicyNode()
+        # Move everything allocated at startup (modules, parameters, settings)
+        # to the permanent generation. A full collection of that heap took
+        # 80-150 ms in the 2026-10-12 test runs, longer than the 50 ms control
+        # step; later collections only scan objects created while running.
+        gc.collect()
+        gc.freeze()
         executor.add_node(node)
         executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
