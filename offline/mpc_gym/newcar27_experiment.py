@@ -55,8 +55,8 @@ def run(params, plant_changes=None, **kwargs):
     plant = sim.NewcarPlant.from_fit(**(plant_changes or {}))
     conditions = dict(sim.NEWCAR27_CONDITIONS)
     conditions.update(kwargs.pop("conditions", {}))
-    return sim.run(params, duration=kwargs.pop("duration", 25.0), distance_m=3.0, plant=plant,
-                   **conditions, **kwargs)
+    return sim.run(params, duration=kwargs.pop("duration", 25.0), distance_m=kwargs.pop("distance_m", 3.0),
+                   plant=plant, **conditions, **kwargs)
 
 
 def steady(result):

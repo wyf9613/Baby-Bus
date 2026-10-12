@@ -683,6 +683,39 @@ class CarRunHistoryChecks(unittest.TestCase):
                 valid = valid or out["road"]["valid"]
             self.assertEqual(valid, expected, mode)
 
+    def one_sided(self, merge, left_offset=0.0):
+        """Two-sided history, then a frame that sees only the LEFT boundary."""
+        pipeline = Pipeline(Settings(history_merge_single_side=merge))
+        xs = [-0.3+0.3*i for i in range(9)]
+        self.step(pipeline, 10.0, 10.0, xs)
+        before = list(pipeline._road_cones)
+        batch = cones([(x, 0.5+left_offset) for x in xs[4:]], [])
+        obs = {"cone_detections": batch, "wheel_speed": 0.0,
+               "imu_angular_velocity": (0.0, 0.0, 0.0), "lidar_cartesian": None}
+        out = pipeline.update(obs, {key: 0.0 for key in obs},
+                              {"cone_detections": round(10.1e9), "wheel_speed": None,
+                               "imu_angular_velocity": round(10.1e9)}, {"wheel_speed": 10.1}, 10.1)
+        return out["road"], before, pipeline
+
+    def test_one_sided_frame_merges_with_the_other_side_history_when_enabled(self):
+        road, _, pipeline = self.one_sided(True)
+        self.assertTrue(road["valid"], road["status"])
+        self.assertEqual(road["status"], "observed_with_history")
+        self.assertEqual(road["boundary_source"], {"left": "observed_with_history", "right": "history"})
+        self.assertTrue(road["merged_partial_frame"])
+        self.assertTrue(any(p[3] == 1 for p in pipeline._road_cones))   # right history kept
+
+    def test_one_sided_frame_stays_unfused_by_default(self):
+        road, _, _ = self.one_sided(False)
+        self.assertNotEqual(road["status"], "observed_with_history")
+        self.assertFalse(road.get("merged_partial_frame", False))
+
+    def test_one_sided_conflict_still_clears_the_history(self):
+        road, _, pipeline = self.one_sided(True, left_offset=0.3)
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["status"], "observed_history_conflict")
+        self.assertEqual(pipeline._road_cones, [])
+
     def test_merge_radius_keeps_the_neighbouring_cone_behind_the_camera_view(self):
         # A 7 cm odometry offset puts history cone k-1 0.13 m from the fresh
         # detection of cone k: the default 0.16 m radius deletes it.

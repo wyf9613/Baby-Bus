@@ -648,7 +648,15 @@ class EstimationPipeline:
                     self._clear_road_history()
                     current.update(valid=False, status="observed_history_conflict")
                     return current
-            return current
+            # history_merge_single_side: the visible side(s) of a one-sided or
+            # short-overlap frame join the history of both sides below. A failed
+            # merge returns this frame unchanged and leaves the history alone.
+            if not (self.settings.history_merge_single_side and self._road_cones
+                    and current.get("_boundary_fits")):
+                return current
+            partial = True
+        else:
+            partial = False
         fits = current.pop("_boundary_fits")
         placed, _ = self._history_at(source_s)
         previous = [p for p in placed or []
@@ -676,7 +684,10 @@ class EstimationPipeline:
                 side = [side[round(i*(len(side)-1)/63)] for i in range(64)]
             bounded.extend(side)
         result = self.road({"detections": [p[:5] for p in bounded]}, stamp_ns, age)
-        if not result["valid"]:
+        if not result["valid"] or (partial and result["visibility"] != "both"):
+            if partial:
+                current.pop("_support_cones", None)
+                return current
             # Never let a history-induced bad fit poison subsequent frames.
             bounded, result = fresh, current
         else:
@@ -690,6 +701,12 @@ class EstimationPipeline:
         if result["history_used"]:
             result["status"] = "observed_with_history"
             result["boundary_source"] = {"left": "observed_with_history", "right": "observed_with_history"}
+            if partial:
+                # The side without fresh support in this frame is history only.
+                result["boundary_source"] = {
+                    side: "observed_with_history" if colour in fits else "history"
+                    for side, colour in (("left", self.left_colour), ("right", self.right_colour))}
+                result["merged_partial_frame"] = True
         result["oldest_observation_timestamp_s"] = min(p[5] for p in bounded)
         self._road_cones, self._road_stamp = bounded, source_s
         self._fused_source_s = source_s
