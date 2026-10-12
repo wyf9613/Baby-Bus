@@ -2,6 +2,33 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-12（下午）：合入 Planning V2（mvp2.0），修复 MPC 对接
+
+**合并**：`f10e15d` 合入 `488dc91`（= `origin/mvp2.0` `ae74be4` + 适配器 `28c0b82`，冲突由 ying 那边解好；`policy_node.py` 与 `488dc91` 逐字相同）。基础 YAML 改为 `lattice_v2`、异步规划、`clear_start_assumed: true`、多帧道路历史（5 s，`road_hold_s` 0.2）、`motion_max_gap_s` 0.25、`road_max_abs_slope` 2.75 和周二 MVP 参数；`mpc:` 段未变。
+
+**修复**（每项一个提交）：
+
+| 提交 | 内容 |
+| --- | --- |
+| `da3e111` | 异步 V2 允许配合 MPC（`mpc.reference_source: planning`），不再只限 MVP 鲁棒控制；MPC 也执行三传感器、障碍需雷达、timer 周期短于参考有效期这几条启动检查；执行模式首次有效步前，异步规划在算或首帧道路是预测时保持零动作（同 MVP） |
+| `ae4ded7` | **方案 A**：`mpc_planning_reference()`。只在 `planning_pending` 时，把最近一次接受的 V2 结果用 `transport_control_reference` 逐拍补偿到当前时刻给 MPC；不延长原始有效期；其它失效、过期、运动历史问题都不暂存。不改 `planning_output`，不碰 MVP 的 `ControlReferenceManager`。`mpc_debug` 新增 `reference_held`、`reference_held_age_s` |
+| `59baac3` | 补偿后保留 `speed_profile_timestamp_s`（原始规划时刻），MPC 用它查速度表；修正 shadow 速度目标偏晚 |
+| `00d7ee0` | **新发现的回归**：V1、V2 每次失败都置 `stop_requested`，`28c0b82` 的适配器把它们都当明确停车，一帧 `stale_road` 就锁停，`reference_dropout_tolerance_s` 失效（`28c0b82` 起 Gym 3 m 测试已失败，当时没跑 Gym）。改为：原因在 MVP 的瞬时原因集合（`SOFT_REASONS`）里的按可容忍失效处理，其余（如 `no_feasible_lattice_trajectory`）仍立即停车 |
+| `ad2d9d4` | 新增 `tools/policy_offline.py`：按异步 worker 的方式无 ROS 加载整个 `policy_node.py`，替代各工具的白名单。`replay_policy_bag.py`、`offline/mpc_gym/pipeline_sim.py` 改用它，V2 同步调用（不含异步延迟、MPC 暂存、静止 gyro 零偏学习） |
+
+**验证（笔记本，dense/osqp）**：mpc 95/95（两种求解器），planning 18，estimation 53，control 43，lattice 43，预测模型 6，辨识 18（补了合并后缺的方法白名单）；N=10 单步 p95 3.6 ms（dense），无超预算，ying 记录的 63–170 ms 未复现。`replay_v2_mpc_wall.py` 两种编码执行分支均为 `stop`。ROS 测试新增启动检查两项，待 WSL 门禁。
+
+**Gym（`offline/mpc_gym`）5/9 通过**，4 项失败未改，原因：
+1. **V1 在新估计器下起不了步**：`db312ab` 后，近处没看到的道路一律 `near_field_unobserved`、`road.valid=False`，只有 V2 的起步假设能用。依赖 V1 拒绝原因或 V1 起步的测试（`PipelineFlow` 两项）不再成立。
+2. **相机断档后道路恢复不了**：newcar27 MPC 跑 V2 走到 2.14 m（修复前 0.6 s 锁停），在 11.4 s 停下。约 0.3 s 的相机断档加 0.19 s 延迟超过 `motion_max_interval_s` 0.4 s，估计器清空锥桶历史（`motion_interval_too_long`），之后近处一直 `near_field_unobserved`；V2 设计上获得过真实近端支持后不再回退到起步假设，所以再也拿不到有效道路，MPC 的 0.3 s 容忍到期锁停。这是估计 / Planning 的行为，G2 包里也有 0.3 s 级断档，实车大概率会遇到。
+3. `test_course_drive_model_never_starts_the_car`：峰值速度 0.2502 对门槛 0.25，临界。
+
+**下一步**：
+1. WSL ROS 门禁（含新增启动检查测试）；
+2. 用 V2 配置回放 G2 的 7 个包，与 10-08 的有效率表对比：`python3 tools/make_deploy_yaml.py --mode mpc-shadow --out /tmp/v2-shadow`，再 `python3 tools/replay_policy_bag.py --params /tmp/v2-shadow/ai4r_policy.yaml $E/g2-*/ --json-out /tmp/replay-v2.json`；
+3. 第 2 点（断档后无法恢复）找估计组和 Planning 组：是放宽 `motion_max_interval_s`，还是允许中途重新进入有界的近端补足；
+4. 决定 Gym 测试怎么改：改写成 V2 的期望，或者把 V1 对比固定在合并前的提交上作为历史证据。
+
 ## 2026-10-12：合入 Planning V2 适配器；其它分支盘点
 
 **合并**：`ying/mpc-planning-v2-adapter`（`28c0b82`）快进合入 `control-mpc-v0`。`reference_trajectory_from_planning` 现在接受 V2 的 `CARTESIAN_SAMPLES` 点列（不重新拟合、不重采样）、带 `origin`/`scale` 的 1–6 阶 y(x) 多项式和 `control_cached_path_samples`；`stop_requested` 在 `valid=False` 时也走停车分支（`planning_pending` 除外）；`speed_profile` 只在 shadow 中按时间插值成每步速度目标；执行模式遇到 `planned_stop` 仍立即锁停。新增 `tools/replay_v2_mpc_wall.py`（读本地 `origin/mvp2.0` 的真实 V2 代码做障碍墙离线联调）。**本分支的 Planning 仍是 V1**，V2 只在离线工具和测试中使用。

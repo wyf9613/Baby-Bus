@@ -34,7 +34,8 @@ def policy_harness():
     tree = ast.parse(source.read_text(encoding="utf-8"))
     selected = {"_age", "_fresh", "health_problem", "run_policy_step", "calculate_policy_actions",
                 "fsm_transition_request_callback", "_change_state", "supervision_callback",
-                "_budgets_active", "_control_problem",
+                "_budgets_active", "_control_problem", "_control_health_problem",
+                "_robust_control_enabled", "_mpc_uses_planning",
                 "publish_zero_actions", "_publish_actions"}
     constants = {"SENSORS", "STATE_NAMES", "FSM_STATE_NOT_PUBLISHING_ACTIONS",
                  "FSM_STATE_PUBLISHING_ZERO_ACTIONS", "FSM_STATE_PUBLISHING_POLICY_ACTION"}

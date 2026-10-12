@@ -212,6 +212,31 @@ def test_integrated_control_requires_feedback_and_matching_profiles(make_node):
                   **{"control.enabled": True, "planning.vehicle_limits_source": "course_simulation"})
 
 
+MPC_ON_V2 = {"control.enabled": False, "mpc.enabled": True, "mpc.shadow": True,
+             "mpc.vehicle_params_source": "vehicle", "planning.algorithm": "lattice_v2",
+             "planning.lattice.async_enabled": True, "planning.reference_lifetime_s": 0.2}
+
+
+def test_async_v2_starts_with_the_mpc_on_the_planning_reference(make_node):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"), **MPC_ON_V2)
+    assert node.async_planner is not None
+    assert node.mpc_held_reference is None
+    node.mpc_held_reference = ({"valid": True}, 1.0)
+    node._change_state(2, "test")
+    assert node.mpc_held_reference is None
+
+
+def test_async_v2_still_needs_an_owner_and_the_mpc_shares_control_checks(make_node):
+    with pytest.raises(ValueError, match="Async planning requires"):
+        make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+                  **{**MPC_ON_V2, "mpc.enabled": False})
+    with pytest.raises(ValueError, match="Async planning requires"):
+        make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+                  **{**MPC_ON_V2, "mpc.reference_source": "estimation_centerline"})
+    with pytest.raises(ValueError, match="requires cones"):
+        make_node(required=("cone_detections",), **MPC_ON_V2)
+
+
 @pytest.mark.parametrize("algorithm", ["centerline", "lattice_v2"])
 def test_mvp_robustness_real_ros_callbacks_degrade_recover_and_stop(make_node, algorithm):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
