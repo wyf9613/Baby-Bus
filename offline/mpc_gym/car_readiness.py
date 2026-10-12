@@ -34,8 +34,12 @@ SEEDS = tuple(range(1, 11))
 DISTANCE_M = 3.0
 # The upstream fixes, switched on together. Each entry is (section path, key, value);
 # BASELINE holds the code defaults so "baseline" is explicit even if overlays change.
-FIXES = []
-BASELINE = []
+FIXES = [("estimation", "history_propagation", "continuous"),     # A1
+         ("estimation", "road_history_mode", "distance"),           # A2
+         ("estimation", "history_merge_radius_m", 0.08)]            # A2b
+BASELINE = [("estimation", "history_propagation", "camera"),
+            ("estimation", "road_history_mode", "time"),
+            ("estimation", "history_merge_radius_m", 0.0)]
 
 
 def apply(params, changes):
