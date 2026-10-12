@@ -165,9 +165,11 @@ ROS 按顺序加载多个参数文件，后面的覆盖前面的：
 | --- | --- | --- |
 | 1 | [ai4r_policy.yaml](../config/ai4r_policy.yaml) | 包的通用默认值：MVP 开启，MPC 关闭，`vehicle.valid: false` |
 | 2 | [ai4r_policy_newcar27.yaml](../config/ai4r_policy_newcar27.yaml) | .27 的实车参数（10-06 实测）：timer 20 Hz、时效和门限、MVP 增益、转向方向 −1 |
-| 3 | [ai4r_policy_mpc_newcar27.yaml](../config/ai4r_policy_mpc_newcar27.yaml) | 切到 MPC：关闭 MVP，开启 MPC（**默认 shadow**）；`vehicle.*` 填入日志拟合的纵向参数，几何和转向大小是占位值，`valid: false` |
+| 3 | [ai4r_policy_mpc_newcar27.yaml](../config/ai4r_policy_mpc_newcar27.yaml) | 切到 MPC：关闭 MVP，开启 MPC（**默认 shadow**）；打开 mpc-car-run 的估计和 Planning 修复开关（见 [UPSTREAM_FIXES_FOR_CAR_CN.md](UPSTREAM_FIXES_FOR_CAR_CN.md)）；`vehicle.*` 填入日志拟合的纵向参数，几何和转向大小待周四短弧标定，`valid: false` |
 
 `ai4r_policy_mpc_prototype.yaml` 和 `ai4r_policy_mpc_bypass.yaml` 用于课程仿真车辆（Gym），不用于 .27。
+
+部署文件由 `tools/make_deploy_yaml.py` 生成：`--mode steer-arc`（转向短弧标定，控制器关闭）、`mpc-shadow`、`mpc-exec`（`--distance` 直道 3 m、弯道最多 5 m，`--v-exec-max` 默认 0.2）。转向映射用 `offline/vehicle_identification/vehicle_test_tools.py steering-arcs` 从短弧记录推算。
 
 ### 5.2 从 shadow 到执行
 
@@ -271,6 +273,8 @@ Planning V1 只输出直线。弯道可以用 bypass 模式（`reference_source:
 | --- | --- |
 | [MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md) | 计划：分工、组间边界、时间线、技术路线、阶段、按周计划、待回答的问题 |
 | [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) | 每天的进展、证据、未决问题、建议写入决策表的条目 |
+| [UPSTREAM_FIXES_FOR_CAR_CN.md](UPSTREAM_FIXES_FOR_CAR_CN.md) | 给估计组和 Planning 组：实车问题的根因、开关式修复、Gym 改前改后对比 |
+| [THURSDAY_CAR_RUN_CN.md](THURSDAY_CAR_RUN_CN.md) | 10-15 现场清单：转向短弧标定、shadow 复测、直道和缓弯执行 |
 | [MPC_PROTOTYPE.md](MPC_PROTOTYPE.md) | 英文：运行约定、`mpc_debug`、放行门槛 G0–G4、Jetson/ROS/上车步骤 |
 | [VEHICLE_PARAMS_INTEGRATION.md](VEHICLE_PARAMS_INTEGRATION.md) | `vehicle.*` 字段对照、valid/source 规则、模型相关的未解决问题 |
 | [dream-car-babysitter-guide.md](dream-car-babysitter-guide.md) | 上车操作手册：连接、部署、shadow、Foxglove、执行 |

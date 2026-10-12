@@ -47,7 +47,7 @@ def arc_test(drive):
             "settle_s": 2.0, "max_dt_s": 0.15, "max_run_s": 30.0}
 
 
-def build(mode, distance, arc_drive=0.32):
+def build(mode, distance, arc_drive=0.32, v_exec_max=0.2):
     layers = ["ai4r_policy.yaml", "ai4r_policy_newcar27.yaml"]
     if mode not in ("mvp", "steer-arc"):
         layers.append("ai4r_policy_mpc_newcar27.yaml")
@@ -57,7 +57,7 @@ def build(mode, distance, arc_drive=0.32):
     p = base[KEY]["ros__parameters"]
     p["control"]["max_distance_m"] = distance
     if mode == "mpc-exec":
-        p["mpc"].update(shadow=False, v_exec_max_mps=min(p["mpc"]["v_exec_max_mps"], 0.2))
+        p["mpc"].update(shadow=False, v_exec_max_mps=min(p["mpc"]["v_exec_max_mps"], v_exec_max))
     if mode == "steer-arc":
         # Identification only: no controller owns the actions.
         p["control"]["enabled"] = False
@@ -100,6 +100,8 @@ def main():
                         help="control.max_distance_m: (0, 3] for straights, up to 5 for a curve run")
     parser.add_argument("--arc-drive", type=float, default=0.32,
                         help="steer-arc: constant drive request, just above the 0.289 deadband / 0.30 breakaway")
+    parser.add_argument("--v-exec-max", type=float, default=0.2,
+                        help="mpc-exec: mpc.v_exec_max_mps cap, in (0, 0.2]; 0.15 for a first curve run")
     parser.add_argument("--out", type=Path, default=ROOT / ".verification" / "car-deploy")
     args = parser.parse_args()
     if not 0 < args.distance <= 5.0:
@@ -108,7 +110,9 @@ def main():
         print(f"NOTE: max_distance_m {args.distance} > 3 m: curve runs only, keep a person beside the car")
     if not 0.29 <= args.arc_drive <= 0.35:
         parser.error("--arc-drive must be in [0.29, 0.35]")
-    params, layers = build(args.mode, args.distance, args.arc_drive)
+    if not 0 < args.v_exec_max <= 0.2:
+        parser.error("--v-exec-max must be in (0, 0.2]")
+    params, layers = build(args.mode, args.distance, args.arc_drive, args.v_exec_max)
     args.out.mkdir(parents=True, exist_ok=True)
     yaml_path, node_path = args.out / "ai4r_policy.yaml", args.out / "policy_node.py"
     yaml_path.write_bytes(yaml.safe_dump(params, sort_keys=False).encode("utf-8"))
