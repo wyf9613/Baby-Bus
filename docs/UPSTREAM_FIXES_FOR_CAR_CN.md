@@ -20,6 +20,12 @@
 
 **MVP 的改善和 MPC 一样**，说明修的是上游，不是控制器。只剩单侧锥桶的弯道没解决，原因见第 7 节。
 
+### 实车数据：G2 的 7 个包回放（V2，改前 → 改后）
+
+MPC 有效比例：A 81→87%，B 4→71%，D 77→79%，A2 47→99%，B2 7→86%，C 65→88%，E 10→77%。B2 和 E 有约 70% 的帧达到 `observed_with_history`，改前为 0。
+
+注意：B 和 E 静止阶段出现的车身贴边硬停（`recovery_body_boundary_conflict`）变多了。原因是改前这些帧更早就因覆盖不足被拒；这两个包实际偏位较大（B 实测 +0.18 m）。逐帧结果：`car-evidence/g2-20261008-162044/replay-v2-{nofix,fixes}.json`。
+
 ## 问题与修复
 
 ### 1. 相机断档就清空锥桶历史 → `estimation.history_propagation: continuous`

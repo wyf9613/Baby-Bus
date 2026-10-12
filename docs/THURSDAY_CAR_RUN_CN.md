@@ -5,6 +5,7 @@
 Gym 依据：`offline/mpc_gym/results/car_readiness.md`（直道 1.0 m 10/10，缓弯 10/10）。改了哪些上游问题：[UPSTREAM_FIXES_FOR_CAR_CN.md](UPSTREAM_FIXES_FOR_CAR_CN.md)。
 
 ## 总原则
+- **起步时车要摆正：居中 ±5 cm、车头 ±3°，用卷尺量。** G2 回放显示，偏位约 18 cm 或车头偏右再叠加航向偏差时，V2 在起步阶段会判定车身贴边，直接硬停车（`recovery_body_boundary_conflict`）。
 - 每一步通过了才进下一步。任何一步出现**方向反了**（车往偏离的方向打）、**无法解释的锁停**连续两次，或者 IMU 故障，就停止执行，改回 shadow 查原因。
 - 执行时始终有一个人站在车旁，手放在遥控器上或守着 Foxglove 的 **Vehicle Request Disable**。
 - 每次运行都录包（命令见 G2 第 8 步，加上 `/car/identification_sample`），并在记录表里写下场景、起点姿态、结果和停车原因。
@@ -98,7 +99,8 @@ for p in estimation.history_propagation estimation.road_history_mode estimation.
 
 **通过条件**（用 `python3 tools/mpc_shadow_summary.py ~/ai4r-car-bags/<包>` 统计）：
 - 推车阶段有效（`shadow` 分支）≥ 80%；
-- 没有 `stop` 分支，也就是没有硬停车；
+- 没有 `stop` 分支，也就是没有硬停车，**静止起步阶段也不能有**；
+- 居中静止时 `e_psi` 的中位数记下来：如果明显不为 0（10-08 约 −0.06 rad），就是相机安装角偏差，要记录并告诉估计组；
 - 候选转角的修正方向 ≥ 85%；
 - `step_p95` < 30 ms；
 - 推过 1 m 以后，`mpc_debug` 里能看到 `reference_held`，同时 `/car/policy_fsm_state_string` 没有掉回 state 2。
