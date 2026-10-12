@@ -2,6 +2,29 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-12：合入 Planning V2 适配器；其它分支盘点
+
+**合并**：`ying/mpc-planning-v2-adapter`（`28c0b82`）快进合入 `control-mpc-v0`。`reference_trajectory_from_planning` 现在接受 V2 的 `CARTESIAN_SAMPLES` 点列（不重新拟合、不重采样）、带 `origin`/`scale` 的 1–6 阶 y(x) 多项式和 `control_cached_path_samples`；`stop_requested` 在 `valid=False` 时也走停车分支（`planning_pending` 除外）；`speed_profile` 只在 shadow 中按时间插值成每步速度目标；执行模式遇到 `planned_stop` 仍立即锁停。新增 `tools/replay_v2_mpc_wall.py`（读本地 `origin/mvp2.0` 的真实 V2 代码做障碍墙离线联调）。**本分支的 Planning 仍是 V1**，V2 只在离线工具和测试中使用。
+
+**验证**：
+- 笔记本：`test_mpc` 87/87（dense 与 osqp 各一遍），planning 17/17，estimation 28/28，control 22/22；N=10 单步 dense p95 5.8 ms、osqp p95 4.7 ms，无超预算。墙场景两种编码都通过适配器，执行分支为 `stop`；没有制动模型，不能证明能在 0.15 m 处停住。
+- WSL ROS 门禁（源码 `28c0b82`，`dream_interfaces` `5f50902`）：`verify_fast.sh` PASS，143 项，0 错误/失败/跳过；离线 132 + 6 + 18 全部通过，MPC p95 3.95 ms。证据 `~/ai4r-evidence/ros-20261012-151006/`。
+
+**其它分支盘点**（针对车辆标定、道路参考、Planning 接口）：
+
+| 项 | 现状 | 来源 |
+| --- | --- | --- |
+| 车辆标定 | **没有分支在做**。只有 `mvp2.0` 的周二经验 MVP 参数（方向 −1、前馈 0.30、`drive_max` 0.35）和静止时的 gyro 零偏在线学习；航向偏差 −0.06 rad 估计组明确未处理；V2 用课程近似车辆模型 | `mvp2.0`、`feature/state-road-estimation` |
+| 道路参考 | 部分改善：多帧锥桶历史、0.2 s 质量失败桥接、退化降速（`db312ab`）；V2 起步近端补足 0.9 m 取代 V1 覆盖门槛；控制侧参考保持 ≤1 s/0.25 m（只给 MVP 控制器）。**单侧（14%）与持续共同覆盖不足（19%）仍未解决**，也未用 G2 包回放 | `feature/state-road-estimation`、`mvp2.0`、`fix/newcar-control` |
+| Planning 接口 | V2 `planning_reference_v2` 已在 `mvp2.0`（`ae74be4`）；MPC 适配器本次已合入 | `mvp2.0`、`ying/*` |
+
+**`ying/planning-v2-mpc-integration` 记录的未决问题**（合 `mvp2.0` 前要处理）：
+1. 异步 V2 的启动条件只允许配合 MVP 控制器，MPC 模式启动不了；
+2. MPC 没有接 `ControlReferenceManager`，`planning_pending` 与 MPC 自身的参考失效容忍需对接；
+3. 运动补偿推进参考时间戳，但没有平移 `speed_profile`，shadow 速度目标时间错位。
+
+**下一步**：合入 `mvp2.0`（或集成分支）并修上述 3 项 → 用 `replay_policy_bag.py` 让 G2 的 7 个包走新估计和 V2，对比 10-08 的有效率 → 单侧问题和车辆标定分别和估计组、Planning 组、辨识组排期。
+
 ## 2026-10-08：实车包回放工具，查清 G2 道路无效的原因
 
 **工具**：新增 `tools/replay_policy_bag.py`。从 `scripts/policy_node.py` 抽出真实的估计器、Planning、MPC、`calculate_policy_actions` 和 `_store`（做法同 `offline/mpc_gym/pipeline_sim.py`，但不依赖 Gym），把录包里的 `/car/cone_detections`、`/car/wheel_speed_m_per_sec`、`/car/imu/data` 按接收顺序、按车上回调的校验规则喂进去，按 20 Hz 定时器逐步运行。每个包输出估计器道路状态、可见侧、路宽、Planning 原因、回放的 MPC 分支，并与包里车上录到的 `/car/mpc_debug` 分支对比。`--set section.key=value` 做假设分析，`--json-out` 输出逐帧结果。需要 ROS（rosbag2_py）和已构建的 `dream_interfaces`，在 WSL 里运行：
