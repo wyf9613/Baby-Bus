@@ -7,6 +7,7 @@ differ from the controller's: they show that this implementation is self-consist
 the course model and modest mismatch, not that the real car behaves the same way.
 """
 import ast
+import gc
 from pathlib import Path
 import json
 import math
@@ -888,20 +889,32 @@ def body_points(path, x, y, psi, x_min=-0.2, x_max=2.5, speed=0.3):
 
 
 def run_plant(controller, reference, z0, plant, steps, command_delay_s=0.0, noise=None, period=0.1):
-    """Course model at 0.05 s, controller every `period`; reference(k, z) -> trajectory."""
+    """Course model at 0.05 s, controller every `period`; reference(k, z) -> trajectory.
+
+    The controller's 50 ms step budget is wall-clock. A garbage collection of
+    the whole test process (several test modules, ~10^5 objects) can pause
+    longer than that inside one step (2026-10-12 WSL: 52 ms over_budget), so
+    existing objects are frozen first; the step then measures the MPC, not
+    the harness heap. Car timing is measured separately (tools/jetson_g1_check.sh).
+    """
     z = list(z0)
     pending = [(0.0, 0.0)]*round(command_delay_s/PLANT_DT)
     log = []
-    for k in range(steps):
-        traj = reference(k, z, k*period)
-        speed = z[3] if noise is None else max(0.0, z[3] + noise())
-        out = controller.step(traj, speed, 0.0 if k == 0 else period, k*period, k == 0)
-        command = (out["drive"], out["steer"])
-        for _ in range(round(period/PLANT_DT)):
-            pending.append(command)
-            z = list(plant_step(z, pending.pop(0), PLANT_DT, plant))
-        log.append({"z": z, "drive": out["drive"], "steer": out["steer"],
-                    "branch": out["debug"]["branch"], "step_s": out["debug"]["step_s"]})
+    gc.collect()
+    gc.freeze()
+    try:
+        for k in range(steps):
+            traj = reference(k, z, k*period)
+            speed = z[3] if noise is None else max(0.0, z[3] + noise())
+            out = controller.step(traj, speed, 0.0 if k == 0 else period, k*period, k == 0)
+            command = (out["drive"], out["steer"])
+            for _ in range(round(period/PLANT_DT)):
+                pending.append(command)
+                z = list(plant_step(z, pending.pop(0), PLANT_DT, plant))
+            log.append({"z": z, "drive": out["drive"], "steer": out["steer"],
+                        "branch": out["debug"]["branch"], "step_s": out["debug"]["step_s"]})
+    finally:
+        gc.unfreeze()
     return log
 
 
