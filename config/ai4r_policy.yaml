@@ -13,7 +13,7 @@
     # to timer mode if the chosen sensor stops, and no simultaneous triggers.
     # Integrated control uses ONE 20 Hz timer. Cones are still measured at the
     # detector's rate; estimation re-aligns the cached geometry using motion
-    # history. This leaves margin under the planner's 0.1 s reference deadline.
+    # history. References are bounded by 0.2 s AND remaining sensor lifetimes.
     policy_update_mode: timer
 
     # Timer-mode frequency in Hz (positive finite double; default 50.0).
@@ -31,6 +31,8 @@
     # Missing/stale REQUIRED data stops the policy in publishing-zero state.
     # Recovery needs another explicit state-3 request. Optional missing/expired
     # values are None in the student code (arrays have an availability flag).
+    # Control MVP robustness below may bridge ONLY a running cone-stream fault
+    # using bounded trusted-path prediction; initial admission stays unchanged.
     # cone_detection mode must require cone_detections; fiducial_detection mode
     # must require fiducial_detections; lidar mode must require lidar_scan,
     # lidar_cartesian, or both. lidar_scan requires the original radial scan;
@@ -38,6 +40,8 @@
     # Conversion always runs: this list selects requirements, not processing.
     # The old sensor name lidar is now lidar_scan; the update mode stays lidar.
     # Timer mode may use [] for a deliberate open-loop experiment.
+    # Cone-only road-following trial: lidar remains collected but is optional.
+    # Restore lidar_cartesian here when enabling lattice obstacle checks.
     required_sensors: [cone_detections, wheel_speed, imu_angular_velocity]
 
     # COPYABLE EXERCISES: replace the active settings above; do not add a second
@@ -140,8 +144,20 @@
       # Align geometry using bounded wheel/gyro history on the ROS clock.
       # Forward no-slip planar model; wheel time is receipt, NOT acquisition.
       # Missing/old motion or a gap rejects geometry instead of retimestamping.
-      motion_max_gap_s: 0.15
-      motion_max_interval_s: 0.3
+      # Tolerate brief delivery jitter; independent field/source ages still apply.
+      motion_max_gap_s: 0.25
+      motion_max_interval_s: 0.4
+      # Original observation lifetime, seconds; repeated predictions never renew
+      # it. Propagation uses short camera-to-camera intervals, not a 5 s hold.
+      road_history_s: 5.0
+      # Keep measured support behind the car, metres, so the origin can be
+      # bracketed. This is a local cache bound, NOT a measured vehicle length.
+      road_rear_support_m: 0.5
+      # Brief fresh-frame fitting failure bridge, seconds (0 disables; <=0.25).
+      # Original acquisition age and motion deadlines may end it earlier.
+      # A degraded road advises a 0.5 speed scale; PLANNING must consume that
+      # advisory and cap its reference lifetime by prediction_remaining_s.
+      road_hold_s: 0.2
       # Dimensionless confidence threshold in [0,1]. Colour convention for this
       # prototype is BLUE left / YELLOW right, as in the supplied course road.
       min_cone_confidence: 0.5
@@ -158,20 +174,22 @@
       road_width_min_m: 0.4
       road_width_max_m: 2.0
       # Maximum abs(dy/dx), dimensionless. Steep/non-function geometry is rejected.
-      road_max_abs_slope: 1.0
+      # Local y(x) still requires forward support; allow misaligned starts.
+      road_max_abs_slope: 2.75
       # 0.0 means unknown: single-sided road is invalid. Set a measured road
       # width (m), or a known simulation width, before using single-side inference.
       known_lane_width_m: 0.0
 
-    # V1 straight-centerline reference, consumed by the controller below.
+    # V2 Frenet lattice. Set algorithm: centerline to select the legacy V1.
     # self.planning_output / planning_diagnostics are internal records, no topic.
-    # MVP mode checks current road/state geometry and freshness, and does not
-    # require the calibrated footprint/braking profile. V1 has no obstacle
-    # response; use a short straight corridor with both cone boundaries.
+    # V2 checks the full approximate body and motion; static obstacle checking
+    # is optional and disabled below for the controlled cone-only trial.
+    # control.mode=mvp does NOT disable those checks. Both boundaries required.
     planning:
+      algorithm: lattice_v2
       cruise_speed_mps: 0.2
-      max_source_age_s: 0.2
-      reference_lifetime_s: 0.1
+      max_source_age_s: 0.4
+      reference_lifetime_s: 0.2
       # Actual supported x range, metres; do not extrapolate to the car origin.
       max_near_x_m: 0.5
       min_forward_x_m: 1.5
@@ -195,6 +213,87 @@
       simulation_braking_deceleration_mps2: 0.5
       simulation_actuation_delay_s: 0.1
       simulation_safety_margin_m: 0.05
+
+      lattice:
+        # MVP2: 10 Hz worker process; control remains 20 Hz. One in-flight job.
+        # Prefer a bounded centerline/controller rollout for straight/gentle
+        # curves and offset starts; lattice is the secondary search.
+        # Export checked lattice points directly; no quintic Cartesian refit.
+        direct_sample_output: true
+        async_enabled: true
+        recovery_enabled: true
+        update_rate_hz: 10.0
+        worker_timeout_s: 0.3
+        recovery_speed_mps: 0.12
+        initial_heading_max_rad: 1.22
+        low_speed_yaw_tolerance_rps: 0.12
+        # Explicit teacher approximation, not measured calibration. Simulation
+        # selects course_simulation; upstream requires ALL supplied model limits.
+        model_source: course_approximation
+        # Secondary search: 2 lengths x (center + current offset) x (2 speeds + stop).
+        transition_lengths_m: "0.6,1.5"
+        terminal_offsets_m: "0.0"
+        durations_s: "3.0"
+        terminal_speeds_mps: "0.1,0.2"
+        # Controlled cone-only trial: raw lidar points do not affect planning.
+        # No obstacle avoidance in this profile. Re-enable AND require
+        # lidar_cartesian before running obstacle-response trials.
+        obstacle_check_enabled: false
+        # Controlled-start assumption: operator confirms near road is clear and
+        # vehicle is inside it. This does not mean lidar proves free boundaries.
+        clear_start_assumed: true
+        max_near_gap_m: 0.9
+        max_extension_m: 1.3
+        extension_margin_growth: 0.08
+        blind_lateral_change_m: 0.08
+        blind_steering_limit_rad: 0.3490658504
+        geometry_step_m: 0.05
+        time_step_s: 0.1
+        horizon_m: 2.0
+        score_time_s: 3.0
+        budget_s: 0.035
+        max_candidates: 16
+        max_obstacle_points: 2048
+        obstacle_margin_m: 0.05
+        # Motion/uncertainty engineering assumptions, not notebook measurements.
+        acceleration_max_mps2: 0.5
+        braking_mps2: 0.5
+        lateral_acceleration_max_mps2: 0.5
+        actuation_delay_s: 0.2
+        speed_max_mps: 0.5
+        # Notebook axle/body geometry and approximate steering capability.
+        wheelbase_m: 0.33
+        rear_axle_from_cg_m: 0.132
+        front_extent_m: 0.297
+        rear_extent_m: 0.198
+        width_m: 0.25
+        steering_limit_rad: 0.7853981633974483
+        steering_rate_limit_radps: 1.5707963267948966
+        hard_margin_m: 0.05
+        # Accepted half-car-width scales and five-group score.
+        d_scale_m: 0.125
+        clearance_soft_m: 0.125
+        blind_center_weight: 0.25
+        clearance_peak_ratio: 0.5
+        steering_scale_rad: 0.3490658503988659
+        steering_rate_scale_radps: 0.7853981633974483
+        steering_rate_weight: 0.5
+        consistency_range_m: 1.0
+        speed_scale_mps: 0.2
+        acceleration_scale_mps2: 0.3
+        acceleration_weight: 0.25
+        weight_center: 0.30
+        weight_clearance: 0.25
+        weight_steering: 0.20
+        weight_consistency: 0.15
+        weight_motion: 0.10
+        tie_tolerance: 0.01
+        fit_position_error_m: 0.01
+        fit_heading_error_rad: 0.03
+        fit_curvature_error_1pm: 0.15
+        preview_m: 0.35
+        speed_preview_s: 0.3
+        minimum_output_m: 0.4
 
     # Vehicle parameters from identification (docs/vehicle-params-test-plan.md); field names
     # match offline/vehicle_identification/vehicle_params.py. valid: false = NOT approved for the
@@ -328,6 +427,22 @@
     control:
       enabled: true
       mode: mvp
+      # Motion-compensated line/curve prediction on transient road rejection.
+      # Budgets start at the last DISTINCT trusted cone frame's acceptance;
+      # unchanged frames never extend them. No automatic restart after state 2.
+      # Requires fresh wheel/gyro, usable motion history and remaining support.
+      robustness_enabled: true
+      reference_hold_max_s: 1.0
+      reference_hold_max_distance_m: 0.25
+      degraded_speed_mps: 0.1
+      recovery_confirm_frames: 3
+      speed_recovery_accel_mps2: 0.15
+      # Leave the car stationary in state 2 for >=1 s before starting. Learn
+      # a stable small yaw-rate bias from fresh zero-wheel samples; freeze it
+      # during each run. No IMU source timestamp/availability is changed.
+      gyro_bias_learning_enabled: true
+      gyro_bias_window_s: 1.0
+      gyro_bias_max_rps: 0.12
       # Optional calibrated mode only: must match planning's simulation profile.
       # MVP uses direct normalized steering and ignores this geometry selector.
       vehicle_params_source: upstream
@@ -339,18 +454,19 @@
       # Backup cutoff if the wheel estimator reports fresh zero throughout.
       max_run_time_s: 30.0
       # Direct normalized/m and normalized/rad gains, no angle-to-servo mapping.
-      mvp_lateral_kp: 1.0
+      # 2026-10-06 Tuesday car profile, retained for next week's same-car trial.
+      mvp_lateral_kp: 1.5
       mvp_lateral_ki: 0.0
-      mvp_heading_kp: 0.5
+      mvp_heading_kp: 1.0
       # Assumes positive policy steering turns left; reverse after checking the
       # actual small-angle response if the particular car has the opposite sign.
-      mvp_steering_direction: 1.0
+      mvp_steering_direction: -1.0
       # Optional measured low-speed sustaining effort, normalized [0, drive_max].
       # Zero preserves the original feedback-only behavior. A stop still sends zero.
-      mvp_drive_feedforward: 0.0
+      mvp_drive_feedforward: 0.30
       # Offline selected candidate gains, not measured real-car tuning.
-      speed_kp: 1.4
-      speed_ki: 0.6
+      speed_kp: 0.35
+      speed_ki: 0.08
       speed_kd: 0.0
       lateral_kp: 1.2
       lateral_ki: 0.1
@@ -359,12 +475,14 @@
       derivative_tau_s: 0.15
       # Forward-only effort. Stop/invalid/expired reference transitions to
       # continuous zero actions; the simulated negative-drive hold is NOT used.
-      drive_max: 0.15
+      drive_max: 0.35
       steering_max_normalized: 0.5
       max_dt_s: 0.2
       # Before FIRST control only: neutral priming of delayed camera history.
-      # Once tracking, any invalid path stops and needs an explicit resume.
-      startup_grace_s: 0.5
+      # Once tracking, robustness may bridge transient road rejection within
+      # the budgets above. A completed stop still needs an explicit resume.
+      # Neutral priming allows worker startup and delayed camera history.
+      startup_grace_s: 3.0
 
     # The calibrated profile reads its geometry from the vehicle.* record above;
     # MVP does not require completing that record. control.enabled and

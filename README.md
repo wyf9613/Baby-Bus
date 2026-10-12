@@ -1,15 +1,29 @@
 # Baby Bus · ai4r_policy
 
-已在 `scripts/policy_node.py` 接入估计→V1 规划→PID 控制→归一化动作。
-控制侧支持至五次的 Cartesian y(x)，当前上游 V1 仍生成直线。供给的 YAML 选择单一
-20 Hz timer，要求 cones、轮速和偏航率。当前 `control.mode: mvp` 使用路径误差与
+`mvp2.0` 下周测试版本优先连续运行：20 Hz 控制与独立进程的 10 Hz 规划分开，
+直线、缓弯和偏位/偏角起步优先使用有车身净空检查的中心线跟踪，复杂 lattice
+作为次选。道路短暂失效或规划超时进入限时降级；默认降级目标 0.1 m/s，连续
+3 个新的可信锥桶帧后平滑恢复。保持同一辆车周二实测的转向方向、驱动力前馈
+与速度 PI。启动前在状态 2 静止至少 1 s，以学习 gyro 零偏；不要求先对齐中心线。
+具体实现、模型闭环和实际 ROS 进程证据见 [验收记录](docs/acceptance.md)。
+实车尚未验证；达到 3 m / 30 s、运动反馈失效、明确道路冲突仍会停车。
+
+已在 `scripts/policy_node.py` 接入估计→V2 Frenet lattice 规划→PID 控制→归一化动作。
+V2 包含近端盲区补足、横纵向多项式采样、车身/障碍/运动初筛、固定打分与停车行为，
+`mvp2.0` 输出原始 Frenet 记录及已检查的 Cartesian 采样点，控制侧插值预瞄位置、
+航向和曲率，不再二次拟合五次曲线；中心线主路径仍使用二次 y(x)。
+实现和边界见 [V2 规划说明](docs/PLANNING_V2_CN.md)。供给的 YAML 选择单一
+20 Hz timer，要求 cones、轮速和偏航率。近期无障碍锥桶道路测试配置关闭雷达障碍检查，
+雷达继续采集但不是必需传感器；道路边界和车身净空检查仍开启。
+当前 `control.mode: mvp` 使用路径误差与
 航向误差直接计算归一化转向，目标速度 0.2 m/s；不要求先完成完整车辆标定。
 每次显式启动累计原始轮速里程，达到 3.0 m 自动进入状态 2、持续输出零动作；
 30 s 为兜底时间限制。无效/过期路径或反馈断流也会锁存停止，重新请求状态 3 才
 重置里程并恢复。3 m 是编码器估计距离，实际停车位置受轮速尺度、打滑和滑行影响。
 可选 `calibrated` 模式仍支持有来源的 `vehicle.*` 参数。上车步骤及老师要求见
 [MVP 接入说明](docs/MVP_INTEGRATION_REVIEW_2026-10-05_CN.md)。
-离线测试与实际 policy 方法的模型闭环通过；完整 ROS gate 和实车验证仍未完成。
+以下段落描述原 V2 接入；`mvp2.0` 的执行策略与参数以上方说明和验收记录为准。
+离线测试与实际 policy 方法的模型闭环通过；实车验证仍未完成。
 详细当前证据见 [验收记录](docs/acceptance.md)。
 
 **MPC**：同一个文件里还有纵横向联合 MPC（`mpc.*`，默认关闭）。它和上面的 MVP 二选一，
@@ -19,6 +33,10 @@
 团队策略仓库，基于 DREAM 课程框架。当前分工见 [四组项目计划](docs/TEAM_PROJECT_PLAN.md)。接口优先沿用 GitHub 中的课程框架代码和配置；框架未定义的组间数据结构再按 Word 接口会议草案补充。状态、道路和规划分别在 `self.estimation_output`、`self.planning_output`；控制诊断在 `self.control_diagnostics`，debug1/debug2 为路径误差（m）和本次累计里程（m），停止原因沿用 policy 状态字符串。算法、字段、调参和联调说明见 [估计模块首版说明](docs/ESTIMATION_V1_CN.md) 与 [V1 规划说明](docs/PLANNING_V1_CN.md)。离线检查命令为 `python3 -B tests/test_estimation.py -v`、`python3 -B tests/test_planning.py -v`、`python3 -B tests/test_control.py -v`；模型测试为 `python offline/control_pid/test_controller.py`（AI4R 环境）。下文为上游使用说明。
 
 2026-10-05 更新：有效道路/雷达点通过轮速与偏航率历史补偿到自车状态的参考时刻，并保留原测量时间；历史不足或断档时拒绝使用。该补偿采用前进、平面无侧滑近似，轮速时间为接收时刻代理，未完成实车精度验证。详情见上方模块说明。
+
+2026-10-08 更新：道路估计增加短时历史锥桶缓存（最多 128 点），逐帧运动补偿后补足已经观测过的近端盲区。旧点保留原始年龄，5 秒内过期；首次启动的未观测近处道路仍拒绝使用。有效道路还要求双侧边界与中心线覆盖车体原点，增加 `geometry_valid` / `near_field` 诊断。该检查不替代规划组的完整车身和起步轨迹检查；当前规划分支已接入 V2 与控制器。离线回归、参数和下游接入要求见模块说明。
+
+同日补充：新鲜相机帧偶发空帧、单侧拟合失败或共同覆盖不足时，可短暂运动补偿最近一条完整有效道路，标记 `degraded=True` / `predicted_history`；默认失败延续上限 0.2 秒，原始源年龄、运动跨度和近端历史期限可能使其更早结束。预测不续期，当前失败原因与每侧点数/拟合范围另行保留。过期、运动缺失、异常宽度或观测冲突仍拒绝使用。当前规划分支 V1/V2 已消费降速建议和剩余有效时间，V2 支持车后道路及明确受控起步时的近端补足；PID 与车辆动作映射保持。详细规则见 V2 说明。
 
 Student ROS 2 policy package for the DREAM robot, targeting Ubuntu 24.04 and
 ROS 2 Jazzy. Version 0.2.0 adds ArUco observations to the first source release;

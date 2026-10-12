@@ -35,6 +35,17 @@ def fixture(offset=0.0, slope=0.0):
 
 
 class PlanningChecks(unittest.TestCase):
+    def test_degraded_road_advisory_and_prediction_lifetime_reach_v1(self):
+        args = list(fixture())
+        args[0].update(degraded=True, recommended_speed_scale=0.5, prediction_remaining_s=0.04)
+        for mvp in (True, False):
+            ref, _ = Planner(Settings()).plan(*args, mvp=mvp)
+            self.assertTrue(ref["valid"], ref["reason"])
+            self.assertLessEqual(ref["target_speed_mps"], 0.1)
+            self.assertLessEqual(ref["valid_for_s"], 0.04)
+        args[0]["prediction_remaining_s"] = 0
+        self.assertFalse(Planner(Settings()).plan(*args, mvp=True)[0]["valid"])
+
     def test_mvp_reference_without_calibration_keeps_geometry_and_freshness_checks(self):
         args = list(fixture(0.1, 0.05))
         args[3] = {"valid": False, "source": "unmeasured"}
@@ -155,6 +166,14 @@ class PlanningChecks(unittest.TestCase):
         xs = [0.2+0.1*i for i in range(27)]
         args[0]["cone_detections"] = api["cones"](
             [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
+        # Forward-only startup has no observed support at the body origin.
+        # Reject it before testing same-epoch consumption of a valid corridor.
+        front_only = api["Pipeline"](api["Settings"]()).update(*args, 10.05)
+        self.assertFalse(front_only["road"]["valid"])
+        self.assertEqual(front_only["road"]["status"], "near_field_unobserved")
+        xs = [-0.3, -0.2, -0.1, 0.0] + xs
+        args[0]["cone_detections"] = api["cones"](
+            [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
         out = api["Pipeline"](api["Settings"]()).update(*args, 10.05)
         self.assertTrue(out["alignment"]["valid"])
         ref, diag = Planner(Settings()).plan(
@@ -252,8 +271,8 @@ class PlanningChecks(unittest.TestCase):
                 normal_right = (cy-(0.1+0.08*cx-0.5))/math.hypot(1, 0.08)
                 self.assertGreaterEqual(min(normal_left, normal_right), cfg.simulation_safety_margin_m)
 
-    def test_planning_yaml_matches_declared_defaults(self):
-        # Restricted scalar subtree, parsed without ROS/PyYAML provisioning.
+    def test_shipped_planning_configuration_is_valid(self):
+        # Validate the actual selected profile rather than freeze all defaults.
         import re
         config = Path(__file__).resolve().parents[1]/"config"/"ai4r_policy.yaml"
         inside, scalars = False, {}
@@ -265,12 +284,16 @@ class PlanningChecks(unittest.TestCase):
                 continue
             if not line.startswith("      "):
                 break
-            match = re.fullmatch(r"      ([a-z_][a-z_0-9]*): ([a-z_]+|-?[0-9]+(?:\.[0-9]+)?)", line)
+            if line.startswith("        ") or line == "      lattice:":
+                continue
+            match = re.fullmatch(r"      ([a-z_][a-z_0-9]*): ([a-z_0-9]+|-?[0-9]+(?:\.[0-9]+)?)", line)
             self.assertIsNotNone(match, line)
             value = match[2]
             scalars[match[1]] = (value == "true" if value in ("true", "false") else
                                  float(value) if value[0] in "-0123456789" else value)
-        self.assertEqual(scalars, vars(Settings()))
+        settings = Settings(**scalars)
+        self.assertIn(settings.algorithm, ("centerline", "lattice_v2"))
+        self.assertGreater(settings.reference_lifetime_s, 1/20)
 
 
 if __name__ == "__main__":

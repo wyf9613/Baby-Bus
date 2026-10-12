@@ -159,7 +159,7 @@ def driving_policy(*args):
 def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.vehicle_params_source": "course_simulation",
-           "planning.vehicle_limits_source": "course_simulation"})
+           "planning.vehicle_limits_source": "course_simulation", "estimation.road_hold_s": 0.0})
 
     def feed_road(empty=False):
         node.wheel_speed_callback(Float32(data=0.0))
@@ -170,9 +170,9 @@ def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
         batch.acquisition_to_publish_latency_s = 0.0
         if not empty:
             for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
-                for i in range(9):
+                for i in range(10):
                     cone = ConeDetection()
-                    cone.position.x, cone.position.y = 0.1+0.3*i, y
+                    cone.position.x, cone.position.y = -0.1+0.3*i, y
                     cone.color, cone.classification_confidence = colour, 0.95
                     batch.detections.append(cone)
         node.cone_detection_callback(batch)
@@ -212,6 +212,61 @@ def test_integrated_control_requires_feedback_and_matching_profiles(make_node):
                   **{"control.enabled": True, "planning.vehicle_limits_source": "course_simulation"})
 
 
+@pytest.mark.parametrize("algorithm", ["centerline", "lattice_v2"])
+def test_mvp_robustness_real_ros_callbacks_degrade_recover_and_stop(make_node, algorithm):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.robustness_enabled": True,
+           "estimation.road_hold_s": 0.0,
+           "planning.algorithm": algorithm, "planning.lattice.obstacle_check_enabled": False,
+           "planning.lattice.budget_s": 5.0, "planning.lattice.clear_start_assumed": True,
+           "control.drive_max": 0.35, "control.mvp_drive_feedforward": 0.30})
+
+    def feed_road(empty=False):
+        node.wheel_speed_callback(Float32(data=0.2))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        if not empty:
+            for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
+                for i in range(10):
+                    cone = ConeDetection()
+                    cone.position.x, cone.position.y = -0.1+0.3*i, y
+                    cone.color, cone.classification_confidence = colour, 0.95
+                    batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    feed_road()
+    request(node, 3)
+    if algorithm == "lattice_v2":
+        node.planner = policy.FrenetLatticePlanner(node.planning_settings, node.lattice_settings,
+                                                  clock=lambda: 0.0)
+        node.previous_policy_step_at = node.test_clock.monotonic
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    node.controller.speed.integral = 0.4
+    node.test_clock.advance(0.05)
+    feed_road(empty=True)
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    assert node.control_diagnostics["tracking_mode"] == "DEGRADED"
+    # V2 speed preview may adjust the integral slightly; recovery must retain
+    # accumulated controller state rather than reinitialize it to zero.
+    assert node.controller.speed.integral == pytest.approx(0.4, abs=1e-4)
+    assert node.action_publisher.messages[-1].drive > 0
+    assert not node.planning_output["valid"]
+    node.test_clock.advance(0.05)
+    feed_road()
+    node.run_policy_step()
+    assert node.control_diagnostics["tracking_mode"] == "TRACKING"
+    assert node.distance_limiter.distance_m > 0
+    request(node, 2)
+    assert node.control_reference_manager.reference is None
+    assert node.action_publisher.messages[-1].drive == 0
+    node.supervision_callback()
+    assert node.action_publisher.messages[-1].steer == 0
+
+
 def test_mvp_real_ros_callbacks_distance_stop_and_restart(make_node):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.mode": "mvp"})
@@ -223,9 +278,9 @@ def test_mvp_real_ros_callbacks_distance_stop_and_restart(make_node):
         node.imu_callback(gyro)
         batch = stamp(node, ConeDetections())
         for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
-            for i in range(9):
+            for i in range(10):
                 cone = ConeDetection()
-                cone.position.x, cone.position.y = 0.1+0.3*i, y
+                cone.position.x, cone.position.y = -0.1+0.3*i, y
                 cone.color, cone.classification_confidence = colour, 0.95
                 batch.detections.append(cone)
         node.cone_detection_callback(batch)
@@ -916,7 +971,7 @@ def test_student_geometry_aligns_to_state_only_with_motion_history(make_node, bu
     batch = stamp(node, ConeDetections(), offset=-0.1)
     batch.acquisition_to_publish_latency_s = 0.08
     for colour, lateral in ((ConeDetection.COLOR_BLUE, 0.5), (ConeDetection.COLOR_YELLOW, -0.5)):
-        for x in (0.5, 0.8, 1.1, 1.4, 1.7):
+        for x in (-0.3, 0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8):
             cone = ConeDetection()
             cone.position.x, cone.position.y = x, lateral
             cone.color, cone.classification_confidence = colour, 0.95
@@ -929,11 +984,63 @@ def test_student_geometry_aligns_to_state_only_with_motion_history(make_node, bu
     assert out["alignment"]["valid"] == buffer_history
     if buffer_history:
         assert out["road"]["timestamp_s"] == out["state"]["timestamp_s"]
-        assert out["road"]["centerline_xy"][0][0] == pytest.approx(0.45)
+        assert out["road"]["centerline_xy"][0][0] == pytest.approx(-0.35)
+        assert out["road"]["near_field"]["valid"]
     else:
         assert not out["road"]["valid"]
         assert out["road"]["timestamp_s"] is None
         assert out["road"]["status"] == "missing_motion_history"
+    assert node.action_publisher.messages[-1].drive == 0.0
+    assert node.action_publisher.messages[-1].steer == 0.0
+
+
+def test_student_empty_frame_bridge_preserves_acquisition_and_rejects_missing_gyro(make_node):
+    node = make_node()
+    request(node, 3)
+    node.wheel_speed_callback(Float32(data=0.5))
+    gyro = imu(node, orientation=False)
+    gyro.angular_velocity_covariance[0] = 0.0
+    gyro.angular_velocity.z = 0.0
+    node.imu_callback(gyro)
+    batch = stamp(node, ConeDetections())
+    original_stamp_s = node.test_clock.ros_ns/1e9
+    for colour, lateral in ((ConeDetection.COLOR_BLUE, 0.5), (ConeDetection.COLOR_YELLOW, -0.5)):
+        for x in (-0.3, 0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8):
+            cone = ConeDetection()
+            cone.position.x, cone.position.y = x, lateral
+            cone.color, cone.classification_confidence = colour, 0.95
+            batch.detections.append(cone)
+    node.cone_detection_callback(batch)
+    node.run_policy_step()
+    assert node.estimation_output["road"]["valid"]
+
+    node.test_clock.advance(0.05)
+    node.wheel_speed_callback(Float32(data=0.5))
+    gyro = imu(node, orientation=False)
+    gyro.angular_velocity_covariance[0] = 0.0
+    gyro.angular_velocity.z = 0.0
+    node.imu_callback(gyro)
+    node.cone_detection_callback(cones(node, empty=True))
+    node.run_policy_step()
+    road = node.estimation_output["road"]
+    assert road["valid"] and road["degraded"]
+    assert road["measurement_timestamp_s"] == original_stamp_s
+    assert road["timestamp_s"] == node.estimation_output["state"]["timestamp_s"]
+    assert road["source_age_s"] == pytest.approx(0.05)
+    assert road["current_frame"]["visibility"] == "none"
+    assert road["centerline_xy"][0][0] == pytest.approx(-0.325)
+
+    # A partial IMU message does not erase the previously accepted gyro.
+    # Let that actual gyro sample exceed the estimator's 0.15 s motion limit.
+    node.test_clock.advance(0.16)
+    node.wheel_speed_callback(Float32(data=0.5))
+    missing = imu(node, orientation=False)
+    missing.angular_velocity_covariance[0] = -1.0
+    node.imu_callback(missing)
+    node.run_policy_step()
+    assert not node.estimation_output["state"]["yaw_rate_valid"]
+    assert not node.estimation_output["road"]["valid"]
+    assert node.estimator._trusted_road is None
     assert node.action_publisher.messages[-1].drive == 0.0
     assert node.action_publisher.messages[-1].steer == 0.0
 
@@ -991,14 +1098,114 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.required_sensors == ["cone_detections", "wheel_speed", "imu_angular_velocity"]
         assert node.control_settings.enabled is True
         assert node.control_settings.mode == "mvp"
+        assert node.planning_settings.algorithm == "lattice_v2"
+        assert node.lattice_settings.obstacle_check_enabled is False
+        assert node.estimation_settings.road_history_s == 5.0
+        assert node.estimation_settings.road_hold_s == 0.2
+
+        assert node.control_settings.robustness_enabled is True
+        assert node.control_settings.reference_hold_max_s == 1.0
+        assert node.control_settings.reference_hold_max_distance_m == 0.25
         assert node.control_settings.max_distance_m == 3.0
         assert node.control_settings.max_run_time_s == 30.0
+        assert node.lattice_settings.direct_sample_output is True
+        assert node.lattice_settings.async_enabled is True
+        assert node.lattice_settings.recovery_enabled is True
+        assert node.lattice_settings.update_rate_hz == 10.0
+        assert node.control_settings.mvp_steering_direction == -1.0
+        assert node.control_settings.mvp_drive_feedforward == 0.30
+        assert node.control_settings.drive_max == 0.35
+        assert node.control_settings.degraded_speed_mps == 0.1
         assert node.vehicle_settings.valid is False
         assert node.fsm_state == 2
     finally:
         node.destroy_node()
         context.shutdown()
 
+
+@pytest.mark.parametrize("failure", ["paused", "killed"])
+def test_mvp2_actual_worker_does_not_block_control_and_restarts(make_node, failure):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.robustness_enabled": True,
+           "planning.algorithm": "lattice_v2", "planning.lattice.async_enabled": True,
+           "planning.lattice.recovery_enabled": False, "planning.lattice.direct_sample_output": True,
+           "planning.lattice.clear_start_assumed": True,
+           "planning.lattice.obstacle_check_enabled": False, "planning.lattice.update_rate_hz": 10.0,
+           "planning.reference_lifetime_s": 0.2, "control.startup_grace_s": 3.0,
+           "estimation.motion_max_gap_s": 0.25, "control.degraded_speed_mps": 0.1,
+           "control.drive_max": 0.35, "control.mvp_drive_feedforward": 0.30})
+
+    def step():
+        node.test_clock.advance(0.05)
+        node.wheel_speed_callback(Float32(data=0.0))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        for colour, shift in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.6)):
+            for i in range(13):
+                cone = ConeDetection()
+                x = -0.3+0.25*i
+                cone.position.x, cone.position.y = x, 0.1+0.04*x*x+shift
+                cone.color, cone.classification_confidence = colour, 0.95
+                batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+        began = time.monotonic()
+        node.run_policy_step()
+        return time.monotonic()-began
+
+    step()
+    request(node, 3)
+    deadline = time.monotonic()+3.0
+    while not node.control_has_run and time.monotonic() < deadline:
+        step()
+        time.sleep(0.05)
+    assert node.control_has_run, node.state_reason
+    assert node.planning_output["path"]["type"] == "CARTESIAN_SAMPLES"
+    assert node.control_diagnostics["curvature_1pm"] > 0
+    assert node.action_publisher.messages[-1].steer > 0
+    child = node.async_planner.process
+    timings = []
+    if failure == "paused":
+        child.send_signal(signal.SIGSTOP)
+        try:
+            for _ in range(4):
+                timings.append(step())
+                time.sleep(0.05)
+                assert node.fsm_state == 3, node.state_reason
+                assert node.action_publisher.messages[-1].drive > 0
+        finally:
+            child.send_signal(signal.SIGCONT)
+    else:
+        child.kill()
+        child.wait(timeout=0.5)
+        timings.append(step())
+        assert node.async_planner.process.pid != child.pid
+        assert node.fsm_state == 3, node.state_reason
+    deadline = time.monotonic()+0.9
+    while time.monotonic() < deadline:
+        timings.append(step())
+        assert node.fsm_state == 3, node.state_reason
+        time.sleep(0.05)
+        if node.planning_output.get("valid"):
+            break
+    assert node.planning_output.get("valid"), node.state_reason
+    assert max(timings) < 0.2, timings
+    evidence = Path(os.environ["ROS_LOG_DIR"])/f"mvp2-worker-{failure}.json"
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    evidence.write_text(json.dumps({"failure": failure, "control_call_ms": [t*1000 for t in timings],
+        "max_control_call_ms": max(timings)*1000, "last_planner_elapsed_s": node.last_planner_elapsed_s}, indent=2)+"\n")
+    request(node, 2)
+    assert node.action_publisher.messages[-1].drive == 0
+    old_generation = node.planning_generation
+    for _ in range(3):
+        step()
+        node.supervision_callback()
+    assert node.fsm_state == 2
+    assert node.planning_generation == old_generation
+    assert node.action_publisher.messages[-1].drive == 0
+
+def test_open_loop_yaml_empty_sensor_array(tmp_path):
     # [] has no element from which the ROS YAML parser can infer an array type.
     # Confirm the deliberate open-loop configuration also works through YAML.
     overlay = tmp_path / "open_loop.yaml"

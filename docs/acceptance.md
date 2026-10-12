@@ -1,9 +1,377 @@
 # AI4R policy acceptance
 
-Status: the 2026-10-06 car candidate passes the installed fast gate and has
-bounded, observed physical runs. A complete 3 m physical run remains unverified.
+Status: `mvp2.0` extends the 2026-10-09 V2/fused-road/control candidate with
+bounded centerline-first recovery and asynchronous planning. The current
+software/model evidence is recorded below; the direct-sample update passed
+156 portable tests and 236 installed gate checks, with zero errors, failures
+or skips. Physical
+runs are not run.
+The 2026-10-06 car candidate's installed gate and physical runs below are
+historical evidence, not evidence for the new V2 candidate. A complete 3 m
+physical run remains unverified.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
+
+## Planning V2 + MPC integration checkpoint, 2026-10-11
+
+Local branch `ying/planning-v2-mpc-integration` combines `origin/mvp2.0`
+(`ae74be4`) with the MPC adapter branch (`28c0b82`). This is a review
+checkpoint, not a merged/deployed controller. The active base YAML still has
+`control.enabled: true` and `mpc.enabled: false`; no MPC actuation or car run
+was performed.
+
+Portable Estimation/Planning/Lattice/Control tests passed (157/157). The
+Estimation/Planning/Control plus MPC adapter/config/node-entry selection passed
+(141/141). The V2 synthetic obstacle-wall replay passed for polynomial and
+direct-sample encodings, but reports `full_stop_position_verified: false`.
+The larger 201-test offline run was not clean: wall-clock MPC budget assertions
+intermittently rejected steps on this laptop (observed 63-170 ms against a
+50 ms test setting); the focused bend case also failed twice at 63-76 ms.
+Do not interpret these runs as Jetson timing or physical stopping evidence.
+The required installed ROS fast gate could not start because the pinned
+`dream_interfaces` checkout is absent here; ROS Jazzy is absent too.
+
+Before an MPC-on-V2 shadow configuration is usable, the startup condition that
+currently permits async V2 only with robust MVP control must be reconciled with
+MPC mode. An accepted async V2 result is already motion-transported by the
+policy node into `planning_output`, and the MPC adapter prefers its
+`control_cached_path_samples`. Unlike MVP, MPC does not use
+`ControlReferenceManager` to bridge pending planner frames; its separate
+dropout behavior still needs integration review. Transport also advances the
+reference timestamp without shifting the time-based `speed_profile`, so MPC
+shadow speed-target timing needs correction. No team-branch
+merge or human safety/interface review is claimed by this local checkpoint.
+
+## MVP2 direct-sample update, 2026-10-09
+
+The active YAML now selects `planning.lattice.direct_sample_output: true`.
+Secondary lattice exports its original checked x/y/tangent/curvature grid,
+including support beyond the lateral transition; no Cartesian quintic fit or
+fit revalidation runs. Original raw trajectory body/obstacle/motion checks and
+planned-stop behavior remain. Centerline-first recovery and 20 Hz control /
+10 Hz asynchronous planning remain. The shared evaluator, controller, delayed
+transport and trusted-motion cache accept both polynomial and sampled paths.
+The sample interface and complexity bounds are in `PLANNING_V2_CN.md`.
+
+156 portable cases passed: estimation 53, planning 18, lattice 43, control 42.
+New cases compare every exported point to the raw Frenet evaluator, exercise a
+nominal S curve rejected by legacy fitting, check preview sign, reject malformed
+samples, preserve sample count/curvature/absolute expiry over repeated motion
+transport, retain raw collision/stop/time limits, and run the actual native
+worker with the direct lattice output. Integrated control moves/holds/recovers
+the sampled cache and still locks stop on hard no-feasible-path rejection.
+
+`/opt/anaconda3/bin/python -B tools/study_lattice_output.py --repeats 30` compares
+identical shipped secondary search settings in six synthetic 1 m wide scenes.
+Full-search comparisons freeze the planner clock; 35 ms runs use a real clock.
+Full-search medians change from 9.75–14.86 ms to 8.48–13.10 ms (8–27% lower,
+per scene). A synthetic S curve y=0.15 sin(2x) failed legacy Cartesian output in
+30/30 runs but direct samples were accepted in 30/30, with raw candidate checks
+intact. It establishes output admission, not physical S-curve tracking.
+In real-clock runs direct accepted 179/180 versus legacy 150/180: one direct
+straight-case scheduling spike reached 43 ms and correctly returned budget
+expiry. No hard deadline or target-CPU guarantee is claimed. Artifacts:
+`.verification/lattice-direct-output-study.json` and its `.log`.
+
+The updated shipped-profile model study still completes all eight 3 m scenarios.
+Forcing the secondary lattice (disabling centerline recovery only in the study)
+also completes four 3 m runs: offset straight, both gentle bends and a bend with
+short empty-frame/worker-delay intervals. Final lateral errors were
+0.00075–0.00958 m. Planning medians 15.7–18.1 ms, p95 18.5–23.4 ms; two wall-time
+spikes exceeded 35 ms during concurrent ROS work; all runs still completed. Parent
+computation medians 4.8–5.4 ms, maximum 14.8 ms in these four runs. This remains
+an approximate ideal target-speed/bicycle model, not ESC, camera or tire
+validation. Artifacts: `.verification/mvp2-direct-output-study.json` and
+`.verification/direct-lattice-closed-loop.json`.
+
+The actual ROS child pause/kill/rebuild tests now disable the simple primary so
+they exercise direct sampled lattice output through real JSON pipes. The first
+full gate passed all 75 ROS cases but an older synthetic prediction-age test
+hit its real calculation deadline under concurrent load; that geometry test
+now uses the controlled planner clock, consistent with its synthetic node time.
+Independent advancing-clock and actual-worker expiry checks retain real timeout
+coverage. Final gate: `.verification/direct-output-fast-gate-final-pass.log`, 236 reported
+checks = 156 portable cases + 75 actual ROS cases + 5 CTest wrappers, zero
+errors/failures/skips. The snapshot and installed policy/config match the current
+source byte-for-byte; hashes are in
+`.verification/direct-output-tested-source-sha256.json`. Actual pause/kill timing
+artifacts are `.verification/direct-output-mvp2-worker-paused.json` and
+`.verification/direct-output-mvp2-worker-killed.json`. No hardware was launched.
+
+## MVP2 completion-first candidate, 2026-10-09
+
+20 Hz control/supervision remains in the ROS executor; a single isolated child
+process runs planning at <=10 Hz. At most one request is in flight. Request/run
+generations reject results from before an explicit stop/restart. Delayed valid
+paths are transported using actual motion history; arrival never renews their
+original absolute expiry. Worker failure or >=0.3 s job timeout triggers bounded
+process reconstruction (<=2 Hz), while trusted geometry can bridge the gap.
+Shutdown terminates the child. The child loads only stdlib/pure policy code,
+avoiding ROS/DDS/TF imports during reconstruction. No worker publishes hardware
+commands.
+
+The cone-only profile first tries a quadratic centerline with a bounded rollout
+of the existing lateral P/heading P controller and full approximate body boundary
+checks. Lattice runs only when needed; total compute budget stays 35 ms. Sampling
+is now two lengths, center/current offset and two speeds plus stop, capped at 16
+candidates; geometry/time steps 0.05 m / 0.1 s. Polynomial position/heading and
+curvature are retained, including when the car advances/rotates during a delayed
+result. Control snapshots omit rich Frenet/speed profiles instead of deep-copying
+them each cycle. Robust fitting initializes from <=3N slope pairs and exits IRLS
+at convergence rather than generating all N(N-1)/2 pairs. Input/memory caps stay.
+
+Fixed 0.4 m / 0.5 rad initialization gates no longer decide admission in this
+profile: predicted correction must fit the observed/explicitly extended corridor.
+The forward y(x) domain remains bounded below 1.22 rad (~70 degrees), and body
+conflicts, backwards motion, missing support and invalid motion stay failures.
+This is approximate model validation, not measured trajectory feasibility.
+
+Short road/coverage failures, compute expiry, source expiry during calculation,
+worker faults and purely numerical Cartesian conversion failures can use the
+trusted line/curve cache. No-feasible-path/body conflicts and explicit stop paths
+are not blanket exemptions. Predictions cannot seed trust or renew it. Hold is
+still <=1 s AND <=0.25 m, and ends earlier on motion/support failure. Degraded
+target <=0.1 m/s; recovery requires three distinct trusted camera frames with
+upward target change <=0.15 m/s². Initial neutral priming is <=3 s; a predicted
+first worker result stays neutral until observed control trust exists, preventing
+a one-cycle start followed by a no-cache stop. Fresh wheel/
+gyro and per-field source timestamps remain required; motion gap is 0.25 s.
+
+Same-car Tuesday values are now in the active YAML: direction -1, feedforward
+0.30, drive cap 0.35, speed PI 0.35/0.08, lateral/heading P 1.5/1.0. In state 2,
+fresh near-zero wheel observations plus >=1 s stable gyro samples may learn a
+small bias (abs<=0.12 rad/s, stddev<=0.003); it freezes during each run. The body
+must remain stationary during this neutral interval. Raw messages and their
+independent field freshness are never altered. Run limits remain 3 m / 30 s.
+
+Model study: `/opt/anaconda3/bin/python -B tools/study_mvp2.py` exercises actual
+YAML, estimation, planning, reference management and controller code. Eight
+synthetic 1.2 m wide corridors completed the 3 m software distance limit: straight
+with 0.15 m offset, ±30 degrees with ±0.15 m offset, 45 degrees, ±gentle quadratic
+bends, a larger gentle bend, and a 30-degree curved start with two 0.4 s empty-frame
+intervals plus a 0.2 s worker-result delay. Final lateral errors were 0.005–0.024 m.
+Planning medians 5.2–6.4 ms, per-scene p95 6.5–9.9 ms, max 14.4 ms; no planning
+call exceeded 35 ms. Parent computation medians 5.1–6.0 ms, p95 6.6–10.1 ms;
+two wall-time spikes exceeded 35 ms, max 91.6 ms, during the concurrent ROS gate.
+These are local Python 3.12
+wall-time observations, not target-device CPU utilization or guaranteed deadlines.
+
+The model uses an ideal first-order target-speed response and approximate bicycle
+steering, not a calibrated ESC/grip model; synthetic observations lack camera
+noise and occlusion. The worker port in this study uses deterministic delayed
+delivery. Actual child-process pause/kill/restart is tested separately with ROS.
+Artifacts are `.verification/mvp2-study.json` and `mvp2-study-final.log`.
+
+Final installed gate: `.verification/mvp2-fast-gate-final-pass.log`, 229 reported
+checks = 149 portable cases + 75 actual ROS cases + 5 CTest wrappers; no skips.
+The actual subprocess tests paused and killed the child while continuing sensor
+callbacks/control, observed cache bridging and successful reconstruction, and
+confirmed a subsequent explicit stop remains stopped. Captured maximum control
+call times were below 20 ms (including process reconstruction). Evidence is in
+`.verification/mvp2-worker-paused.json` / `mvp2-worker-killed.json`; installed
+policy/config and tested snapshot match current source byte-for-byte, hashes in
+`.verification/mvp2-tested-source-sha256.json`.
+
+For next week's physical test, load this branch's installed YAML on the same car,
+leave state 2 stationary for >=1 s, then request state 3. Test a continuous
+two-sided gentle curve, offset ±0.15 m and headings ±15/30 degrees before the
+45-degree case. Record run completion, maximum command gap, gyro bias, planning
+elapsed time, TRACKING/DEGRADED transitions and each stop reason. Wider angle
+support is conditional on corridor width and available support. No car deployment,
+hardware enable, main merge or physical run was performed here.
+
+## Control integration after lattice/fused-road, 2026-10-09
+
+Based on `origin/feature/rule-lattice-planner` revision `6245537`, preserving
+perception commit `db312ab`, V2 planning, the cone-only profile, preview-based
+lateral tracking and the existing speed PI/drive feedforward. The control-only
+robustness baseline is retained separately at `138f90d` on `fix/newcar-control`.
+No upstream estimator/planner algorithm, threshold or controller gain changed.
+
+The 1 s / 0.25 m control hold now supports Cartesian polynomials through degree
+five. Curves are sampled at <=0.025 m with <=201 points, transported by incremental
+wheel/gyro motion and queried using V2's existing body-x preview. Tangent headings
+rotate with the body and curvature is preserved; cached curves are not flattened
+into straight lines or fitted beyond their original support. The private
+`control_cached_path_samples` record belongs only to the selected control
+reference; upstream `planning_output` and its public path encoding remain intact.
+
+Upstream predicted roads cannot seed or renew control trust. Their speed
+advisory/preview target is retained, and a later control fallback cannot raise
+the last valid target. V2 stop trajectories clear the cruise cache. New boundary
+or coverage failures, expired road prediction and planner computation-budget
+expiry may use the trusted control cache; no-feasible-path, incompatible-output,
+Frenet-domain, obstacle-input and frame/motion failures retain stopping behavior.
+Neither prediction layer can reset the control hold budget by repeating a frame.
+
+Validation:
+
+- Portable: estimation 53, centerline planning 18, lattice 30, control 35; all
+  136 passed. New integration cases use the actual V2 quintic output, check
+  moving-curve prediction/preview, recovery, upstream prediction non-renewal,
+  speed-advisory retention and stop/collision rejection behavior.
+- ROS Jazzy installed fast gate: 213 checks, zero errors/failures/skips, launch
+  arguments checked against clean pinned interfaces
+  `5f50902ccee44e8370d6e2be85607b3054ffbf98`. Log:
+  `.verification/lattice-control-fast-gate-final.log`. The installed suite tests
+  both V1 and V2 callback paths and the combined default YAML.
+- Old ROS fixtures were updated to provide observed support around the origin
+  and disable estimator bridging when checking legacy control-stop behavior.
+  Partial IMU messages keep the last valid gyro until it expires; tests now
+  exercise that real deadline. Numerical lattice deadline tests use a controlled
+  clock, with advancing-clock timeout tests retained separately.
+- Historical stationary cone replay remains reproducible using
+  `python tools/replay_control_robustness.py --source-ref 138f90d`.
+  That V1 replay is not evidence of V2 physical performance.
+- The unchanged wall-clock lattice study was also exercised locally. On Python
+  3.12, MVP straight and curved studies completed 200 steps; blind-gap and
+  calibrated studies stopped at steps 159 and 21 on source deadlines. All four
+  had calls exceeding the nominal 35 ms budget. Python 3.10 under concurrent
+  container-build load stopped earlier. These measurements do not qualify
+  Jetson timing; the planner budget/settings are preserved for upstream owners.
+  Logs: `.verification/lattice-control-study-py312.log` and
+  `.verification/lattice-control-study.log`. Unit tests separately verify that
+  a real planner computation timeout can transition to the trusted curve cache.
+
+## Fused-road merge into V2, 2026-10-08
+
+Merged `origin/feature/state-road-estimation` at `db312ab` into the local
+`feature/rule-lattice-planner` branch, preserving V2, the cone-only obstacle
+profile, control settings and 0.4 s motion alignment interval. Fusion defaults
+are 5 s observed history, up to 0.5 m rear support and 3 m forward support,
+and at most 0.2 s quality-failure bridging; these are bounds, not guaranteed
+observed coverage. No live configuration or remote branch was updated.
+
+Integration fixes accept negative-x support without a negative extension or
+zero-length projection interval. Both planners consume the degraded speed
+advisory and prediction deadline. V2 scales longitudinal terminal samples and
+motion score targets, caps controller targets, and rejects expired prediction.
+Estimator-invalid unseen startup still stays invalid; a separate aligned
+`forward_geometry` record is available only to the explicitly assumed V2
+controlled-start extension. Once observed origin support has been acquired,
+loss cannot fall back to that startup assumption. Other estimation failures
+remain rejected. No previous invalid trajectory is executed as a fallback.
+
+Final portable checks: estimation 53, legacy planning 18, lattice 30 and control
+21, total 122 passing. New integration coverage includes observed rear support
+and serialization, explicit startup acceptance/rejection without input mutation,
+degraded speed/deadline consumption by V1/V2, and actual policy brief-failure
+slowdown, fixed prediction expiry and latched stop. Legacy controller stop tests
+explicitly disable the optional bridge where they test immediate fault handling.
+
+After merge, four 200-frame numerical planner/controller studies passed with
+the relaxed 5 s budget, reproducing the prior final errors. Four 50-frame studies
+also passed at 35 ms; Windows maximum was 29.05 ms. These numerical studies use
+ideal road records, not live fused perception; estimator/policy integration is
+covered by the portable tests. They do not qualify Jetson timing or physical
+stopping. All repository Python files parse and diff whitespace checks pass.
+
+The required ROS fast gate was retried and stopped at the absent pinned
+`dream_interfaces` checkout. ROS/Jazzy, installed-node transport/configuration,
+real fused-road replay and vehicle validation remain not run.
+
+## V2 Frenet lattice local candidate, 2026-10-08
+
+The selected YAML uses `planning.algorithm: lattice_v2`. The current controlled
+cone-only trial disables `planning.lattice.obstacle_check_enabled` and removes
+Cartesian lidar from required sensors. Lidar collection remains enabled; its
+points and availability do not affect this trial's planning. Body/boundary and
+motion checks remain enabled. This profile does not avoid lidar obstacles;
+restore both the flag and required sensor before obstacle-response trials.
+Runtime code remains in the single policy script. It adds
+bounded near-road extension, spatial quintic lateral and time quartic/quintic
+longitudinal candidates, approximate whole-body/static-obstacle checks,
+physical steering/motion limits, fixed normalized scores, persistent planned
+stops, original Frenet output and revalidated Cartesian compatibility output.
+Both controllers use a preview for V2. Model dimensions are explicitly course
+approximations; no vehicle enablement or calibrated motor/brake map changed.
+See [PLANNING_V2_CN.md](PLANNING_V2_CN.md) for contracts and restrictions.
+
+Before the fusion merge, portable checks: estimation 28, legacy planning 17, V2 lattice 26 and
+control 21 tests, total 92 passing. The cone-only configuration follow-up reran
+the 26 lattice, 17 planning and 21 control tests successfully. Added checks
+verify absent/noisy lidar is ignored when disabled, narrow boundaries still
+reject trajectories, and the actual policy follows a road without optional lidar.
+The required fast gate was retried and still stops at the missing pinned
+interfaces checkout. V2 cases cover analytic geometry, C2 near
+extension, serialization, startup assumptions, obstacle bypass/stop, stop
+persistence, stale/misaligned inputs, deterministic deadline rejection,
+controller preview, and the actual policy's lidar/stop/restart integration.
+These tests extract pure definitions and use stubbed ROS; they do not verify DDS.
+
+`python -B tools/study_lattice.py --steps 200` passed four 200-step numerical
+studies using the actual planner/controller and teacher approximate plant:
+MVP straight, MVP curved, MVP with a 0.9 m blind gap, calibrated simulated curved.
+Initial lateral error was -0.1 m; final errors were approximately -0.0343,
+-0.0444, -0.0343 and +0.00247 m. This uses a relaxed 5 s numerical budget;
+full-search Windows p95 times were approximately 27–45 ms, so it is not a
+35 ms real-time qualification.
+
+An earlier 35 ms run rejected one curve frame at 35.995 ms. Reserving 40% of
+the budget for output checks then passed four 50-step studies at the actual
+35 ms budget: p95 approximately 22.1–26.9 ms, maximum 33.1 ms, no timeout.
+The planner may truncate search after finding feasible candidates; it reports
+that fact and selects the best of evaluated feasible candidates. OS scheduling,
+more complex scenes and Jetson execution remain unqualified. Hard timeout
+rejection is intentional and requests a latched framework stop.
+
+Required `tools/verify_fast.sh` was attempted but cannot run here: the pinned
+`.verification/dependencies/dream_interfaces` checkout is absent, and this
+Windows workspace has no provisioned ROS Jazzy environment. Installed YAML,
+real rclpy/DDS timing, message-build and launch checks remain not run for V2.
+Physical steering response, TF, wheel-speed calibration, actual brake/deceleration,
+obstacle accuracy and controlled blind-start assumption also remain not run.
+
+## Control-only robustness candidate, 2026-10-08
+
+Implemented on `fix/newcar-control`; not deployed or merged into main. The
+estimation/planning algorithms, their thresholds, lateral feedback, speed PI
+and sustaining drive feedforward are unchanged. The control boundary handles
+temporary road rejection using a cached, previously trusted straight reference.
+
+`control.robustness_enabled` defaults to false in code and is enabled in the
+supplied MVP YAML. The cache has a 1.0 s / 0.25 m budget from acceptance of the
+last **distinct** trusted cone frame; repeated references from the same sample
+cannot renew either budget. Predictions use incremental wheel/gyro motion,
+retain the original measurement timestamp, and end earlier if motion history
+or observed forward path support is unavailable. New valid road references
+restore tracking without clearing controller integrals or resetting run budgets.
+Other polynomial paths retain the original controller and expiry behavior.
+
+The internal `TRACKING` / `DEGRADED` states preserve the external FSM interface.
+Motion-feedback loss, malformed references, clock anomalies, invalid actions,
+operator stop, execution timeout and run distance/time limits still latch zero
+outputs with explicit restart. Cone missing/empty deadlines may be bridged only
+while the cache is usable and all other required fields remain fresh. Before
+the first trusted path, the original startup checks and neutral-history priming
+apply. Control execution leases are at most 0.2 s and bounded by wheel/gyro
+freshness; upstream road deadlines are not rewritten. Transition diagnostics
+include the rejection cause, source/cache ages, prediction distance and remaining
+path range; periodic status retains the last transition snapshot. To restore
+legacy behavior set `control.robustness_enabled: false` and restart policy.
+
+Verification of the runtime/configuration/test sources:
+
+- Portable tests: estimation 28, planning 17, control 32; all 77 passed.
+- Required installed fast gate passed in an isolated Docker ROS Jazzy environment
+  against clean pinned `dream_interfaces` commit
+  `5f50902ccee44e8370d6e2be85607b3054ffbf98`: 151 checks, zero errors/failures/skips,
+  installed launch arguments checked. Log: `.verification/control-robustness-fast-gate.log`.
+- The new cases exercise dropout/recovery, exact cache budgets, stale cones,
+  unchanged-frame non-renewal, reference leases, independent supervision,
+  incremental translation/rotation, exhausted support/history, callback behavior,
+  operator stop and explicit restart. Legacy disabled-mode cases remain passing.
+- `tools/replay_control_robustness.py` replays 27 full-confidence recorded cone
+  frames with **synthetic stationary motion and deterministic 20 Hz timing**,
+  applying the final Tuesday thresholds. Legacy first rejection is at 1.0 s
+  (`unsupported_road_curvature`); the robustness candidate processes 40 tracking
+  and 30 degraded cycles, stopping at 3.5 s when the hold-time budget expires.
+  Output: `.verification/control-robustness-replay.json`. Run with PyYAML:
+  `python -B tools/replay_control_robustness.py --source-ref 138f90d --output /tmp/control-replay.json`.
+- This partial replay does not reconstruct actual driving: the main driving
+  JSONL records omit per-cone confidence and height. Exact B11/B12/B14 trajectories,
+  physical lateral error and improved physical run length remain unverified;
+  no missing measurements were replaced with guessed confidence values.
 
 ## New-car MVP control trial, 2026-10-06
 
@@ -318,6 +686,123 @@ and without history, gaps, future data, ROS rollback, stop reset, lidar metadata
 clipping and bounded history. A new two-case ROS callback regression is included
 in test_policy_node.py but **not run** in this Windows environment. The full
 CONTRIBUTING ROS gate and physical accuracy tests remain unperformed.
+
+## Near-field observed support fix, 2026-10-08
+
+On `feature/state-road-estimation`, the estimator now keeps at most 64 validated
+cones per side, original observation ages, and an acquisition-frame cache.
+Camera-to-camera filtered odometry transports history incrementally; current
+two-sided geometry remains mandatory, nearby new detections replace old support,
+and overlapping corridor conflicts discard history. Original observations expire
+after at most 5 s; rear support is bounded to 0.5 m by default. No polynomial is
+extrapolated into unobserved space and no repeated prediction renews point age.
+
+Valid output now also requires the centerline and both boundaries to bracket the
+body origin. Front-only observations return `near_field_unobserved`, invalid
+road/alignment and empty consumable geometry, retaining coverage diagnostics.
+Near-field validity does not assert footprint/swept-path clearance or an interior
+Frenet projection; those are downstream planning checks using real geometry.
+First-ever blind startup cannot be solved by historical observations. The branch
+keeps zero actuator actions and does not import the new-car drive compensation.
+
+Portable `python -B tests/test_estimation.py -v`: **40 checks passed**, including
+the original 28 checks and 12 near-field cases. These exercise a moving 0.9 m
+camera blind zone, original ages/expiry, stationary startup rejection, duplicate
+batches, overlap conflicts, missing motion, clock/stop resets, empty frames,
+bounded storage, analytic rotation, and a noisy curved road. The simulated blind
+zone requires actual prior motion; it is not accepted before reaching the origin.
+The ROS acquisition-time callback fixture now includes observed support across
+the body origin; the ROS suite and CONTRIBUTING fast gate are **not run** here
+(Windows lacks ROS/colcon and an installed WSL distribution). Physical camera,
+odometry drift, startup procedures and full vehicle footprint remain unverified.
+
+A local Windows measurement of the complete estimator update, 320 frames per
+scenario with the first 20 excluded, gave median/p95 1.003/1.038 ms for 10 cones
+per side and 4.356/4.421 ms for 64 per side (maximum 1.353/4.691 ms respectively).
+The retained caches contained 20/128 points. These are local timing samples,
+not Jetson CPU utilization, a worst-case deadline, or physical performance.
+The source SHA256 was `65d83abc6b18ccda2c86cd3fc0cb4dba0636619f2e1f9aac2bce8b1570598f51`;
+the complete report is retained outside the repository at
+`tmp/project_review/near_field_benchmark.json`.
+
+## Bounded road quality-drop bridge, 2026-10-08
+
+The same local estimation branch adds `estimation.road_hold_s=0.2` (0 disables,
+maximum 0.25 s). Fresh empty/one-sided/insufficient-common-range frames may
+briefly transport the last fully valid double-sided corridor to the current
+state epoch. Predictions preserve original measurement/near-support ages and
+never enter the trusted cache. Failure elapsed time, source deadline, motion
+interval and near observation expiry jointly bound the output. Missing or stale
+sources, broken motion, width/order faults, observed overlap conflicts,
+out-of-order camera timestamps, clock/reset and expiry reject reuse. Current
+failed-frame diagnostics are separate from historical geometry.
+
+Portable `python -B tests/test_estimation.py -v`: **53 checks passed** (40 previous
+checks with the empty-frame case updated, and 13 new dropout checks). They cover
+analytic turning transport, consecutive failures and timer reuse, recovery,
+unchanged original timestamps, empty startup, width/conflict faults, missing
+motion, gaps, unavailable/stale camera, stop/clock/out-of-order resets, acquisition
+delay consuming the available budget, near-support expiry, disabled hold and
+bounded parameters. Repeated failed batches fit only once. A ROS callback case
+for empty-frame transport and invalid gyro was added but is **not run** here.
+
+An in-memory offline integration used the actual new-car branch's extracted
+`calculate_policy_actions`, planner and PID source at `6c80c51`, replacing only
+its estimator definitions/settings with this candidate. Valid output at 10.0 s,
+one-sided failures at 10.1/10.2, recovery at 10.3, and failures at 10.4/10.5 were
+accepted by planning/control; the continuous failure at 10.6 requested a stop.
+Road/state/reference epochs agreed; predictions retained 10.0/10.3 as the real
+measurement stamps. The existing planner does NOT yet consume the new speed
+advisory or prediction lifetime: at 10.2 its 0.15 s reference exceeded the 0.10 s
+prediction remainder. An offline two-field adapter (multiply target speed by
+`recommended_speed_scale`, cap reference lifetime by `prediction_remaining_s`)
+produced accepted references at 0.1 m/s with the bounded lifetime. This was only
+in-memory validation; no other team's source or live car was modified. Planning
+owns that adapter, startup strategy, negative-x reference preservation and body
+checks. No claim of automatic slowdown or full vehicle qualification is made.
+
+Before integrating the remote planning update, the whole PolicyNode AST matched
+branch HEAD `144ab8a`; input, trigger, startup/lifecycle, action and hardware-enable
+behavior remained unchanged. All
+repository Python source parsed and `git diff --check` passed. The required
+CONTRIBUTING ROS/Jazzy fast gate and vehicle tests remain **not run**: this
+Windows environment has no ROS, colcon or installed WSL distribution.
+
+A local Windows complete-update sample (320 fresh frames; first 20 excluded)
+gave median/p95 1.214/1.254 ms for 10 cones per side and 4.760/4.901 ms for 64
+per side, with maxima 1.389/5.770 ms and 20/128 retained cones. These are local
+measurements, not Jetson CPU utilization or real-time guarantees. Measured
+policy source SHA256:
+`c4879b749950da592433a7bf35a62260a670b9c48d8b9db18464ec8aadc7edcb`.
+Report outside the repository: `tmp/project_review/road_dropout_benchmark.json`.
+
+## Follow-up feedback audit and submission check, 2026-10-08
+
+The teammate's 2026-10-08 report and `control-mpc-v0` replay log at `52af5e8`
+describe sustained common-range failure (19%), one-sided visibility (14%), and
+an unconfirmed approximately -0.06 rad road-relative heading offset. This
+candidate only bridges brief quality loss; partial fits failing the joint-range
+requirement are not assimilated into cone history. Sustained common-range or
+one-sided loss still expires. Known lane width alone does not satisfy this
+candidate's near-field two-boundary checks or the downstream two-boundary gate.
+No fixed heading correction was applied without verified mounting/placement.
+The report's seven G2 bags are not available in this workspace, so no new
+real-bag replay or claim of >=90% validity / 0.3 s dropout tolerance is made.
+
+Before submission, the remote branch had advanced to `43c3e96` with V1 planning.
+The estimation patch was rebased onto that commit, preserving all remote work.
+All **53 estimator checks and 16 planning checks passed**. One planning fixture
+was updated to explicitly reject front-only unobserved startup before supplying
+observed origin support for its same-epoch test; no planning logic changed.
+All ten repository Python files parsed and `git diff --check` passed. PolicyNode
+and all planning definitions remain AST-identical to `43c3e96`. The integrated
+policy source SHA256 is
+`54e884bf97baabc58fc767994e23ecdfae74a7b5f7d911fcf7559db824f0ee29`;
+the timing report above predates this planning integration, so its timings do
+not measure the new planner. ROS/Jazzy dependencies and an
+installed WSL distribution remain unavailable: required ROS gate and physical
+tests are **not run**. Startup and downstream advisory/lifetime consumption
+remain planning-team responsibilities. No live configuration or hardware changed.
 
 ## Student-facing review, 2026-09-28
 

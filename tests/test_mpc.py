@@ -1208,6 +1208,13 @@ class ConfigChecks(unittest.TestCase):
         text = (ROOT / "config" / name).read_text(encoding="utf-8")
         return yaml.safe_load(text)["/**/ai4r_policy"]["ros__parameters"]
 
+    def check_planning_overlay(self, overlay):
+        merged = dict(self.load("ai4r_policy.yaml")["planning"], **overlay)
+        lattice = merged.pop("lattice", None)
+        PlanSettings(**merged)
+        if lattice is not None:
+            namespace["LatticeSettings"](**lattice)
+
     def test_shipped_yaml_sections_match_declared_defaults_and_are_off(self):
         params = self.load("ai4r_policy.yaml")
         self.assertEqual(params["mpc"], vars(DeclaredSettings()))
@@ -1235,7 +1242,7 @@ class ConfigChecks(unittest.TestCase):
         self.assertEqual(overlay["planning"], {"vehicle_limits_source": "course_simulation",
                                                "max_near_x_m": 1.45, "max_curvature_1pm": 0.3,
                                                "max_fit_error_m": 0.06})
-        PlanSettings(**dict(self.load("ai4r_policy.yaml")["planning"], **overlay["planning"]))
+        self.check_planning_overlay(overlay["planning"])
         self.assertEqual(set(overlay["required_sensors"]),
                          {"cone_detections", "wheel_speed", "imu_angular_velocity"})
         merged = dict(self.load("ai4r_policy.yaml")["mpc"], **overlay["mpc"])
@@ -1251,7 +1258,7 @@ class ConfigChecks(unittest.TestCase):
         self.assertEqual(overlay["policy_update_mode"], "timer")
         self.assertEqual(overlay["planning"]["max_source_age_s"], 0.4)
         self.assertEqual(overlay["control"]["mvp_steering_direction"], -1.0)
-        PlanSettings(**dict(self.load("ai4r_policy.yaml")["planning"], **overlay["planning"]))
+        self.check_planning_overlay(overlay["planning"])
 
     def test_newcar27_mpc_overlay_uses_the_numpy_solver(self):
         overlay = self.load("ai4r_policy_mpc_newcar27.yaml")["mpc"]
