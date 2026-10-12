@@ -21,13 +21,9 @@ Car conditions (2026-10-06, car .27), all optional so the defaults keep the run 
   python offline/mpc_gym/pipeline_sim.py <yaml> --car newcar27 --distance 3.0
 """
 import argparse
-import ast
 from collections import Counter, deque
-from copy import deepcopy
-from dataclasses import dataclass
 import json
 import math
-from numbers import Real
 import random
 from pathlib import Path
 import sys
@@ -43,16 +39,11 @@ import tune  # noqa: E402  (notebook configuration, unchanged)
 import gymnasium as gym  # noqa: E402
 import dreamgym  # noqa: E402,F401  (registers the environment)
 
-SOURCE = ROOT / "scripts" / "policy_node.py"
-NAMES = {"finite_number", "wrap_angle", "Observation", "EstimationSettings", "FirstOrderSampleFilter",
-         "EstimationMotionHistory", "_estimation_median", "_estimation_solve", "_estimation_fit_boundary",
-         "EstimationPipeline", "PlanningSettings", "CenterlinePlanner", "evaluate_planning_path",
-         "planning_vehicle_limits", "MPCStop", "VehicleParamsSettings", "course_simulation_vehicle_params",
-         "course_model_step", "MPCSettings", "mpc_vehicle_params", "reference_trajectory_from_planning",
-         "reference_trajectory_from_road", "mpc_reference_errors", "mpc_path_projector", "VehicleModelMPC",
-         "MPCController", "mpc_debug_json", "ControlSettings", "PolicyController", "ControlPID",
-         "PolicyStopRequest", "control_path_geometry", "_control_poly_eval", "_control_poly_roots"}
-METHODS = {"calculate_policy_actions", "_store"}
+sys.path.insert(0, str(ROOT / "tools"))
+from policy_offline import bind_methods, load_policy_namespace, policy_settings  # noqa: E402
+
+METHODS = ("calculate_policy_actions", "_store", "_robust_control_enabled", "_mpc_uses_planning",
+           "_select_control_reference", "_report_control_status")
 GYM_TO_ROS_COLOUR = {1: 2, 0: 1}        # Gym blue 1 / yellow 0 -> ConeDetection BLUE 2 / YELLOW 1
 ENV_DT, CONE_PERIOD_STEPS, CONE_LATENCY_S = 0.05, 2, 0.05
 FIT = ROOT / "offline" / "vehicle_identification" / "results" / "newcar27_drive_fit.json"
@@ -122,18 +113,8 @@ class NewcarPlant:
 
 
 def load_policy():
-    tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
-    nodes = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name in NAMES]
-    missing = NAMES - {n.name for n in nodes}
-    if missing:
-        raise RuntimeError(f"policy_node.py lacks {sorted(missing)}")
-    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "PolicyNode")
-    methods = [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name in METHODS]
-    namespace = {"dataclass": dataclass, "math": math, "time": time, "Real": Real, "json": json,
-                 "deepcopy": deepcopy, "String": lambda data: SimpleNamespace(data=data),
-                 "ConeDetection": SimpleNamespace(COLOR_BLUE=2, COLOR_YELLOW=1)}
-    exec(compile(ast.Module(body=nodes + methods, type_ignores=[]), str(SOURCE), "exec"), namespace)
-    return namespace
+    return load_policy_namespace({"String": lambda data: SimpleNamespace(data=data),
+                                  "ConeDetection": SimpleNamespace(COLOR_BLUE=2, COLOR_YELLOW=1)})
 
 
 def make_env(offset, heading, noise, seed, lane_width_m=None, cone_spacing_m=None):
@@ -177,16 +158,14 @@ def cone_batch(observation):
 
 
 def make_node(api, params):
-    sections = {"estimation": api["EstimationSettings"], "planning": api["PlanningSettings"],
-                "mpc": api["MPCSettings"], "vehicle": api["VehicleParamsSettings"],
-                "control": api["ControlSettings"]}
-    settings = {name: cls(**params.get(name, {})) for name, cls in sections.items()}
+    # Planning V2 runs in-line (async worker disabled), see tools/policy_offline.py.
+    settings = policy_settings(api, params, synchronous_planning=True)
     sensors = ("cone_detections", "fiducial_detections", "lidar_scan", "lidar_cartesian", "wheel_speed",
                "imu_orientation", "imu_angular_velocity", "imu_specific_force")
     clock = SimpleNamespace(now_s=0.0)
     node = SimpleNamespace(
         estimation_settings=settings["estimation"], planning_settings=settings["planning"],
-        mpc_settings=settings["mpc"], vehicle_settings=settings["vehicle"], mpc_controller=None,
+        lattice_settings=settings["lattice"], mpc_settings=settings["mpc"], vehicle_settings=settings["vehicle"], mpc_controller=None,
         policy_frame_id=params.get("policy_frame_id", "base_link"), heading_reference=None,
         sensor_timeout_s={name: 0.5 for name in sensors}, timestamp_tolerance_s=0.05,
         observations={name: None for name in sensors}, debug=[],
@@ -196,10 +175,11 @@ def make_node(api, params):
         controller=api["PolicyController"](settings["control"]), control_has_run=False,
         control_diagnostics=None, last_control_reference_deadline_s=None,
         distance_limiter=SimpleNamespace(distance_m=0.0),
-        get_logger=lambda: SimpleNamespace(warning=lambda *_: None, info=lambda *_: None))
+        get_logger=lambda: SimpleNamespace(warning=lambda *_: None, info=lambda *_: None),
+        # MVP reference manager (robust control) runs on the replay clock.
+        publish_state=lambda: None, _monotonic=lambda: clock.now_s)
     node.mpc_debug_publisher = SimpleNamespace(publish=lambda msg: node.debug.append(json.loads(msg.data)))
-    for method in METHODS:
-        setattr(node, method, api[method].__get__(node))
+    bind_methods(node, api, METHODS)
     return node
 
 

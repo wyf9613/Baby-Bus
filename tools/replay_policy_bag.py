@@ -9,8 +9,8 @@ Why: on 2026-10-08 the shadow runs (G2) had 5-79 % valid references, rejected as
 invalid_estimates or insufficient_near_or_far_coverage. mpc_debug does not say WHY the
 road was invalid; this replay does, per frame, from the estimator's own road status.
 
-How: the definitions are taken from scripts/policy_node.py (as offline/mpc_gym/pipeline_sim.py
-does, without Gym). Recorded /car/cone_detections, /car/wheel_speed_m_per_sec and
+How: scripts/policy_node.py is loaded without ROS by tools/policy_offline.py (as
+offline/mpc_gym/pipeline_sim.py does, without Gym). Recorded /car/cone_detections, /car/wheel_speed_m_per_sec and
 /car/imu/data are fed in receive order through the node's own _store, with the car's
 validation rules; a policy step runs on the 20 Hz timer once cones exist, like the car.
 Per bag it prints the estimator road status and visibility, Planning's reason and the
@@ -19,35 +19,27 @@ replayed MPC branch, and the branches recorded on the car for comparison (fideli
 Assumptions (printed): the IMU mounting rotation is not in the bags (no /tf_static); the
 default is the rotation printed by DREAM's imu_mount_tf on car .27 (180 deg about y,
 base_link <- fsm300_sensor). The replay starts with an empty motion history, unlike the
-car, so the first ~0.4 s may differ. --set overrides any section.key for what-if runs.
+car, so the first ~0.4 s may differ. --set overrides any section[.sub].key for what-if runs.
+Planning V2 (planning.algorithm: lattice_v2) is called in-line every step: the async
+worker's delay, the 10 Hz rate and the MPC hold of pending cycles are NOT replayed, and the
+gyro bias learned while stationary in state 2 stays 0. Replay a V2 run with a YAML layered
+from the current config/ files; a 2026-10-08 deployed YAML replays V1.
 """
 import argparse
-import ast
 from collections import Counter
 from copy import deepcopy
-from dataclasses import dataclass
 import json
-import math
-from numbers import Real
 from pathlib import Path
 import sys
-import time
 from types import SimpleNamespace
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "scripts" / "policy_node.py"
-NAMES = {"finite_number", "wrap_angle", "Observation", "valid_frame", "quaternion_xyzw", "quaternion_product",
-         "quaternion_inverse", "rotate_vector", "EstimationSettings", "FirstOrderSampleFilter",
-         "EstimationMotionHistory", "_estimation_median", "_estimation_solve", "_estimation_fit_boundary",
-         "EstimationPipeline", "PlanningSettings", "CenterlinePlanner", "evaluate_planning_path",
-         "planning_vehicle_limits", "MPCStop", "VehicleParamsSettings", "course_simulation_vehicle_params",
-         "course_model_step", "MPCSettings", "mpc_vehicle_params", "reference_trajectory_from_planning",
-         "reference_trajectory_from_road", "mpc_reference_errors", "mpc_path_projector", "VehicleModelMPC",
-         "MPCController", "mpc_debug_json", "ControlSettings", "PolicyController", "ControlPID",
-         "PolicyStopRequest", "control_path_geometry", "_control_poly_eval", "_control_poly_roots"}
-METHODS = {"calculate_policy_actions", "_store"}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from policy_offline import bind_methods, load_policy_namespace, policy_settings  # noqa: E402
+
+METHODS = ("calculate_policy_actions", "_store", "_robust_control_enabled", "_mpc_uses_planning",
+           "_select_control_reference", "_report_control_status")
 SENSORS = ("cone_detections", "fiducial_detections", "lidar_scan", "lidar_cartesian", "wheel_speed",
            "imu_orientation", "imu_angular_velocity", "imu_specific_force")
 TOPICS = {"cones": "/car/cone_detections", "wheel": "/car/wheel_speed_m_per_sec", "imu": "/car/imu/data",
@@ -57,38 +49,28 @@ PERIOD_S = 0.05                            # the car's 20 Hz policy timer
 
 
 def load_policy(cone_detection_class):
-    tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
-    nodes = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name in NAMES]
-    missing = NAMES - {n.name for n in nodes}
-    if missing:
-        raise SystemExit(f"policy_node.py lacks {sorted(missing)}; update this tool")
-    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "PolicyNode")
-    methods = [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name in METHODS]
-    namespace = {"dataclass": dataclass, "math": math, "time": time, "Real": Real, "json": json,
-                 "deepcopy": deepcopy, "String": lambda data: SimpleNamespace(data=data),
-                 "ConeDetection": cone_detection_class}
-    exec(compile(ast.Module(body=nodes + methods, type_ignores=[]), str(SOURCE), "exec"), namespace)
-    return namespace
+    return load_policy_namespace({"String": lambda data: SimpleNamespace(data=data),
+                                  "ConeDetection": cone_detection_class})
 
 
 def set_value(params, dotted, text):
-    section, _, key = dotted.partition(".")
-    if not key:
-        raise SystemExit(f"--set needs section.key=value, got {dotted!r}")
-    params.setdefault(section, {})[key] = yaml.safe_load(text)
+    *sections, key = dotted.split(".")
+    if not sections or not key:
+        raise SystemExit(f"--set needs section[.subsection].key=value, got {dotted!r}")
+    for section in sections:        # e.g. planning.lattice.clear_start_assumed
+        params = params.setdefault(section, {})
+    params[key] = yaml.safe_load(text)
 
 
 def make_node(api, params):
-    sections = {"estimation": api["EstimationSettings"], "planning": api["PlanningSettings"],
-                "mpc": api["MPCSettings"], "vehicle": api["VehicleParamsSettings"],
-                "control": api["ControlSettings"]}
-    settings = {name: cls(**params.get(name, {})) for name, cls in sections.items()}
+    # Planning V2 runs in-line (async worker disabled), see policy_offline.
+    settings = policy_settings(api, params, synchronous_planning=True)
     timeouts = {name: 0.5 for name in SENSORS}
     timeouts.update(params.get("sensor_timeout_s", {}))
     clock = SimpleNamespace(now_s=0.0)
     node = SimpleNamespace(
         estimation_settings=settings["estimation"], planning_settings=settings["planning"],
-        mpc_settings=settings["mpc"], vehicle_settings=settings["vehicle"], mpc_controller=None,
+        lattice_settings=settings["lattice"], mpc_settings=settings["mpc"], vehicle_settings=settings["vehicle"], mpc_controller=None,
         policy_frame_id=params.get("policy_frame_id", "base_link"), heading_reference=None,
         sensor_timeout_s=timeouts, timestamp_tolerance_s=params.get("timestamp_tolerance_s", 0.05),
         observations={name: None for name in SENSORS}, debug=[], warnings=Counter(),
@@ -97,11 +79,12 @@ def make_node(api, params):
         control_settings=settings["control"], controller=api["PolicyController"](settings["control"]),
         control_has_run=False, control_diagnostics=None, last_control_reference_deadline_s=None,
         distance_limiter=SimpleNamespace(distance_m=0.0), estimation_output=None, planning_output=None,
-        get_logger=lambda: SimpleNamespace(warning=lambda *_: None, info=lambda *_: None))
+        get_logger=lambda: SimpleNamespace(warning=lambda *_: None, info=lambda *_: None),
+        # MVP reference manager (robust control) runs on the replay clock.
+        publish_state=lambda: None, _monotonic=lambda: clock.now_s)
     node._warn = lambda key, text: node.warnings.update([key])
     node.mpc_debug_publisher = SimpleNamespace(publish=lambda msg: node.debug.append(json.loads(msg.data)))
-    for method in METHODS:
-        setattr(node, method, api[method].__get__(node))
+    bind_methods(node, api, METHODS)
     return node
 
 
@@ -232,7 +215,8 @@ def replay(api, params, path, imu_mount):
                        road_valid=road.get("valid"), lane_width=road.get("lane_width_m"),
                        speed_valid=state.get("speed_valid"), yaw_rate_valid=state.get("yaw_rate_valid"),
                        planning=(node.planning_output or {}).get("reason"),
-                       planning_valid=(node.planning_output or {}).get("valid"))
+                       planning_valid=(node.planning_output or {}).get("valid"),
+                       centerline_rejection=(node.planning_diagnostics or {}).get("centerline_rejection"))
             if len(node.debug) > before:
                 row.update(branch=node.debug[-1].get("branch"), reject=node.debug[-1].get("reject_reason"))
             steps.append(row)
@@ -245,6 +229,8 @@ def replay(api, params, path, imu_mount):
             "visibility": dict(Counter(s["visibility"] for s in steps).most_common()),
             "state_invalid": sum(1 for s in steps if not (s["speed_valid"] and s["yaw_rate_valid"])),
             "planning_reason": dict(Counter(s["planning"] for s in steps).most_common()),
+            "centerline_rejection": dict(Counter(s["centerline_rejection"] for s in steps
+                                                 if s.get("centerline_rejection")).most_common()),
             "replay_branch": dict(Counter(s.get("branch") for s in steps).most_common()),
             "recorded_branch": dict(recorded.most_common()),
             "recorded_reject": dict(rec_reasons.most_common()),
@@ -274,7 +260,9 @@ def main():
         key, _, value = item.partition("=")
         set_value(params, key, value)
     api = load_policy(ConeDetection)
-    print(f"params {args.params} | overrides {args.set or 'none'} | IMU mount xyzw {tuple(args.imu_mount)}")
+    algorithm = params.get("planning", {}).get("algorithm", "centerline")
+    print(f"params {args.params} | overrides {args.set or 'none'} | IMU mount xyzw {tuple(args.imu_mount)}"
+          f" | planning {algorithm}" + (" (in-line; no async delay or MPC hold)" if algorithm == "lattice_v2" else ""))
     results = []
     for path in args.bags:
         r = replay(api, deepcopy(params), path, tuple(args.imu_mount))
@@ -288,6 +276,8 @@ def main():
         print(f"   visibility:      {share(r['visibility'], n)}")
         print(f"   lane width m:    min/median/max {r['lane_width_m']}; speed or yaw rate invalid in {r['state_invalid']} steps")
         print(f"   planning reason: {share(r['planning_reason'], n)}")
+        if r["centerline_rejection"]:
+            print(f"   V2 centerline-first rejected, lattice tried: {share(r['centerline_rejection'], n)}")
         print(f"   MPC branch, replay:   {share(r['replay_branch'], n)}")
         rec = sum(r["recorded_branch"].values())
         print(f"   MPC branch, recorded: {share(r['recorded_branch'], rec)}"
