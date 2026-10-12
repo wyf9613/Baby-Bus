@@ -4679,7 +4679,9 @@ class PolicyNode(Node):
             setattr(self, f"{prefix}_settings", settings_type(**values))
         if self.mpc_settings.enabled and self.control_settings.enabled:
             raise ValueError("control.enabled and mpc.enabled cannot both be active")
-        if self.control_settings.enabled:
+        # The MVP controller and the MPC on a Planning reference share these
+        # input, obstacle and reference-lifetime requirements.
+        if self.control_settings.enabled or self._mpc_uses_planning():
             if not {"cone_detections", "wheel_speed", "imu_angular_velocity"}.issubset(self.required_sensors):
                 raise ValueError("Integrated control requires cones, wheel_speed and imu_angular_velocity")
             if (self.planning_settings.algorithm == "lattice_v2" and self.lattice_settings.obstacle_check_enabled
@@ -4689,7 +4691,8 @@ class PolicyNode(Node):
                 if self.planning_settings.algorithm == "lattice_v2" else
                 self.planning_settings.vehicle_limits_source == "course_simulation")
             simulation_control = self.control_settings.vehicle_params_source == "course_simulation"
-            if self.control_settings.mode == "calibrated" and simulation_planning != simulation_control:
+            if (self.control_settings.enabled and self.control_settings.mode == "calibrated"
+                    and simulation_planning != simulation_control):
                 raise ValueError("Planning and control simulation profiles must be selected together")
             if (self.policy_update_mode == "timer" and
                     1.0/self.policy_update_rate_hz >= self.planning_settings.reference_lifetime_s):
@@ -4710,9 +4713,10 @@ class PolicyNode(Node):
         self.gyro_bias_rps = 0.0
         self.gyro_bias_samples = []
         if self.lattice_settings.async_enabled:
-            if (self.planning_settings.algorithm != "lattice_v2" or not self._robust_control_enabled()
-                    or self.policy_update_mode != "timer"):
-                raise ValueError("Async planning requires robust MVP lattice control in timer mode")
+            if (self.planning_settings.algorithm != "lattice_v2" or self.policy_update_mode != "timer"
+                    or not (self._robust_control_enabled() or self._mpc_uses_planning())):
+                raise ValueError("Async planning requires lattice_v2 in timer mode with robust MVP "
+                                 "control or the MPC on the Planning reference")
             self.async_planner = AsyncLatticePlanner()
 
         self.fsm_state = FSM_STATE_PUBLISHING_ZERO_ACTIONS
@@ -5636,11 +5640,17 @@ class PolicyNode(Node):
             state = estimates["state"]
             # Same bounded priming as the MVP: delayed camera data may predate the
             # motion history reset at start. Only BEFORE the first accepted MPC step.
+            # With async planning, also wait out the worker's first result and a
+            # predicted (degraded) first road, as the MVP does.
             grace = getattr(self, "control_settings", ControlSettings()).startup_grace_s
-            if (not mpc_settings.shadow and not getattr(self, "mpc_has_run", False)
-                    and not self.planning_output["valid"] and state["valid"]
-                    and estimates["road"]["status"] == "missing_motion_history"
-                    and policy_elapsed_s < grace):
+            priming = not mpc_settings.shadow and not getattr(self, "mpc_has_run", False) and policy_elapsed_s < grace
+            async_planning = getattr(self, "async_planner", None) is not None
+            if priming and (
+                    (not self.planning_output["valid"] and state["valid"]
+                     and (estimates["road"]["status"] == "missing_motion_history"
+                          or async_planning
+                          and self.planning_output.get("reason") in ControlReferenceManager.SOFT_REASONS))
+                    or async_planning and estimates["road"].get("degraded")):
                 return 0.0, 0.0, None, None, None
             if mpc_settings.reference_source == "estimation_centerline":
                 traj = reference_trajectory_from_road(estimates["road"], state, mpc_settings)
@@ -5783,6 +5793,10 @@ class PolicyNode(Node):
     def _robust_control_enabled(self):
         cfg = self.control_settings
         return cfg.enabled and cfg.mode == "mvp" and cfg.robustness_enabled
+
+    def _mpc_uses_planning(self):
+        mpc = getattr(self, "mpc_settings", None)
+        return mpc is not None and mpc.enabled and mpc.reference_source == "planning"
 
     def _control_health_problem(self, monotonic_now, ros_now_ns):
         problem = self.health_problem(monotonic_now, ros_now_ns)
