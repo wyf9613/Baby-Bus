@@ -207,6 +207,10 @@ class EstimationSettings:
     # 2*huber_delta_m). It must stay below half the cone spacing, or a fresh
     # detection of cone k also deletes cone k-1 and leaves holes near the car.
     history_merge_radius_m: float = 0.0
+    # Opt-in alternative: reconstruct an interrupted camera output from the
+    # incrementally moved, observed cone cache. No unseen-road extrapolation.
+    continuous_road_output: bool = False
+    road_prediction_max_distance_m: float = 0.2
 
     def __post_init__(self):
         if self.history_propagation not in ("camera", "continuous"):
@@ -215,8 +219,13 @@ class EstimationSettings:
             raise ValueError("estimation.road_history_mode must be time or distance")
         if not isinstance(self.history_merge_single_side, bool):
             raise ValueError("estimation.history_merge_single_side must be bool")
+        if not isinstance(self.continuous_road_output, bool):
+            raise ValueError("estimation.continuous_road_output must be bool")
+        if self.continuous_road_output and self.history_propagation != "continuous":
+            raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
-            if name in ("history_propagation", "road_history_mode", "history_merge_single_side"):
+            if name in ("history_propagation", "road_history_mode", "history_merge_single_side",
+                        "continuous_road_output"):
                 continue
             if not finite_number(value):
                 raise ValueError(f"estimation.{name} must be finite")
@@ -246,6 +255,8 @@ class EstimationSettings:
             raise ValueError("local road history is limited to 5 s and 1 m behind the car")
         if not self.road_history_s <= self.road_history_max_s <= 30.0:
             raise ValueError("road_history_max_s must be in [road_history_s, 30] s")
+        if self.road_prediction_max_distance_m > 0.5:
+            raise ValueError("road prediction travel is limited to 0.5 m")
 
         if max(self.motion_max_gap_s, self.motion_max_interval_s) > self.max_source_age_s:
             raise ValueError("motion timing limits cannot exceed the source-age limit")
@@ -357,7 +368,7 @@ class EstimationMotionHistory:
             return None, "invalid_motion_time"
         if end_s-start_s > self.settings.motion_max_interval_s + 1e-9:
             return None, "motion_interval_too_long"
-        x = y = yaw = 0.0
+        x = y = yaw = travelled = 0.0
         knots = sorted({start_s, end_s} | {
             t for samples in self.samples.values() for t, _ in samples if start_s < t < end_s})
         indices = {name: -1 for name in self.samples}
@@ -376,6 +387,7 @@ class EstimationMotionHistory:
                 return None, "motion_history_gap"
             dt = end-begin
             angle, distance = rate[1]*dt, speed[1]*dt
+            travelled += abs(distance)
             if not all(math.isfinite(v) for v in (angle, distance)):
                 return None, "nonfinite_motion"
             if abs(angle) < 1e-6:
@@ -387,7 +399,8 @@ class EstimationMotionHistory:
             x, y, yaw = x+c*dx-s*dy, y+s*dx+c*dy, yaw+angle
             if not all(math.isfinite(v) for v in (x, y, yaw)):
                 return None, "nonfinite_motion"
-        return {"dx_m": x, "dy_m": y, "yaw_rad": yaw, "interval_s": end_s-start_s}, None
+        return {"dx_m": x, "dy_m": y, "yaw_rad": yaw, "interval_s": end_s-start_s,
+                "travelled_distance_m": travelled}, None
 
     @staticmethod
     def transform_xy(point, pose):
@@ -540,7 +553,35 @@ class EstimationPipeline:
         self._observation_road = None
         self._trusted_road = None  # Unaligned acquisition-frame geometry only.
         self._failure_since_s = None
+        self._prediction_motion_stamp = None
+        self._prediction_distance_m = 0.0
+        self._prediction_pose = None
+        self._prediction_expired_source_s = None
         self._road_reset_id = self.motion.reset_id
+
+    def _advance_prediction_distance(self, now_s):
+        """Count travel once per policy epoch, independent of camera rebasing.
+
+        Integrated speed counts turning as travel, rather than using a net
+        displacement that could hide a manoeuvre. The unsigned wheel contract
+        still supports forward motion only. A missing motion segment discards
+        both the prediction anchor and the cone cache.
+        """
+        if self._prediction_motion_stamp is None:
+            return
+        pose, problem = self.motion.pose_between(self._prediction_motion_stamp, now_s)
+        if problem is not None:
+            self._clear_road_history()
+            return
+        self._prediction_distance_m += pose["travelled_distance_m"]
+        total = self._prediction_pose
+        c, s = math.cos(total["yaw_rad"]), math.sin(total["yaw_rad"])
+        total["dx_m"] += c*pose["dx_m"]-s*pose["dy_m"]
+        total["dy_m"] += s*pose["dx_m"]+c*pose["dy_m"]
+        total["yaw_rad"] += pose["yaw_rad"]
+        total["interval_s"] += pose["interval_s"]
+        total["travelled_distance_m"] = self._prediction_distance_m
+        self._prediction_motion_stamp = now_s
 
     def _advance_history(self, now_s):
         """Continuous mode: move the cone history to now_s over one short interval.
@@ -710,6 +751,8 @@ class EstimationPipeline:
         """
         if self._trusted_road is None or self.settings.road_hold_s == 0:
             return None, "no_trusted_road"
+        if self.settings.continuous_road_output:
+            return self._predict_continuous_road(current_frame, now_s)
         if self._failure_since_s is None:
             self._failure_since_s = now_s
         elapsed = now_s-self._failure_since_s
@@ -731,6 +774,57 @@ class EstimationPipeline:
                          current_frame=current_frame, prediction_status="active",
                          prediction_elapsed_s=elapsed, prediction_age_s=age,
                          prediction_remaining_s=remaining, recommended_speed_scale=0.5,
+                         confidence=0.5*predicted["confidence"],
+                         boundary_source={"left": "predicted_history", "right": "predicted_history"})
+        return predicted, "active"
+
+    def _predict_continuous_road(self, current_frame, now_s):
+        """Fit moved REAL observations, keeping the last accepted camera epoch.
+
+        Incremental wheel/gyro segments each obey the usual motion limits. The
+        total prediction still has independent source-age, hold and travel
+        deadlines. Neither a predicted fit nor a repeated frame renews them.
+        """
+        if self._failure_since_s is None:
+            self._failure_since_s = now_s
+        source_s = self._trusted_road["timestamp_s"]
+        age, elapsed = now_s-source_s, now_s-self._failure_since_s
+        remaining = min(self.settings.road_hold_s-elapsed,
+                        self.settings.max_source_age_s-age)
+        distance_left = self.settings.road_prediction_max_distance_m-self._prediction_distance_m
+        if age < 0 or elapsed < 0 or remaining <= 1e-9 or distance_left <= 1e-9:
+            return None, "prediction_deadline_expired"
+        speed = self.motion.current("wheel_speed", now_s)
+        if speed is not None and speed > 1e-9:
+            # Advisory time at current filtered speed; acceleration can consume
+            # distance faster, so consumers must still recheck every update.
+            remaining = min(remaining, distance_left/speed)
+        placed, problem = self._history_at(now_s)
+        if problem is not None:
+            return None, problem
+        if not placed:
+            return None, "no_observed_history"
+        oldest = min(p[5] for p in placed)
+        remaining = min(remaining, self.settings.history_lifetime_s-(now_s-oldest))
+        if remaining <= 1e-9:
+            return None, "near_field_history_expired"
+        predicted = self.road({"detections": [p[:5] for p in placed]}, round(now_s*1e9), 0.0)
+        predicted.update(timestamp_s=now_s, history_used=True, oldest_observation_timestamp_s=oldest)
+        predicted = self._align_road(predicted, now_s, True)
+        if not predicted["valid"]:
+            return None, predicted["status"]
+        # The fit above is in today's body frame; it is not a new camera sample.
+        # Preserve acquisition provenance separately from the aligned epoch.
+        predicted.update(measurement_timestamp_s=source_s, source_age_s=age,
+                         motion_compensated=age > 0, motion_compensation=deepcopy(self._prediction_pose),
+                         fusion_mode="observed_cones_wheel_gyro_incremental",
+                         status="predicted_history", degraded=True,
+                         current_frame=current_frame, prediction_status="active",
+                         prediction_elapsed_s=elapsed, prediction_age_s=age,
+                         prediction_remaining_s=remaining,
+                         prediction_distance_m=self._prediction_distance_m,
+                         prediction_remaining_distance_m=distance_left,
+                         recommended_speed_scale=0.5,
                          confidence=0.5*predicted["confidence"],
                          boundary_source={"left": "predicted_history", "right": "predicted_history"})
         return predicted, "active"
@@ -975,25 +1069,53 @@ class EstimationPipeline:
                              ages.get("cone_detections"))
         else:
             if continuous:
+                if self.settings.continuous_road_output:
+                    self._advance_prediction_distance(now_s)
                 self._advance_history(now_s)
             road = self._history_road(observations.get("cone_detections"), stamps.get("cone_detections"),
                                       ages.get("cone_detections"), now_s)
-        observed = self._observation_road or road
+        observed = (self._observation_road if road["status"] != "unavailable"
+                    and self._observation_road is not None else road)
         current_frame = {"timestamp_s": road["timestamp_s"],
                          "source_age_s": ages.get("cone_detections"),
                          "fit_valid": observed["valid"] and observed["visibility"] == "both",
                          "status": observed["status"], "visibility": observed["visibility"],
                          "boundary_diagnostics": deepcopy(observed["boundary_diagnostics"])}
         failure = road["status"]
+        if (self.settings.continuous_road_output and self._failure_since_s is not None
+                and self._trusted_road is not None and road["valid"]
+                and road["timestamp_s"] == self._trusted_road["timestamp_s"]):
+            # Re-presenting the old successful camera batch after an outage is
+            # not recovery. Only a new accepted camera epoch resets the hold.
+            road.update(valid=False, status="camera_frame_not_advanced", centerline_xy=[],
+                        left_boundary_xy=None, right_boundary_xy=None, lane_width_m=None,
+                        x_range_m=None, local_curvature_1pm=None, confidence=0.0)
+            failure = road["status"]
+        if (self.settings.continuous_road_output and self._prediction_expired_source_s is not None
+                and road["timestamp_s"] is not None
+                and road["timestamp_s"] <= self._prediction_expired_source_s):
+            road.update(valid=False, status="prediction_deadline_expired", centerline_xy=[],
+                        left_boundary_xy=None, right_boundary_xy=None, lane_width_m=None,
+                        x_range_m=None, local_curvature_1pm=None, confidence=0.0)
+            failure = road["status"]
         trusted_candidate = (deepcopy(road) if road["valid"] and road["visibility"] == "both" else None)
         road = self._align_road(road, now_s, state["valid"])
         road.update(current_frame=current_frame, degraded=False, prediction_status="not_used",
                     prediction_elapsed_s=None, prediction_age_s=None,
                     prediction_remaining_s=None, recommended_speed_scale=1.0 if road["valid"] else 0.0)
         if road["valid"]:
+            if (self.settings.continuous_road_output and
+                    (self._trusted_road is None or
+                     trusted_candidate["timestamp_s"] != self._trusted_road["timestamp_s"])):
+                self._prediction_motion_stamp = now_s
+                self._prediction_distance_m = road["motion_compensation"]["travelled_distance_m"]
+                self._prediction_pose = deepcopy(road["motion_compensation"])
+                self._prediction_expired_source_s = None
             self._trusted_road = trusted_candidate
             self._failure_since_s = None
-        elif state["valid"] and failure in self.QUALITY_FAILURES:
+        elif state["valid"] and (failure in self.QUALITY_FAILURES or
+                (self.settings.continuous_road_output and road["status"] in
+                 self.CAMERA_GAP_FAILURES + ("camera_frame_not_advanced",))):
             predicted, reason = self._predict_road(current_frame, now_s)
             if predicted is not None:
                 road = predicted
@@ -1002,6 +1124,9 @@ class EstimationPipeline:
                 # Continuous mode keeps the (still conflict-checked) history;
                 # only the trusted-corridor prediction ends here.
                 if continuous:
+                    if self.settings.continuous_road_output and self._trusted_road is not None:
+                        self._prediction_expired_source_s = self._trusted_road["timestamp_s"]
+                        self._prediction_motion_stamp = None
                     self._trusted_road, self._failure_since_s = None, None
                 else:
                     self._clear_road_history()
@@ -1010,6 +1135,12 @@ class EstimationPipeline:
             # but never use an incomplete startup corridor as a driving fallback.
             self._trusted_road = None
             self._failure_since_s = None
+            self._prediction_motion_stamp = None
+        elif continuous and road["status"] == "prediction_deadline_expired":
+            # Keep measured near support for a NEW camera frame, but this old
+            # camera epoch cannot re-arm an expired prediction on its own.
+            self._trusted_road, self._failure_since_s = None, None
+            self._prediction_motion_stamp = None
         elif continuous and road["status"] in self.CAMERA_GAP_FAILURES:
             # Camera gap: no output this step, but the history keeps moving with
             # wheel/gyro so the near field is still covered when cones return.

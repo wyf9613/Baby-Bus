@@ -1,0 +1,395 @@
+{
+  "baseline_commit": "1b759ed",
+  "current_policy_sha256": "e0282c3bab6c8e7e3b52befd394a2eb2ff24132a83e5c94322c0a90a4a5de711",
+  "limits": "Synthetic Windows Python; no ROS, detector, target CPU or physical car.",
+  "baseline": {
+    "scenarios": {
+      "straight": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": false,
+          "status": "motion_interval_too_long",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.6
+        }
+      ],
+      "turn": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": false,
+          "status": "motion_interval_too_long",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.6
+        }
+      ]
+    },
+    "dense_full_update_samples": 1300,
+    "median_ms": 0.3533,
+    "p95_ms": 2.7265,
+    "max_ms": 4.8881,
+    "world_center_rmse_m": 3.977467757652028e-16
+  },
+  "continuous": {
+    "scenarios": {
+      "straight": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.6
+        }
+      ],
+      "turn": [
+        {
+          "now_s": 10.0,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.0
+        },
+        {
+          "now_s": 10.05,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.05
+        },
+        {
+          "now_s": 10.1,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.1
+        },
+        {
+          "now_s": 10.15,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.15
+        },
+        {
+          "now_s": 10.2,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.25,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.3,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.35,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.4,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.45,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.5,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.55,
+          "valid": true,
+          "status": "predicted_history",
+          "degraded": true,
+          "source_s": 10.2
+        },
+        {
+          "now_s": 10.6,
+          "valid": true,
+          "status": "observed",
+          "degraded": false,
+          "source_s": 10.6
+        }
+      ]
+    },
+    "dense_full_update_samples": 1300,
+    "median_ms": 1.006,
+    "p95_ms": 2.6658,
+    "max_ms": 3.4074,
+    "world_center_rmse_m": 4.604043374747364e-16
+  }
+}

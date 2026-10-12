@@ -885,6 +885,49 @@ def test_student_empty_frame_bridge_preserves_acquisition_and_rejects_missing_gy
     assert node.action_publisher.messages[-1].steer == 0.0
 
 
+def test_continuous_timer_estimates_between_frames_but_keeps_camera_health_stop(make_node):
+    node = make_node(required=["cone_detections", "wheel_speed", "imu_angular_velocity"],
+                     **{"estimation.history_propagation": "continuous",
+                        "estimation.continuous_road_output": True})
+    node.wheel_speed_callback(Float32(data=0.2))
+    gyro = imu(node, orientation=False)
+    gyro.angular_velocity_covariance[0] = 0.0
+    node.imu_callback(gyro)
+    batch = stamp(node, ConeDetections())
+    original_stamp_s = node.test_clock.ros_ns/1e9
+    for colour, lateral in ((ConeDetection.COLOR_BLUE, 0.5), (ConeDetection.COLOR_YELLOW, -0.5)):
+        for x in (-0.3, 0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8):
+            cone = ConeDetection()
+            cone.position.x, cone.position.y = x, lateral
+            cone.color, cone.classification_confidence = colour, 0.95
+            batch.detections.append(cone)
+    node.cone_detection_callback(batch)
+    request(node, 3)
+    node.run_policy_step()
+    assert node.estimation_output["road"]["valid"]
+    for _ in range(9):
+        node.test_clock.advance(0.05)
+        node.wheel_speed_callback(Float32(data=0.2))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        node.run_policy_step()  # The selected timer's calculation entry.
+        assert node.fsm_state == 3
+        road = node.estimation_output["road"]
+        assert road["valid"]
+        assert road["measurement_timestamp_s"] == original_stamp_s
+        assert road["timestamp_s"] == node.estimation_output["state"]["timestamp_s"]
+    assert road["degraded"] and road["status"] == "predicted_history"
+    node.test_clock.advance(0.05)
+    node.supervision_callback()
+    assert node.fsm_state == 2  # Camera deadline is NOT bypassed by history.
+    assert node.action_publisher.messages[-1].drive == 0.0
+    assert node.action_publisher.messages[-1].steer == 0.0
+    node.cone_detection_callback(cones(node))
+    node.run_policy_step()
+    assert node.fsm_state == 2  # New sensor data alone is not explicit resume.
+
+
 def test_invalid_sensor_content_and_runtime_parameter_changes(make_node):
     node = make_node()
     bad_cone = cones(node)
@@ -933,8 +976,10 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         cli_args=["--ros-args", "--params-file", str(SHARE / "config/ai4r_policy.yaml")])
     try:
         assert node.get_fully_qualified_name() == "/namespaced/ai4r_policy"
-        assert node.policy_update_mode == "cone_detection"
-        assert node.required_sensors == ["cone_detections"]
+        assert node.policy_update_mode == "timer"
+        assert node.policy_update_rate_hz == 20.0
+        assert node.required_sensors == ["cone_detections", "wheel_speed", "imu_angular_velocity"]
+        assert node.estimation_settings.continuous_road_output
     finally:
         node.destroy_node()
         context.shutdown()

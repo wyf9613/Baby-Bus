@@ -4,8 +4,10 @@
 `self.planning_diagnostics`，配置位于 `planning` 节。车辆限制尚未标定，
 估计器已用历史运动对齐道路；规划器默认不追加补偿。当前车辆限制不足时会返回无效参考和停止请求；
 支持显式 course_simulation 离线参数，默认仍消费上游实测限制。
-控制器尚未接入，动作仍为零。16 项规划及 66 项估计离线测试通过，ROS gate 尚未运行，接口与测试方法见
+控制器尚未接入，动作仍为零。16 项规划及 80 项估计离线测试通过，本地新版本的 ROS gate 尚未运行，接口与测试方法见
 [V1 规划说明](docs/PLANNING_V1_CN.md)。
+
+2026-10-12 连续道路版本：`feature/continuous-road-output` 从本地 `1b759ed` 建立，原 `feature/state-road-estimation` 保留作对照。相机短暂缺帧或拟合失败时，用已经观测过的锥桶、轮速和 IMU 偏航率增量重建当前道路，保留真实采集时间、预测状态及到期预算；不新增雷达道路识别、不外推未观测的启动道路。当前 YAML 采用单一 20 Hz timer 触发，保留相机超时并要求轮速/陀螺仪新鲜。算法和规划对接要求见 [连续道路版本说明](docs/CONTINUOUS_ROAD_OUTPUT_CN.md)。本地离线验证不代表完整 ROS 或实车验收，尚未 push。
 
 团队策略仓库，基于 DREAM 课程框架。当前分工见 [四组项目计划](docs/TEAM_PROJECT_PLAN.md)。接口优先沿用 GitHub 中的课程框架代码和配置；框架未定义的组间数据结构再按 Word 接口会议草案补充。已加入首版车辆状态低通滤波和单帧鲁棒道路估计，新增内部状态采用 `speed_mps`、`yaw_rate_rps` 等草案字段，并提供截图名称别名。结果在 `self.estimation_output`，参数位于现有 `config/ai4r_policy.yaml` 的 `estimation` 节；规划已接入内部参考生成，控制尚未接入，驱动和转向仍为零。算法、字段、调参和联调说明见 [估计模块首版说明](docs/ESTIMATION_V1_CN.md)。离线检查命令为 `python3 -B tests/test_estimation.py -v`；完整 ROS gate 与实车验证见 [验收记录](docs/acceptance.md)。下文为上游使用说明。
 

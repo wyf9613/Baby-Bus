@@ -1,5 +1,41 @@
 # AI4R policy acceptance
 
+## Local continuous-road version, 2026-10-12
+
+Branch `feature/continuous-road-output` starts from the user's local baseline
+`1b759ed`; `feature/state-road-estimation` is retained unchanged. No push or
+physical deployment was performed. The optional mode refits incrementally moved
+observed cones during short camera interruptions using existing filtered wheel
+speed and gyro history. It retains actual acquisition/point ages, time alignment,
+degraded status and hold/source/travel deadlines. The profile selects a single
+20 Hz timer and requires cones, wheel speed and angular velocity. Existing
+camera health stops and explicit recovery are preserved. Planning definitions,
+vehicle parameters and zero actions are unchanged; startup remains planning's
+responsibility. This is not lidar road identification or unobserved extrapolation.
+
+Portable checks: 80 estimation and 16 planning cases passed. Fourteen added
+estimator cases cover bounded missing/bad/repeated frames, delayed frames,
+time/travel expiry, turning geometry, recovery, unchanged acquisition ages,
+motion/clock/observation failures, cold start, reverse rejection and bounded
+noisy-frame storage. The ROS suite gains a timer/camera-health integration case
+and updated configuration expectations; these require the ROS gate and were
+not executed on this Windows host.
+
+`tools/study_continuous_road.py` compares actual baseline/current estimator
+definitions in synthetic straight and turning camera pauses, and benchmarks
+each with 1300 full updates at 64 cones/side. The reproducible raw results and
+tested source hash are in `continuous_road_study.json`. The new mode covers the
+single baseline interruption in each scenario and recovers on a new frame;
+synthetic geometry is ideal, not measured perception accuracy. Windows timings
+do not establish target CPU or deadline acceptance. The required fast gate
+cannot start here without Bash/ROS Jazzy/colcon; no installed WSL exists.
+
+The old V1 planner still has a 0.2 s source-age limit and does not implement the
+prediction speed advisory. Estimator continuity therefore does not imply
+controller/vehicle continuity. Integration details and remaining scope are in
+[the continuous-road note](CONTINUOUS_ROAD_OUTPUT_CN.md). Prior gate evidence
+below applies to its stated historical revisions, not this new local version.
+
 Status: the implementation passes the software gate on `jah`. Version 0.1.0
 identifies a release only through its published annotated tag and successful
 release CI. Physical vehicle acceptance remains unperformed.
