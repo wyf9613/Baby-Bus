@@ -133,6 +133,7 @@ V2 障碍墙离线联调可运行 `MPC_TEST_QP_SOLVER=dense python3 -B tools/rep
 | `reference_speed_mode`、`v_ref_end_mps`、`planned_stop` | 当前使用固定速度还是时间速度表、预测末端目标速度，以及 Planning 是否选择停车 |
 | `pred_e_y_end_m`、`pred_v_end_mps` | 预测时域末端的横向误差和速度 |
 | `delta_est_rad` | 用已下发指令回放出的前轮角估计（没有轮角传感器） |
+| `reference_held`、`reference_held_age_s` | 异步规划在算（`planning_pending`）时，是否用了运动补偿后的上一个 Planning 结果，以及距它被接受的时间；不延长原始有效期 |
 | `solve_s`、`step_s`、`step_p95_s`、`iterations` | 求解耗时、单步耗时、最近 200 步的 p95、OSQP 迭代数 |
 | `dt`、`ref_age_s`、`path_id`、`status` | 时间间隔、参考的年龄、路径编号、求解状态 |
 | `vehicle_source`、`vehicle_valid` | 用的是哪条车辆记录、是否有效 |

@@ -29,7 +29,8 @@ SOURCE = ROOT / "scripts" / "policy_node.py"
 NAMES = {"wrap_angle", "MPCStop", "VehicleParamsSettings", "course_simulation_vehicle_params",
          "course_model_step", "MPCSettings", "mpc_vehicle_params", "reference_trajectory_from_planning",
          "reference_trajectory_from_road", "mpc_reference_errors", "mpc_path_projector",
-         "VehicleModelMPC", "MPCController", "mpc_debug_json"}
+         "VehicleModelMPC", "MPCController", "mpc_debug_json", "transport_control_reference",
+         "_control_sample_points", "mpc_planning_reference"}
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in NAMES]
@@ -1267,6 +1268,89 @@ class ConfigChecks(unittest.TestCase):
         Settings(**dict(self.load("ai4r_policy.yaml")["mpc"], **overlay))
 
 
+class ShiftMotion:
+    """Stand-in motion history: pure forward travel at speed_mps, optional fault."""
+
+    def __init__(self, speed_mps=0.2, problem=None):
+        self.speed_mps, self.problem = speed_mps, problem
+
+    def pose_between(self, start_s, end_s):
+        if self.problem:
+            return None, self.problem
+        return {"dx_m": self.speed_mps*(end_s-start_s), "dy_m": 0.0, "yaw_rad": 0.0}, None
+
+    @staticmethod
+    def transform_xy(point, pose):
+        return (point[0]-pose["dx_m"], point[1]-pose["dy_m"])
+
+
+class HeldPlanningReference(unittest.TestCase):
+    """Approach A: the MPC holds the last accepted async V2 result while pending."""
+    select = staticmethod(namespace["mpc_planning_reference"])
+
+    def pending(self, stamp, reason="planning_pending"):
+        return {"valid": False, "reason": reason, "timestamp_s": stamp,
+                "valid_for_s": 0.0, "stop_requested": True}
+
+    def test_valid_output_is_used_directly_and_becomes_the_hold(self):
+        ref = sampled_planning_reference()
+        out, held, age = self.select(ref, None, ShiftMotion(), 10.0)
+        self.assertIs(out, ref)
+        self.assertEqual(held, (ref, 10.0))
+        self.assertIsNone(age)
+
+    def test_pending_cycles_transport_the_hold_without_renewing_its_expiry(self):
+        ref = sampled_planning_reference()        # stamp 10.0, valid for 0.2 s
+        motion = ShiftMotion(speed_mps=0.2)
+        _, held, _ = self.select(ref, None, motion, 10.0)
+        expiry = ref["timestamp_s"] + ref["valid_for_s"]
+        out, held, age = self.select(self.pending(10.05), held, motion, 10.05)
+        self.assertTrue(out["valid"])
+        self.assertAlmostEqual(out["timestamp_s"] + out["valid_for_s"], expiry)
+        self.assertAlmostEqual(age, 0.05)
+        first = [p[0] for p in out["control_cached_path_samples"]]
+        self.assertAlmostEqual(first[0], -0.01)   # 0.2 m/s x 0.05 s behind
+        out, held, age = self.select(self.pending(10.10), held, motion, 10.10)
+        self.assertAlmostEqual(out["timestamp_s"] + out["valid_for_s"], expiry)
+        self.assertAlmostEqual(age, 0.10)
+        self.assertAlmostEqual(out["control_cached_path_samples"][0][0], -0.02)   # cumulative
+        traj = adapt(out, 0.05)
+        self.assertTrue(traj["valid"], traj["reason"])
+        self.assertFalse(traj["stop_required"])
+
+    def test_hold_ends_at_the_original_expiry(self):
+        ref = sampled_planning_reference()
+        _, held, _ = self.select(ref, None, ShiftMotion(), 10.0)
+        pending = self.pending(10.2)
+        out, held, age = self.select(pending, held, ShiftMotion(), 10.2)
+        self.assertIs(out, pending)
+        self.assertIsNone(held)
+        self.assertIsNone(age)
+
+    def test_real_rejections_and_motion_faults_are_not_masked(self):
+        ref = sampled_planning_reference()
+        for reason in ("no_feasible_lattice_trajectory", "planning_worker_timeout",
+                       "source_deadline_during_planning"):
+            _, held, _ = self.select(ref, None, ShiftMotion(), 10.0)
+            rejected = self.pending(10.05, reason)
+            out, held, age = self.select(rejected, held, ShiftMotion(), 10.05)
+            self.assertIs(out, rejected, reason)
+            self.assertIsNone(held, reason)
+            self.assertFalse(adapt(out, 0.05)["valid"] and not adapt(out, 0.05)["stop_required"])
+        _, held, _ = self.select(ref, None, ShiftMotion(), 10.0)
+        pending = self.pending(10.05)
+        out, held, _ = self.select(pending, held, ShiftMotion(problem="motion_gap"), 10.05)
+        self.assertIs(out, pending)
+        self.assertIsNone(held)
+
+    def test_pending_without_a_hold_stays_a_tolerable_dropout(self):
+        pending = self.pending(10.0)
+        out, held, age = self.select(pending, None, ShiftMotion(), 10.0)
+        self.assertIs(out, pending)
+        traj = adapt(out, 0.05)
+        self.assertFalse(traj["valid"])           # dropout, not a planner stop
+
+
 class NodeEntry(unittest.TestCase):
     """The real calculate_policy_actions, with a stand-in node (no ROS)."""
 
@@ -1305,6 +1389,8 @@ class NodeEntry(unittest.TestCase):
         record = json.loads(published[-1])
         self.assertTrue(record["simulation_only"])
         self.assertEqual(record["applied_steer_action"], 0.0)
+        self.assertIs(record["reference_held"], False)   # synchronous Planning never holds
+        self.assertIsNone(record["reference_held_age_s"])
         self.assertIn(record["branch"], ("shadow", "ref_invalid"))
         if record["branch"] == "shadow":
             self.assertIsNotNone(debug1)

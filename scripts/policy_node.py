@@ -2580,6 +2580,27 @@ def transport_control_reference(reference, motion, now_s):
     return result
 
 
+def mpc_planning_reference(planning_output, held, motion, now_s):
+    """Planning reference for the MPC: (reference, new_held, held_age_s or None).
+
+    Async planning reports planning_pending on cycles without a new result.
+    Only then is the last accepted reference (held = (reference, accepted_s))
+    motion-transported to now_s; transport keeps its original absolute expiry,
+    so holding never renews trust. Any other invalid output, a failed transport
+    or expiry drops the hold and passes the original output to the MPC's own
+    dropout handling. The MVP's ControlReferenceManager is not involved.
+    """
+    if planning_output.get("valid") is True:
+        return planning_output, (planning_output, now_s), None
+    if held is None or planning_output.get("reason") != "planning_pending":
+        return planning_output, None, None
+    try:
+        transported = transport_control_reference(held[0], motion, now_s)
+    except (ValueError, TypeError, ArithmeticError, KeyError):
+        return planning_output, None, None
+    return transported, (transported, held[1]), now_s - held[1]
+
+
 @dataclass
 class ControlSettings:
     """Forward-only candidate with direct MVP and optional calibrated profiles.
@@ -4710,6 +4731,7 @@ class PolicyNode(Node):
         self.last_worker_restart_s = -math.inf
         self.last_planner_elapsed_s = None
         self.async_planner = None
+        self.mpc_held_reference = None
         self.gyro_bias_rps = 0.0
         self.gyro_bias_samples = []
         if self.lattice_settings.async_enabled:
@@ -5637,7 +5659,13 @@ class PolicyNode(Node):
             if is_first_policy_step or getattr(self, "mpc_controller", None) is None:
                 self.mpc_controller = MPCController(mpc_settings, getattr(self, "vehicle_settings", None))
                 self.mpc_has_run = False
+                self.mpc_held_reference = None
             state = estimates["state"]
+            planning_ref, held_age = self.planning_output, None
+            if mpc_settings.reference_source == "planning":
+                planning_ref, self.mpc_held_reference, held_age = mpc_planning_reference(
+                    self.planning_output, getattr(self, "mpc_held_reference", None),
+                    self.motion_history, state["timestamp_s"])
             # Same bounded priming as the MVP: delayed camera data may predate the
             # motion history reset at start. Only BEFORE the first accepted MPC step.
             # With async planning, also wait out the worker's first result and a
@@ -5646,20 +5674,22 @@ class PolicyNode(Node):
             priming = not mpc_settings.shadow and not getattr(self, "mpc_has_run", False) and policy_elapsed_s < grace
             async_planning = getattr(self, "async_planner", None) is not None
             if priming and (
-                    (not self.planning_output["valid"] and state["valid"]
+                    (not planning_ref["valid"] and state["valid"]
                      and (estimates["road"]["status"] == "missing_motion_history"
                           or async_planning
-                          and self.planning_output.get("reason") in ControlReferenceManager.SOFT_REASONS))
+                          and planning_ref.get("reason") in ControlReferenceManager.SOFT_REASONS))
                     or async_planning and estimates["road"].get("degraded")):
                 return 0.0, 0.0, None, None, None
             if mpc_settings.reference_source == "estimation_centerline":
                 traj = reference_trajectory_from_road(estimates["road"], state, mpc_settings)
             else:
-                traj = reference_trajectory_from_planning(self.planning_output, mpc_settings.reference_spacing_m)
+                traj = reference_trajectory_from_planning(planning_ref, mpc_settings.reference_spacing_m)
             speed = state["speed_mps"] if state.get("speed_valid") else None
             try:
                 mpc_result = self.mpc_controller.step(traj, speed, dt, state["timestamp_s"], is_first_policy_step)
             finally:
+                self.mpc_controller.last_debug.update(reference_held=held_age is not None,
+                                                      reference_held_age_s=held_age)
                 publisher = getattr(self, "mpc_debug_publisher", None)
                 if publisher is not None:
                     publisher.publish(String(data=mpc_debug_json(self.mpc_controller.last_debug)))
@@ -5884,6 +5914,7 @@ class PolicyNode(Node):
         self.motion_history.clear()
         self.planning_output = None
         self.planning_diagnostics = None
+        self.mpc_held_reference = None
         self.controller.clear()
         if hasattr(self, "control_reference_manager"):
             self.control_reference_manager.clear()

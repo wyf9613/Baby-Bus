@@ -100,6 +100,8 @@ def summarise(name, rows):
         step_p95=p95(values(rows, "step_s")), step_max=max(values(rows, "step_s"), default=None),
         solve_p95=p95(values(rows, "solve_s")), dt_median=median(values(rows, "dt")), dt_max=max(values(rows, "dt"), default=None),
         ref_age_max=max(values(rows, "ref_age_s"), default=None), applied_nonzero=applied,
+        held_share=sum(1 for r in rows if r.get("reference_held"))/n,
+        held_age_max=max(values(rows, "reference_held_age_s"), default=None),
         phases=dict(Counter(r.get("phase") for r in rows)),
         sources={k: sorted({str(r.get(k)) for r in rows}) for k in
                  ("vehicle_source", "reference_source", "simulation_only", "planning_bypassed", "shadow")})
