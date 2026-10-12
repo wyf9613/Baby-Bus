@@ -160,11 +160,9 @@ def main():
     table = summarise(rows)
     RESULTS.mkdir(exist_ok=True)
     (RESULTS / f"{args.out}.json").write_text(json.dumps({"fixes": FIXES, "extra": extra, "rows": rows,
-                                                          "table": table}, indent=1), encoding="utf-8", newline="
-")
+                                                          "table": table}, indent=1), encoding="utf-8", newline="\n")
     text = markdown(table, args)
-    (RESULTS / f"{args.out}.md").write_text(text, encoding="utf-8", newline="
-")
+    (RESULTS / f"{args.out}.md").write_text(text, encoding="utf-8", newline="\n")
     print(text)
     return 0
 
