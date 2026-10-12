@@ -204,9 +204,9 @@ class EstimationChecks(unittest.TestCase):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 Settings(**kwargs)
 
-    def test_existing_yaml_additions_match_declared_parameter_defaults(self):
-        # The new subtree consists only of double scalar defaults. Parse that
-        # restricted subset without adding a YAML dependency to the offline run.
+    def test_shipped_estimation_profile_enables_imported_history_fixes(self):
+        # Parse this restricted scalar subtree without a YAML dependency.
+        # Only the history profile differs from the legacy class defaults.
         import re
         config = Path(__file__).resolve().parents[1] / "config" / "ai4r_policy.yaml"
         scalars = {}
@@ -219,11 +219,17 @@ class EstimationChecks(unittest.TestCase):
                 continue
             if not line.startswith("      "):
                 break
-            match = re.fullmatch(r"      ([a-z_]+): (-?[0-9]+(?:\.[0-9]+)?)", line)
+            match = re.fullmatch(r"      ([a-z_]+): ([a-z_]+|-?[0-9]+(?:\.[0-9]+)?)", line)
             self.assertIsNotNone(match, line)
             self.assertNotIn(match[1], scalars)
-            scalars[match[1]] = float(match[2])
-        self.assertEqual(scalars, vars(Settings()))
+            value = match[2]
+            scalars[match[1]] = (value == "true" if value in ("true", "false") else
+                                  float(value) if value[0] in "-0123456789" else value)
+        expected = vars(Settings())
+        expected.update(history_propagation="continuous", road_history_mode="distance",
+                        history_merge_single_side=True, history_merge_radius_m=0.08)
+        self.assertEqual(scalars, expected)
+        self.assertEqual(vars(Settings(**scalars)), scalars)
 
     def test_actual_student_entry_exports_estimates_and_returns_zero_actions(self):
         obs, ages, stamps, receipts = input_record()
@@ -576,6 +582,147 @@ class NearFieldHistoryChecks(unittest.TestCase):
         self.assertEqual(pipeline._road_cones, [])
 
 
+class CarRunHistoryChecks(unittest.TestCase):
+    """mpc-car-run switches: continuous propagation, distance lifetime, merge radius."""
+
+    @staticmethod
+    def step(pipeline, now_s, camera_s, xs, speed=0.0, offset=0.0):
+        # Policy step at now_s with the latest camera batch acquired at camera_s.
+        batch = cones([(x, offset+0.5) for x in xs], [(x, offset-0.5) for x in xs])
+        obs = {"cone_detections": batch, "wheel_speed": speed,
+               "imu_angular_velocity": (0.0, 0.0, 0.0), "lidar_cartesian": None}
+        ages = {key: 0.0 for key in obs}
+        ages["cone_detections"] = now_s-camera_s
+        return pipeline.update(obs, ages, {"cone_detections": round(camera_s*1e9), "wheel_speed": None,
+                                           "imu_angular_velocity": round(now_s*1e9)},
+                               {"wheel_speed": now_s}, now_s)
+
+    def drive_until_near_field(self, pipeline, speed=0.2, period=0.05, latency=0.0):
+        """Move along a straight cone road seen from 0.9 m; return (time, travelled) once valid."""
+        world = [0.9+0.3*i for i in range(30)]
+        travelled, now = 0.0, 10.0
+        for _ in range(400):
+            camera = now-latency
+            visible = [x-(travelled-speed*latency) for x in world if 0.9 <= x-(travelled-speed*latency) <= 3.0]
+            out = self.step(pipeline, now, camera, visible, speed)
+            if out["road"]["valid"]:
+                return now, travelled, world
+            now, travelled = now+period, travelled+speed*period
+        self.fail("near field never became observed")
+
+    def test_defaults_keep_the_original_behaviour_and_reject_bad_values(self):
+        cfg = Settings()
+        self.assertEqual((cfg.history_propagation, cfg.road_history_mode, cfg.history_merge_single_side,
+                          cfg.history_merge_radius_m), ("camera", "time", False, 0.0))
+        self.assertEqual(cfg.history_lifetime_s, cfg.road_history_s)
+        self.assertEqual(Settings(road_history_mode="distance").history_lifetime_s, 20.0)
+        for bad in ({"history_propagation": "always"}, {"road_history_mode": "space"},
+                    {"history_merge_single_side": 1}, {"history_merge_radius_m": -0.1},
+                    {"road_history_max_s": 4.0}, {"road_history_max_s": 31.0}):
+            with self.assertRaises(ValueError, msg=bad):
+                Settings(**bad)
+
+    def run_camera_gap(self, propagation):
+        pipeline = Pipeline(Settings(history_propagation=propagation, motion_max_interval_s=0.3))
+        now, travelled, world = self.drive_until_near_field(pipeline)
+        last_camera, last_visible = now, [x-travelled for x in world if 0.9 <= x-travelled <= 3.0]
+        gap = []
+        for k in range(1, 8):           # 0.35 s without a new camera batch
+            now, travelled = now+0.05, travelled+0.01
+            gap.append(self.step(pipeline, now, last_camera, last_visible, 0.2)["road"])
+        now, travelled = now+0.05, travelled+0.01
+        resumed = self.step(pipeline, now, now, [x-travelled for x in world if 0.9 <= x-travelled <= 3.0], 0.2)
+        return gap, resumed["road"], pipeline
+
+    def test_continuous_history_survives_a_camera_gap(self):
+        gap, resumed, pipeline = self.run_camera_gap("continuous")
+        self.assertFalse(gap[-1]["valid"])          # no output from a stale frame
+        self.assertIn(gap[-1]["status"], ("motion_interval_too_long", "unavailable"))
+        self.assertTrue(pipeline._road_cones)
+        self.assertTrue(resumed["valid"], resumed["status"])
+        self.assertTrue(resumed["history_used"])
+        self.assertLessEqual(resumed["near_field"]["coverage_x_m"][0], 0.0)
+
+    def test_camera_mode_still_loses_the_near_field_after_the_same_gap(self):
+        _, resumed, _ = self.run_camera_gap("camera")
+        self.assertFalse(resumed["valid"])
+        self.assertEqual(resumed["status"], "near_field_unobserved")
+
+    def test_continuous_history_still_clears_on_a_motion_gap(self):
+        pipeline = Pipeline(Settings(history_propagation="continuous"))
+        now, travelled, world = self.drive_until_near_field(pipeline)
+        pipeline.motion.clear()
+        out = self.step(pipeline, now+0.05, now+0.05, [x-travelled for x in world if 0.9 <= x-travelled <= 3.0], 0.2)
+        self.assertFalse(out["road"]["valid"])
+        self.assertFalse(out["road"]["history_used"])
+
+    def test_inverse_transform_undoes_the_transform(self):
+        motion = Motion(Settings())
+        pose = {"dx_m": 0.12, "dy_m": -0.03, "yaw_rad": 0.2}
+        x, y = motion.inverse_transform_xy(motion.transform_xy((1.3, 0.4), pose), pose)
+        self.assertAlmostEqual(x, 1.3)
+        self.assertAlmostEqual(y, 0.4)
+
+    def test_distance_lifetime_reaches_the_origin_at_low_speed(self):
+        # At 0.1 m/s a cone seen at 0.9 m needs 9 s to reach the car: past 5 s.
+        for mode, expected in (("time", False), ("distance", True)):
+            pipeline = Pipeline(Settings(road_history_mode=mode, history_propagation="continuous"))
+            world = [0.9+0.3*i for i in range(30)]
+            valid = False
+            for frame in range(240):
+                travelled = 0.1*0.05*frame
+                out = self.step(pipeline, 10+0.05*frame, 10+0.05*frame,
+                                [x-travelled for x in world if 0.9 <= x-travelled <= 3.0], 0.1)
+                valid = valid or out["road"]["valid"]
+            self.assertEqual(valid, expected, mode)
+
+    def one_sided(self, merge, left_offset=0.0):
+        """Two-sided history, then a frame that sees only the LEFT boundary."""
+        pipeline = Pipeline(Settings(history_merge_single_side=merge))
+        xs = [-0.3+0.3*i for i in range(9)]
+        self.step(pipeline, 10.0, 10.0, xs)
+        before = list(pipeline._road_cones)
+        batch = cones([(x, 0.5+left_offset) for x in xs[4:]], [])
+        obs = {"cone_detections": batch, "wheel_speed": 0.0,
+               "imu_angular_velocity": (0.0, 0.0, 0.0), "lidar_cartesian": None}
+        out = pipeline.update(obs, {key: 0.0 for key in obs},
+                              {"cone_detections": round(10.1e9), "wheel_speed": None,
+                               "imu_angular_velocity": round(10.1e9)}, {"wheel_speed": 10.1}, 10.1)
+        return out["road"], before, pipeline
+
+    def test_one_sided_frame_merges_with_the_other_side_history_when_enabled(self):
+        road, _, pipeline = self.one_sided(True)
+        self.assertTrue(road["valid"], road["status"])
+        self.assertEqual(road["status"], "observed_with_history")
+        self.assertEqual(road["boundary_source"], {"left": "observed_with_history", "right": "history"})
+        self.assertTrue(road["merged_partial_frame"])
+        self.assertTrue(any(p[3] == 1 for p in pipeline._road_cones))   # right history kept
+
+    def test_one_sided_frame_stays_unfused_by_default(self):
+        road, _, _ = self.one_sided(False)
+        self.assertNotEqual(road["status"], "observed_with_history")
+        self.assertFalse(road.get("merged_partial_frame", False))
+
+    def test_one_sided_conflict_still_clears_the_history(self):
+        road, _, pipeline = self.one_sided(True, left_offset=0.3)
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["status"], "observed_history_conflict")
+        self.assertEqual(pipeline._road_cones, [])
+
+    def test_merge_radius_keeps_the_neighbouring_cone_behind_the_camera_view(self):
+        # A 7 cm odometry offset puts history cone k-1 0.13 m from the fresh
+        # detection of cone k: the default 0.16 m radius deletes it.
+        kept = {}
+        for radius in (0.0, 0.08):
+            pipeline = Pipeline(Settings(history_merge_radius_m=radius))
+            xs = [0.15+0.2*i for i in range(11)]
+            self.step(pipeline, 10.0, 10.0, xs)
+            self.step(pipeline, 10.1, 10.1, [x-0.07 for x in xs if x-0.07 >= 0.88])
+            kept[radius] = any(abs(p[0]-0.75) < 1e-6 for p in pipeline._road_cones)
+        self.assertEqual(kept, {0.0: False, 0.08: True})
+
+
+
 class RoadDropoutChecks(unittest.TestCase):
     XS = [-0.3, 0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1]
 
@@ -770,6 +917,45 @@ class RoadDropoutChecks(unittest.TestCase):
         for value in (-0.01, 0.251, float("nan")):
             with self.assertRaises(ValueError):
                 Settings(road_hold_s=value)
+
+
+class ImportedHistoryIntegrationChecks(unittest.TestCase):
+    def test_motion_budgets_cannot_exceed_source_age_in_either_history_mode(self):
+        for mode in ("time", "distance"):
+            for invalid in ({"max_source_age_s": 0.2, "motion_max_interval_s": 0.3},
+                            {"max_source_age_s": 0.5, "motion_max_gap_s": 0.6}):
+                with self.subTest(mode=mode, invalid=invalid), self.assertRaises(ValueError):
+                    Settings(road_history_mode=mode, **invalid)
+
+    def test_short_common_range_frames_fuse_after_the_prediction_hold_expires(self):
+        pipeline = Pipeline(Settings(history_propagation="continuous", road_history_mode="distance",
+                                     history_merge_single_side=True, history_merge_radius_m=0.08))
+        RoadDropoutChecks.step(pipeline, 10.0, speed=0.0, yaw=0.0)
+        left = [(x, 0.5) for x in (0.3, 0.6, 0.9, 1.2)]
+        right = [(x, -0.5) for x in (0.9, 1.2, 1.5, 1.8, 2.1)]
+        for frame in range(1, 13):
+            now = 10.0 + frame*0.1
+            out = RoadDropoutChecks.step(pipeline, now, left, right, speed=0.0, yaw=0.0)
+            road = out["road"]
+            self.assertTrue(road["valid"], road["status"])
+            self.assertEqual(road["current_frame"]["status"], "insufficient_common_range")
+            self.assertTrue(road["merged_partial_frame"])
+            self.assertFalse(road["degraded"])
+            self.assertEqual(road["oldest_observation_timestamp_s"], 10.0)
+            self.assertAlmostEqual(road["timestamp_s"], out["state"]["timestamp_s"])
+            self.assertAlmostEqual(road["measurement_timestamp_s"], now)
+
+    def test_fresh_single_side_cannot_renew_the_unseen_side_age(self):
+        pipeline = Pipeline(Settings(history_propagation="continuous", road_history_mode="distance",
+                                     history_merge_single_side=True, history_merge_radius_m=0.08))
+        RoadDropoutChecks.step(pipeline, 10.0, speed=0.0, yaw=0.0)
+        left = [(x, 0.5) for x in RoadDropoutChecks.XS]
+        for frame in range(1, 202):
+            out = RoadDropoutChecks.step(pipeline, 10.0+frame*0.1, left, [], speed=0.0, yaw=0.0)
+            right_history = [p for p in pipeline._road_cones if p[3] == 1]
+            self.assertTrue(all(p[5] == 10.0 for p in right_history))
+        self.assertFalse(out["road"]["valid"])
+        self.assertFalse(any(p[3] == 1 for p in pipeline._road_cones))
 
 
 if __name__ == "__main__":

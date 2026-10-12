@@ -190,9 +190,34 @@ class EstimationSettings:
     # 0 means unknown: single-sided geometry stays invalid until measured or
     # explicitly supplied for a known simulated road. Never guess a lane width.
     known_lane_width_m: float = 0.0
+    # Imported mpc-car-run switches (docs/ESTIMATION_V1_CN.md); defaults keep
+    # the original behaviour. "continuous" moves the cone history to every
+    # policy step with short wheel/gyro intervals, so a camera gap no longer
+    # needs one long motion interval and does not clear the history.
+    history_propagation: str = "camera"
+    # "distance" keeps a cone until it falls behind road_rear_support_m (the
+    # local window bounds the dead-reckoned travel to ~3.5 m), with
+    # road_history_max_s as a stationary backstop instead of road_history_s.
+    road_history_mode: str = "time"
+    road_history_max_s: float = 20.0
+    # Merge the visible side of a one-sided frame with the history of both
+    # sides instead of returning the one-sided frame unfused.
+    history_merge_single_side: bool = False
+    # A fresh cone replaces history cones within this radius (0 = the original
+    # 2*huber_delta_m). It must stay below half the cone spacing, or a fresh
+    # detection of cone k also deletes cone k-1 and leaves holes near the car.
+    history_merge_radius_m: float = 0.0
 
     def __post_init__(self):
+        if self.history_propagation not in ("camera", "continuous"):
+            raise ValueError("estimation.history_propagation must be camera or continuous")
+        if self.road_history_mode not in ("time", "distance"):
+            raise ValueError("estimation.road_history_mode must be time or distance")
+        if not isinstance(self.history_merge_single_side, bool):
+            raise ValueError("estimation.history_merge_single_side must be bool")
         for name, value in vars(self).items():
+            if name in ("history_propagation", "road_history_mode", "history_merge_single_side"):
+                continue
             if not finite_number(value):
                 raise ValueError(f"estimation.{name} must be finite")
             if name == "min_cone_confidence":
@@ -201,6 +226,9 @@ class EstimationSettings:
             elif name == "known_lane_width_m":
                 if value != 0.0 and not self.road_width_min_m <= value <= self.road_width_max_m:
                     raise ValueError("known width must be 0 (unknown) or inside width bounds")
+            elif name == "history_merge_radius_m":
+                if value < 0.0:
+                    raise ValueError("estimation.history_merge_radius_m must be >= 0")
             elif name == "road_hold_s":
                 if not 0.0 <= value <= 0.25:
                     raise ValueError("road prediction hold must be in [0, 0.25] seconds")
@@ -216,8 +244,16 @@ class EstimationSettings:
             raise ValueError("road sampling is limited to 201 points")
         if self.road_history_s > 5.0 or self.road_rear_support_m > 1.0:
             raise ValueError("local road history is limited to 5 s and 1 m behind the car")
+        if not self.road_history_s <= self.road_history_max_s <= 30.0:
+            raise ValueError("road_history_max_s must be in [road_history_s, 30] s")
+
         if max(self.motion_max_gap_s, self.motion_max_interval_s) > self.max_source_age_s:
             raise ValueError("motion timing limits cannot exceed the source-age limit")
+
+    @property
+    def history_lifetime_s(self):
+        """Cone lifetime: road_history_s, or the stationary backstop in distance mode."""
+        return self.road_history_max_s if self.road_history_mode == "distance" else self.road_history_s
 
 
 class FirstOrderSampleFilter:
@@ -359,6 +395,12 @@ class EstimationMotionHistory:
         c, s = math.cos(pose["yaw_rad"]), math.sin(pose["yaw_rad"])
         return (c*x+s*y, -s*x+c*y)
 
+    @staticmethod
+    def inverse_transform_xy(point, pose):
+        """A point in the frame at the END of pose -> the frame at its START."""
+        c, s = math.cos(pose["yaw_rad"]), math.sin(pose["yaw_rad"])
+        return (c*point[0]-s*point[1]+pose["dx_m"], s*point[0]+c*point[1]+pose["dy_m"])
+
 
 def _estimation_median(values):
     ordered = sorted(values)
@@ -403,8 +445,11 @@ def _estimation_fit_boundary(points, settings):
     origin, scale = (x0+x1)/2.0, (x1-x0)/2.0
     degree = 2 if len(points) >= 5 and len({p[0] for p in points}) >= 3 else 1
     basis = [[((p[0]-origin)/scale)**j for j in range(degree+1)] for p in points]
-    slopes = [(b[1]-a[1])/(b[0]-a[0]) for i, a in enumerate(points)
-              for b in points[i+1:] if b[0]-a[0] > 1e-6]
+    # Three fixed baselines keep robust initialization linear in point count;
+    # do not build all N*(N-1)/2 pairs for each side of every camera frame.
+    strides = sorted({1, max(1, len(points)//4), max(1, len(points)//2)})
+    slopes = [(points[i+d][1]-points[i][1])/(points[i+d][0]-points[i][0])
+              for d in strides for i in range(len(points)-d) if points[i+d][0]-points[i][0] > 1e-6]
     if not slopes:
         return None
     slope = _estimation_median(slopes)
@@ -420,9 +465,13 @@ def _estimation_fit_boundary(points, settings):
                    for j in range(degree+1)] for i in range(degree+1)]
         rhs = [sum(w*row[i]*p[1] for w, row, p in zip(weights, basis, points))
                for i in range(degree+1)]
-        coeffs = _estimation_solve(matrix, rhs)
-        if coeffs is None:
+        updated = _estimation_solve(matrix, rhs)
+        if updated is None:
             return None
+        converged = max(abs(a-b) for a, b in zip(coeffs, updated)) < 1e-7
+        coeffs = updated
+        if converged:
+            break
     residuals = [sum(c*b for c, b in zip(coeffs, row))-p[1] for row, p in zip(basis, points)]
     inliers = [i for i, r in enumerate(residuals) if abs(r) <= 2*settings.huber_delta_m]
     if len(inliers) < degree+1 or len(inliers) < 0.6*len(points):
@@ -471,6 +520,9 @@ class EstimationPipeline:
     """
     QUALITY_FAILURES = ("insufficient_geometry", "single_side_width_unknown",
                         "single_side_inferred", "insufficient_common_range")
+    # A stale or missing camera frame while wheel/gyro stay continuous. With
+    # history_propagation=continuous these end the output, not the history.
+    CAMERA_GAP_FAILURES = ("unavailable", "motion_interval_too_long")
 
     def __init__(self, settings, frame_id="base_link", left_colour=2, right_colour=1,
                  motion_history=None):
@@ -482,6 +534,7 @@ class EstimationPipeline:
     def _clear_road_history(self):
         self._road_cones = []  # (x, y, z, colour, confidence, original_seen_s)
         self._road_stamp = None
+        self._fused_source_s = None  # camera time of the last fused frame
         self._road_frame = None
         self._observation_stamp = None
         self._observation_road = None
@@ -489,13 +542,55 @@ class EstimationPipeline:
         self._failure_since_s = None
         self._road_reset_id = self.motion.reset_id
 
+    def _advance_history(self, now_s):
+        """Continuous mode: move the cone history to now_s over one short interval.
+
+        Called every policy step, so no single motion interval spans a camera
+        gap. Cones behind road_rear_support_m or past their lifetime drop out.
+        A motion problem still clears the history, as in camera mode.
+        """
+        if self._road_reset_id != self.motion.reset_id:
+            self._clear_road_history()
+            return
+        if not self._road_cones or self._road_stamp is None or now_s <= self._road_stamp:
+            return
+        pose, problem = self.motion.pose_between(self._road_stamp, now_s)
+        if problem is not None:
+            self._clear_road_history()
+            return
+        cones = []
+        for x, y, z, colour, confidence, seen in self._road_cones:
+            x, y = self.motion.transform_xy((x, y), pose)
+            if x >= -self.settings.road_rear_support_m and now_s-seen <= self.settings.history_lifetime_s:
+                cones.append((x, y, z, colour, confidence, seen))
+        self._road_cones, self._road_stamp = cones, now_s
+
+    def _history_at(self, source_s):
+        """History cones in the camera frame at source_s: (cones, None) or (None, problem).
+
+        Camera mode stores history at the last fused camera time (earlier than
+        source_s); continuous mode has already moved it past source_s.
+        """
+        if self._road_stamp is None:
+            return [], None
+        if source_s >= self._road_stamp:
+            pose, problem = self.motion.pose_between(self._road_stamp, source_s)
+            move = self.motion.transform_xy
+        else:
+            pose, problem = self.motion.pose_between(source_s, self._road_stamp)
+            move = self.motion.inverse_transform_xy
+        if problem is not None:
+            return None, problem
+        return [(*move(p[:2], pose), *p[2:]) for p in self._road_cones], None
+
     def _history_road(self, batch, stamp_ns, age, now_s):
         """Merge bounded, validated observations; never extrapolate a blind start.
 
         At most 64 cones per side, with latest observations taking precedence
         within the Huber residual radius. Stored ages refer to real detections,
-        not predictions. Only a fresh two-sided fit updates observed history;
-        a bounded quality-drop bridge may reuse the last fully valid corridor.
+        not predictions. A fresh two-sided fit seeds observed history; when
+        enabled, valid partial fits can extend existing two-sided support.
+        A bounded quality-drop bridge may reuse the last fully valid corridor.
         """
         if self._road_reset_id != self.motion.reset_id:
             self._clear_road_history()
@@ -504,14 +599,18 @@ class EstimationPipeline:
                 or (self._observation_stamp is not None and source_s < self._observation_stamp)):
             out_of_order = (self._observation_stamp is not None and source_s is not None
                             and source_s < self._observation_stamp)
-            self._clear_road_history()
+            # A camera gap (stale or missing batch) keeps a continuously moved
+            # history; out-of-order or future stamps still clear it.
+            if not (self.settings.history_propagation == "continuous" and not out_of_order
+                    and (source_s is None or source_s <= now_s)):
+                self._clear_road_history()
             result = self.road(batch, stamp_ns, age)
             if out_of_order:
                 result.update(valid=False, status="out_of_order_camera", centerline_xy=[],
                               left_boundary_xy=None, right_boundary_xy=None)
             return result
-        expired = any(now_s - p[5] > self.settings.road_history_s for p in self._road_cones)
-        if source_s == self._road_stamp and self._road_frame is not None and not expired:
+        expired = any(now_s - p[5] > self.settings.history_lifetime_s for p in self._road_cones)
+        if source_s == self._fused_source_s and self._road_frame is not None and not expired:
             result = deepcopy(self._road_frame)
             result["source_age_s"] = age
             return result
@@ -527,31 +626,31 @@ class EstimationPipeline:
                 return current
             # Even a one-sided fit can contradict an old corridor. Never hide
             # an observed change behind a prediction from the other boundary.
-            if self._road_stamp is not None:
-                pose, problem = self.motion.pose_between(self._road_stamp, source_s)
-                if problem is None:
-                    for point in self._road_cones:
-                        fit = current.get("_boundary_fits", {}).get(point[3])
-                        if fit is None:
-                            continue
-                        x, y = self.motion.transform_xy(point, pose)
-                        a0, a1, a2 = fit["coeffs"]
-                        if (fit["range"][0] <= x <= fit["range"][1]
-                                and abs(y-(a0+a1*x+a2*x*x)) > 2*self.settings.huber_delta_m):
-                            self._clear_road_history()
-                            current.update(valid=False, status="observed_history_conflict")
-                            return current
-            return current
+            placed, _ = self._history_at(source_s)
+            for x, y, _, colour, _, _ in placed or []:
+                fit = current.get("_boundary_fits", {}).get(colour)
+                if fit is None:
+                    continue
+                a0, a1, a2 = fit["coeffs"]
+                if (fit["range"][0] <= x <= fit["range"][1]
+                        and abs(y-(a0+a1*x+a2*x*x)) > 2*self.settings.huber_delta_m):
+                    self._clear_road_history()
+                    current.update(valid=False, status="observed_history_conflict")
+                    return current
+            # history_merge_single_side: the visible side(s) of a one-sided or
+            # short-overlap frame join the history of both sides below. A failed
+            # merge returns this frame unchanged and leaves the history alone.
+            if not (self.settings.history_merge_single_side and self._road_cones
+                    and current.get("_boundary_fits")):
+                return current
+            partial = True
+        else:
+            partial = False
         fits = current.pop("_boundary_fits")
-        previous = []
-        if self._road_stamp is not None:
-            pose, problem = self.motion.pose_between(self._road_stamp, source_s)
-            if problem is None:
-                for x, y, z, colour, confidence, seen in self._road_cones:
-                    x, y = self.motion.transform_xy((x, y), pose)
-                    if (0 <= now_s-seen <= self.settings.road_history_s
-                            and -self.settings.road_rear_support_m <= x <= self.settings.road_forward_max_m):
-                        previous.append((x, y, z, colour, confidence, seen))
+        placed, _ = self._history_at(source_s)
+        previous = [p for p in placed or []
+                    if 0 <= now_s-p[5] <= self.settings.history_lifetime_s
+                    and -self.settings.road_rear_support_m <= p[0] <= self.settings.road_forward_max_m]
         # An observed change in the overlapping corridor invalidates old support.
         radius = 2*self.settings.huber_delta_m
         for colour, fit in fits.items():
@@ -562,9 +661,10 @@ class EstimationPipeline:
                 break
         fresh = [(x, y, 0.0, colour, confidence, source_s)
                  for colour, fit in fits.items() for x, y, confidence in fit["support_points"]]
+        merge_radius = self.settings.history_merge_radius_m or radius
         for point in fresh:
             previous = [p for p in previous if p[3] != point[3]
-                        or math.hypot(p[0]-point[0], p[1]-point[1]) > radius]
+                        or math.hypot(p[0]-point[0], p[1]-point[1]) > merge_radius]
         merged = previous + fresh
         bounded = []
         for colour in (self.left_colour, self.right_colour):
@@ -573,7 +673,10 @@ class EstimationPipeline:
                 side = [side[round(i*(len(side)-1)/63)] for i in range(64)]
             bounded.extend(side)
         result = self.road({"detections": [p[:5] for p in bounded]}, stamp_ns, age)
-        if not result["valid"]:
+        if not result["valid"] or (partial and result["visibility"] != "both"):
+            if partial:
+                current.pop("_support_cones", None)
+                return current
             # Never let a history-induced bad fit poison subsequent frames.
             bounded, result = fresh, current
         else:
@@ -587,8 +690,15 @@ class EstimationPipeline:
         if result["history_used"]:
             result["status"] = "observed_with_history"
             result["boundary_source"] = {"left": "observed_with_history", "right": "observed_with_history"}
+            if partial:
+                # The side without fresh support in this frame is history only.
+                result["boundary_source"] = {
+                    side: "observed_with_history" if colour in fits else "history"
+                    for side, colour in (("left", self.left_colour), ("right", self.right_colour))}
+                result["merged_partial_frame"] = True
         result["oldest_observation_timestamp_s"] = min(p[5] for p in bounded)
         self._road_cones, self._road_stamp = bounded, source_s
+        self._fused_source_s = source_s
         self._road_frame = deepcopy(result)
         return result
 
@@ -609,7 +719,7 @@ class EstimationPipeline:
         remaining = min(self.settings.road_hold_s-elapsed,
                         self.settings.max_source_age_s-age,
                         self.settings.motion_max_interval_s-age,
-                        self.settings.road_history_s-(now_s-oldest))
+                        self.settings.history_lifetime_s-(now_s-oldest))
         if elapsed < 0 or age < 0 or remaining <= 1e-9:
             return None, "prediction_deadline_expired"
         predicted = deepcopy(self._trusted_road)
@@ -800,11 +910,18 @@ class EstimationPipeline:
                                               oldest_observation_age_s=max(0.0, now_s-oldest))
                     if lo > 1e-9 or hi < 0:
                         problem = "near_field_unobserved"
-                    elif now_s-oldest > self.settings.road_history_s:
+                    elif now_s-oldest > self.settings.history_lifetime_s:
                         problem = "near_field_history_expired"
                     else:
                         road["near_field"].update(valid=True, status="observed_support")
         if problem is not None:
+            if problem == "near_field_unobserved" and road["geometry_valid"]:
+                # Retain validated, aligned FORWARD observations separately.
+                # Estimator validity stays false; only an explicitly configured
+                # planning extension may consume this incomplete support.
+                forward = deepcopy(road)
+                forward.update(valid=False, status=problem)
+                road["forward_geometry"] = forward
             road["near_field"]["status"] = problem
             road.update(valid=False, status=problem, timestamp_s=None,
                         time_aligned=False, motion_compensated=False,
@@ -851,11 +968,14 @@ class EstimationPipeline:
                                        "imu_angular_velocity": "ros_acquisition"},
                  "source_age_s": {k: ages.get(k) for k in ("wheel_speed", "imu_angular_velocity")},
                  "source_stamp_ns": {k: stamps.get(k) for k in ("wheel_speed", "imu_angular_velocity")}}
+        continuous = self.settings.history_propagation == "continuous"
         if not state["valid"]:
             self._clear_road_history()
             road = self.road(observations.get("cone_detections"), stamps.get("cone_detections"),
                              ages.get("cone_detections"))
         else:
+            if continuous:
+                self._advance_history(now_s)
             road = self._history_road(observations.get("cone_detections"), stamps.get("cone_detections"),
                                       ages.get("cone_detections"), now_s)
         observed = self._observation_road or road
@@ -879,10 +999,20 @@ class EstimationPipeline:
                 road = predicted
             else:
                 road["prediction_status"] = reason
-                self._clear_road_history()
+                # Continuous mode keeps the (still conflict-checked) history;
+                # only the trusted-corridor prediction ends here.
+                if continuous:
+                    self._trusted_road, self._failure_since_s = None, None
+                else:
+                    self._clear_road_history()
         elif road["status"] == "near_field_unobserved":
             # Keep validated forward observations for near-field reconstruction,
             # but never use an incomplete startup corridor as a driving fallback.
+            self._trusted_road = None
+            self._failure_since_s = None
+        elif continuous and road["status"] in self.CAMERA_GAP_FAILURES:
+            # Camera gap: no output this step, but the history keeps moving with
+            # wheel/gyro so the near field is still covered when cones return.
             self._trusted_road = None
             self._failure_since_s = None
         else:

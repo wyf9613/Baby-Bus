@@ -139,8 +139,19 @@
       # Missing/old motion or a gap rejects geometry instead of retimestamping.
       motion_max_gap_s: 0.15
       motion_max_interval_s: 0.3
-      # Original observation lifetime, seconds; repeated predictions never renew
-      # it. Propagation uses short camera-to-camera intervals, not a 5 s hold.
+      # Imported mpc-car-run estimation fixes; advance history on each policy
+      # step and fuse validated partial frames with real two-sided history.
+      # Class defaults retain the legacy profile; this YAML selects the fixes.
+      history_propagation: continuous
+      history_merge_single_side: true
+      # Separate association radius from the 2*Huber conflict threshold. 0.08 m
+      # suits the recorded >=0.2 m cone spacing; revisit for another placement.
+      history_merge_radius_m: 0.08
+      # Distance mode keeps points inside the local window, with an original-age
+      # time backstop. It is approximate odometry, not measured drift correction.
+      road_history_mode: distance
+      road_history_max_s: 20.0
+      # Legacy time-mode lifetime, seconds; original ages never renew.
       road_history_s: 5.0
       # Keep measured support behind the car, metres, so the origin can be
       # bracketed. This is a local cache bound, NOT a measured vehicle length.

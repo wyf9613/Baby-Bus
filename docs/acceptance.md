@@ -48,6 +48,49 @@ Static inspection confirms aligned road/state timestamps bypass the planner's
 optional fallback compensation and retain original source age. An integration
 regression is supplied, but no tests were run during this integration.
 
+## Selective mpc-car-run estimation sync, 2026-10-12
+
+The owner selected estimation/road fixes only, preserving this branch's existing
+planning code. The source is `mpc-car-run` at
+`af2e1fbda11d32a79ef1be2877ef6a8d9d7c3c1d`; the continuous/local-lifetime/radius
+and partial-side changes originate in `1b8c56c` and `c01d18e`. Four pure
+definitions were adapted: EstimationSettings, EstimationMotionHistory,
+_estimation_fit_boundary and EstimationPipeline. The imported timing-budget
+validation was unreachable after a property return; it is restored to
+__post_init__, with regression cases for both lifetime modes.
+
+The existing estimation YAML explicitly selects continuous history propagation,
+distance/local-window lifetime, a 20 s original-age backstop, partial-frame
+fusion and a 0.08 m association radius. Class defaults retain camera/time/false/0
+for explicit legacy use. All prior speed/yaw filtering, confidence, range,
+motion/source-age limits and all planning settings remain unchanged. Every other
+policy definition, including PolicyNode and all planner code, is AST-identical
+to this branch's prior `db312ab`. No MPC, V2 startup extension, calibrated vehicle
+values or upstream deployment/runtime changes were imported. An invalid
+near-field result may carry forward_geometry for a downstream future integration;
+it remains invalid and the existing planner was not changed to consume it.
+
+Local portable verification: **66 estimation checks and 16 planning checks
+passed**. Ten upstream history checks were ported, covering camera-gap recovery
+against the legacy mode, motion reset, inverse transport, slow-car lifetime,
+association radius and partial fusion/conflict. Three additional integration
+checks reject inconsistent timing budgets, exercise 1.2 s of repeated short
+common-range frames, and verify that fresh one-sided observations cannot renew
+the unseen side past the original 20 s deadline. All ten Python files parse;
+git diff --check passes. Policy source SHA256:
+`aec6d3f47acf043abe932fcb167380c974c75a3f4d0ec4204fe2759adf7e1af9`.
+
+The existing single-frame outlier study still accepts 100/100 synthetic frames,
+with mean centreline RMSE 0.011485 m versus 0.066789 m for ordinary fitting;
+local median/p95/max fitting time was 0.255/0.327/0.419 ms. This exercises the
+imported fit optimization, not complete updates, ROS latency or vehicle timing.
+The required ROS/Jazzy gate, installed package callbacks, real G2 replay and
+physical tests are **not run** here: no ROS/colcon or installed WSL distribution.
+The upstream full-stack Gym/replay success rates are not acceptance evidence
+for this selective sync. Startup, planner advisory/lifetime consumption,
+unseen single-sided curves, camera/odometry calibration and heading bias remain
+separate work. Historical memory does not exclude newly appearing obstacles.
+
 ## Team estimation prototype, 2026-10-03
 
 The initial implementation based on Baby-Bus `be46dc3` adds causal, sample-aware
