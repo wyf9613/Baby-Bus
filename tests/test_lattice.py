@@ -1,5 +1,6 @@
 """Analytic geometry, failure contracts and integrated V2 checks, without ROS."""
 from copy import deepcopy
+import gc
 import json
 import math
 from pathlib import Path
@@ -282,7 +283,17 @@ class LatticeChecks(unittest.TestCase):
         self.assertNotIn("lidar_cartesian", node.required_sensors)
         control_api["feed"](node, center=0.1)
         control_api["start"](node)
-        node.run_policy_step()
+        # The real planner clock is checked against the 0.15 s wheel/IMU source
+        # lifetime. In a full test process (~270k tracked objects) one garbage
+        # collection pauses ~80-150 ms and lands in this step deterministically
+        # under pytest. Collect and freeze first so the step measures planning,
+        # not the test harness heap (planning itself takes ~40 ms here).
+        gc.collect()
+        gc.freeze()
+        try:
+            node.run_policy_step()
+        finally:
+            gc.unfreeze()
         self.assertEqual(node.fsm_state, 3, node.state_reason)
         self.assertTrue(node.planning_output["valid"])
         self.assertGreater(node.action_publisher.messages[-1].drive, 0)
