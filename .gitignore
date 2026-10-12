@@ -6,3 +6,6 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .venv/
+.tmp-tests/
+/vehicle_identification_backup/
+/*.jsonl

@@ -2,7 +2,8 @@
 
 Status: the implementation passes the software gate on `jah`. Version 0.1.0
 identifies a release only through its published annotated tag and successful
-release CI. Physical vehicle acceptance remains unperformed.
+release CI. Limited team vehicle observations are recorded below; full physical
+acceptance remains incomplete.
 
 ## Evidence ownership
 
@@ -12,6 +13,57 @@ Synthetic observations and a synthetic ROS peer establish software behavior,
 not actual sensor/vehicle response.
 Keep revision, command, result and limitations here; retain detailed logs in
 CI artifacts or merge requests rather than a tracked evidence directory.
+
+## Observed physical evidence
+
+### One-second forward-drive pulses, 2026-10-12
+
+The local `feature/vehicle-identification` working tree was deployed to the car
+recorded as `10.43.254.20`. Straight, one-second normalized drive requests were
+preceded and followed by two seconds of zero request. Valid runs completed with
+no recorder warnings. Mean peak unsigned wheel speeds were 0.000 m/s at requests
+0.1 and 0.3, 0.623 m/s at 0.4, 1.303 m/s at 0.5, and 2.249 m/s at 0.7. Operator
+distance estimates were 0.52 m, approximately 1.0 m and approximately 2.0 m for
+0.4, 0.5 and 0.7 respectively. Two attempted 0.4 runs were correctly rejected
+because residual starting speeds exceeded the configured 0.03 m/s threshold.
+
+These are transient pulse observations, not steady-state speed measurements or
+a fitted longitudinal model. Wheel speed is unsigned, distance endpoint timing
+was not independently recorded, battery/surface conditions were not captured,
+and set-point/requested/applied time-series alignment remains to be analysed.
+Detailed values and on-car log paths are recorded in
+`docs/vehicle-drive-identification-results-2026-10-12.md`.
+
+### Vehicle identification handoff, 2026-10-12
+
+Tester: Zhengxi Chen. Steering observations: positive policy request turns right;
+requests 0.5 and 1.0 produce approximately 9 and 18 degrees, with similar left/right
+magnitudes and a visually centred zero. Geometry was reported consistent with
+the simulation baseline. Steering rate 1.21 rad/s is an average-time estimate;
+steering delay 0.03 s is operator-selected, not independently measured.
+
+Three additional 0.4 requests lasted 3 s each. A local response model uses
+0.26 s effective delay, 1.33 s time constant and 1.49 m/s extrapolated steady
+speed. The first run's post-zero record supports continued motion and coarse
+stopping estimates only. No continuous-speed guarantee at 0.7, full physical
+stopping validation or complete dynamic-bicycle model is established.
+
+The local handoff keeps identification off with confirmation false. The
+pending 0.35 / 3 s sequence remains configured but has no reported result.
+The operator's RC test reports a starting threshold near 0.35 and low-speed
+sustaining request near 0.3. No time series was saved for this test; the minimum
+sustaining request and RC-to-policy mapping remain unchecked. The 0.4 start
+model does not cover low-speed sustaining behavior.
+VehicleParams is offline handoff data and is not imported by the running policy.
+Recorded deployment was a working tree; its exact on-car source/dependency
+revision was not captured. Test IPs are session labels, not permanent car IDs.
+
+Current checks: 17 hardware-free identification tests, Python/YAML validation
+and `git diff --check`. The required `tools/verify_fast.sh` ROS gate is **not run**
+for this handoff: this Windows host has no configured Linux/ROS Jazzy environment
+or pinned `dream_interfaces` checkout. Prior `jah` evidence above is historical
+and does not substitute for the current gate. See the
+[parameter handoff](vehicle-identification-start.md) for remaining checks.
 
 ## Student-facing review, 2026-09-28
 
@@ -301,8 +353,9 @@ requirement, not a claim of server-enforced selective approval.
 
 ## Robot acceptance checklist
 
-All currently **not run** with a physical car. Record source/dependency commits,
-tester/date, robot configuration and observed result when these are performed:
+Items remain **not run** unless explicitly covered by physical evidence above.
+Record source/dependency commits, tester/date, robot configuration and observed
+result when these are performed:
 
 - Zero startup, explicit vehicle/policy controls, neutral handshake and stop.
 - Lidar-only and wheel-speed-only operation with no cone detector running.

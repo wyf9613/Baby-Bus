@@ -1,6 +1,6 @@
 # 实车参数测试：运行说明
 
-默认测试关闭；17 项离线测试通过，完整 ROS Jazzy 验证及实车测试尚未完成。以下命令从仓库根目录运行，使用已加载课程 ROS 环境的终端；`car` 替换为实际命名空间。
+前向辨识已取得实车数据，见 [交付清单](../../docs/vehicle-identification-start.md) 和 [驱动结果](../../docs/vehicle-drive-identification-results-2026-10-12.md)。本次交付默认关闭实验；完整 ROS Jazzy 门禁仍未运行。
 
 ## 1. 验证与配置
 
@@ -12,53 +12,75 @@ python3 offline/vehicle_identification/vehicle_test_tools.py preview
 AI4R_INTERFACES_SOURCE="$PWD/.verification/dependencies/dream_interfaces" bash tools/verify_fast.sh
 ```
 
-编辑 `config/ai4r_policy.yaml`：
+当前 YAML：`timer`、必需 `wheel_speed`，预留请求 `0.35`、持续 `3.0 s`、转向 `0.0`、驱动上限 `0.35`、速度中止阈值 `3.0 m/s`。序列前后各有 `2.0 s` 零请求；尚无本工况结果。
 
-- 设置 `policy_update_mode: timer`、`required_sensors: [wheel_speed]`；需要偏航数据时加入 `imu_angular_velocity`。
-- `id_test.mode` 选择 `steering`、`drive`、`brake`；关闭用 `"off"`。
-- `durations_s`、`drive_values`、`steering_values` 三个数组等长，用小数填写。
-- 现场确认驱动、转向和速度限制后，设置 `confirmed: true`。转向模式驱动必须全零；驱动/制动模式转向必须全零。
-- 负驱动另需 `brake` 模式及 `negative_drive_confirmed: true`，仅在已确认 ESC 规则后启用。
-
-先做全零演练：`mode: steering`、`confirmed: true`、`speed_limit_mps: 0.1`，其他实验字段保持默认，共 5 秒零请求。该速度阈值仅用于静止演练。通过后再填现场确认的非零请求；每次修改都重新预览并重启策略。
+补测前在 `config/ai4r_policy.yaml` 将 `id_test.mode` 改为 `drive`、`confirmed` 改为 `true`，其余配置保持上述值，再预览。结束后恢复 `mode: "off"`、`confirmed: false`。转向测试用 `steering` 模式，驱动必须全零；三个阶段数组必须等长。当前范围不测试负驱动。
 
 ## 2. 部署与记录
 
-停止旧策略，使车辆处于非运行状态。按课程方法复制修改后的策略、配置和本目录到车上的 `~/ai4r_student_workspace/src/ai4r_policy/`，再运行：
+停止旧实验并确认车辆停稳。首次部署或更换车辆，在 Windows PowerShell 的本地仓库执行（替换当前 IP）：
+
+```powershell
+$carIp = "10.43.254.20"
+scp scripts/policy_node.py "ai4r@${carIp}:~/ai4r_student_workspace/src/ai4r_policy/scripts/"
+scp config/ai4r_policy.yaml "ai4r@${carIp}:~/ai4r_student_workspace/src/ai4r_policy/config/"
+ssh "ai4r@$carIp" "mkdir -p ~/ai4r_student_workspace/src/ai4r_policy/offline"
+scp -r offline/vehicle_identification "ai4r@${carIp}:~/ai4r_student_workspace/src/ai4r_policy/offline/"
+ssh "ai4r@$carIp"
+```
+
+在小车 SSH 终端执行：
 
 ```bash
+cd ~/ai4r_student_workspace/src/ai4r_policy
+python3 offline/vehicle_identification/test_vehicle_identification.py
+python3 offline/vehicle_identification/vehicle_test_tools.py preview
 dream build ros student
 dream runtime restart ai4r_policy
+dream runtime status
+ros2 param get /car/ai4r_policy id_test.mode
+ros2 param get /car/ai4r_policy id_test.drive_values
+ros2 param get /car/ai4r_policy id_test.durations_s
 ros2 topic info /car/drive_and_steer_set_point_normalized
 ros2 topic hz /car/wheel_speed_m_per_sec
 ```
 
-确认仅一个控制发布者、轮速持续更新。每轮使用新的文件名，保存配置并开始记录：
+确认车辆接口和策略运行、仅一个控制发布者、轮速持续更新且车已静止。重启后暂时找不到节点时，待节点出现再检查；不要把 `Parameter not set` 当作配置成功。仅改 YAML 时，按 DREAM 源配置流程重启对应节点即可。
+
+每批使用新的名称，保存配置并开始记录：
 
 ```bash
 mkdir -p log/vehicle_identification
-ros2 param dump /car/ai4r_policy > log/vehicle_identification/run01-policy.yaml
-ros2 param dump /car/traxxas_vehicle_interface > log/vehicle_identification/run01-vehicle.yaml
+run_name="drive035_3s_$(date +%Y%m%d_%H%M%S)"
+ros2 param dump /car/ai4r_policy > "log/vehicle_identification/${run_name}-policy.yaml"
+ros2 param dump /car/traxxas_vehicle_interface > "log/vehicle_identification/${run_name}-vehicle.yaml"
 python3 offline/vehicle_identification/record_vehicle_test.py \
-  --namespace car --car-id YOUR_CAR_ID --notes "电池、载荷、地面" \
-  --output log/vehicle_identification/run01.jsonl
+  --namespace car --car-id 10.43.254.20 --notes "0.35 for 3 s; record battery/load/surface" \
+  --output "log/vehicle_identification/${run_name}.jsonl"
 ```
 
 ## 3. 启动与停止
 
-出现 `Recording` 后，在 Foxglove 请求 Vehicle Enable，等到 Enabled，再请求 Policy State 3。人工停止计算用 State 2；实验到时、超速、时序异常或必需数据过期也会回到零请求。
+出现 `Recording` 后，用 Foxglove 按钮：
 
-**零请求不等于主动制动或 Disarm。** 现场保留 RC 停止手段，按课程流程确认停驶后，再 Ctrl+C 结束记录。关闭记录程序不会停车。再次显式请求 State 3 才会从头运行新一轮；程序不自动重复，也不避障。
+1. 点击 **Policy publishing ZERO actions**（State 2）。
+2. 点击 **Traxxas Request Enable**，等状态为 `Enabled`。
+3. 车辆静止后点击 **Policy publishing actions**（State 3），执行一次。
+4. 等实验完成、车辆完全停稳；点击 ZERO actions，再点击 publishing actions 可重复。建议共 3 次。
+5. 最后点击 ZERO actions，确认停稳，再使用车辆 Disable / Disarm。记录终端按 `Ctrl+C`，关闭配置并重启策略。
+
+到时、达到速度阈值、时序异常或必需数据过期会回到零请求。零请求仍可能滑行，保留 RC 停止手段。**Ctrl+C 只停止记录；NOT publishing actions（State 1）不负责停车。** 程序不自动重复，也不避障。
 
 ## 4. 分析与交付
 
 ```bash
 python3 offline/vehicle_identification/vehicle_test_tools.py export \
-  --log log/vehicle_identification/run01.jsonl \
-  --output-dir log/vehicle_identification/run01-export
+  --log "log/vehicle_identification/${run_name}.jsonl" \
+  --output-dir "log/vehicle_identification/${run_name}-export"
+cat "log/vehicle_identification/${run_name}-export/summary.json"
 ```
 
-导出 `samples.csv`（计划请求与观测）、`events.csv`（实际发布请求及传感器/状态事件）和 `summary.json`。发布请求不等于执行器实测输出；轮速无方向，日志与外部视频需同步。
+导出样本、事件 CSV 和 `summary.json`。输出目录已存在时使用新目录名，不覆盖旧结果。保留原始 JSONL；只有摘要不能复算延迟和速度曲线。发布请求不等于执行器输出；轮速无方向且可能重复缓存值。
 
 其他离线工具：
 
@@ -70,4 +92,4 @@ python3 offline/vehicle_identification/vehicle_test_tools.py export \
 
 用 `python3 offline/vehicle_identification/vehicle_test_tools.py <子命令> --help` 查看必填参数。几何长度用米、轴荷同单位，角度 CSV 用度；静态转向至少三个不同请求且覆盖左右。
 
-几何与前轮角需要现场测量。工具结果仅为待复测候选，不自动确认纯延迟、物理速率上限、制动规则或纵向模型，也不改写 `vehicle_params.py`。复测确认后填写参数，未确认项保留 `None`。
+工具不会自动改写 `vehicle_params.py` 或连接车辆。原始日志及备份默认排除出 Git，按需单独交付。

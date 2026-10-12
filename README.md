@@ -235,6 +235,13 @@ policy = Node(
 
 ## Integration status and development
 
+Vehicle identification handoff: [current parameters and status](docs/vehicle-identification-start.md),
+[test methods](docs/vehicle-params-test-plan.md),
+[drive results](docs/vehicle-drive-identification-results-2026-10-12.md), and
+[car test instructions](offline/vehicle_identification/README.md).
+The recorded parameters are offline handoff data; the policy does not import
+them automatically. Identification ships disabled.
+
 This is the standalone source repository. DREAM's AI4R integration defines the
 managed policy and component runtime units and admits source-YAML overrides.
 Its `base_link` origin is nominal ground directly below the agreed CG. The

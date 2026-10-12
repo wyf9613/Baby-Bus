@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — vehicle identification
+
+- Populate the forward-only VehicleParams handoff with geometry, steering and
+  local drive-response estimates; document their measurement limits.
+- Record real-car observations and concise deployment/test instructions.
+- Keep identification disabled by default and exclude local raw-log backups.
+
 ## [0.3.0] - release preparation
 
 - Expose eight drive/steering output endpoints and final PWM bounds in the
