@@ -60,7 +60,7 @@ MPC 读取 `self.planning_output`，经适配器 `reference_trajectory_from_plan
 | Planning 字段 | MPC 怎么用 |
 | --- | --- |
 | `valid` | False 且没有明确停车请求时属于**可容忍失效**：在 `reference_dropout_tolerance_s` 内继续执行上一步的计划，超时就锁停 |
-| `stop_requested` | True 表示明确停车请求，即使 `valid=False`、`path=None` 也立即走 `stop` 分支；异步规划的 `reason=planning_pending` 是等待结果，仍走限时失效处理 |
+| `stop_requested` | V1 和 V2 在**每次**失败时都置 True。`valid=True`，或失败原因不在 MVP 的瞬时原因集合（`ControlReferenceManager.SOFT_REASONS`，如 `stale_road`、`invalid_estimates`、覆盖不足、`planning_pending`、worker 超时）里时，是明确停车请求，即使 `path=None` 也立即走 `stop` 分支（如 `no_feasible_lattice_trajectory`）；瞬时原因按可容忍失效处理（`reference_dropout_tolerance_s`） |
 | `frame_id`、`timestamp_s` | 必须是 `base_link`；时间戳用来判断参考是否过期 |
 | `valid_for_s` | 参考的有效期；过期也属于可容忍失效（`ref_expired_or_future`） |
 | `path` | V1/V2 的 `CARTESIAN_Y_OF_X` 支持 1–6 个 `coeffs_low_to_high`，按 `origin`、`scale`、`range` 采样；V2 的 `CARTESIAN_SAMPLES` 原样转为 MPC 点列，不重新拟合或重采样。存在 `control_cached_path_samples` 时优先使用运动补偿后的点列 |

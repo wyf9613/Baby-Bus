@@ -3050,10 +3050,14 @@ def reference_trajectory_from_planning(ref, spacing_m=0.05):
                simulation_only=ref.get("simulation_only", False),
                source_ages_s=dict(ref.get("source_ages_s") or {}),
                reference_source="planning", planning_bypassed=False)
-    if ref.get("stop_requested") is True and ref.get("reason") != "planning_pending":
+    if ref.get("stop_requested") is True and (
+            ref.get("valid") is True or ref.get("reason") not in ControlReferenceManager.SOFT_REASONS):
         # Planning failure can have no path. An explicit stop must reach MPC's
-        # stop branch even when the reference itself is invalid. The async
-        # worker's pending frame is a bounded dropout, not a stop decision.
+        # stop branch even when the reference itself is invalid. V1 and V2 set
+        # stop_requested on EVERY failure, so the transient reasons the MVP
+        # bridges (SOFT_REASONS: stale/invalid road, coverage, pending async
+        # worker, ...) stay bounded dropouts here too; a valid stop or e.g.
+        # no_feasible_lattice_trajectory still stops immediately.
         out.update(valid=True, reason=out["reason"] or "planner_stop")
         return out
     if ref.get("valid") is not True:

@@ -30,7 +30,7 @@ NAMES = {"wrap_angle", "MPCStop", "VehicleParamsSettings", "course_simulation_ve
          "course_model_step", "MPCSettings", "mpc_vehicle_params", "reference_trajectory_from_planning",
          "reference_trajectory_from_road", "mpc_reference_errors", "mpc_path_projector",
          "VehicleModelMPC", "MPCController", "mpc_debug_json", "transport_control_reference",
-         "_control_sample_points", "mpc_planning_reference"}
+         "_control_sample_points", "mpc_planning_reference", "ControlReferenceManager"}
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in NAMES]
@@ -212,6 +212,22 @@ class Adapter(unittest.TestCase):
         ctrl.step(straight_trajectory(), 0.3, 0.0, 10.0, True)
         held = ctrl.step(pending, 0.3, 0.05, 10.05, False)
         self.assertEqual(held["debug"]["branch"], "plan_hold")
+
+    def test_transient_planning_rejections_are_dropouts_not_stops(self):
+        # V1 and V2 both set stop_requested on every failure (2026-10-12 Gym
+        # regression: one stale_road frame lock-stopped the MPC at 0.6 s).
+        for reason in ("stale_road", "invalid_estimates", "insufficient_near_or_far_coverage",
+                       "insufficient_lattice_coverage", "planning_worker_timeout", "planning_pending"):
+            traj = adapt({"valid": False, "path": None, "stop_requested": True, "reason": reason,
+                          "timestamp_s": 10.0, "frame_id": "base_link"}, 0.05)
+            self.assertFalse(traj["valid"], reason)
+            ctrl = verified(reference_dropout_tolerance_s=0.3)
+            ctrl.step(straight_trajectory(), 0.3, 0.0, 10.0, True)
+            self.assertEqual(ctrl.step(traj, 0.3, 0.05, 10.05, False)["debug"]["branch"], "plan_hold", reason)
+        for reason in ("no_feasible_lattice_trajectory", "recovery_body_boundary_conflict", None):
+            traj = adapt({"valid": False, "path": None, "stop_requested": True, "reason": reason,
+                          "timestamp_s": 10.0, "frame_id": "base_link"}, 0.05)
+            self.assertTrue(traj["valid"] and traj["stop_required"], reason)
 
     def test_clipped_path_end_adds_no_near_duplicate_point(self):
         ref, _ = Planner(PlanSettings(vehicle_limits_source="course_simulation")).plan(*plan_fixture())
