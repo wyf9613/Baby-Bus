@@ -214,7 +214,8 @@ def test_integrated_control_requires_feedback_and_matching_profiles(make_node):
 
 MPC_ON_V2 = {"control.enabled": False, "mpc.enabled": True, "mpc.shadow": True,
              "mpc.vehicle_params_source": "vehicle", "planning.algorithm": "lattice_v2",
-             "planning.lattice.async_enabled": True, "planning.reference_lifetime_s": 0.2}
+             "planning.lattice.async_enabled": True, "planning.lattice.obstacle_check_enabled": False,
+             "planning.reference_lifetime_s": 0.2}
 
 
 def test_async_v2_starts_with_the_mpc_on_the_planning_reference(make_node):
