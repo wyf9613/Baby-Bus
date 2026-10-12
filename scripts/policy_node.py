@@ -1505,6 +1505,12 @@ class LatticeSettings:
     initial_heading_max_rad: float = 1.22
     low_speed_yaw_tolerance_rps: float = 0.12
     update_rate_hz: float = 10.0
+    # mpc-car-run switch (docs/UPSTREAM_FIXES_FOR_CAR_CN.md). "fade" continues
+    # each boundary's own near-end slope and curvature into the blind zone;
+    # "parallel" extends both boundaries as straight lines along the CENTERLINE
+    # tangent, keeping the observed near-end width, so one boundary's fit noise
+    # is not extrapolated ~1 m into a narrowing corridor.
+    blind_extension_mode: str = "fade"
 
     def __post_init__(self):
         csv = {"transition_lengths_m", "terminal_offsets_m", "durations_s", "terminal_speeds_mps"}
@@ -1512,6 +1518,9 @@ class LatticeSettings:
             if name == "model_source":
                 if value not in ("course_approximation", "course_simulation", "upstream"):
                     raise ValueError("invalid lattice model source")
+            elif name == "blind_extension_mode":
+                if value not in ("fade", "parallel"):
+                    raise ValueError("planning.lattice.blind_extension_mode must be fade or parallel")
             elif name in csv:
                 samples = self.samples(name)
                 if not 1 <= len(samples) <= 9 or len(set(samples)) != len(samples):
@@ -1556,6 +1565,15 @@ class LatticeSettings:
         return values
 
 
+def _lattice_corridor(clipped, extension, step, cfg):
+    """Centerline, left and right LatticeCurves sharing one blind-zone extension rule."""
+    curves = [LatticeCurve(p, extension, step) for p in clipped]
+    if cfg.blind_extension_mode != "parallel" or extension <= 0:
+        return curves
+    slope = curves[0].at_x(curves[0].points[0][0])[1]
+    return [LatticeCurve(p, extension, step, extension_slope=slope) for p in clipped]
+
+
 def _lattice_derivative(coeffs, order=1):
     for _ in range(order):
         coeffs = [i*c for i, c in enumerate(coeffs) if i] or [0.0]
@@ -1583,7 +1601,7 @@ class LatticeCurve:
     the configured fine grid; actual sampled path is checked after conversion.
     No extension forward beyond observed support is allowed.
     """
-    def __init__(self, points, extension, step):
+    def __init__(self, points, extension, step, extension_slope=None):
         self.points = CenterlinePlanner._points(points)
         if self.points is None:
             raise ValueError("invalid_reference_points")
@@ -1626,6 +1644,9 @@ class LatticeCurve:
         self.xmin, self.xmax = first[0]-extension, points[-1][0]
         self.extension = (self.xmin, first[0], [first[2][0], first[2][1], second[0]/2,
                                               second[0]/(6*extension) if extension > 0 else 0.0])
+        if extension_slope is not None:
+            # Straight extension along a supplied (centerline) slope; C0 at the join.
+            self.extension = (self.xmin, first[0], [first[2][0], extension_slope, 0.0, 0.0])
         count = math.ceil((self.xmax-self.xmin)/step)
         if count > 400:
             raise ValueError("reference_grid_cap")
@@ -1967,7 +1988,7 @@ class FrenetLatticePlanner:
                 extension = 0.0
             if extension > cfg.max_extension_m:
                 raise ValueError("extension_limit")
-            curve, left, right = [LatticeCurve(p, extension, cfg.geometry_step_m) for p in clipped]
+            curve, left, right = _lattice_corridor(clipped, extension, cfg.geometry_step_m, cfg)
             s0, d0 = curve.project_origin()
             rx, ry, tx, ty, k, dk = curve.at_s(s0)
             heading_error = -math.atan2(ty, tx)
@@ -2464,7 +2485,7 @@ class MvpRecoveryPlanner:
                                       [sum(r[i]*p[1] for r, p in zip(rows, center)) for i in range(3)])
             if coeffs is None or max(abs(_control_poly_eval(coeffs, r[1])-p[1]) for r, p in zip(rows, center)) > 0.04:
                 raise ValueError("recovery_fit_error")
-            left, right = [LatticeCurve(p, extension, 0.05) for p in clipped[1:]]
+            left, right = _lattice_corridor(clipped, extension, 0.05, cfg)[1:]
             lo, hi = max(0.0, near-extension), min(cfg.horizon_m, far-math.hypot(model["front_extent_m"], model["width_m"]/2)-0.04)
             if hi-lo < cfg.minimum_output_m:
                 raise ValueError("insufficient_body_supported_horizon")

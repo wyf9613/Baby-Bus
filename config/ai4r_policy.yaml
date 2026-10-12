@@ -244,6 +244,10 @@
         clear_start_assumed: true
         max_near_gap_m: 0.9
         max_extension_m: 1.3
+        # Blind-zone extension: fade (continue each boundary's own slope and
+        # curvature) or parallel (straight along the centerline tangent, keeping
+        # the observed width). mpc-car-run overlays select parallel.
+        blind_extension_mode: fade
         extension_margin_growth: 0.08
         blind_lateral_change_m: 0.08
         blind_steering_limit_rad: 0.3490658504

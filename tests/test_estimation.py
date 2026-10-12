@@ -31,7 +31,7 @@ names = {"finite_number", "Observation", "EstimationSettings", "FirstOrderSample
          "PolicyStopRequest", "RunDistanceLimiter", "ControlReferenceManager",
          "_control_poly_eval", "_control_poly_roots", "control_path_geometry"}
 names.update({"LatticeSettings", "LatticeCurve", "FrenetLatticePlanner", "_lattice_interp",
-              "_lattice_derivative", "_lattice_lateral", "_lattice_geometry", "_lattice_steering"})
+              "_lattice_derivative", "_lattice_corridor", "_lattice_lateral", "_lattice_geometry", "_lattice_steering"})
 names.add("evaluate_frenet_path")
 names.add("_planning_control_geometry")
 names.update({"_control_cached_geometry", "_control_sample_points", "_control_sample_at"})

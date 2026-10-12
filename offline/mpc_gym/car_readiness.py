@@ -39,11 +39,13 @@ SEEDS = tuple(range(1, 11))
 FIXES = [("estimation", "history_propagation", "continuous"),     # A1
          ("estimation", "road_history_mode", "distance"),           # A2
          ("estimation", "history_merge_radius_m", 0.08),            # A2b
-         ("estimation", "history_merge_single_side", True)]          # A3
+         ("estimation", "history_merge_single_side", True),          # A3
+         ("planning.lattice", "blind_extension_mode", "parallel")]   # B1
 BASELINE = [("estimation", "history_propagation", "camera"),
             ("estimation", "road_history_mode", "time"),
             ("estimation", "history_merge_radius_m", 0.0),
-            ("estimation", "history_merge_single_side", False)]
+            ("estimation", "history_merge_single_side", False),
+            ("planning.lattice", "blind_extension_mode", "fade")]
 
 
 def apply(params, changes):

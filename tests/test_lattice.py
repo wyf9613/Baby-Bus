@@ -413,6 +413,46 @@ class LatticeChecks(unittest.TestCase):
         a, b = curve.at_x(0.9-1e-8), curve.at_x(0.9+1e-8)
         for order in range(3): self.assertAlmostEqual(a[order], b[order], places=6)
 
+    def test_parallel_blind_extension_is_straight_and_keeps_the_observed_width(self):
+        # Noisy near ends: the left boundary bends inwards, the right one outwards.
+        xs = [0.9+0.1*i for i in range(22)]
+        left = [(x, 0.36-0.04*(1.5-x)**2 if x < 1.5 else 0.36) for x in xs]   # C1 at 1.5 m
+        right = [(x, -0.36) for x in xs]
+        center = [(x, (a[1]+b[1])/2) for x, a, b in zip(xs, left, right)]
+        fade = ns["_lattice_corridor"]([center, left, right], 1.35, 0.025, Config(blind_extension_mode="fade"))
+        par = ns["_lattice_corridor"]([center, left, right], 1.35, 0.025, Config(blind_extension_mode="parallel"))
+        slope = par[0].at_x(0.9)[1]
+        width_join = par[1].at_x(0.9)[0]-par[2].at_x(0.9)[0]
+        for x in (-0.4, 0.0, 0.5):
+            for curve in par:
+                y, dy, ddy, _ = curve.at_x(x)
+                self.assertAlmostEqual(dy, slope)
+                self.assertEqual(ddy, 0.0)
+            self.assertAlmostEqual(par[1].at_x(x)[0]-par[2].at_x(x)[0], width_join)
+        for i in range(3):   # identical over the observed support
+            for x in (0.9, 1.5, 2.9):
+                self.assertEqual(par[i].at_x(x), fade[i].at_x(x))
+        # The fade extension narrows the corridor behind the observed start.
+        self.assertLess(fade[1].at_x(-0.4)[0]-fade[2].at_x(-0.4)[0], width_join-0.01)
+        with self.assertRaises(ValueError):
+            Config(blind_extension_mode="mirror")
+
+    def test_parallel_extension_admits_an_offset_start_on_a_narrow_road(self):
+        # 0.72 m road seen from 0.95 m, car 0.06 m left of centre, noisy near curvature.
+        args = fixture(speed=0.0)
+        road = args[0]
+        xs = [0.95+0.1*i for i in range(21)]
+        road["left_boundary_xy"] = [(x, 0.30+0.01*(1.6-x)**3 if x < 1.6 else 0.30) for x in xs]
+        road["right_boundary_xy"] = [(x, -0.42) for x in xs]
+        road["centerline_xy"] = [(x, (a[1]+b[1])/2) for x, a, b in zip(xs, road["left_boundary_xy"],
+                                                                     road["right_boundary_xy"])]
+        results = {}
+        for mode in ("fade", "parallel"):
+            ref, _ = planner(blind_extension_mode=mode, max_near_gap_m=1.0, max_extension_m=1.4,
+                             obstacle_check_enabled=False).plan(*deepcopy(args))
+            results[mode] = ref["reason"]
+        self.assertEqual(results["parallel"], "lattice_selected", results)
+
     def test_cubic_reference_matches_quadratic_curvature(self):
         curve = ns["LatticeCurve"]([(i*0.1, 0.08*(i*0.1)**2) for i in range(31)], 0.5, 0.025)
         for x in (0, 0.4, 1.2, 2.8):
