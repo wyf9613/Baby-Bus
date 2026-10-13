@@ -1,0 +1,26 @@
+{
+  "created": "2026-10-13T12:01:17.194745+11:00",
+  "candidate": "ae74be4+road-v2@6552033+lattice-only+mvp-domain+margin-0.02+startup-retry+rejection-details+planning-budget100",
+  "sha256": {
+    "scripts/policy_node.py": "a28fab188e58a86239aeb5a4922b092e06c2015cb95ea2f5ff7c4427d413e2c5",
+    "config/ai4r_policy.yaml": "802e53ed4fd9702710139949a9fcca6f1fb1d7276065dbdd1b46d9778262ab4a"
+  },
+  "startup_grace_s": 3.0,
+  "startup_confirm_frames": 3,
+  "max_candidates": 16,
+  "syntax_yaml": "passed; no policy execution",
+  "automated_suites": "not run at user request",
+  "deployed": true,
+  "vehicle_test": "one bounded attempt; startup passed, drive sent but no physical motion; confirmed stopped",
+  "planning_update_rate_hz": 10.0,
+  "planning_budget_s": 0.1,
+  "control_update_rate_hz": 20.0,
+  "parameter_readback": {
+    "planning.lattice.update_rate_hz": 10.0,
+    "planning.lattice.budget_s": 0.1,
+    "policy_update_rate_hz": 20.0,
+    "planning.lattice.max_candidates": 16
+  },
+  "run": "drive-budget100-122645",
+  "operator_observation": "Wheels and vehicle did not move"
+}

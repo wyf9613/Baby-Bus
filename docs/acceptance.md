@@ -1,6 +1,32 @@
 # AI4R policy acceptance
 
-Status: `mvp2.0` extends the 2026-10-09 V2/fused-road/control candidate with
+The [2026-10-13 daily review](experiments/2026-10-13/MVP2_REVIEW_CN.md) records
+the complete sequence, failed acceptance, source hashes and archived raw logs.
+No autonomous 3 m run or post-fix physical startup success was established.
+
+Status: the current local `mvp2.0` additionally imports the perception-only
+changes from `feature/road-estimation-v2@6552033` and the user-selected
+`planning.lattice.hard_margin_m=0.02`. The current profile always selects lattice
+with its existing 16-candidate cap. Dispatch has an independent
+`centerline_first_enabled` flag. The latest local edit adds bounded stationary
+startup retry, distinct-frame confirmation and persistent rejection diagnostics.
+The current configuration additionally sets the single-search compute budget
+to 100 ms at the existing 10 Hz planning rate; control remains at 20 Hz.
+Its first vehicle attempt passed startup confirmation and sent drive commands,
+but the operator confirmed no wheel or body movement; cleanup was confirmed.
+This edit was deployed and attempted five times on the vehicle. One attempt
+passed startup confirmation and produced drive commands but zero wheel speed;
+subsequent attempts stopped on startup timing failures or insufficient lattice
+coverage. After the operator narrowed the road, valid searches were again
+interrupted by timing failures before startup confirmation. All ended in confirmed state 2 / Disabled. The final full
+gate was not run at the user's request; 3 m completion is unverified.
+The latest local startup-speed fix floors non-stopping MVP lattice targets at
+the advised cruise speed (normally 0.2 m/s), without replacing measured wheel
+speed. It is deployed; two vehicle attempts stopped before initial drive on
+startup confirmation/time failures, so its physical startup effect is unverified.
+The following 2026-10-09 counts describe the earlier candidate only.
+
+The earlier `mvp2.0` extends the 2026-10-09 V2/fused-road/control candidate with
 bounded centerline-first recovery and asynchronous planning. The current
 software/model evidence is recorded below; the direct-sample update passed
 156 portable tests and 236 installed gate checks, with zero errors, failures
@@ -11,6 +37,185 @@ historical evidence, not evidence for the new V2 candidate. A complete 3 m
 physical run remains unverified.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
+
+## MVP lattice startup speed floor, 2026-10-13
+
+The main branch's archived successful 2026-10-06 car deployment used the same
+0.30 drive feedforward, 0.35 drive cap and 0.35/0.08 speed PI as the current
+profile. Its initial requested drive was 0.35, whereas the latest lattice run
+started near 0.302 and never exceeded 0.303051. From measured standstill,
+rebuilding a 3 s longitudinal profile and consuming its 0.3 s preview repeatedly
+produces only about 0.0028–0.0056 m/s on a straight path. A drive startup threshold
+has not been measured; the archived test used IP .27 and the current car uses .20.
+
+At the user's request, non-stopping MVP lattice control targets now use
+`max(preview_speed, cruise_speed_mps * recommended_speed_scale)`, giving a normal
+0.2 m/s target from the first healthy control cycle. Measured state and the
+candidate longitudinal initial speed remain unchanged. STOP profiles keep their
+preview target; failed plans still stop, road prediction retains its speed cap,
+and the controller's degraded speed limit remains effective. The lattice-only
+dispatch, 16-candidate cap, 10 Hz / 100 ms planning, 20 Hz control and 0.35 drive
+cap are retained. Diagnostics record preview, floor, command and measured speed.
+This is an MVP spatial tracking target rather than exact execution of its
+exported temporal speed profile.
+
+Python syntax and YAML parsing passed. No automated suites or vehicle run were
+performed, following the user's instruction against additional offline tests.
+The edit was then deployed at the user's request. Vehicle source and installed
+hashes matched (`fbc27b7e9b7b...` source, `59147ecf791f...` YAML); parameter readback
+confirmed 0.2 m/s cruise, 0.35 drive cap and the unchanged planning/control rates.
+The prior vehicle YAML had been replaced by a cone follower profile. Deployment
+initially stopped on its hash mismatch; both original files and diffs were
+backed up before restoring the requested MVP2 profile.
+
+`drive-startup-speed-floor020-01` and `-02` stopped after 3.048 and 3.041 s on
+startup history deadlines. Both reached at most 2/3 distinct-frame confirmation;
+expired results repeatedly reset the count. Logged planning rejections included
+14 and 13 source deadlines, with 12 and 11 discarded `reference_expired` results;
+the logged rejection-planner elapsed maxima were 70.85 and 77.96 ms. Those values
+are not a distribution of all searches. Neither run requested nonzero drive;
+wheel speed and distance remained zero. Both confirmed policy state 2, vehicle
+Disabled, zero actions/applied drive and stationary wheels. The 0.2 m/s fix did
+not reach control execution and its startup effect remains unverified.
+Raw vehicle logs, backups, hashes and summaries are in workspace
+`diagnostics/mvp2-20261013/startup-speed/`. Main comparison evidence is in
+`diagnostics/mvp2-20261013/budget100/MAIN_COMPARISON.md`.
+
+## Planning budget 100 ms at 10 Hz, 2026-10-13
+
+The user requested 10 Hz planning with a 100 ms computation budget. Planning
+was already configured at 10 Hz; only `planning.lattice.budget_s` changes from
+0.035 to 0.1 s. The asynchronous worker remains separate from the 20 Hz control
+timer, with one job in flight and the 16-candidate cap. Original acquisition
+timestamps, source-age limits, reference expiry and the startup confirmation
+rules are retained. Increasing compute allowance does not renew an expired
+reference. No additional automated suites were run for this configuration
+change. Deployment and vehicle evidence are recorded in workspace
+`diagnostics/mvp2-20261013/budget100/`.
+The vehicle YAML was backed up and replaced, then only the policy was restarted.
+Live parameter readback confirmed 10.0 Hz / 0.1 s, 20.0 Hz control and 16
+candidates. Installed/source YAML hashes matched `802e53ed4fd9...`; policy source
+remained `a28fab188e58...`. No Enable or policy-state-3 request was sent during
+configuration deployment.
+
+The user subsequently requested a vehicle test: `drive-budget100-122645` passed
+the three-frame startup confirmation and entered TRACKING/DEGRADED. First drive
+was logged 1.656 s after the start request; maximum requested drive was 0.30305
+and logged applied drive 0.272. No compute-budget rejection was logged, while
+10 completed references were discarded as `reference_expired`. Wheel speed and
+distance remained zero, and the operator confirmed the wheels and body did not
+move. The external 4 s no-motion monitor stopped the attempt at 4.006 s and
+confirmed policy state 2 / vehicle Disabled / zero actions and wheel speed.
+The cause of the missing physical drive response is not established. No further
+throttle change or movement attempt was made; 3 m remains incomplete.
+
+## Local startup robustness and diagnostics, 2026-10-13
+
+The robust MVP lattice path now waits with zero actions before the first control
+step when stationary (filtered speed <=0.005 m/s) and a search returns no feasible
+path, no Cartesian output or an initial Frenet-domain rejection. The existing
+3 s startup deadline is never renewed. Confirmation reuses
+`control.recovery_confirm_frames=3`: only strictly newer, observed cone frames
+with valid cruise lattice results count. Completed failures/degraded outputs
+reset the count; pending worker cycles do not count or reset it. No-feasible
+results after tracking still stop immediately. No automatic restart from state
+2 is added, and fresh motion feedback remains mandatory.
+
+Worker rejection details survive the async failure branch and are logged before
+cache selection or startup waiting can bypass the old logger. A bounded last
+rejection snapshot survives stop cleanup, and is cleared on explicit new starts.
+Geometry rejections include the first sampled pose and constraint values;
+boundary conflicts additionally report the limiting body point, observed versus
+extended support, raw clearance, hard/extension/interpolation/sweep margins and
+final clearance. Motion-profile rejections include time, reference s and numeric
+limits. The 16-candidate cap, sampling set, body dimensions, 0.02 m hard margin,
+35 ms planning budget and control gains are retained.
+
+Verification before deployment: syntax/configuration and diff review only;
+no additional automated suites, following the user's request.
+
+The user then requested deployment and five bounded vehicle attempts. Source
+and installed hashes matched (`a28fab188e58...`, YAML `22f5d6d960b1...`), and
+previous vehicle files were backed up. First attempt: startup confirmation
+completed and requested drive reached 0.30324; logged applied drive reached
+0.276, but wheel speed stayed zero. The external 4 s no-motion limit stopped it.
+Second attempt: planning time-budget and source-deadline failures repeatedly
+reset startup confirmation; it stopped at 3.033 s with no drive. Third attempt:
+`insufficient_lattice_coverage` persisted until the 3.068 s startup deadline,
+also with no drive. A fourth unchanged-parameter retry stopped at 3.036 s
+with the same coverage rejection and zero drive. With the road narrowed, a
+fifth attempt received multiple valid lattice results, but time-budget and
+source-deadline failures broke confirmation; it stopped at 3.014 s with zero
+drive. All five had zero reported distance and confirmed cleanup
+to policy state 2 / vehicle Disabled / zero actions and wheel speed. Physical
+wheel response in the first run was not observed by the operator. No complete
+3 m run is established. Raw logs, candidate manifest and report are in workspace
+`diagnostics/mvp2-20261013/robustness/`.
+
+## Lattice-only dispatch, 2026-10-13
+
+The user requested lattice in every scene, retaining the current 16-candidate
+cap. The final YAML selects `centerline_first_enabled=false`, with
+`recovery_enabled=true` retaining the original MVP lattice startup domain.
+The new independent boolean is validated and transported in the existing worker
+settings. `_mvp_plan` skips the centerline rollout when this flag is false;
+no centerline-attempt result can replace or relabel a lattice failure.
+The sampling set, direct sampled output, 35 ms budget, async scheduling,
+control and body checks remain. Sixteen is a cap, not a guaranteed search count.
+
+An initial configuration-only attempt used `recovery_enabled=false`; this also
+activated stricter legacy lattice startup limits (0.5 rad heading and 0.4 m
+offset), beyond the intended dispatch change. It stopped after 0.442077 s with
+`initial_frenet_domain`, before generating drive. The final split restores the
+original MVP domain while disabling only centerline-first dispatch. The user
+requested no further automated suites; final-source full gate is not run.
+Vehicle evidence is under workspace `diagnostics/mvp2-20261013/lattice-only/`.
+After the dispatch split, two vehicle attempts stopped after approximately
+0.570 s and 0.507 s with `no_feasible_lattice_trajectory`; requested drive,
+wheel speed and distance were zero, and cleanup confirmed state 2 / Disabled.
+The then-current async failure path discarded candidate details, so those runs
+do not identify the individual rejection constraints.
+
+## Perception-only integration and vehicle attempt, 2026-10-13
+
+Imported `EstimationSettings`, `EstimationMotionHistory`, `EstimationPipeline`,
+the estimator profile and camera freshness settings from
+`origin/feature/road-estimation-v2@6552033`. All other single-file definitions,
+including PolicyNode, planning, control and worker code, remain byte-identical
+to `ae74be4`. The only additional planning configuration change authorized by
+the user is hard body margin 0.05 -> 0.02 m. Actual body dimensions, soft
+clearance, the 0.4 s planning source-age limit, control, and 3 m/30 s limits
+remain unchanged. Details: [continuous road integration](CONTINUOUS_ROAD_OUTPUT_CN.md).
+
+Before margin tuning, all 193 portable cases passed (90 estimation, 18 planning,
+43 lattice, 42 control). A new estimator-to-MVP2 compatibility check passed.
+The new hard-margin test initially failed; its fixture/call were corrected,
+but no final rerun or full installed ROS gate was performed after the user
+explicitly requested direct vehicle testing without further automated tests.
+
+Only the policy script and policy YAML were deployed; previous source/config
+and their diff were backed up under
+`/home/ai4r/mvp2-test-20261013/road-v2/before/`. Installed symlinks matched the
+candidate SHA-256. Initial preflight refused to enable because the vehicle
+reported `worker receive-service gap`, connected=0, ready=0 and no wheel data.
+Restarting only `traxxas_vehicle_interface` restored connection, ready and
+valid RC status. One subsequent attempt ended on a stale monitor status;
+the monitor was corrected to require current numeric stopped state as well.
+
+The next actual enabled attempt ran 1.262956 s before
+`Control reference: Planning: recovery_body_boundary_conflict`.
+Maximum requested drive, measured wheel speed and distance were all zero.
+Cleanup confirmed policy state 2, vehicle Disabled, zero requested/applied
+actions and wheel speed zero. This is an unsuccessful motion test, not a
+completed 3 m run. No collision/communication/stop guard was disabled.
+Later reads found concurrently changed vehicle source/config hashes; those
+changes were not overwritten or used for another enabled attempt.
+
+Evidence is in workspace `diagnostics/mvp2-20261013/road-v2/` and vehicle
+`/home/ai4r/mvp2-test-20261013/road-v2/`. The tested script SHA-256 was
+`6b757605c81105e74976ccd89ab931724febf2413286bb4a34be3ec2b88e4fe1`,
+and YAML SHA-256 was
+`84c3b9b197bf4652608f7705a4a3702ba4c80300f57308711b992db046453c65`.
 
 ## MVP2 direct-sample update, 2026-10-09
 

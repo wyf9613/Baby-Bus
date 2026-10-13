@@ -1,0 +1,192 @@
+{
+  "result": "stopped",
+  "stop_reason": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: source_deadline_during_planning; explicit resume required",
+  "run_seconds": 3.0405897499986168,
+  "seen_active": true,
+  "confirmed_stop": true,
+  "mode": "drive",
+  "candidate": "ae74be4+road-v2@6552033+lattice-only+margin-0.02+startup-retry+planning-budget100+cruise-floor0.2",
+  "final_actions": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_applied": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_wheel_speed_mps": 0.0,
+  "max_wheel_speed_mps": 0.0,
+  "max_requested_drive": 0.0,
+  "max_distance_debug_m": 0.0,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: source_deadline_during_planning; explicit resume required",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "13",
+    "session_id": "68",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1",
+    "selected_source": "2",
+    "host_seq": "8628",
+    "host_fresh": "1",
+    "host_permitted": "1",
+    "applied_drive_normalized": "0.000000",
+    "drive_pwm_us": "1500",
+    "rc_drive_us": "1498",
+    "last_positive_vehicle_ack": "8628",
+    "last_written_drive_normalized": "0.000000",
+    "last_written_steer_normalized": "0.000000",
+    "host_permission_reason": "allowed"
+  },
+  "latest_cones": {
+    "counts": {
+      "2": 15,
+      "1": 12
+    },
+    "stamp_s": 1791856145.0528812,
+    "latency_s": 0.204617863,
+    "positions": [
+      [
+        0.8135370587496148,
+        0.43443185424804687,
+        2
+      ],
+      [
+        0.9696443725026244,
+        -0.5167167358398439,
+        1
+      ],
+      [
+        1.0057826639371696,
+        0.43516744995117196,
+        2
+      ],
+      [
+        1.1761636368329258,
+        0.4206089782714844,
+        2
+      ],
+      [
+        1.1780893025959442,
+        -0.4812869262695311,
+        1
+      ],
+      [
+        0.6576502044487323,
+        -0.45773406982421877,
+        1
+      ],
+      [
+        0.6120375936661249,
+        0.44969610595703136,
+        2
+      ],
+      [
+        1.2545899122905335,
+        -0.4107501831054688,
+        1
+      ],
+      [
+        1.7302927076310752,
+        -0.37807873535156244,
+        1
+      ],
+      [
+        1.4668202179348,
+        -0.38976202392578124,
+        1
+      ],
+      [
+        1.9945914720085964,
+        -0.35922247314453126,
+        1
+      ],
+      [
+        2.908828605397012,
+        -0.33862939453125007,
+        1
+      ],
+      [
+        1.3727581865921923,
+        0.43545925903320304,
+        2
+      ],
+      [
+        1.73082565623394,
+        0.4561012573242186,
+        2
+      ],
+      [
+        1.5536899469007257,
+        0.4481557006835939,
+        2
+      ],
+      [
+        2.37325521278339,
+        -0.31820504760742196,
+        1
+      ],
+      [
+        1.948278059416721,
+        0.46220401000976596,
+        2
+      ],
+      [
+        2.2552836457199237,
+        -0.34114120483398436,
+        1
+      ],
+      [
+        3.2039379913940373,
+        -0.2762013244628908,
+        1
+      ],
+      [
+        2.9452733555657535,
+        0.4928507690429689,
+        2
+      ],
+      [
+        2.3711923916348954,
+        0.49406988525390627,
+        2
+      ],
+      [
+        1.6041820017939243,
+        0.4486273803710936,
+        2
+      ],
+      [
+        2.550752329640705,
+        0.4967658386230469,
+        2
+      ],
+      [
+        0.552786105549269,
+        0.4205773315429688,
+        1
+      ],
+      [
+        2.7821924238357574,
+        0.4956784667968749,
+        2
+      ],
+      [
+        2.240241857594675,
+        0.4899489440917969,
+        2
+      ],
+      [
+        2.4871509526132636,
+        0.4985945129394531,
+        2
+      ]
+    ]
+  }
+}

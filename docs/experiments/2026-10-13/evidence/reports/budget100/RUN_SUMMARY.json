@@ -1,0 +1,25 @@
+{
+  "stop_reason": "No wheel motion after 4 seconds",
+  "run_seconds": 4.006306929999482,
+  "max_requested_drive": 0.3030506670475006,
+  "max_wheel_speed_mps": 0.0,
+  "max_distance_debug_m": 0.0,
+  "confirmed_stop": true,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "label": "drive-budget100-122645",
+  "max_logged_applied_drive": 0.2720000147819519,
+  "first_nonzero_drive_after_start_s": 1.6562000000000001,
+  "planning_rejection_counts": {
+    "invalid_estimates_or_boundaries": 3,
+    "source_deadline_during_planning": 10
+  },
+  "discarded_results": {
+    "reference_expired": 10
+  },
+  "logged_planner_elapsed_range_s": [
+    5.308999971020967e-05,
+    0.07293025199942349
+  ],
+  "operator_observation": "Wheels and vehicle did not move"
+}

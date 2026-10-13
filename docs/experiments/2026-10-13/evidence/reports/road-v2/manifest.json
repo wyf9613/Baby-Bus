@@ -1,0 +1,10 @@
+{
+  "base": "ae74be454bccec472c677092afb35de899cdc130",
+  "perception": "6552033",
+  "hard_margin_m": 0.02,
+  "sha256": {
+    "scripts/policy_node.py": "6b757605c81105e74976ccd89ab931724febf2413286bb4a34be3ec2b88e4fe1",
+    "config/ai4r_policy.yaml": "84c3b9b197bf4652608f7705a4a3702ba4c80300f57308711b992db046453c65"
+  },
+  "full_gate": "not run at user request"
+}

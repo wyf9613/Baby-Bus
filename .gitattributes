@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+# Keep archived measurements byte-identical to evidence/INDEX.json hashes.
+docs/experiments/2026-10-13/evidence/** -text

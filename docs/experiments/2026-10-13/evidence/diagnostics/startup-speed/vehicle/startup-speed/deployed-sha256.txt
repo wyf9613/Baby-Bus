@@ -1,0 +1,4 @@
+fbc27b7e9b7b556cca32c035516240aa649fb6711642c1603369c5bf4e14bbed  /home/ai4r/ai4r_student_workspace/src/ai4r_policy/scripts/policy_node.py
+59147ecf791f1e74f8c85c4996ee6c63a3b44a1d2aecce4e27822822b4213f5d  /home/ai4r/ai4r_student_workspace/src/ai4r_policy/config/ai4r_policy.yaml
+fbc27b7e9b7b556cca32c035516240aa649fb6711642c1603369c5bf4e14bbed  /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py
+59147ecf791f1e74f8c85c4996ee6c63a3b44a1d2aecce4e27822822b4213f5d  /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml

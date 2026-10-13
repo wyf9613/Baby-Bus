@@ -1,0 +1,671 @@
+{
+  "date": "2026-10-13",
+  "timezone": "Australia/Melbourne",
+  "vehicle": "10.43.254.20",
+  "branch": "mvp2.0",
+  "baseline_commit": "ae74be454bccec472c677092afb35de899cdc130",
+  "files": [
+    {
+      "archive": "runs/drive-budget100-122645/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/vehicle/drive-budget100-122645/result.json",
+      "sha256": "188ac1c2044a46025e9366359d5253a9c55995257c7570cd1b3e0a54b3599b8f",
+      "bytes": 3509
+    },
+    {
+      "archive": "runs/drive-budget100-122645/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/vehicle/drive-budget100-122645/run.jsonl",
+      "sha256": "bb8025fedd2a75a1bc2de3118831af62bb5f5e508d2ebbb2b38ec4cfffc5b756",
+      "bytes": 217265
+    },
+    {
+      "archive": "runs/dry/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/dry/result.json",
+      "sha256": "03cf3868aea503bd1359700f77eb71ff37ffef882702014c502e77110113fae7",
+      "bytes": 3266
+    },
+    {
+      "archive": "runs/dry/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/dry/run.jsonl",
+      "sha256": "29719887deeaff1d81b6131916bc3ae9d6240494393952c26e7440a8e25b6f9e",
+      "bytes": 99523
+    },
+    {
+      "archive": "runs/dry-corrected/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/dry-corrected/result.json",
+      "sha256": "76c4e2490089110a67dbb47501b339c34410863749508acc8ef26ad99aceb253",
+      "bytes": 3555
+    },
+    {
+      "archive": "runs/dry-corrected/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/dry-corrected/run.jsonl",
+      "sha256": "d43a3681603fb2f641ab9cc20adbf732ad3d00ff4027005f76d74f18d9b518a6",
+      "bytes": 32659
+    },
+    {
+      "archive": "runs/dry-restored/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/dry-restored/result.json",
+      "sha256": "bde27f27514572913bd2c2a31288fdd92af616a3d4c9bff9295b8f155764dac0",
+      "bytes": 3665
+    },
+    {
+      "archive": "runs/dry-restored/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/dry-restored/run.jsonl",
+      "sha256": "d4f58031fb10ced466bebb5e433fed1a59e08d7f201a3c1a418e4332781a56aa",
+      "bytes": 63417
+    },
+    {
+      "archive": "runs/dry-retry-1101/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/retry-1101/dry-retry-1101/result.json",
+      "sha256": "339b208f42d0a610175fdde7ca64e42f7ffe13641cc76487650a217245b2c095",
+      "bytes": 2993
+    },
+    {
+      "archive": "runs/dry-retry-1101/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/retry-1101/dry-retry-1101/run.jsonl",
+      "sha256": "c958c0ad5aceb165c474b4411aa6b81b28b5ccc10f686f546f2053af71af4a97",
+      "bytes": 103680
+    },
+    {
+      "archive": "runs/drive-road-v2-1118/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/diagnosis/drive-road-v2-1118/result.json",
+      "sha256": "a8317882f5a0b4179e4a72d08efa9e1c044971153a8dfc52c51f27fe8ae6061e",
+      "bytes": 3507
+    },
+    {
+      "archive": "runs/drive-road-v2-1118/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/diagnosis/drive-road-v2-1118/run.jsonl",
+      "sha256": "e8963e4e3e68b76aecb755cb49fa4e8a6e4b03f721a81c41fcc2352cb2f9fe5e",
+      "bytes": 273797
+    },
+    {
+      "archive": "runs/drive-road-v2-reconnect-1119/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/diagnosis/drive-road-v2-reconnect-1119/result.json",
+      "sha256": "8317b71a75b37959a00d3d4b5e20cd6d4668316fda412ae557d38e8d371cd3cc",
+      "bytes": 3567
+    },
+    {
+      "archive": "runs/drive-road-v2-reconnect-1119/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/diagnosis/drive-road-v2-reconnect-1119/run.jsonl",
+      "sha256": "52fe25feb112f71b9d23a83a1564c9b130c9b45677aef83c85f6b26cec2133a6",
+      "bytes": 61244
+    },
+    {
+      "archive": "runs/drive-road-v2-reconnect-1121/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/diagnosis/drive-road-v2-reconnect-1121/result.json",
+      "sha256": "da8af32605560c628de0259fb59bdf9a411afdf7bbe0e0ae84c110439ccfbcc3",
+      "bytes": 3708
+    },
+    {
+      "archive": "runs/drive-road-v2-reconnect-1121/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/diagnosis/drive-road-v2-reconnect-1121/run.jsonl",
+      "sha256": "954825f430e5a33d078f83585f09f999a61c0b0ed56fe198a752a24c1a7f6358",
+      "bytes": 78917
+    },
+    {
+      "archive": "runs/drive-robustness-120930/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle/drive-robustness-120930/result.json",
+      "sha256": "399269a248059bc3d16fd17b0a4bfdeeee391ec1c6c809e4ed2b45ab73adbaea",
+      "bytes": 3239
+    },
+    {
+      "archive": "runs/drive-robustness-120930/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle/drive-robustness-120930/run.jsonl",
+      "sha256": "ae73321c501102b816424f4685babf46dcb7a3efc186d1b8900468ec4febe015",
+      "bytes": 197872
+    },
+    {
+      "archive": "runs/drive-robustness-repeat-121106/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/drive-robustness-repeat-121106/result.json",
+      "sha256": "fe1ff68051746cd48a175e4f0ad2a57cab93fa5eb8b29dffe95e0b28299ef833",
+      "bytes": 3793
+    },
+    {
+      "archive": "runs/drive-robustness-repeat-121106/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/drive-robustness-repeat-121106/run.jsonl",
+      "sha256": "499aef4902565d60d6d219648ac9dc42fdca9a98f218ba3bf7f217f5366e37c3",
+      "bytes": 192079
+    },
+    {
+      "archive": "runs/drive-robustness-third-121349/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/drive-robustness-third-121349/result.json",
+      "sha256": "1404dbd23203587f54a7d6cb008fd90f2ad2105b6beb6b3358f66715d1afd0c1",
+      "bytes": 3354
+    },
+    {
+      "archive": "runs/drive-robustness-third-121349/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/drive-robustness-third-121349/run.jsonl",
+      "sha256": "2ad5021e4d95d94a733ae26bb0e91d4c9dd1a551e6553168f393859e35491553",
+      "bytes": 137914
+    },
+    {
+      "archive": "runs/drive-robustness-fourth-121706/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-fourth/drive-robustness-fourth-121706/result.json",
+      "sha256": "9701888a7c457fab0f906c434776892408ac1825ff57bad734ab3b28bdc94494",
+      "bytes": 3697
+    },
+    {
+      "archive": "runs/drive-robustness-fourth-121706/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-fourth/drive-robustness-fourth-121706/run.jsonl",
+      "sha256": "f81d0f5c4ccdea3a1c3399a55552a2e2c3d0c51428de637fb8d46ee8172decb7",
+      "bytes": 178627
+    },
+    {
+      "archive": "runs/drive-robustness-narrow-121953/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-narrow/drive-robustness-narrow-121953/result.json",
+      "sha256": "6646371f2b302619e0e83d266860e693d88225a36a8d7d0f923fe648b3efc83a",
+      "bytes": 3776
+    },
+    {
+      "archive": "runs/drive-robustness-narrow-121953/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-narrow/drive-robustness-narrow-121953/run.jsonl",
+      "sha256": "fb1f173df14db8e0a7cb13e6af1987c09703d45d71c424e57eb2987343c94011",
+      "bytes": 182889
+    },
+    {
+      "archive": "runs/drive-startup-speed-floor020-01/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/vehicle/drive-startup-speed-floor020-01/result.json",
+      "sha256": "2e3b803112437352fbf387c65e0e70bf90b7b799df62f9f2d939f3922b8c5d22",
+      "bytes": 4056
+    },
+    {
+      "archive": "runs/drive-startup-speed-floor020-01/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/vehicle/drive-startup-speed-floor020-01/run.jsonl",
+      "sha256": "7e6d8be37ec355ac198b9f5eba7b4b492e02a6c5089840593b7b6c556f9cd850",
+      "bytes": 217392
+    },
+    {
+      "archive": "runs/drive-startup-speed-floor020-02/result.json",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/vehicle/drive-startup-speed-floor020-02/result.json",
+      "sha256": "2bef0099768a8ea68e912be3c57ba1da633eccc31c09dd1b203f37da4e0eb0bb",
+      "bytes": 3974
+    },
+    {
+      "archive": "runs/drive-startup-speed-floor020-02/run.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/vehicle/drive-startup-speed-floor020-02/run.jsonl",
+      "sha256": "ae42dd1082f1ff595eb25c6f21736df5759cf0f92cf5802a69de8577635a2a3c",
+      "bytes": 255800
+    },
+    {
+      "archive": "reports/initial/REPORT.md",
+      "workspace_source": "diagnostics/mvp2-20261013/REPORT.md",
+      "sha256": "1d7749d62e90a21cb6c56b89248d1986aefc46b544fa3aa9a7de8bf39522a23c",
+      "bytes": 5530
+    },
+    {
+      "archive": "reports/initial/manifest.json",
+      "workspace_source": "diagnostics/mvp2-20261013/manifest.json",
+      "sha256": "027e1c4e08fbd94df12308f460c68938fec07123d8aab9c93eee345957630e6f",
+      "bytes": 6302
+    },
+    {
+      "archive": "reports/road-v2/REPORT.md",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/REPORT.md",
+      "sha256": "1435081b631e7c99a26e6d90c61eecba461bb63f8e961670f72eb1f89e2b752d",
+      "bytes": 4060
+    },
+    {
+      "archive": "reports/road-v2/boundary-analysis.json",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/boundary-analysis.json",
+      "sha256": "818c2e293a23318961394273e3e1a2a640ef9b4e806aa9800f49b4ec65c5677e",
+      "bytes": 17169
+    },
+    {
+      "archive": "reports/road-v2/manifest.json",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/manifest.json",
+      "sha256": "d23231475c60bbc3c3745bb561c6e76ea0b5d162ff9088e5cb84b507291eb3c7",
+      "bytes": 366
+    },
+    {
+      "archive": "reports/lattice-only/POLICY_ERROR_CATALOG.md",
+      "workspace_source": "diagnostics/mvp2-20261013/lattice-only/POLICY_ERROR_CATALOG.md",
+      "sha256": "91f32380cbf386ea5f53cb740264ebdcc35a17a6b6660aecd31da843c2f2517b",
+      "bytes": 23660
+    },
+    {
+      "archive": "reports/lattice-only/ROBUSTNESS_REVIEW.md",
+      "workspace_source": "diagnostics/mvp2-20261013/lattice-only/ROBUSTNESS_REVIEW.md",
+      "sha256": "476806e2be90caa4e3ed7b8149f62e5fc86ee8c1c4902ffd7ae07dc2eeb11e1f",
+      "bytes": 3901
+    },
+    {
+      "archive": "reports/lattice-only/manifest-first-switch.json",
+      "workspace_source": "diagnostics/mvp2-20261013/lattice-only/manifest-first-switch.json",
+      "sha256": "52e32677a20bc4d41e02adc2b2b20a5fb035dfa32035e72ba483a0600db787e1",
+      "bytes": 423
+    },
+    {
+      "archive": "reports/lattice-only/manifest-robustness-local.json",
+      "workspace_source": "diagnostics/mvp2-20261013/lattice-only/manifest-robustness-local.json",
+      "sha256": "ef8fd2d30fa184fb7398c19e212152ed91f11f0bbaa1df58544958b62861d19c",
+      "bytes": 647
+    },
+    {
+      "archive": "reports/lattice-only/manifest.json",
+      "workspace_source": "diagnostics/mvp2-20261013/lattice-only/manifest.json",
+      "sha256": "79fed2879c6bea31fccc4d429b9c32d8be4a67258418ae85ea180b2a928190a0",
+      "bytes": 470
+    },
+    {
+      "archive": "reports/robustness/REPORT.md",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/REPORT.md",
+      "sha256": "b0b44ba175e83f1569ab8aee67d10736b7936dba0713bfa71a01aa86e95ef4c7",
+      "bytes": 2886
+    },
+    {
+      "archive": "reports/robustness/RUN_SUMMARY.json",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/RUN_SUMMARY.json",
+      "sha256": "e0a737e20d296df671a659446e361c570a30455003c860868f92ff5e0a57fc6d",
+      "bytes": 3239
+    },
+    {
+      "archive": "reports/robustness/manifest.json",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/manifest.json",
+      "sha256": "2a03c5091c8893783d3cc5891ea3c2360fbb275ad2894533d0d8fb65dc2221f8",
+      "bytes": 855
+    },
+    {
+      "archive": "reports/budget100/MAIN_COMPARISON.md",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/MAIN_COMPARISON.md",
+      "sha256": "ef32ed0eeb01e1466e5e94a2ccb9462ec33b56bb7ba70eede42bbb50e32129a0",
+      "bytes": 2208
+    },
+    {
+      "archive": "reports/budget100/REPORT.md",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/REPORT.md",
+      "sha256": "5f141dd3f9da0e0cfafa0947c79c6fc2a8d29cdf2fc3d08a2f024c661b05e7fd",
+      "bytes": 2131
+    },
+    {
+      "archive": "reports/budget100/RUN_SUMMARY.json",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/RUN_SUMMARY.json",
+      "sha256": "3cd613d22a69c2f517109ede75092792c9958a6f1b38cfceff551699065d9ec7",
+      "bytes": 768
+    },
+    {
+      "archive": "reports/budget100/manifest.json",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/manifest.json",
+      "sha256": "712a409e07b8fcf46cc1f61930083ae49119e1dcfd06b715016945f25ed26e9d",
+      "bytes": 1089
+    },
+    {
+      "archive": "reports/startup-speed/REPORT.md",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/REPORT.md",
+      "sha256": "33285f755531e396c305442b0e59468631e248fff634b1a97d03e4730269ed14",
+      "bytes": 1377
+    },
+    {
+      "archive": "reports/startup-speed/RUN_SUMMARY.json",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/RUN_SUMMARY.json",
+      "sha256": "aa478225b567e818d1e58319b255c37c9961f4267da0b205e25bc3c188db8be1",
+      "bytes": 1655
+    },
+    {
+      "archive": "reports/startup-speed/TIMING_DETAILS.csv",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/TIMING_DETAILS.csv",
+      "sha256": "d354e71730b22bf01b190cbdb600cd75507866f9fb73fd3f18e6c1b02db0f42a",
+      "bytes": 8873
+    },
+    {
+      "archive": "reports/startup-speed/TIMING_DETAILS.json",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/TIMING_DETAILS.json",
+      "sha256": "257bcf117850a9c10107ce039b088c23b56ff5832c30a2826d86bfa13faa1419",
+      "bytes": 317439
+    },
+    {
+      "archive": "reports/startup-speed/TIMING_REPORT.md",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/TIMING_REPORT.md",
+      "sha256": "d8a4201e9a7c03dc6c321e4b55421e05a3354fabdacaa14420d52b50c9f7bf2f",
+      "bytes": 10201
+    },
+    {
+      "archive": "reports/startup-speed/manifest.json",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/manifest.json",
+      "sha256": "a824745fe9c48ff45c9de0d0ad349f6555ac03f89a482a9f36fd17938f3907d3",
+      "bytes": 1159
+    },
+    {
+      "archive": "diagnostics/evidence/dry-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/dry-console.log",
+      "sha256": "d364fcc4acf6b7ab17e958ca4b5086022837e860418e6478e3de5f61d1114159",
+      "bytes": 3525
+    },
+    {
+      "archive": "diagnostics/evidence/dry-corrected-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/dry-corrected-console.log",
+      "sha256": "2b51aba546817aff940af6838d21edc07147d66d2cd32d3e959f0a82e4d631c3",
+      "bytes": 3628
+    },
+    {
+      "archive": "diagnostics/evidence/dry-restored-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/dry-restored-console.log",
+      "sha256": "e385c87b42105647e6c756aacb4c85a8ba3023d08c566edac158f87a62cefe87",
+      "bytes": 3897
+    },
+    {
+      "archive": "diagnostics/evidence/final-actions.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/final-actions.txt",
+      "sha256": "e5e2f2a388462c2a333c9adf2ac6f5c9833ba70020195e3bbff8952f30e489b7",
+      "bytes": 35
+    },
+    {
+      "archive": "diagnostics/evidence/final-policy-state.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/final-policy-state.txt",
+      "sha256": "1b5430c9d68a3e9195a445f98aa2896445e00c1b5d236b38b07bd2ac8868af08",
+      "bytes": 12
+    },
+    {
+      "archive": "diagnostics/evidence/final-vehicle-state.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/final-vehicle-state.txt",
+      "sha256": "689846ef1ba1c2749207c9221dfd8065a5e8abe3ea5869b4fc22dd22aad6b36d",
+      "bytes": 19
+    },
+    {
+      "archive": "diagnostics/evidence/final-wheel-speed.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/final-wheel-speed.txt",
+      "sha256": "c0830a683febbf1e2864e075d7fa057b6279d31067619dbf429d7187338447de",
+      "bytes": 14
+    },
+    {
+      "archive": "diagnostics/evidence/lattice-focused.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/lattice-focused.log",
+      "sha256": "c649a36bf220a7163a9178578478c0303611ce8220286a3bc1eb554c325c743c",
+      "bytes": 1909
+    },
+    {
+      "archive": "diagnostics/evidence/policy-after-dry.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/policy-after-dry.log",
+      "sha256": "e80d12f27da5dd52368fbc85dfecb9329461d8cee5d515f6c0360f4e7aaec990",
+      "bytes": 6457
+    },
+    {
+      "archive": "diagnostics/evidence/policy-final.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/policy-final.log",
+      "sha256": "09f6d0a39396c71d97f41a8fa498a2c5bd3824fbebf6212e39047ef7e02f0408",
+      "bytes": 5628
+    },
+    {
+      "archive": "diagnostics/evidence/shadow-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/shadow-console.log",
+      "sha256": "7b93427629a8cafffb56b3f4b101ae375a77060713bc0209f8d6a09296aec6d8",
+      "bytes": 1229
+    },
+    {
+      "archive": "diagnostics/evidence/shadow-corrected-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/shadow-corrected-console.log",
+      "sha256": "fb5a443067218dee4fb5bddf31c7e7e5928fd7ddb84ffbc377967990ec32a8a5",
+      "bytes": 767
+    },
+    {
+      "archive": "diagnostics/evidence/shadow-corrected.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/shadow-corrected.jsonl",
+      "sha256": "b42346e86b6f1aa812e93b789bee6dfa2d87d2b10f976a82649b186686d0e002",
+      "bytes": 22512
+    },
+    {
+      "archive": "diagnostics/evidence/shadow.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/shadow.jsonl",
+      "sha256": "81e6f57f75f660a49c4639da6b9cc51af4352eb07b12bfacab582e35a6118904",
+      "bytes": 174242
+    },
+    {
+      "archive": "diagnostics/evidence/student-build.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/student-build.log",
+      "sha256": "f9144b1c19e292a8c4136fcfb23a551ceeb5ad6e79347dfba02b9cbe87ef0532",
+      "bytes": 5714
+    },
+    {
+      "archive": "diagnostics/evidence/student-rebuild.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/student-rebuild.log",
+      "sha256": "b70c6fa9180947f186f736584ca8c05dd0a6230df04dd81d3dba659c3f4560fa",
+      "bytes": 5714
+    },
+    {
+      "archive": "diagnostics/evidence/verify-fast.log",
+      "workspace_source": "diagnostics/mvp2-20261013/evidence/verify-fast.log",
+      "sha256": "c9edcf34bb38bc7a9eb58fda44f4c5da66bc63fe4be93aabad346ea7cf3a1313",
+      "bytes": 121454
+    },
+    {
+      "archive": "diagnostics/retry-1101/dry-retry-1101-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/retry-1101/dry-retry-1101-console.log",
+      "sha256": "2c22e18782c525b38849d7b8babc16140de289fa71b71f6d8107714df1e10b04",
+      "bytes": 3245
+    },
+    {
+      "archive": "diagnostics/retry-1101/policy.log",
+      "workspace_source": "diagnostics/mvp2-20261013/retry-1101/policy.log",
+      "sha256": "20d60c5f4a23279d3c70295991a7fc0a018cf6545c6a468adb79e4e4a88ea5cf",
+      "bytes": 5025
+    },
+    {
+      "archive": "diagnostics/retry-1101/shadow-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/retry-1101/shadow-console.log",
+      "sha256": "1d6a59512717ba8708866895c5d661f2e8272fce9e9e07c0664fa6f531006a36",
+      "bytes": 1229
+    },
+    {
+      "archive": "diagnostics/retry-1101/shadow.jsonl",
+      "workspace_source": "diagnostics/mvp2-20261013/retry-1101/shadow.jsonl",
+      "sha256": "e8e5977a8ba181ecc8be6ea6aba792bc45dfb07a4d82b2d3dfa1130daadda41f",
+      "bytes": 340050
+    },
+    {
+      "archive": "diagnostics/road-v2/vehicle/road-v2/deploy.log",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/deploy.log",
+      "sha256": "a68fbd8cfa1cc4b4ae79f238d7a2595025276adf2bcf2fde92ef7cc4104614a7",
+      "bytes": 636
+    },
+    {
+      "archive": "diagnostics/road-v2/vehicle/road-v2/diagnosis/policy.log",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/diagnosis/policy.log",
+      "sha256": "c65ac2ad83eecf8fb1f69441b03c2f88c5dc1dc08296f3a25d2c7e7902c5989a",
+      "bytes": 14349
+    },
+    {
+      "archive": "diagnostics/road-v2/vehicle/road-v2/diagnosis/shadow-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/diagnosis/shadow-console.log",
+      "sha256": "1019242e08669eeb4c8e67782217ec746277e72e3e911954cf7f081510aaf1c3",
+      "bytes": 442
+    },
+    {
+      "archive": "diagnostics/road-v2/vehicle/road-v2/drive-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/drive-console.log",
+      "sha256": "0fd77d502f2a7675104437ac734bb717ce2b19781de4890ce0f772a0d035e00a",
+      "bytes": 3580
+    },
+    {
+      "archive": "diagnostics/road-v2/vehicle/road-v2/reconnect/drive-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/reconnect/drive-console.log",
+      "sha256": "f1cbf896e20178675c7aa6df6054684511dd0ba98593281c2f382517102b302f",
+      "bytes": 3757
+    },
+    {
+      "archive": "diagnostics/road-v2/vehicle/road-v2/reconnect/drive-retry-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/reconnect/drive-retry-console.log",
+      "sha256": "a250fa9cc3246b226d9300046995161f87d51c3025d76a6b15de168c02158efe",
+      "bytes": 3911
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle/robustness/deploy-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle/robustness/deploy-console.log",
+      "sha256": "fd6f772354094527212a5419f6658b67e96e2d436720e6b393194c37ff8313f5",
+      "bytes": 636
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle/robustness/drive-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle/robustness/drive-console.log",
+      "sha256": "4066428dd524d714d9253b6a584503da4d26e02d62e6666824ee2f020811d5b9",
+      "bytes": 7118
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle/robustness/policy-after-run.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle/robustness/policy-after-run.log",
+      "sha256": "8b390a4f2996e7b5dc19fa46b96105e5ef5405786665de267143eb952cb9ca32",
+      "bytes": 36082
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-all/robustness/deploy-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/robustness/deploy-console.log",
+      "sha256": "fd6f772354094527212a5419f6658b67e96e2d436720e6b393194c37ff8313f5",
+      "bytes": 636
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-all/robustness/drive-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/robustness/drive-console.log",
+      "sha256": "4066428dd524d714d9253b6a584503da4d26e02d62e6666824ee2f020811d5b9",
+      "bytes": 7118
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-all/robustness/drive-repeat-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/robustness/drive-repeat-console.log",
+      "sha256": "0d69397a2e8efb8beea31ce8e686bb92c465aa625a3d0b660d7687a77d01fdf5",
+      "bytes": 6272
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-all/robustness/drive-third-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/robustness/drive-third-console.log",
+      "sha256": "fd5c9a53ce898df9ba7be247ca534415357cf2afae461af661ea3a12f426aa46",
+      "bytes": 4078
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-all/robustness/policy-after-repeat.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/robustness/policy-after-repeat.log",
+      "sha256": "62d98970e8ee03fccce9d7743ccade182abead1d1e64a5858abd40fe77ab0812",
+      "bytes": 89194
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-all/robustness/policy-after-run.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/robustness/policy-after-run.log",
+      "sha256": "8b390a4f2996e7b5dc19fa46b96105e5ef5405786665de267143eb952cb9ca32",
+      "bytes": 36082
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-all/robustness/policy-after-third.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/robustness/policy-after-third.log",
+      "sha256": "250269cdfd47f9c0ec24d00f3606de1e5a42137ff7394e2f049087253dfc9448",
+      "bytes": 124693
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-fourth/robustness/drive-fourth-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-fourth/robustness/drive-fourth-console.log",
+      "sha256": "b95943c9d13553ec1b8a47c899671676f64c139882bb76c067a8e99aa1ec9b30",
+      "bytes": 4419
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-fourth/robustness/policy-after-fourth.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-fourth/robustness/policy-after-fourth.log",
+      "sha256": "02cd9972249da199267abac4fbef9da6dcfa74c769b4a4ff210ff77d68163318",
+      "bytes": 164400
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-narrow/robustness/drive-narrow-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-narrow/robustness/drive-narrow-console.log",
+      "sha256": "b36d483ffe8480bc8e19d2f210046750985e052d32c98f883627c91031b5e716",
+      "bytes": 7264
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-narrow/robustness/policy-after-narrow.log",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-narrow/robustness/policy-after-narrow.log",
+      "sha256": "9601330fe9bb1aea5020681ba647e282a9452dafa3373ac836fd669fe41fa8f4",
+      "bytes": 184453
+    },
+    {
+      "archive": "diagnostics/budget100/vehicle/budget100/deploy-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/vehicle/budget100/deploy-console.log",
+      "sha256": "8340a2f296604cd726f2b04e45de36de48c6433768cbcd82b46e34c0f57d0d85",
+      "bytes": 792
+    },
+    {
+      "archive": "diagnostics/budget100/vehicle/budget100/drive-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/vehicle/budget100/drive-console.log",
+      "sha256": "6e19ea8c031e6f268dc8284801c82c05f350e03c0fac35c620c8746341385f8c",
+      "bytes": 7397
+    },
+    {
+      "archive": "diagnostics/budget100/vehicle/budget100/policy-after-run.log",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/vehicle/budget100/policy-after-run.log",
+      "sha256": "c2b998bdb57b1750c11b42f95e2e44c156250494cf75522e9fd2b84fbe1e56c9",
+      "bytes": 67139
+    },
+    {
+      "archive": "diagnostics/startup-speed/vehicle/startup-speed/deploy-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/vehicle/startup-speed/deploy-console.log",
+      "sha256": "76a0fb1f43455cba562ef97d011827545177040ec3c5f4b92a84dd092e69b015",
+      "bytes": 865
+    },
+    {
+      "archive": "diagnostics/startup-speed/vehicle/startup-speed/test-console-repeat.log",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/vehicle/startup-speed/test-console-repeat.log",
+      "sha256": "6e12b3609794023bd547b411ca7f65c29697aebae72d4acb2cb9f1c7525dd45a",
+      "bytes": 6518
+    },
+    {
+      "archive": "diagnostics/startup-speed/vehicle/startup-speed/test-console.log",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/vehicle/startup-speed/test-console.log",
+      "sha256": "a6135b72fce38689c31af860550e87d49589be26c4ce7e2f117903ce95bb4153",
+      "bytes": 6305
+    },
+    {
+      "archive": "runners/run_robustness_once.py",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/run_robustness_once.py",
+      "sha256": "6827fe0d4f940575456fe6b42b614e95b8e0b0590c0baa8237fe1bb37f6fb98d",
+      "bytes": 14924
+    },
+    {
+      "archive": "runners/run_budget100_once.py",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/run_budget100_once.py",
+      "sha256": "cd271c932c293128a6cbdc6297bef06b49662815dec430d9b56d0edfd67f2425",
+      "bytes": 15222
+    },
+    {
+      "archive": "runners/run_startup_speed_once.py",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/run_startup_speed_once.py",
+      "sha256": "d3cf513257a5d81396e763c5692d4b4776641ee78e9c111e85b06c5b4abb1184",
+      "bytes": 15267
+    },
+    {
+      "archive": "diagnostics/road-v2/vehicle/road-v2/deployed-sha256.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/road-v2/vehicle/road-v2/deployed-sha256.txt",
+      "sha256": "5f1490e72b28dd1b1eede36257d34ac87c7738f1270fdcc26727f4610552d519",
+      "bytes": 592
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle-all/robustness/deployed-sha256.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle-all/robustness/deployed-sha256.txt",
+      "sha256": "8db72f20659053e8b07e0abfd74ba8624b9b2cdde2f44871e3e5609966f481f6",
+      "bytes": 592
+    },
+    {
+      "archive": "diagnostics/robustness/vehicle/robustness/deployed-sha256.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/robustness/vehicle/robustness/deployed-sha256.txt",
+      "sha256": "8db72f20659053e8b07e0abfd74ba8624b9b2cdde2f44871e3e5609966f481f6",
+      "bytes": 592
+    },
+    {
+      "archive": "diagnostics/budget100/vehicle/budget100/deployed-sha256.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/budget100/vehicle/budget100/deployed-sha256.txt",
+      "sha256": "85f069a0912980a2c8c571658f5130600039149b6a77daebe103445adba2ebc8",
+      "bytes": 592
+    },
+    {
+      "archive": "diagnostics/startup-speed/vehicle/startup-speed/deployed-sha256.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/vehicle/startup-speed/deployed-sha256.txt",
+      "sha256": "8678a21b41b9832e62f0cd6a1cfb62fe1fbd14c95a2b2f9693c76b4673d6addb",
+      "bytes": 592
+    },
+    {
+      "archive": "diagnostics/startup-speed/vehicle/startup-speed/final-sha256.txt",
+      "workspace_source": "diagnostics/mvp2-20261013/startup-speed/vehicle/startup-speed/final-sha256.txt",
+      "sha256": "7282c00b7d3fdc0f9863ca0631122af14d5a95df824533a9f467d26a27ca7048",
+      "bytes": 279
+    }
+  ],
+  "unique_result_directories": 15,
+  "notes": [
+    "Byte-identical copies of selected workspace evidence; repeated extraction of the same run is deduplicated by run name.",
+    "Historical reports retain their original workspace/car paths and snapshot status; the daily review and this index give archive locations.",
+    "Three early lattice-only attempts are documented in acceptance.md / robustness review; their raw run files were not in the local collection and SSH evidence retrieval returned exit 255 at review time.",
+    "No passwords, authentication helper, full car source backups, duplicate tar archives or other-session source snapshots are included.",
+    "Operator confirmed they had returned home and the vehicle was unreachable; no further connection or vehicle test is attempted during review."
+  ]
+}

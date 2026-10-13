@@ -31,6 +31,26 @@ def planner(**kwargs):
 
 
 class LatticeChecks(unittest.TestCase):
+    def test_reduced_hard_margin_admits_narrow_corridor_but_keeps_body_checks(self):
+        # A 0.40 m lane fits the 0.25 m body with 0.02 m hard margin and the
+        # existing sampling guard, but fails with the previous 0.05 m margin.
+        # Exercise both planners, which share the actual footprint checker.
+        args = fixture(speed=0.0)
+        for width, accepted in ((0.40, True), (0.28, False)):
+            for key, sign in (("left_boundary_xy", 1), ("right_boundary_xy", -1)):
+                args[0][key] = [(x, sign*width/2) for x, _ in args[0][key]]
+            for margin, expected in ((0.02, accepted), (0.05, False)):
+                for recovery in (False, True):
+                    with self.subTest(width=width, margin=margin, recovery=recovery):
+                        p = planner(hard_margin_m=margin, obstacle_check_enabled=False,
+                                    geometry_step_m=0.05)
+                        if recovery:
+                            ref, _ = ns["MvpRecoveryPlanner"](p, ns["ControlSettings"](mode="mvp")).plan(
+                                *args, {"road": 0.4, "wheel_speed": 0.25, "imu_angular_velocity": 0.25})
+                        else:
+                            ref, _ = p.plan(*args)
+                        self.assertEqual(ref["valid"], expected, ref["reason"])
+
     def test_observed_rear_support_needs_no_extension_and_roundtrips(self):
         for start in (-1.5, -0.5, -0.348):
             args = fixture()

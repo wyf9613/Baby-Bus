@@ -1,0 +1,208 @@
+Publishing zero actions: Operator request
+Starting drive policy test now
+Publishing policy actions: Operator request
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=invalid_estimates_or_boundaries; frames=0/3
+Publishing policy actions: Startup waiting: confirming_observed_lattice; planning=lattice_selected; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=lattice_time_budget_exceeded; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=source_deadline_during_planning; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=lattice_time_budget_exceeded; frames=0/3
+Publishing policy actions: Startup waiting: confirming_observed_lattice; planning=lattice_selected; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=lattice_time_budget_exceeded; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=source_deadline_during_planning; frames=0/3
+Publishing policy actions: Startup waiting: confirming_observed_lattice; planning=lattice_selected; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=lattice_time_budget_exceeded; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=source_deadline_during_planning; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=lattice_time_budget_exceeded; frames=0/3
+Publishing policy actions: Startup waiting: confirming_observed_lattice; planning=lattice_selected; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=source_deadline_during_planning; frames=0/3
+Publishing zero actions: Control startup history deadline exceeded; last planning reason: source_deadline_during_planning; explicit resume required
+{
+  "result": "stopped",
+  "stop_reason": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: source_deadline_during_planning; explicit resume required",
+  "run_seconds": 3.032743200999903,
+  "seen_active": true,
+  "confirmed_stop": true,
+  "mode": "drive",
+  "candidate": "ae74be4+road-v2@6552033+lattice-only+mvp-domain+margin-0.02+startup-retry+rejection-details",
+  "final_actions": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_applied": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_wheel_speed_mps": 0.0,
+  "max_wheel_speed_mps": 0.0,
+  "max_requested_drive": 0.0,
+  "max_distance_debug_m": 0.0,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: source_deadline_during_planning; explicit resume required",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "5",
+    "session_id": "60",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1",
+    "selected_source": "2",
+    "host_seq": "42231",
+    "host_fresh": "1",
+    "host_permitted": "1",
+    "applied_drive_normalized": "0.000000",
+    "drive_pwm_us": "1500",
+    "rc_drive_us": "1502",
+    "last_positive_vehicle_ack": "42233",
+    "last_written_vehicle_command": null
+  },
+  "latest_cones": {
+    "counts": {
+      "2": 10,
+      "1": 16
+    },
+    "stamp_s": 1791853877.7554185,
+    "latency_s": 0.215119421,
+    "positions": [
+      [
+        1.0049282012627914,
+        0.5220864868164063,
+        2
+      ],
+      [
+        0.9830544082413543,
+        -0.4408069152832032,
+        1
+      ],
+      [
+        0.6565027642087524,
+        -0.3958529968261718,
+        1
+      ],
+      [
+        0.7844585504296281,
+        0.5253059692382812,
+        2
+      ],
+      [
+        1.2848296854233976,
+        -0.3524714660644531,
+        1
+      ],
+      [
+        1.6702527935543003,
+        -0.34231527709960935,
+        1
+      ],
+      [
+        1.2236235301162124,
+        0.5367568359375001,
+        2
+      ],
+      [
+        1.2463495255271446,
+        -0.45245278930664057,
+        1
+      ],
+      [
+        1.8047766915554735,
+        -0.2471199340820312,
+        1
+      ],
+      [
+        1.9751259219465092,
+        -0.1880076293945312,
+        1
+      ],
+      [
+        0.48663971024172037,
+        -0.40274493408203127,
+        1
+      ],
+      [
+        2.2531112837730656,
+        -0.07113943481445317,
+        1
+      ],
+      [
+        1.441310967063322,
+        0.5834057617187502,
+        2
+      ],
+      [
+        0.5873037952381253,
+        0.48595663452148435,
+        2
+      ],
+      [
+        3.0132447392720088,
+        1.1914814453125002,
+        2
+      ],
+      [
+        2.3438059433604503,
+        -0.04261048889160163,
+        1
+      ],
+      [
+        2.9582531494315303,
+        0.08426478576660157,
+        1
+      ],
+      [
+        2.3805731249006676,
+        1.08767431640625,
+        2
+      ],
+      [
+        2.6595064211532065,
+        0.030391811370849786,
+        1
+      ],
+      [
+        2.411110264985509,
+        -0.02894386863708498,
+        1
+      ],
+      [
+        2.191397335953512,
+        0.9533594360351563,
+        2
+      ],
+      [
+        4.237381664620295,
+        0.12635958099365263,
+        1
+      ],
+      [
+        3.381358026940102,
+        0.13250668334960947,
+        1
+      ],
+      [
+        1.802021621352326,
+        0.7700677490234377,
+        2
+      ],
+      [
+        2.4754977665239575,
+        1.1025782470703125,
+        2
+      ],
+      [
+        3.2194784895979343,
+        0.04897627258300785,
+        1
+      ]
+    ]
+  }
+}

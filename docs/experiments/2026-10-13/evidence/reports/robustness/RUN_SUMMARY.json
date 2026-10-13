@@ -1,0 +1,87 @@
+[
+  {
+    "stop_reason": "No wheel motion after 4 seconds",
+    "run_seconds": 4.019894201999705,
+    "max_requested_drive": 0.3032403886318207,
+    "max_wheel_speed_mps": 0.0,
+    "max_distance_debug_m": 0.0,
+    "confirmed_stop": true,
+    "final_policy_state": 2,
+    "final_vehicle_state": "Disabled",
+    "label": "drive-robustness-120930",
+    "max_logged_applied_drive": 0.2759999930858612,
+    "planning_rejection_counts": {
+      "invalid_estimates_or_boundaries": 3,
+      "lattice_time_budget_exceeded": 10,
+      "source_deadline_during_planning": 2
+    }
+  },
+  {
+    "stop_reason": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: source_deadline_during_planning; explicit resume required",
+    "run_seconds": 3.032743200999903,
+    "max_requested_drive": 0.0,
+    "max_wheel_speed_mps": 0.0,
+    "max_distance_debug_m": 0.0,
+    "confirmed_stop": true,
+    "final_policy_state": 2,
+    "final_vehicle_state": "Disabled",
+    "label": "drive-robustness-repeat-121106",
+    "max_logged_applied_drive": 0.0,
+    "planning_rejection_counts": {
+      "invalid_estimates_or_boundaries": 3,
+      "lattice_time_budget_exceeded": 9,
+      "source_deadline_during_planning": 7
+    }
+  },
+  {
+    "stop_reason": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: insufficient_lattice_coverage; explicit resume required",
+    "run_seconds": 3.0677162909996696,
+    "max_requested_drive": 0.0,
+    "max_wheel_speed_mps": 0.0,
+    "max_distance_debug_m": 0.0,
+    "confirmed_stop": true,
+    "final_policy_state": 2,
+    "final_vehicle_state": "Disabled",
+    "label": "drive-robustness-third-121349",
+    "max_logged_applied_drive": 0.0,
+    "planning_rejection_counts": {
+      "invalid_estimates_or_boundaries": 3,
+      "insufficient_lattice_coverage": 19
+    }
+  },
+  {
+    "stop_reason": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: insufficient_lattice_coverage; explicit resume required",
+    "run_seconds": 3.0357305640009145,
+    "max_requested_drive": 0.0,
+    "max_wheel_speed_mps": 0.0,
+    "max_distance_debug_m": 0.0,
+    "confirmed_stop": true,
+    "final_policy_state": 2,
+    "final_vehicle_state": "Disabled",
+    "label": "drive-robustness-fourth-121706",
+    "max_logged_applied_drive": 0.0,
+    "planning_rejection_counts": {
+      "invalid_estimates_or_boundaries": 3,
+      "insufficient_lattice_coverage": 21
+    }
+  },
+  {
+    "stop_reason": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: lattice_time_budget_exceeded; explicit resume required",
+    "run_seconds": 3.013691849000679,
+    "max_requested_drive": 0.0,
+    "max_wheel_speed_mps": 0.0,
+    "max_distance_debug_m": 0.0,
+    "confirmed_stop": true,
+    "final_policy_state": 2,
+    "final_vehicle_state": "Disabled",
+    "label": "drive-robustness-narrow-121953",
+    "max_logged_applied_drive": 0.0,
+    "planning_rejection_counts": {
+      "invalid_estimates_or_boundaries": 2,
+      "lattice_time_budget_exceeded": 7,
+      "source_deadline_during_planning": 8
+    },
+    "observed_confirmation_events": 7,
+    "scene_change": "operator narrowed road; policy unchanged"
+  }
+]

@@ -1,0 +1,12 @@
+ai4r_policy: stopped.
+a28fab188e58a86239aeb5a4922b092e06c2015cb95ea2f5ff7c4427d413e2c5  /home/ai4r/ai4r_student_workspace/src/ai4r_policy/scripts/policy_node.py
+802e53ed4fd9702710139949a9fcca6f1fb1d7276065dbdd1b46d9778262ab4a  /home/ai4r/ai4r_student_workspace/src/ai4r_policy/config/ai4r_policy.yaml
+a28fab188e58a86239aeb5a4922b092e06c2015cb95ea2f5ff7c4427d413e2c5  /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py
+802e53ed4fd9702710139949a9fcca6f1fb1d7276065dbdd1b46d9778262ab4a  /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml
+ai4r_policy: started.
+{
+  "planning.lattice.update_rate_hz": 10.0,
+  "planning.lattice.budget_s": 0.1,
+  "policy_update_rate_hz": 20.0,
+  "planning.lattice.max_candidates": 16
+}

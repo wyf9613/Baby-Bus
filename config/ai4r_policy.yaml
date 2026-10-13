@@ -70,7 +70,8 @@
     # wheel_speed measures telemetry freshness, NOT time between encoder ticks;
     # it must still arrive when the car is standing still.
     sensor_timeout_s:
-      cone_detections: 0.5
+      # Road-estimation-v2 camera budget; wheel/gyro deadlines stay separate.
+      cone_detections: 1.5
       fiducial_detections: 0.5
       # Rename any old lidar timeout to lidar_scan. Cartesian data must pass
       # BOTH deadlines and always match the latest accepted raw scan. A failed
@@ -88,7 +89,7 @@
     # At startup, at least one recent nonempty batch is required before driving.
     # Brief empty batches can reach your policy: always handle num_cones == 0.
     # Ignored when cone_detections is not in required_sensors.
-    cone_empty_timeout_s: 1.0
+    cone_empty_timeout_s: 2.0
 
     # Independent watchdog and zero-command cadence in Hz (positive double).
     # Default 20 Hz checks roughly every 0.05 s, subject to executor scheduling.
@@ -138,44 +139,62 @@
       # New accepted samples update once; repeated cached samples do not.
       speed_tau_s: 0.15
       yaw_rate_tau_s: 0.08
-      # Source age, seconds; cannot relax the framework's sensor deadlines.
+      # Continuity profile camera source age; matched to the framework above.
+      # Wheel/gyro are independently bounded by motion_max_gap_s, not this age.
       # Original acquisition/receipt metadata remains after time alignment.
-      max_source_age_s: 0.5
+      max_source_age_s: 1.5
       # Align geometry using bounded wheel/gyro history on the ROS clock.
       # Forward no-slip planar model; wheel time is receipt, NOT acquisition.
       # Missing/old motion or a gap rejects geometry instead of retimestamping.
-      # Tolerate brief delivery jitter; independent field/source ages still apply.
       motion_max_gap_s: 0.25
-      motion_max_interval_s: 0.4
-      # Original observation lifetime, seconds; repeated predictions never renew
-      # it. Propagation uses short camera-to-camera intervals, not a 5 s hold.
+      motion_max_interval_s: 0.5
+      # Imported mpc-car-run estimation fixes; advance history on each policy
+      # step and fuse validated partial frames with real two-sided history.
+      # Class defaults retain the legacy profile; this YAML selects the fixes.
+      history_propagation: continuous
+      # Refit already observed, moved cones during short camera interruptions.
+      # Existing hold/source deadlines still apply; no startup extrapolation.
+      continuous_road_output: true
+      # Absolute wheel/gyro integrated travel since the last accepted camera
+      # epoch, metres. Predictions also stop at 0.8 s hold / 1.5 s source age.
+      road_prediction_max_distance_m: 0.5
+      history_merge_single_side: true
+      # Separate association radius from the 2*Huber conflict threshold. 0.08 m
+      # suits the recorded >=0.2 m cone spacing; revisit for another placement.
+      history_merge_radius_m: 0.08
+      # Distance mode keeps points inside the local window, with an original-age
+      # time backstop. It is approximate odometry, not measured drift correction.
+      road_history_mode: distance
+      road_history_max_s: 30.0
+      # Legacy time-mode lifetime, seconds; original ages never renew.
       road_history_s: 5.0
       # Keep measured support behind the car, metres, so the origin can be
       # bracketed. This is a local cache bound, NOT a measured vehicle length.
-      road_rear_support_m: 0.5
-      # Brief fresh-frame fitting failure bridge, seconds (0 disables; <=0.25).
-      # Original acquisition age and motion deadlines may end it earlier.
+      road_rear_support_m: 1.0
+      # Interruption bridge, seconds (0 disables; continuous mode <=1.0), from
+      # the first failed output. Original source age / travel may end it sooner.
+      # Continuous output integrates short motion segments; it does not relax
+      # the per-segment history-gap or interval limits.
       # A degraded road advises a 0.5 speed scale; PLANNING must consume that
       # advisory and cap its reference lifetime by prediction_remaining_s.
-      road_hold_s: 0.2
+      road_hold_s: 0.8
       # Dimensionless confidence threshold in [0,1]. Colour convention for this
       # prototype is BLUE left / YELLOW right, as in the supplied course road.
-      min_cone_confidence: 0.5
+      min_cone_confidence: 0.25
       # Local y(x) support and sample spacing, metres. No extrapolation beyond
       # measured inlier coverage. Sampling is bounded to at most 201 points.
-      road_forward_max_m: 3.0
-      road_min_coverage_m: 0.5
+      road_forward_max_m: 4.0
+      road_min_coverage_m: 0.3
       road_sample_spacing_m: 0.1
-      road_max_gap_m: 1.5
+      road_max_gap_m: 2.0
       # Huber residual transition, metres; fitting work is bounded, with up to
       # 64 cones per side and 8 iterations. All values are prototype tuning.
-      huber_delta_m: 0.08
+      huber_delta_m: 0.15
       # Plausibility limits for local road width, metres, NOT vehicle dimensions.
-      road_width_min_m: 0.4
-      road_width_max_m: 2.0
+      road_width_min_m: 0.3
+      road_width_max_m: 2.5
       # Maximum abs(dy/dx), dimensionless. Steep/non-function geometry is rejected.
-      # Local y(x) still requires forward support; allow misaligned starts.
-      road_max_abs_slope: 2.75
+      road_max_abs_slope: 2.0
       # 0.0 means unknown: single-sided road is invalid. Set a measured road
       # width (m), or a known simulation width, before using single-side inference.
       known_lane_width_m: 0.0
@@ -216,12 +235,14 @@
 
       lattice:
         # MVP2: 10 Hz worker process; control remains 20 Hz. One in-flight job.
-        # Prefer a bounded centerline/controller rollout for straight/gentle
-        # curves and offset starts; lattice is the secondary search.
+        # Always use the Frenet lattice search, including starts and bends.
+        # Disable the optional centerline/controller recovery rollout.
         # Export checked lattice points directly; no quintic Cartesian refit.
         direct_sample_output: true
         async_enabled: true
+        # Keep the original MVP lattice startup heading/yaw domain separately.
         recovery_enabled: true
+        centerline_first_enabled: false
         update_rate_hz: 10.0
         worker_timeout_s: 0.3
         recovery_speed_mps: 0.12
@@ -230,7 +251,8 @@
         # Explicit teacher approximation, not measured calibration. Simulation
         # selects course_simulation; upstream requires ALL supplied model limits.
         model_source: course_approximation
-        # Secondary search: 2 lengths x (center + current offset) x (2 speeds + stop).
+        # Lattice search: 2 lengths x (center + current offset) x (2 speeds + stop).
+        # Keep the existing sampling set and the 16-candidate cap below.
         transition_lengths_m: "0.6,1.5"
         terminal_offsets_m: "0.0"
         durations_s: "3.0"
@@ -251,7 +273,8 @@
         time_step_s: 0.1
         horizon_m: 2.0
         score_time_s: 3.0
-        budget_s: 0.035
+        # One 100 ms planning period at 10 Hz; control stays at 20 Hz.
+        budget_s: 0.1
         max_candidates: 16
         max_obstacle_points: 2048
         obstacle_margin_m: 0.05
@@ -269,7 +292,9 @@
         width_m: 0.25
         steering_limit_rad: 0.7853981633974483
         steering_rate_limit_radps: 1.5707963267948966
-        hard_margin_m: 0.05
+        # Shared hard body-boundary margin for recovery and lattice, metres.
+        # Trial setting: reduced from 0.05 to 0.02; body dimensions stay above.
+        hard_margin_m: 0.02
         # Accepted half-car-width scales and five-group score.
         d_scale_m: 0.125
         clearance_soft_m: 0.125
@@ -292,6 +317,9 @@
         fit_heading_error_rad: 0.03
         fit_curvature_error_1pm: 0.15
         preview_m: 0.35
+        # MVP cruise commands use advised cruise_speed_mps (normally 0.2) as
+        # their floor; STOP and degraded speed limits still take precedence.
+        # The speed preview remains the target for non-MVP control.
         speed_preview_s: 0.3
         minimum_output_m: 0.4
 
@@ -312,6 +340,8 @@
       reference_hold_max_distance_m: 0.25
       degraded_speed_mps: 0.1
       recovery_confirm_frames: 3
+      # Also require 3 distinct observed cone frames with accepted cruise
+      # lattice paths before FIRST drive. Pending jobs do not count as frames.
       speed_recovery_accel_mps2: 0.15
       # Leave the car stationary in state 2 for >=1 s before starting. Learn
       # a stable small yaw-rate bias from fresh zero-wheel samples; freeze it
@@ -354,7 +384,9 @@
       drive_max: 0.35
       steering_max_normalized: 0.5
       max_dt_s: 0.2
-      # Before FIRST control only: neutral priming of delayed camera history.
+      # Before FIRST control only: neutral priming / stationary lattice retry.
+      # A no-feasible/domain result may wait for new frames within this SAME
+      # 3 s budget, always with zero actions. Confirmation never renews it.
       # Once tracking, robustness may bridge transient road rejection within
       # the budgets above. A completed stop still needs an explicit resume.
       # Neutral priming allows worker startup and delayed camera history.

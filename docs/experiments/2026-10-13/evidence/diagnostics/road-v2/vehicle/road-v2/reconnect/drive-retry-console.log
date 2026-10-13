@@ -1,0 +1,194 @@
+Publishing zero actions: Operator request
+Starting drive policy test now
+Publishing policy actions: Operator request
+Publishing zero actions: Control reference: Planning: recovery_body_boundary_conflict
+{
+  "result": "stopped",
+  "stop_reason": "Publishing zero actions: Control reference: Planning: recovery_body_boundary_conflict",
+  "run_seconds": 1.2629560590003166,
+  "seen_active": true,
+  "confirmed_stop": true,
+  "mode": "drive",
+  "candidate": "ae74be4+road-estimation-v2@6552033+hard-margin-0.02",
+  "final_actions": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_applied": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_wheel_speed_mps": 0.0,
+  "max_wheel_speed_mps": 0.0,
+  "max_requested_drive": 0.0,
+  "max_distance_debug_m": 0.0,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: Control reference: Planning: recovery_body_boundary_conflict",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "1",
+    "session_id": "56",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1",
+    "selected_source": "2",
+    "host_seq": "4245",
+    "host_fresh": "1",
+    "host_permitted": "1",
+    "applied_drive_normalized": "0.000000",
+    "drive_pwm_us": "1500",
+    "rc_drive_us": "1502",
+    "last_positive_vehicle_ack": "4246",
+    "last_written_vehicle_command": null
+  },
+  "latest_cones": {
+    "counts": {
+      "2": 15,
+      "1": 12
+    },
+    "stamp_s": 1791850796.1191833,
+    "latency_s": 0.206239694,
+    "positions": [
+      [
+        0.9843302230493057,
+        0.2609523010253907,
+        2
+      ],
+      [
+        1.1138562018610143,
+        -0.6993134765625001,
+        1
+      ],
+      [
+        0.5679616191264868,
+        0.36136856079101565,
+        2
+      ],
+      [
+        1.4712387372055802,
+        -0.744255065917969,
+        1
+      ],
+      [
+        1.1998721170308433,
+        0.2399356384277343,
+        2
+      ],
+      [
+        0.771734611127194,
+        0.3045199584960937,
+        2
+      ],
+      [
+        2.2152743167448583,
+        -0.3973483276367187,
+        2
+      ],
+      [
+        1.7917119875985725,
+        -0.01085999774932872,
+        2
+      ],
+      [
+        2.365298802787487,
+        -0.5480598754882812,
+        2
+      ],
+      [
+        1.5982232868256334,
+        0.10113503265380869,
+        2
+      ],
+      [
+        1.7339128280192067,
+        -1.0673521728515625,
+        1
+      ],
+      [
+        1.4006120473370498,
+        0.18444046020507815,
+        2
+      ],
+      [
+        2.108895594416007,
+        -0.27512689208984376,
+        2
+      ],
+      [
+        2.881295035338644,
+        0.6471367187500002,
+        2
+      ],
+      [
+        1.9455520488655913,
+        -0.13172012329101568,
+        2
+      ],
+      [
+        1.5915962658558338,
+        -0.8971785888671874,
+        1
+      ],
+      [
+        0.4599976985140415,
+        0.41383514404296873,
+        2
+      ],
+      [
+        3.272848031243058,
+        0.620594482421875,
+        2
+      ],
+      [
+        2.860084866163248,
+        -0.1531378021240235,
+        1
+      ],
+      [
+        0.7819181354141177,
+        -0.5872731323242188,
+        1
+      ],
+      [
+        4.13460080783565,
+        -0.2207331542968749,
+        1
+      ],
+      [
+        3.809339804061995,
+        0.5794339599609377,
+        2
+      ],
+      [
+        4.349028949803407,
+        -0.4164194335937501,
+        1
+      ],
+      [
+        1.6392232302579104,
+        -0.8589517211914062,
+        1
+      ],
+      [
+        4.047150341155387,
+        -0.34094665527343726,
+        1
+      ],
+      [
+        3.5450798324496433,
+        -0.26194409179687494,
+        1
+      ],
+      [
+        2.9637596351550566,
+        -0.19397689819335917,
+        1
+      ]
+    ]
+  }
+}

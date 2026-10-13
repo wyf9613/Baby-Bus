@@ -1,0 +1,6 @@
+[INFO] [1791849154.174675052] [car.mvp2_shadow_probe]: Policy update source: timer; required sensors: ['cone_detections', 'wheel_speed', 'imu_angular_velocity']; namespace: /car
+[WARN] [1791849154.451745887] [car.mvp2_shadow_probe]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791849156.184982300] [car.mvp2_shadow_probe]: Policy start refused: Required sensor wheel_speed is missing or stale
+[WARN] [1791849157.723533710] [car.mvp2_shadow_probe]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791849160.828436107] [car.mvp2_shadow_probe]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+Shadow probe complete; all outputs were remapped to /car/mvp2_shadow/.

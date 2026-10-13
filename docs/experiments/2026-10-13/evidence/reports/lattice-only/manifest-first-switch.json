@@ -1,0 +1,11 @@
+{
+  "created": "2026-10-13T11:31:50.004442",
+  "candidate": "ae74be4+road-v2@6552033+lattice-only+margin-0.02",
+  "sha256": {
+    "scripts/policy_node.py": "6b757605c81105e74976ccd89ab931724febf2413286bb4a34be3ec2b88e4fe1",
+    "config/ai4r_policy.yaml": "08a83ebe533ada7276c2af49e1799681fae32aed53ebc59f80a68f3811b89a22"
+  },
+  "recovery_enabled": false,
+  "max_candidates": 16,
+  "full_gate": "not run at user request"
+}

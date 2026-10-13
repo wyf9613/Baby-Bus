@@ -1,0 +1,660 @@
+{
+  "candidate_script": "/home/ai4r/mvp2-test-20261013/road-v2/incoming/policy_node.py",
+  "live_job_count": 4,
+  "captured_worker_reasons": [
+    "invalid_estimates_or_boundaries",
+    "invalid_estimates_or_boundaries",
+    "invalid_estimates_or_boundaries",
+    "recovery_body_boundary_conflict"
+  ],
+  "diagnosis": [
+    {
+      "elapsed_s": 2.4699260050001612,
+      "reason": "invalid_recovery_road",
+      "faults": [],
+      "road_status": "invalid_width_or_order",
+      "near_field": {
+        "valid": false,
+        "status": "unavailable",
+        "coverage_x_m": null,
+        "uses_history": false,
+        "oldest_observation_age_s": null,
+        "footprint_validated": false
+      },
+      "forward_geometry": null,
+      "road_centerline": [],
+      "state": {
+        "timestamp_s": 1791851240.281891,
+        "frame_id": "base_link",
+        "speed_mps": 0.0,
+        "yaw_rate_rps": 0.0,
+        "v_mps": 0.0,
+        "yaw_rate_radps": 0.0,
+        "speed_valid": true,
+        "yaw_rate_valid": true,
+        "valid": true,
+        "confidence": 1.0,
+        "lateral_error_m": null,
+        "heading_error_rad": null,
+        "road_relative_valid": false,
+        "mode": "causal_filtered_hold",
+        "sample_time_basis": {
+          "wheel_speed": "ros_receipt_proxy",
+          "imu_angular_velocity": "ros_acquisition"
+        },
+        "source_age_s": {
+          "wheel_speed": 0.01840041499963263,
+          "imu_angular_velocity": 0.074272589
+        },
+        "source_stamp_ns": {
+          "wheel_speed": null,
+          "imu_angular_velocity": 1791851240203975157
+        }
+      },
+      "recovery_diagnostics": {
+        "planner": "bounded_centerline",
+        "rollout_steps": 0,
+        "reason": "invalid_recovery_road",
+        "body_conflict": false,
+        "elapsed_s": 3.084799936914351e-05
+      }
+    },
+    {
+      "elapsed_s": 2.5744245910000245,
+      "reason": "invalid_recovery_road",
+      "faults": [],
+      "road_status": "invalid_width_or_order",
+      "near_field": {
+        "valid": false,
+        "status": "unavailable",
+        "coverage_x_m": null,
+        "uses_history": false,
+        "oldest_observation_age_s": null,
+        "footprint_validated": false
+      },
+      "forward_geometry": null,
+      "road_centerline": [],
+      "state": {
+        "timestamp_s": 1791851240.3846185,
+        "frame_id": "base_link",
+        "speed_mps": 0.0,
+        "yaw_rate_rps": 0.0,
+        "v_mps": 0.0,
+        "yaw_rate_radps": 0.0,
+        "speed_valid": true,
+        "yaw_rate_valid": true,
+        "valid": true,
+        "confidence": 1.0,
+        "lateral_error_m": null,
+        "heading_error_rad": null,
+        "road_relative_valid": false,
+        "mode": "causal_filtered_hold",
+        "sample_time_basis": {
+          "wheel_speed": "ros_receipt_proxy",
+          "imu_angular_velocity": "ros_acquisition"
+        },
+        "source_age_s": {
+          "wheel_speed": 0.00514219199976651,
+          "imu_angular_velocity": 0.054469372
+        },
+        "source_stamp_ns": {
+          "wheel_speed": null,
+          "imu_angular_velocity": 1791851240324938741
+        }
+      },
+      "recovery_diagnostics": {
+        "planner": "bounded_centerline",
+        "rollout_steps": 0,
+        "reason": "invalid_recovery_road",
+        "body_conflict": false,
+        "elapsed_s": 1.2448000234144274e-05
+      }
+    },
+    {
+      "elapsed_s": 2.6792690599995694,
+      "reason": "invalid_recovery_road",
+      "faults": [],
+      "road_status": "missing_motion_history",
+      "near_field": {
+        "valid": false,
+        "status": "missing_motion_history",
+        "coverage_x_m": null,
+        "uses_history": false,
+        "oldest_observation_age_s": null,
+        "footprint_validated": false
+      },
+      "forward_geometry": null,
+      "road_centerline": [],
+      "state": {
+        "timestamp_s": 1791851240.4837058,
+        "frame_id": "base_link",
+        "speed_mps": 0.0,
+        "yaw_rate_rps": 0.0,
+        "v_mps": 0.0,
+        "yaw_rate_radps": 0.0,
+        "speed_valid": true,
+        "yaw_rate_valid": true,
+        "valid": true,
+        "confidence": 1.0,
+        "lateral_error_m": null,
+        "heading_error_rad": null,
+        "road_relative_valid": false,
+        "mode": "causal_filtered_hold",
+        "sample_time_basis": {
+          "wheel_speed": "ros_receipt_proxy",
+          "imu_angular_velocity": "ros_acquisition"
+        },
+        "source_age_s": {
+          "wheel_speed": 0.009138769000855973,
+          "imu_angular_velocity": 0.034916798
+        },
+        "source_stamp_ns": {
+          "wheel_speed": null,
+          "imu_angular_velocity": 1791851240442839533
+        }
+      },
+      "recovery_diagnostics": {
+        "planner": "bounded_centerline",
+        "rollout_steps": 0,
+        "reason": "invalid_recovery_road",
+        "body_conflict": false,
+        "elapsed_s": 8.320000233652536e-06
+      }
+    },
+    {
+      "elapsed_s": 2.845373463999749,
+      "reason": "recovery_body_boundary_conflict",
+      "faults": [
+        {
+          "vehicle_pose": {
+            "x": 0.0,
+            "y": 0.0,
+            "heading": 0.0,
+            "curvature": 0.0,
+            "q": 1.0
+          },
+          "worst": {
+            "side": "right",
+            "body_sample_local_m": [
+              -0.198,
+              -0.125
+            ],
+            "body_sample_in_road_m": [
+              -0.198,
+              -0.125
+            ],
+            "boundary_y_m": -0.17825042617295705,
+            "raw_normal_clearance_m": 0.038238907733038945,
+            "hard_margin_m": 0.02,
+            "blind_extension_margin_m": 0.06215580694400563,
+            "interpolation_guard_m": 0.0010341900513309986,
+            "sweep_guard_m": 0.025,
+            "final_clearance_m": -0.06995108926229768
+          },
+          "original_clearance_m": -0.06995108926229768
+        }
+      ],
+      "road_status": "near_field_unobserved",
+      "near_field": {
+        "valid": false,
+        "status": "near_field_unobserved",
+        "coverage_x_m": [
+          0.5789475868000703,
+          3.1944315127178986
+        ],
+        "uses_history": false,
+        "oldest_observation_age_s": 0.2644226551055908,
+        "footprint_validated": false
+      },
+      "forward_geometry": {
+        "timestamp_s": 1791851240.639106,
+        "frame_id": "base_link",
+        "valid": false,
+        "centerline_xy": [
+          [
+            0.5789475868000703,
+            0.05751765525081112
+          ],
+          [
+            0.6758173618340639,
+            0.024875045469484464
+          ],
+          [
+            0.7726871368680576,
+            -0.00309636106911762
+          ],
+          [
+            0.8695569119020512,
+            -0.0263965643649951
+          ],
+          [
+            0.9664266869360449,
+            -0.045025564418148034
+          ],
+          [
+            1.0632964619700385,
+            -0.058983361228576336
+          ],
+          [
+            1.1601662370040322,
+            -0.06826995479627998
+          ],
+          [
+            1.257036012038026,
+            -0.07288534512125922
+          ],
+          [
+            1.3539057870720195,
+            -0.07282953220351365
+          ],
+          [
+            1.450775562106013,
+            -0.06810251604304352
+          ],
+          [
+            1.5476453371400067,
+            -0.058704296639848885
+          ],
+          [
+            1.6445151121740005,
+            -0.044634873993929625
+          ],
+          [
+            1.7413848872079938,
+            -0.025894248105285844
+          ],
+          [
+            1.8382546622419875,
+            -0.0024824189739173774
+          ],
+          [
+            1.9351244372759813,
+            0.02560061340017572
+          ],
+          [
+            2.031994212309975,
+            0.05835484901699345
+          ],
+          [
+            2.1288639873439688,
+            0.0957802878765357
+          ],
+          [
+            2.2257337623779625,
+            0.13787692997880252
+          ],
+          [
+            2.322603537411956,
+            0.18464477532379397
+          ],
+          [
+            2.4194733124459495,
+            0.23608382391150984
+          ],
+          [
+            2.5163430874799433,
+            0.29219407574195055
+          ],
+          [
+            2.613212862513937,
+            0.352975530815116
+          ],
+          [
+            2.7100826375479303,
+            0.41842818913100555
+          ],
+          [
+            2.806952412581924,
+            0.48855205068961993
+          ],
+          [
+            2.9038221876159174,
+            0.5633471154909587
+          ],
+          [
+            3.000691962649911,
+            0.6428133835350223
+          ],
+          [
+            3.097561737683905,
+            0.7269508548218107
+          ],
+          [
+            3.1944315127178986,
+            0.8157595293513235
+          ]
+        ],
+        "left_boundary_xy": [
+          [
+            0.5789475868000703,
+            0.5646276779825201
+          ],
+          [
+            0.6758173618340639,
+            0.5186893863219305
+          ],
+          [
+            0.7726871368680576,
+            0.4778207275285996
+          ],
+          [
+            0.8695569119020512,
+            0.4420217016025273
+          ],
+          [
+            0.9664266869360449,
+            0.4112923085437138
+          ],
+          [
+            1.0632964619700385,
+            0.3856325483521591
+          ],
+          [
+            1.1601662370040322,
+            0.36504242102786305
+          ],
+          [
+            1.257036012038026,
+            0.3495219265708256
+          ],
+          [
+            1.3539057870720195,
+            0.33907106498104717
+          ],
+          [
+            1.450775562106013,
+            0.33368983625852733
+          ],
+          [
+            1.5476453371400067,
+            0.33337824040326614
+          ],
+          [
+            1.6445151121740005,
+            0.33813627741526375
+          ],
+          [
+            1.7413848872079938,
+            0.34796394729451985
+          ],
+          [
+            1.8382546622419875,
+            0.362861250041035
+          ],
+          [
+            1.9351244372759813,
+            0.3828281856548088
+          ],
+          [
+            2.031994212309975,
+            0.40786475413584133
+          ],
+          [
+            2.1288639873439688,
+            0.4379709554841327
+          ],
+          [
+            2.2257337623779625,
+            0.4731467896996826
+          ],
+          [
+            2.322603537411956,
+            0.5133922567824911
+          ],
+          [
+            2.4194733124459495,
+            0.5587073567325584
+          ],
+          [
+            2.5163430874799433,
+            0.6090920895498846
+          ],
+          [
+            2.613212862513937,
+            0.6645464552344698
+          ],
+          [
+            2.7100826375479303,
+            0.7250704537863131
+          ],
+          [
+            2.806952412581924,
+            0.7906640852054152
+          ],
+          [
+            2.9038221876159174,
+            0.8613273494917761
+          ],
+          [
+            3.000691962649911,
+            0.9370602466453959
+          ],
+          [
+            3.097561737683905,
+            1.0178627766662744
+          ],
+          [
+            3.1944315127178986,
+            1.1037349395544118
+          ]
+        ],
+        "right_boundary_xy": [
+          [
+            0.5789475868000703,
+            -0.44959236748089787
+          ],
+          [
+            0.6758173618340639,
+            -0.4689392953829616
+          ],
+          [
+            0.7726871368680576,
+            -0.48401344966683485
+          ],
+          [
+            0.8695569119020512,
+            -0.4948148303325175
+          ],
+          [
+            0.9664266869360449,
+            -0.5013434373800099
+          ],
+          [
+            1.0632964619700385,
+            -0.5035992708093118
+          ],
+          [
+            1.1601662370040322,
+            -0.501582330620423
+          ],
+          [
+            1.257036012038026,
+            -0.495292616813344
+          ],
+          [
+            1.3539057870720195,
+            -0.48473012938807447
+          ],
+          [
+            1.450775562106013,
+            -0.46989486834461436
+          ],
+          [
+            1.5476453371400067,
+            -0.4507868336829639
+          ],
+          [
+            1.6445151121740005,
+            -0.427406025403123
+          ],
+          [
+            1.7413848872079938,
+            -0.39975244350509154
+          ],
+          [
+            1.8382546622419875,
+            -0.36782608798886973
+          ],
+          [
+            1.9351244372759813,
+            -0.33162695885445737
+          ],
+          [
+            2.031994212309975,
+            -0.29115505610185444
+          ],
+          [
+            2.1288639873439688,
+            -0.24641037973106128
+          ],
+          [
+            2.2257337623779625,
+            -0.19739292974207756
+          ],
+          [
+            2.322603537411956,
+            -0.14410270613490317
+          ],
+          [
+            2.4194733124459495,
+            -0.08653970890953877
+          ],
+          [
+            2.5163430874799433,
+            -0.024703938065983477
+          ],
+          [
+            2.613212862513937,
+            0.04140460639576227
+          ],
+          [
+            2.7100826375479303,
+            0.11178592447569802
+          ],
+          [
+            2.806952412581924,
+            0.18644001617382466
+          ],
+          [
+            2.9038221876159174,
+            0.2653668814901413
+          ],
+          [
+            3.000691962649911,
+            0.34856652042464864
+          ],
+          [
+            3.097561737683905,
+            0.43603893297734686
+          ],
+          [
+            3.1944315127178986,
+            0.5277841191482351
+          ]
+        ],
+        "lane_width_m": 0.6939035568538034,
+        "local_curvature_1pm": 0.41420387997053937,
+        "x_range_m": [
+          0.5789475868000703,
+          3.1944315127178986
+        ],
+        "confidence": 0.9,
+        "visibility": "both",
+        "status": "near_field_unobserved",
+        "source_age_s": 0.253161266,
+        "motion_compensated": true,
+        "boundary_source": {
+          "left": "observed",
+          "right": "observed"
+        },
+        "boundary_diagnostics": {
+          "left": {
+            "raw_count": 10,
+            "filtered_count": 10,
+            "fit_valid": true,
+            "fit_status": "accepted",
+            "inlier_count": 9,
+            "fit_rms_m": 0.0876465487106506,
+            "x_range_m": [
+              0.5789475868000703,
+              3.269472231472696
+            ]
+          },
+          "right": {
+            "raw_count": 10,
+            "filtered_count": 10,
+            "fit_valid": true,
+            "fit_status": "accepted",
+            "inlier_count": 10,
+            "fit_rms_m": 0.10988633589623883,
+            "x_range_m": [
+              0.4749126134209848,
+              3.1944315127178986
+            ]
+          }
+        },
+        "fit_rms_m": 0.10988633589623883,
+        "history_used": false,
+        "oldest_observation_timestamp_s": 1791851240.3746834,
+        "geometry_valid": true,
+        "near_field": {
+          "valid": false,
+          "status": "unavailable",
+          "coverage_x_m": [
+            0.5789475868000703,
+            3.1944315127178986
+          ],
+          "uses_history": false,
+          "oldest_observation_age_s": 0.2644226551055908,
+          "footprint_validated": false
+        },
+        "measurement_timestamp_s": 1791851240.3746834,
+        "time_aligned": true,
+        "motion_compensation": {
+          "dx_m": 0.0,
+          "dy_m": 0.0,
+          "yaw_rad": 0.0,
+          "interval_s": 0.2644226551055908,
+          "travelled_distance_m": 0.0
+        }
+      },
+      "road_centerline": [],
+      "state": {
+        "timestamp_s": 1791851240.639106,
+        "frame_id": "base_link",
+        "speed_mps": 0.0,
+        "yaw_rate_rps": 0.0,
+        "v_mps": 0.0,
+        "yaw_rate_radps": 0.0,
+        "speed_valid": true,
+        "yaw_rate_valid": true,
+        "valid": true,
+        "confidence": 1.0,
+        "lateral_error_m": null,
+        "heading_error_rad": null,
+        "road_relative_valid": false,
+        "mode": "causal_filtered_hold",
+        "sample_time_basis": {
+          "wheel_speed": "ros_receipt_proxy",
+          "imu_angular_velocity": "ros_acquisition"
+        },
+        "source_age_s": {
+          "wheel_speed": 0.009979043999919668,
+          "imu_angular_velocity": 0.024894862
+        },
+        "source_stamp_ns": {
+          "wheel_speed": null,
+          "imu_angular_velocity": 1791851240602949709
+        }
+      },
+      "recovery_diagnostics": {
+        "planner": "bounded_centerline",
+        "rollout_steps": 0,
+        "reason": "recovery_body_boundary_conflict",
+        "body_conflict": true,
+        "elapsed_s": 0.0036477069997999934
+      }
+    }
+  ],
+  "mode": "read-only replay; no ROS initialization or actuation"
+}

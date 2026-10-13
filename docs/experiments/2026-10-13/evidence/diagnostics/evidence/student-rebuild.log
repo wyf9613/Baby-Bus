@@ -1,0 +1,54 @@
+ROS student build
+Workspace: /home/ai4r/ai4r_student_workspace
+Mode: incremental
+Building ai4r_policy against the system overlay...
+Starting >>> ai4r_policy
+-- Install configuration: ""
+-- Execute custom install script
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/launch/ai4r_policy.launch.py
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml.bak
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/aruco_detector.yaml
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/bno08x_imu_interface.yaml
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/camera_mount.yaml
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/lidar_mount.yaml
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/ai4r_policy_calibration.yaml
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/ai4r_policy_driving.yaml
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/car.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/policies/baseline.npz
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/policies/ppo_bc.npz
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/session.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/baseline.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/baseline_slow.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/bench_check.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/circle_left.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/circle_right.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/drive_steps.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/drive_steps_high.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/ppo_bc.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/ppo_bc_slow.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/static_cones.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/sessions/straight_trim.json
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ml/use.sh
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/oakd_cone_detector.yaml
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/traxxas_vehicle_interface.yaml
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ament_index/resource_index/package_run_dependencies/ai4r_policy
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ament_index/resource_index/parent_prefix_path/ai4r_policy
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/environment/ament_prefix_path.sh
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/environment/ament_prefix_path.dsv
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/environment/path.sh
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/environment/path.dsv
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/local_setup.bash
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/local_setup.sh
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/local_setup.zsh
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/local_setup.dsv
+-- Symlinking: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/package.dsv
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ament_index/resource_index/packages/ai4r_policy
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/cmake/ai4r_policyConfig.cmake
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/cmake/ai4r_policyConfig-version.cmake
+-- Up-to-date symlink: /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/package.xml
+Finished <<< ai4r_policy [0.35s]
+
+Summary: 1 package finished [0.78s]
+ROS student build complete. Restart affected runtime units to use the rebuilt code.

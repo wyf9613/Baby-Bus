@@ -1,0 +1,50 @@
+[
+  {
+    "result": "stopped",
+    "stop_reason": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: source_deadline_during_planning; explicit resume required",
+    "run_seconds": 3.0477736570010165,
+    "max_requested_drive": 0.0,
+    "max_wheel_speed_mps": 0.0,
+    "max_distance_debug_m": 0.0,
+    "confirmed_stop": true,
+    "final_policy_state": 2,
+    "final_vehicle_state": "Disabled",
+    "label": "drive-startup-speed-floor020-01",
+    "max_startup_confirm_frames": 2,
+    "planning_rejection_counts": {
+      "invalid_estimates_or_boundaries": 3,
+      "source_deadline_during_planning": 14
+    },
+    "discarded_results": {
+      "reference_expired": 12
+    },
+    "logged_rejection_planner_elapsed_range_s": [
+      5.56820014026016e-05,
+      0.07084952700097347
+    ]
+  },
+  {
+    "result": "stopped",
+    "stop_reason": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: source_deadline_during_planning; explicit resume required",
+    "run_seconds": 3.0405897499986168,
+    "max_requested_drive": 0.0,
+    "max_wheel_speed_mps": 0.0,
+    "max_distance_debug_m": 0.0,
+    "confirmed_stop": true,
+    "final_policy_state": 2,
+    "final_vehicle_state": "Disabled",
+    "label": "drive-startup-speed-floor020-02",
+    "max_startup_confirm_frames": 2,
+    "planning_rejection_counts": {
+      "invalid_estimates_or_boundaries": 3,
+      "source_deadline_during_planning": 13
+    },
+    "discarded_results": {
+      "reference_expired": 11
+    },
+    "logged_rejection_planner_elapsed_range_s": [
+      4.8226000217255205e-05,
+      0.07795997600078408
+    ]
+  }
+]

@@ -1,0 +1,30 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-7.4.4, pluggy-1.4.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/ai4r/mvp2-test-20261013/candidate
+plugins: ament-copyright-0.17.5, ament-xmllint-0.17.5, launch-testing-3.4.11, ament-pep257-0.17.5, launch-testing-ros-0.26.12, ament-lint-0.17.5, ament-flake8-0.17.5, colcon-core-0.21.3, cov-4.1.0
+collecting ... collected 1 item
+
+tests/test_lattice.py::LatticeChecks::test_actual_node_can_follow_road_without_optional_lidar FAILED [100%]
+
+=================================== FAILURES ===================================
+____ LatticeChecks.test_actual_node_can_follow_road_without_optional_lidar _____
+
+self = <test_lattice.LatticeChecks testMethod=test_actual_node_can_follow_road_without_optional_lidar>
+
+    def test_actual_node_can_follow_road_without_optional_lidar(self):
+        control_api = runpy.run_path(str(Path(__file__).with_name("test_control.py")))
+        node = control_api["make_node"](simulated=False, mvp=True)
+        node.planning_settings = Settings(algorithm="lattice_v2", max_source_age_s=0.4, reference_lifetime_s=0.2)
+        node.lattice_settings = Config(budget_s=5, clear_start_assumed=True, obstacle_check_enabled=False)
+        self.assertNotIn("lidar_cartesian", node.required_sensors)
+        control_api["feed"](node, center=0.1)
+        control_api["start"](node)
+        node.run_policy_step()
+>       self.assertEqual(node.fsm_state, 3, node.state_reason)
+E       AssertionError: 2 != 3 : Planning: source_deadline_during_planning
+
+tests/test_lattice.py:286: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_lattice.py::LatticeChecks::test_actual_node_can_follow_road_without_optional_lidar
+============================== 1 failed in 1.73s ===============================

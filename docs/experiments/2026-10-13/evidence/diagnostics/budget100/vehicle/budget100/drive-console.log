@@ -1,0 +1,204 @@
+Publishing zero actions: Startup: waiting for an explicit policy request
+Starting drive policy test now
+Publishing policy actions: Operator request
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=invalid_estimates_or_boundaries; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=source_deadline_during_planning; frames=0/3
+Publishing policy actions: Startup waiting: confirming_observed_lattice; planning=lattice_selected; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=source_deadline_during_planning; frames=0/3
+Publishing policy actions: Startup waiting: confirming_observed_lattice; planning=lattice_selected; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=1/3
+Publishing policy actions: Startup waiting: confirming_observed_lattice; planning=lattice_selected; frames=2/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=2/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=source_deadline_during_planning; frames=0/3
+Publishing policy actions: Startup waiting: confirming_observed_lattice; planning=lattice_selected; frames=1/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=1/3
+Publishing policy actions: Startup waiting: confirming_observed_lattice; planning=lattice_selected; frames=2/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=2/3
+Publishing policy actions: Control: {'tracking_mode': 'TRACKING', 'upstream_rejection_reason': None, 'original_measurement_timestamp_s': 1791854810.657829, 'original_source_age_s': 0.32118821144104004, 'cache_age_s': 0.0, 'prediction_distance_m': 0.0, 'remaining_path_range_m': [0.0, 2.000581131533969], 'gyro_bias_rps': 0.0, 'last_planner_elapsed_s': 0.06483164500059502}
+Publishing policy actions: Control: {'tracking_mode': 'DEGRADED', 'upstream_rejection_reason': 'source_deadline_during_planning', 'original_measurement_timestamp_s': 1791854810.9578044, 'original_source_age_s': 0.5292401313781738, 'cache_age_s': 0.1574909229984769, 'prediction_distance_m': 0.0, 'remaining_path_range_m': [6.071531356506478e-18, 2.0026959357359067], 'gyro_bias_rps': 0.0, 'last_planner_elapsed_s': 0.05352197300089756}
+Publishing policy actions: Control: {'tracking_mode': 'DEGRADED', 'upstream_rejection_reason': 'planning_pending', 'original_measurement_timestamp_s': 1791854811.557817, 'original_source_age_s': 0.43159008026123047, 'cache_age_s': 0.07679404500049714, 'prediction_distance_m': 0.0, 'remaining_path_range_m': [0.0, 2.0021306607240845], 'gyro_bias_rps': 0.0, 'last_planner_elapsed_s': 0.06729349699890008}
+Publishing policy actions: Control: {'tracking_mode': 'DEGRADED', 'upstream_rejection_reason': 'planning_pending', 'original_measurement_timestamp_s': 1791854812.0578406, 'original_source_age_s': 0.47774720191955566, 'cache_age_s': 0.11787619099959556, 'prediction_distance_m': 0.0, 'remaining_path_range_m': [0.0, 2.0022393554292237], 'gyro_bias_rps': 0.0, 'last_planner_elapsed_s': 0.02371199200024421}
+Publishing policy actions: Control: {'tracking_mode': 'DEGRADED', 'upstream_rejection_reason': None, 'original_measurement_timestamp_s': 1791854812.7578304, 'original_source_age_s': 0.3202834129333496, 'cache_age_s': 0.0, 'prediction_distance_m': 0.0, 'remaining_path_range_m': [0.0, 2.0023854843532036], 'gyro_bias_rps': 0.0, 'last_planner_elapsed_s': 0.047969285000363016}
+Publishing zero actions: Operator request
+{
+  "result": "stopped",
+  "stop_reason": "No wheel motion after 4 seconds",
+  "run_seconds": 4.006306929999482,
+  "seen_active": true,
+  "confirmed_stop": true,
+  "mode": "drive",
+  "candidate": "ae74be4+road-v2@6552033+lattice-only+mvp-domain+margin-0.02+startup-retry+rejection-details+planning-budget100",
+  "final_actions": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_applied": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_wheel_speed_mps": 0.0,
+  "max_wheel_speed_mps": 0.0,
+  "max_requested_drive": 0.3030506670475006,
+  "max_distance_debug_m": 0.0,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: Operator request",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "9",
+    "session_id": "64",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1",
+    "selected_source": "2",
+    "host_seq": "612",
+    "host_fresh": "1",
+    "host_permitted": "1",
+    "applied_drive_normalized": "0.272000",
+    "drive_pwm_us": "1568",
+    "rc_drive_us": "1502",
+    "last_positive_vehicle_ack": "613",
+    "last_written_vehicle_command": null
+  },
+  "latest_cones": {
+    "counts": {
+      "2": 14,
+      "1": 11
+    },
+    "stamp_s": 1791854813.6578162,
+    "latency_s": 0.208872314,
+    "positions": [
+      [
+        0.8450270485420671,
+        0.3885061950683595,
+        2
+      ],
+      [
+        1.007669612200416,
+        0.35830142211914057,
+        2
+      ],
+      [
+        0.6562816460437432,
+        0.40656399536132826,
+        2
+      ],
+      [
+        1.037870215779174,
+        -0.47988708496093757,
+        1
+      ],
+      [
+        0.9230906887074156,
+        -0.5662177734375,
+        1
+      ],
+      [
+        1.2016482647777325,
+        0.3592552490234375,
+        2
+      ],
+      [
+        0.6772105094227485,
+        -0.5110643615722656,
+        1
+      ],
+      [
+        1.4403868666904283,
+        -0.5368139648437501,
+        1
+      ],
+      [
+        1.3802856027104842,
+        0.35607061767578124,
+        2
+      ],
+      [
+        0.4675365028049684,
+        0.4026976318359375,
+        2
+      ],
+      [
+        1.5289766616817384,
+        -0.48380346679687497,
+        1
+      ],
+      [
+        1.5645473371095444,
+        0.3519743041992187,
+        2
+      ],
+      [
+        1.7543755517106376,
+        -0.4775450134277345,
+        1
+      ],
+      [
+        1.7871047100361654,
+        0.3451367492675782,
+        2
+      ],
+      [
+        2.56199824780361,
+        -0.5105221862792969,
+        1
+      ],
+      [
+        3.033661502255344,
+        -0.5020228881835939,
+        1
+      ],
+      [
+        2.2644968210933207,
+        0.3502770385742189,
+        2
+      ],
+      [
+        2.2351901914618657,
+        -0.4841721191406251,
+        1
+      ],
+      [
+        2.0477643350529307,
+        -0.4875012512207031,
+        1
+      ],
+      [
+        2.6712095867757966,
+        0.32288198852539096,
+        2
+      ],
+      [
+        1.9828118286330692,
+        0.3495136413574217,
+        2
+      ],
+      [
+        2.444976665788307,
+        0.3300361938476565,
+        2
+      ],
+      [
+        2.857751283666456,
+        0.29731436157226565,
+        2
+      ],
+      [
+        2.8347574977102723,
+        -0.5295728149414063,
+        1
+      ],
+      [
+        2.370435804724162,
+        0.34346652221679674,
+        2
+      ]
+    ]
+  }
+}

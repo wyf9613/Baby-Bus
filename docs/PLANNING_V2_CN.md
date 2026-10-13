@@ -1,5 +1,25 @@
 # V2 Frenet lattice planner 实现与联调
 
+## 当前实车配置，2026-10-13
+
+按用户要求，当前 YAML 关闭 `planning.lattice.centerline_first_enabled`，所有场景
+直接进入 Frenet lattice，不再先运行中心线恢复 rollout。保留原候选采样集合、
+`max_candidates=16`、100 ms 计算预算、10 Hz 异步规划和直接采样输出。
+16 是候选上限；不保证每帧生成/评估 16 条。全车身检查、起步盲区补足和
+0.4 s 道路源年龄门限继续生效；硬余量为用户此前选择的 0.02 m。
+`recovery_enabled=true` 仅继续选择原 MVP lattice 起步范围；中心线入口独立关闭，
+避免换规划入口时顺带把初始航向门限从 1.22 rad 收紧到 0.5 rad。
+感知参数已接入 road-estimation-v2，见 `CONTINUOUS_ROAD_OUTPUT_CN.md`。
+正常 MVP 巡航时，lattice 给控制器的目标速度以下达的巡航速度为下限，
+当前为 0.2 m/s；不再因从静止反复重建 3 s 纵向曲线而持续只给约
+0.003–0.006 m/s 的 0.3 s 预瞄速度。轮速反馈和纵向曲线初值仍为实测值。
+道路降速建议同步降低该下限，降级上限和 STOP 候选继续优先；非 MVP
+模式继续消费原预瞄速度。`speed_target` 诊断记录预瞄值、下限、输出与实测速度。
+这是 MVP 空间路径跟踪目标，不能把它解释为严格跟踪导出的时间速度剖面；
+本次改动已部署，驱动上限仍为 0.35。两轮尝试均被过期参考打断起步确认，
+尚未输出油门，不能据此验证下限修复的实际起步效果。
+下文的中心线优先描述及参数表是 2026-10-09 历史方案，当前值以 YAML 为准。
+
 ## mvp2.0 直接采样接口，2026-10-09
 
 当前 YAML 开启 `planning.lattice.direct_sample_output: true`。lattice 次选直接

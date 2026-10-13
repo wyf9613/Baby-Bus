@@ -1,0 +1,180 @@
+{
+  "result": "aborted",
+  "reason": "Preflight sensors/RC/connection/zero commands not healthy",
+  "exception": "RuntimeError",
+  "confirmed_stop": false,
+  "mode": "drive",
+  "candidate": "ae74be4+road-estimation-v2@6552033+hard-margin-0.02",
+  "final_actions": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_applied": null,
+  "final_wheel_speed_mps": null,
+  "max_wheel_speed_mps": 0.0,
+  "max_requested_drive": 0.0,
+  "max_distance_debug_m": 0.0,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disarmed",
+  "final_policy_text": "Publishing zero actions: Startup: waiting for an explicit policy request",
+  "vehicle_diagnostics": {
+    "state": "Disarmed",
+    "reason": "worker receive-service gap",
+    "connected": "0",
+    "ready": "0",
+    "connection_attempts": "54",
+    "session_id": "54",
+    "rc_drive_status": "-1",
+    "rc_steer_status": "-1",
+    "selected_source": "-1",
+    "host_seq": null,
+    "host_fresh": null,
+    "host_permitted": null,
+    "applied_drive_normalized": null,
+    "drive_pwm_us": null,
+    "rc_drive_us": null,
+    "last_positive_vehicle_ack": "unavailable",
+    "last_written_vehicle_command": "unavailable"
+  },
+  "latest_cones": {
+    "counts": {
+      "2": 15,
+      "1": 11
+    },
+    "stamp_s": 1791850627.816171,
+    "latency_s": 0.19934316,
+    "positions": [
+      [
+        0.9322415593448184,
+        0.4617019042968751,
+        2
+      ],
+      [
+        0.6924569686091986,
+        -0.48442660522460945,
+        1
+      ],
+      [
+        1.212208555631542,
+        -0.505373779296875,
+        1
+      ],
+      [
+        0.9421561753295645,
+        -0.5076764831542968,
+        1
+      ],
+      [
+        1.1311582612374909,
+        0.447145751953125,
+        2
+      ],
+      [
+        1.3413861507147955,
+        0.46094192504882814,
+        2
+      ],
+      [
+        0.7076031043266795,
+        0.47212521362304677,
+        2
+      ],
+      [
+        2.3045377574840216,
+        0.1098594818115235,
+        2
+      ],
+      [
+        1.9492924495343447,
+        0.312751708984375,
+        2
+      ],
+      [
+        1.8846633181510368,
+        -0.5692198486328125,
+        1
+      ],
+      [
+        1.4461447020575873,
+        -0.47114669799804676,
+        1
+      ],
+      [
+        2.437822064622842,
+        0.013144548416137769,
+        2
+      ],
+      [
+        2.10308960244364,
+        0.22129466247558582,
+        2
+      ],
+      [
+        1.730705845148405,
+        0.3874014892578126,
+        2
+      ],
+      [
+        1.5309496111245255,
+        0.4364855346679689,
+        2
+      ],
+      [
+        0.5449751044101071,
+        0.45679327392578123,
+        2
+      ],
+      [
+        1.7912178111959878,
+        -0.4471176757812499,
+        1
+      ],
+      [
+        2.599677074841262,
+        -0.10810811614990223,
+        2
+      ],
+      [
+        2.0215449592052805,
+        -0.6936347045898438,
+        1
+      ],
+      [
+        2.955363957908105,
+        1.1709722900390627,
+        2
+      ],
+      [
+        2.947593397886816,
+        0.3591871032714844,
+        1
+      ],
+      [
+        1.8889672858276123,
+        -0.5062437744140625,
+        1
+      ],
+      [
+        3.3102354262337017,
+        1.201672119140625,
+        2
+      ],
+      [
+        2.482194123682349,
+        -0.9736144409179688,
+        1
+      ],
+      [
+        3.707928323837281,
+        1.2149407958984375,
+        2
+      ],
+      [
+        3.073140681132206,
+        0.3422833862304686,
+        1
+      ]
+    ]
+  }
+}

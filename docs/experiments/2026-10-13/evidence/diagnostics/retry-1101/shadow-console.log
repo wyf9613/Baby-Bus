@@ -1,0 +1,9 @@
+[INFO] [1791849773.980518677] [car.mvp2_shadow_probe]: Policy update source: timer; required sensors: ['cone_detections', 'wheel_speed', 'imu_angular_velocity']; namespace: /car
+[WARN] [1791849773.996160491] [car.mvp2_shadow_probe]: Lidar Cartesian conversion unavailable: "base_link" passed to lookupTransform argument target_frame does not exist. 
+[WARN] [1791849773.998387305] [car.mvp2_shadow_probe]: IMU mounting transform unavailable: "base_link" passed to lookupTransform argument target_frame does not exist. 
+[WARN] [1791849774.044464231] [car.mvp2_shadow_probe]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[INFO] [1791849775.995200752] [car.mvp2_shadow_probe]: Publishing policy actions: Operator request
+[WARN] [1791849777.108372992] [car.mvp2_shadow_probe]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[INFO] [1791849779.020628990] [car.mvp2_shadow_probe]: Publishing zero actions: Control startup history deadline exceeded; explicit resume required
+[WARN] [1791849780.484511379] [car.mvp2_shadow_probe]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+Shadow probe complete; all outputs were remapped to /car/mvp2_shadow/.

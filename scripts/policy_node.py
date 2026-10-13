@@ -201,9 +201,43 @@ class EstimationSettings:
     # 0 means unknown: single-sided geometry stays invalid until measured or
     # explicitly supplied for a known simulated road. Never guess a lane width.
     known_lane_width_m: float = 0.0
+    # Imported mpc-car-run switches (docs/ESTIMATION_V1_CN.md); defaults keep
+    # the original behaviour. "continuous" moves the cone history to every
+    # policy step with short wheel/gyro intervals, so a camera gap no longer
+    # needs one long motion interval and does not clear the history.
+    history_propagation: str = "camera"
+    # "distance" keeps a cone until it falls behind road_rear_support_m (the
+    # local window bounds the dead-reckoned travel to ~3.5 m), with
+    # road_history_max_s as a stationary backstop instead of road_history_s.
+    road_history_mode: str = "time"
+    road_history_max_s: float = 20.0
+    # Merge the visible side of a one-sided frame with the history of both
+    # sides instead of returning the one-sided frame unfused.
+    history_merge_single_side: bool = False
+    # A fresh cone replaces history cones within this radius (0 = the original
+    # 2*huber_delta_m). It must stay below half the cone spacing, or a fresh
+    # detection of cone k also deletes cone k-1 and leaves holes near the car.
+    history_merge_radius_m: float = 0.0
+    # Opt-in alternative: reconstruct an interrupted camera output from the
+    # incrementally moved, observed cone cache. No unseen-road extrapolation.
+    continuous_road_output: bool = False
+    road_prediction_max_distance_m: float = 0.2
 
     def __post_init__(self):
+        if self.history_propagation not in ("camera", "continuous"):
+            raise ValueError("estimation.history_propagation must be camera or continuous")
+        if self.road_history_mode not in ("time", "distance"):
+            raise ValueError("estimation.road_history_mode must be time or distance")
+        if not isinstance(self.history_merge_single_side, bool):
+            raise ValueError("estimation.history_merge_single_side must be bool")
+        if not isinstance(self.continuous_road_output, bool):
+            raise ValueError("estimation.continuous_road_output must be bool")
+        if self.continuous_road_output and self.history_propagation != "continuous":
+            raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
+            if name in ("history_propagation", "road_history_mode", "history_merge_single_side",
+                        "continuous_road_output"):
+                continue
             if not finite_number(value):
                 raise ValueError(f"estimation.{name} must be finite")
             if name == "min_cone_confidence":
@@ -212,9 +246,15 @@ class EstimationSettings:
             elif name == "known_lane_width_m":
                 if value != 0.0 and not self.road_width_min_m <= value <= self.road_width_max_m:
                     raise ValueError("known width must be 0 (unknown) or inside width bounds")
+            elif name == "history_merge_radius_m":
+                if value < 0.0:
+                    raise ValueError("estimation.history_merge_radius_m must be >= 0")
             elif name == "road_hold_s":
-                if not 0.0 <= value <= 0.25:
-                    raise ValueError("road prediction hold must be in [0, 0.25] seconds")
+                # The continuous version integrates each short motion segment;
+                # admit the requested wider hold there, preserving legacy limits.
+                hold_limit = 1.0 if self.continuous_road_output else 0.25
+                if not 0.0 <= value <= hold_limit:
+                    raise ValueError(f"road prediction hold must be in [0, {hold_limit}] seconds")
             elif value <= 0.0:
                 raise ValueError(f"estimation.{name} must be positive")
         if self.road_width_min_m >= self.road_width_max_m:
@@ -227,8 +267,18 @@ class EstimationSettings:
             raise ValueError("road sampling is limited to 201 points")
         if self.road_history_s > 5.0 or self.road_rear_support_m > 1.0:
             raise ValueError("local road history is limited to 5 s and 1 m behind the car")
+        if not self.road_history_s <= self.road_history_max_s <= 30.0:
+            raise ValueError("road_history_max_s must be in [road_history_s, 30] s")
+        if self.road_prediction_max_distance_m > 0.5:
+            raise ValueError("road prediction travel is limited to 0.5 m")
+
         if max(self.motion_max_gap_s, self.motion_max_interval_s) > self.max_source_age_s:
             raise ValueError("motion timing limits cannot exceed the source-age limit")
+
+    @property
+    def history_lifetime_s(self):
+        """Cone lifetime: road_history_s, or the stationary backstop in distance mode."""
+        return self.road_history_max_s if self.road_history_mode == "distance" else self.road_history_s
 
 
 class FirstOrderSampleFilter:
@@ -332,7 +382,7 @@ class EstimationMotionHistory:
             return None, "invalid_motion_time"
         if end_s-start_s > self.settings.motion_max_interval_s + 1e-9:
             return None, "motion_interval_too_long"
-        x = y = yaw = 0.0
+        x = y = yaw = travelled = 0.0
         knots = sorted({start_s, end_s} | {
             t for samples in self.samples.values() for t, _ in samples if start_s < t < end_s})
         indices = {name: -1 for name in self.samples}
@@ -351,6 +401,7 @@ class EstimationMotionHistory:
                 return None, "motion_history_gap"
             dt = end-begin
             angle, distance = rate[1]*dt, speed[1]*dt
+            travelled += abs(distance)
             if not all(math.isfinite(v) for v in (angle, distance)):
                 return None, "nonfinite_motion"
             if abs(angle) < 1e-6:
@@ -362,13 +413,20 @@ class EstimationMotionHistory:
             x, y, yaw = x+c*dx-s*dy, y+s*dx+c*dy, yaw+angle
             if not all(math.isfinite(v) for v in (x, y, yaw)):
                 return None, "nonfinite_motion"
-        return {"dx_m": x, "dy_m": y, "yaw_rad": yaw, "interval_s": end_s-start_s}, None
+        return {"dx_m": x, "dy_m": y, "yaw_rad": yaw, "interval_s": end_s-start_s,
+                "travelled_distance_m": travelled}, None
 
     @staticmethod
     def transform_xy(point, pose):
         x, y = point[0]-pose["dx_m"], point[1]-pose["dy_m"]
         c, s = math.cos(pose["yaw_rad"]), math.sin(pose["yaw_rad"])
         return (c*x+s*y, -s*x+c*y)
+
+    @staticmethod
+    def inverse_transform_xy(point, pose):
+        """A point in the frame at the END of pose -> the frame at its START."""
+        c, s = math.cos(pose["yaw_rad"]), math.sin(pose["yaw_rad"])
+        return (c*point[0]-s*point[1]+pose["dx_m"], s*point[0]+c*point[1]+pose["dy_m"])
 
 
 def _estimation_median(values):
@@ -489,6 +547,9 @@ class EstimationPipeline:
     """
     QUALITY_FAILURES = ("insufficient_geometry", "single_side_width_unknown",
                         "single_side_inferred", "insufficient_common_range")
+    # A stale or missing camera frame while wheel/gyro stay continuous. With
+    # history_propagation=continuous these end the output, not the history.
+    CAMERA_GAP_FAILURES = ("unavailable", "motion_interval_too_long")
 
     def __init__(self, settings, frame_id="base_link", left_colour=2, right_colour=1,
                  motion_history=None):
@@ -500,20 +561,91 @@ class EstimationPipeline:
     def _clear_road_history(self):
         self._road_cones = []  # (x, y, z, colour, confidence, original_seen_s)
         self._road_stamp = None
+        self._fused_source_s = None  # camera time of the last fused frame
         self._road_frame = None
         self._observation_stamp = None
         self._observation_road = None
         self._trusted_road = None  # Unaligned acquisition-frame geometry only.
         self._failure_since_s = None
+        self._prediction_motion_stamp = None
+        self._prediction_distance_m = 0.0
+        self._prediction_pose = None
+        self._prediction_expired_source_s = None
         self._road_reset_id = self.motion.reset_id
+
+    def _advance_prediction_distance(self, now_s):
+        """Count travel once per policy epoch, independent of camera rebasing.
+
+        Integrated speed counts turning as travel, rather than using a net
+        displacement that could hide a manoeuvre. The unsigned wheel contract
+        still supports forward motion only. A missing motion segment discards
+        both the prediction anchor and the cone cache.
+        """
+        if self._prediction_motion_stamp is None:
+            return
+        pose, problem = self.motion.pose_between(self._prediction_motion_stamp, now_s)
+        if problem is not None:
+            self._clear_road_history()
+            return
+        self._prediction_distance_m += pose["travelled_distance_m"]
+        total = self._prediction_pose
+        c, s = math.cos(total["yaw_rad"]), math.sin(total["yaw_rad"])
+        total["dx_m"] += c*pose["dx_m"]-s*pose["dy_m"]
+        total["dy_m"] += s*pose["dx_m"]+c*pose["dy_m"]
+        total["yaw_rad"] += pose["yaw_rad"]
+        total["interval_s"] += pose["interval_s"]
+        total["travelled_distance_m"] = self._prediction_distance_m
+        self._prediction_motion_stamp = now_s
+
+    def _advance_history(self, now_s):
+        """Continuous mode: move the cone history to now_s over one short interval.
+
+        Called every policy step, so no single motion interval spans a camera
+        gap. Cones behind road_rear_support_m or past their lifetime drop out.
+        A motion problem still clears the history, as in camera mode.
+        """
+        if self._road_reset_id != self.motion.reset_id:
+            self._clear_road_history()
+            return
+        if not self._road_cones or self._road_stamp is None or now_s <= self._road_stamp:
+            return
+        pose, problem = self.motion.pose_between(self._road_stamp, now_s)
+        if problem is not None:
+            self._clear_road_history()
+            return
+        cones = []
+        for x, y, z, colour, confidence, seen in self._road_cones:
+            x, y = self.motion.transform_xy((x, y), pose)
+            if x >= -self.settings.road_rear_support_m and now_s-seen <= self.settings.history_lifetime_s:
+                cones.append((x, y, z, colour, confidence, seen))
+        self._road_cones, self._road_stamp = cones, now_s
+
+    def _history_at(self, source_s):
+        """History cones in the camera frame at source_s: (cones, None) or (None, problem).
+
+        Camera mode stores history at the last fused camera time (earlier than
+        source_s); continuous mode has already moved it past source_s.
+        """
+        if self._road_stamp is None:
+            return [], None
+        if source_s >= self._road_stamp:
+            pose, problem = self.motion.pose_between(self._road_stamp, source_s)
+            move = self.motion.transform_xy
+        else:
+            pose, problem = self.motion.pose_between(source_s, self._road_stamp)
+            move = self.motion.inverse_transform_xy
+        if problem is not None:
+            return None, problem
+        return [(*move(p[:2], pose), *p[2:]) for p in self._road_cones], None
 
     def _history_road(self, batch, stamp_ns, age, now_s):
         """Merge bounded, validated observations; never extrapolate a blind start.
 
         At most 64 cones per side, with latest observations taking precedence
         within the Huber residual radius. Stored ages refer to real detections,
-        not predictions. Only a fresh two-sided fit updates observed history;
-        a bounded quality-drop bridge may reuse the last fully valid corridor.
+        not predictions. A fresh two-sided fit seeds observed history; when
+        enabled, valid partial fits can extend existing two-sided support.
+        A bounded quality-drop bridge may reuse the last fully valid corridor.
         """
         if self._road_reset_id != self.motion.reset_id:
             self._clear_road_history()
@@ -522,14 +654,18 @@ class EstimationPipeline:
                 or (self._observation_stamp is not None and source_s < self._observation_stamp)):
             out_of_order = (self._observation_stamp is not None and source_s is not None
                             and source_s < self._observation_stamp)
-            self._clear_road_history()
+            # A camera gap (stale or missing batch) keeps a continuously moved
+            # history; out-of-order or future stamps still clear it.
+            if not (self.settings.history_propagation == "continuous" and not out_of_order
+                    and (source_s is None or source_s <= now_s)):
+                self._clear_road_history()
             result = self.road(batch, stamp_ns, age)
             if out_of_order:
                 result.update(valid=False, status="out_of_order_camera", centerline_xy=[],
                               left_boundary_xy=None, right_boundary_xy=None)
             return result
-        expired = any(now_s - p[5] > self.settings.road_history_s for p in self._road_cones)
-        if source_s == self._road_stamp and self._road_frame is not None and not expired:
+        expired = any(now_s - p[5] > self.settings.history_lifetime_s for p in self._road_cones)
+        if source_s == self._fused_source_s and self._road_frame is not None and not expired:
             result = deepcopy(self._road_frame)
             result["source_age_s"] = age
             return result
@@ -545,31 +681,31 @@ class EstimationPipeline:
                 return current
             # Even a one-sided fit can contradict an old corridor. Never hide
             # an observed change behind a prediction from the other boundary.
-            if self._road_stamp is not None:
-                pose, problem = self.motion.pose_between(self._road_stamp, source_s)
-                if problem is None:
-                    for point in self._road_cones:
-                        fit = current.get("_boundary_fits", {}).get(point[3])
-                        if fit is None:
-                            continue
-                        x, y = self.motion.transform_xy(point, pose)
-                        a0, a1, a2 = fit["coeffs"]
-                        if (fit["range"][0] <= x <= fit["range"][1]
-                                and abs(y-(a0+a1*x+a2*x*x)) > 2*self.settings.huber_delta_m):
-                            self._clear_road_history()
-                            current.update(valid=False, status="observed_history_conflict")
-                            return current
-            return current
+            placed, _ = self._history_at(source_s)
+            for x, y, _, colour, _, _ in placed or []:
+                fit = current.get("_boundary_fits", {}).get(colour)
+                if fit is None:
+                    continue
+                a0, a1, a2 = fit["coeffs"]
+                if (fit["range"][0] <= x <= fit["range"][1]
+                        and abs(y-(a0+a1*x+a2*x*x)) > 2*self.settings.huber_delta_m):
+                    self._clear_road_history()
+                    current.update(valid=False, status="observed_history_conflict")
+                    return current
+            # history_merge_single_side: the visible side(s) of a one-sided or
+            # short-overlap frame join the history of both sides below. A failed
+            # merge returns this frame unchanged and leaves the history alone.
+            if not (self.settings.history_merge_single_side and self._road_cones
+                    and current.get("_boundary_fits")):
+                return current
+            partial = True
+        else:
+            partial = False
         fits = current.pop("_boundary_fits")
-        previous = []
-        if self._road_stamp is not None:
-            pose, problem = self.motion.pose_between(self._road_stamp, source_s)
-            if problem is None:
-                for x, y, z, colour, confidence, seen in self._road_cones:
-                    x, y = self.motion.transform_xy((x, y), pose)
-                    if (0 <= now_s-seen <= self.settings.road_history_s
-                            and -self.settings.road_rear_support_m <= x <= self.settings.road_forward_max_m):
-                        previous.append((x, y, z, colour, confidence, seen))
+        placed, _ = self._history_at(source_s)
+        previous = [p for p in placed or []
+                    if 0 <= now_s-p[5] <= self.settings.history_lifetime_s
+                    and -self.settings.road_rear_support_m <= p[0] <= self.settings.road_forward_max_m]
         # An observed change in the overlapping corridor invalidates old support.
         radius = 2*self.settings.huber_delta_m
         for colour, fit in fits.items():
@@ -580,9 +716,10 @@ class EstimationPipeline:
                 break
         fresh = [(x, y, 0.0, colour, confidence, source_s)
                  for colour, fit in fits.items() for x, y, confidence in fit["support_points"]]
+        merge_radius = self.settings.history_merge_radius_m or radius
         for point in fresh:
             previous = [p for p in previous if p[3] != point[3]
-                        or math.hypot(p[0]-point[0], p[1]-point[1]) > radius]
+                        or math.hypot(p[0]-point[0], p[1]-point[1]) > merge_radius]
         merged = previous + fresh
         bounded = []
         for colour in (self.left_colour, self.right_colour):
@@ -591,7 +728,10 @@ class EstimationPipeline:
                 side = [side[round(i*(len(side)-1)/63)] for i in range(64)]
             bounded.extend(side)
         result = self.road({"detections": [p[:5] for p in bounded]}, stamp_ns, age)
-        if not result["valid"]:
+        if not result["valid"] or (partial and result["visibility"] != "both"):
+            if partial:
+                current.pop("_support_cones", None)
+                return current
             # Never let a history-induced bad fit poison subsequent frames.
             bounded, result = fresh, current
         else:
@@ -605,8 +745,15 @@ class EstimationPipeline:
         if result["history_used"]:
             result["status"] = "observed_with_history"
             result["boundary_source"] = {"left": "observed_with_history", "right": "observed_with_history"}
+            if partial:
+                # The side without fresh support in this frame is history only.
+                result["boundary_source"] = {
+                    side: "observed_with_history" if colour in fits else "history"
+                    for side, colour in (("left", self.left_colour), ("right", self.right_colour))}
+                result["merged_partial_frame"] = True
         result["oldest_observation_timestamp_s"] = min(p[5] for p in bounded)
         self._road_cones, self._road_stamp = bounded, source_s
+        self._fused_source_s = source_s
         self._road_frame = deepcopy(result)
         return result
 
@@ -618,6 +765,8 @@ class EstimationPipeline:
         """
         if self._trusted_road is None or self.settings.road_hold_s == 0:
             return None, "no_trusted_road"
+        if self.settings.continuous_road_output:
+            return self._predict_continuous_road(current_frame, now_s)
         if self._failure_since_s is None:
             self._failure_since_s = now_s
         elapsed = now_s-self._failure_since_s
@@ -627,7 +776,7 @@ class EstimationPipeline:
         remaining = min(self.settings.road_hold_s-elapsed,
                         self.settings.max_source_age_s-age,
                         self.settings.motion_max_interval_s-age,
-                        self.settings.road_history_s-(now_s-oldest))
+                        self.settings.history_lifetime_s-(now_s-oldest))
         if elapsed < 0 or age < 0 or remaining <= 1e-9:
             return None, "prediction_deadline_expired"
         predicted = deepcopy(self._trusted_road)
@@ -639,6 +788,57 @@ class EstimationPipeline:
                          current_frame=current_frame, prediction_status="active",
                          prediction_elapsed_s=elapsed, prediction_age_s=age,
                          prediction_remaining_s=remaining, recommended_speed_scale=0.5,
+                         confidence=0.5*predicted["confidence"],
+                         boundary_source={"left": "predicted_history", "right": "predicted_history"})
+        return predicted, "active"
+
+    def _predict_continuous_road(self, current_frame, now_s):
+        """Fit moved REAL observations, keeping the last accepted camera epoch.
+
+        Incremental wheel/gyro segments each obey the usual motion limits. The
+        total prediction still has independent source-age, hold and travel
+        deadlines. Neither a predicted fit nor a repeated frame renews them.
+        """
+        if self._failure_since_s is None:
+            self._failure_since_s = now_s
+        source_s = self._trusted_road["timestamp_s"]
+        age, elapsed = now_s-source_s, now_s-self._failure_since_s
+        remaining = min(self.settings.road_hold_s-elapsed,
+                        self.settings.max_source_age_s-age)
+        distance_left = self.settings.road_prediction_max_distance_m-self._prediction_distance_m
+        if age < 0 or elapsed < 0 or remaining <= 1e-9 or distance_left <= 1e-9:
+            return None, "prediction_deadline_expired"
+        speed = self.motion.current("wheel_speed", now_s)
+        if speed is not None and speed > 1e-9:
+            # Advisory time at current filtered speed; acceleration can consume
+            # distance faster, so consumers must still recheck every update.
+            remaining = min(remaining, distance_left/speed)
+        placed, problem = self._history_at(now_s)
+        if problem is not None:
+            return None, problem
+        if not placed:
+            return None, "no_observed_history"
+        oldest = min(p[5] for p in placed)
+        remaining = min(remaining, self.settings.history_lifetime_s-(now_s-oldest))
+        if remaining <= 1e-9:
+            return None, "near_field_history_expired"
+        predicted = self.road({"detections": [p[:5] for p in placed]}, round(now_s*1e9), 0.0)
+        predicted.update(timestamp_s=now_s, history_used=True, oldest_observation_timestamp_s=oldest)
+        predicted = self._align_road(predicted, now_s, True)
+        if not predicted["valid"]:
+            return None, predicted["status"]
+        # The fit above is in today's body frame; it is not a new camera sample.
+        # Preserve acquisition provenance separately from the aligned epoch.
+        predicted.update(measurement_timestamp_s=source_s, source_age_s=age,
+                         motion_compensated=age > 0, motion_compensation=deepcopy(self._prediction_pose),
+                         fusion_mode="observed_cones_wheel_gyro_incremental",
+                         status="predicted_history", degraded=True,
+                         current_frame=current_frame, prediction_status="active",
+                         prediction_elapsed_s=elapsed, prediction_age_s=age,
+                         prediction_remaining_s=remaining,
+                         prediction_distance_m=self._prediction_distance_m,
+                         prediction_remaining_distance_m=distance_left,
+                         recommended_speed_scale=0.5,
                          confidence=0.5*predicted["confidence"],
                          boundary_source={"left": "predicted_history", "right": "predicted_history"})
         return predicted, "active"
@@ -818,7 +1018,7 @@ class EstimationPipeline:
                                               oldest_observation_age_s=max(0.0, now_s-oldest))
                     if lo > 1e-9 or hi < 0:
                         problem = "near_field_unobserved"
-                    elif now_s-oldest > self.settings.road_history_s:
+                    elif now_s-oldest > self.settings.history_lifetime_s:
                         problem = "near_field_history_expired"
                     else:
                         road["near_field"].update(valid=True, status="observed_support")
@@ -876,38 +1076,88 @@ class EstimationPipeline:
                                        "imu_angular_velocity": "ros_acquisition"},
                  "source_age_s": {k: ages.get(k) for k in ("wheel_speed", "imu_angular_velocity")},
                  "source_stamp_ns": {k: stamps.get(k) for k in ("wheel_speed", "imu_angular_velocity")}}
+        continuous = self.settings.history_propagation == "continuous"
         if not state["valid"]:
             self._clear_road_history()
             road = self.road(observations.get("cone_detections"), stamps.get("cone_detections"),
                              ages.get("cone_detections"))
         else:
+            if continuous:
+                if self.settings.continuous_road_output:
+                    self._advance_prediction_distance(now_s)
+                self._advance_history(now_s)
             road = self._history_road(observations.get("cone_detections"), stamps.get("cone_detections"),
                                       ages.get("cone_detections"), now_s)
-        observed = self._observation_road or road
+        observed = (self._observation_road if road["status"] != "unavailable"
+                    and self._observation_road is not None else road)
         current_frame = {"timestamp_s": road["timestamp_s"],
                          "source_age_s": ages.get("cone_detections"),
                          "fit_valid": observed["valid"] and observed["visibility"] == "both",
                          "status": observed["status"], "visibility": observed["visibility"],
                          "boundary_diagnostics": deepcopy(observed["boundary_diagnostics"])}
         failure = road["status"]
+        if (self.settings.continuous_road_output and self._failure_since_s is not None
+                and self._trusted_road is not None and road["valid"]
+                and road["timestamp_s"] == self._trusted_road["timestamp_s"]):
+            # Re-presenting the old successful camera batch after an outage is
+            # not recovery. Only a new accepted camera epoch resets the hold.
+            road.update(valid=False, status="camera_frame_not_advanced", centerline_xy=[],
+                        left_boundary_xy=None, right_boundary_xy=None, lane_width_m=None,
+                        x_range_m=None, local_curvature_1pm=None, confidence=0.0)
+            failure = road["status"]
+        if (self.settings.continuous_road_output and self._prediction_expired_source_s is not None
+                and road["timestamp_s"] is not None
+                and road["timestamp_s"] <= self._prediction_expired_source_s):
+            road.update(valid=False, status="prediction_deadline_expired", centerline_xy=[],
+                        left_boundary_xy=None, right_boundary_xy=None, lane_width_m=None,
+                        x_range_m=None, local_curvature_1pm=None, confidence=0.0)
+            failure = road["status"]
         trusted_candidate = (deepcopy(road) if road["valid"] and road["visibility"] == "both" else None)
         road = self._align_road(road, now_s, state["valid"])
         road.update(current_frame=current_frame, degraded=False, prediction_status="not_used",
                     prediction_elapsed_s=None, prediction_age_s=None,
                     prediction_remaining_s=None, recommended_speed_scale=1.0 if road["valid"] else 0.0)
         if road["valid"]:
+            if (self.settings.continuous_road_output and
+                    (self._trusted_road is None or
+                     trusted_candidate["timestamp_s"] != self._trusted_road["timestamp_s"])):
+                self._prediction_motion_stamp = now_s
+                self._prediction_distance_m = road["motion_compensation"]["travelled_distance_m"]
+                self._prediction_pose = deepcopy(road["motion_compensation"])
+                self._prediction_expired_source_s = None
             self._trusted_road = trusted_candidate
             self._failure_since_s = None
-        elif state["valid"] and failure in self.QUALITY_FAILURES:
+        elif state["valid"] and (failure in self.QUALITY_FAILURES or
+                (self.settings.continuous_road_output and road["status"] in
+                 self.CAMERA_GAP_FAILURES + ("camera_frame_not_advanced",))):
             predicted, reason = self._predict_road(current_frame, now_s)
             if predicted is not None:
                 road = predicted
             else:
                 road["prediction_status"] = reason
-                self._clear_road_history()
+                # Continuous mode keeps the (still conflict-checked) history;
+                # only the trusted-corridor prediction ends here.
+                if continuous:
+                    if self.settings.continuous_road_output and self._trusted_road is not None:
+                        self._prediction_expired_source_s = self._trusted_road["timestamp_s"]
+                        self._prediction_motion_stamp = None
+                    self._trusted_road, self._failure_since_s = None, None
+                else:
+                    self._clear_road_history()
         elif road["status"] == "near_field_unobserved":
             # Keep validated forward observations for near-field reconstruction,
             # but never use an incomplete startup corridor as a driving fallback.
+            self._trusted_road = None
+            self._failure_since_s = None
+            self._prediction_motion_stamp = None
+        elif continuous and road["status"] == "prediction_deadline_expired":
+            # Keep measured near support for a NEW camera frame, but this old
+            # camera epoch cannot re-arm an expired prediction on its own.
+            self._trusted_road, self._failure_since_s = None, None
+            self._prediction_motion_stamp = None
+        elif continuous and road["status"] in self.CAMERA_GAP_FAILURES:
+            # Camera gap: no output this step, but the history keeps moving with
+            # wheel/gyro so the near field is still covered when cones return.
             self._trusted_road = None
             self._failure_since_s = None
         else:
@@ -1383,6 +1633,8 @@ class LatticeSettings:
     # Optional MVP2 execution and simple, checked centerline recovery.
     async_enabled: bool = False
     recovery_enabled: bool = False
+    # Dispatch choice is separate from the MVP lattice startup domain above.
+    centerline_first_enabled: bool = True
     direct_sample_output: bool = False
     worker_timeout_s: float = 0.3
     recovery_speed_mps: float = 0.12
@@ -1403,9 +1655,9 @@ class LatticeSettings:
                 if name != "terminal_offsets_m" and any(v <= 0 for v in samples):
                     raise ValueError("lattice lengths, durations and speeds must be positive")
             elif isinstance(value, bool):
-                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "direct_sample_output"):
+                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output"):
                     raise ValueError("invalid lattice boolean")
-            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "direct_sample_output"):
+            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output"):
                 raise ValueError("lattice flags must be booleans")
             elif not finite_number(value) or value <= 0:
                 raise ValueError("lattice numeric settings must be finite and positive: " + name)
@@ -1691,7 +1943,7 @@ class FrenetLatticePlanner:
                 raise ValueError("incomplete_lattice_vehicle_limits")
         return model
 
-    def _clearance(self, geom, left, right, obstacles, model):
+    def _clearance(self, geom, left, right, obstacles, model, details=None):
         cfg = self.cfg
         c, s = math.cos(geom["heading"]), math.sin(geom["heading"])
         # Boundary signed vertical distances converted to local normal metres.
@@ -1708,8 +1960,19 @@ class FrenetLatticePlanner:
                 yl, sl, _, _ = left.at_x(x)
                 yr, sr, _, _ = right.at_x(x)
                 extra = cfg.extension_margin_growth*max(0.0, max(left.points[0][0], right.points[0][0])-x)
-                clearance = min(clearance, (yl-y)/math.hypot(1, left.max_slope)-cfg.hard_margin_m-extra-edge_guard-sweep_guard,
-                                (y-yr)/math.hypot(1, right.max_slope)-cfg.hard_margin_m-extra-edge_guard-sweep_guard)
+                raw_left = (yl-y)/math.hypot(1, left.max_slope)
+                raw_right = (y-yr)/math.hypot(1, right.max_slope)
+                guard = cfg.hard_margin_m+extra+edge_guard+sweep_guard
+                worst = min(raw_left, raw_right)-guard
+                if details is not None and worst < clearance:
+                    details.clear()
+                    details.update(constraint="body_boundary_clearance", side="left" if raw_left <= raw_right else "right",
+                                   body_point_xy_m=[bx, by], point_xy_m=[x, y],
+                                   support="observed" if x >= max(left.points[0][0], right.points[0][0]) else "extrapolated",
+                                   raw_clearance_m=min(raw_left, raw_right), hard_margin_m=cfg.hard_margin_m,
+                                   extension_margin_m=extra, interpolation_guard_m=edge_guard,
+                                   sweep_guard_m=sweep_guard, actual_m=worst, minimum_m=0.0)
+                clearance = min(clearance, worst)
         nearby = obstacles
         if isinstance(obstacles, dict):
             nearby = []
@@ -1722,7 +1985,14 @@ class FrenetLatticePlanner:
             bx, by = c*dx+s*dy, -s*dx+c*dy
             outside_x = max(-model["rear_extent_m"]-bx, bx-model["front_extent_m"], 0.0)
             outside_y = max(abs(by)-model["width_m"]/2, 0.0)
-            clearance = min(clearance, math.hypot(outside_x, outside_y)-cfg.obstacle_margin_m-cfg.hard_margin_m-sweep_guard)
+            raw = math.hypot(outside_x, outside_y)
+            worst = raw-cfg.obstacle_margin_m-cfg.hard_margin_m-sweep_guard
+            if details is not None and worst < clearance:
+                details.clear()
+                details.update(constraint="body_obstacle_clearance", point_xy_m=[ox, oy], raw_clearance_m=raw,
+                               obstacle_margin_m=cfg.obstacle_margin_m, hard_margin_m=cfg.hard_margin_m,
+                               sweep_guard_m=sweep_guard, actual_m=worst, minimum_m=0.0)
+            clearance = min(clearance, worst)
         return clearance
 
     def plan(self, road, state, obstacles, vehicle_limits, now_s, source_timeout_s=None, mvp=False,
@@ -1744,6 +2014,12 @@ class FrenetLatticePlanner:
         def fail(reason, status="INVALID_INPUT"):
             ref.update(reason=reason, stop_reason=reason, status=status)
             diag["elapsed_s"] = self.clock()-started
+            diag["reason"] = reason
+            diag["rejection_counts"] = {}
+            for candidate in diag["candidates"]:
+                rejected = candidate.get("reason")
+                if rejected and rejected not in ("feasible", "geometry_feasible"):
+                    diag["rejection_counts"][rejected] = diag["rejection_counts"].get(rejected, 0)+1
             self.previous = None
             return ref, diag
 
@@ -1773,6 +2049,8 @@ class FrenetLatticePlanner:
             if not finite_number(speed) or speed < 0 or not finite_number(yaw):
                 raise ValueError("invalid_motion_state")
             ages = {"road": road.get("source_age_s"), **(state.get("source_age_s") or {})}
+            diag["source_ages_s"] = dict(ages)
+            diag["source_age_limits_s"] = {}
             deadlines = []
             for name in ("road", "wheel_speed", "imu_angular_velocity"):
                 limit = self.settings.max_source_age_s
@@ -1782,6 +2060,7 @@ class FrenetLatticePlanner:
                         raise ValueError("invalid_source_timeout")
                     limit = min(limit, timeout)
                 age = ages.get(name)
+                diag["source_age_limits_s"][name] = limit
                 if not finite_number(age) or not 0 <= age < limit:
                     raise ValueError("stale_"+name)
                 deadlines.append(limit-age)
@@ -1855,6 +2134,10 @@ class FrenetLatticePlanner:
             s0, d0 = curve.project_origin()
             rx, ry, tx, ty, k, dk = curve.at_s(s0)
             heading_error = -math.atan2(ty, tx)
+            diag["initialization"] = {"s0": s0, "d0": d0, "heading_error_rad": heading_error,
+                "heading_max_rad": cfg.initial_heading_max_rad if cfg.recovery_enabled else 0.5,
+                "yaw_rate_rps": yaw, "speed_mps": speed,
+                "low_speed_yaw_tolerance_rps": cfg.low_speed_yaw_tolerance_rps if cfg.recovery_enabled else 0.05}
             if (abs(heading_error) > (cfg.initial_heading_max_rad if cfg.recovery_enabled else 0.5)
                     or (not cfg.recovery_enabled and abs(d0) > 0.4)):
                 raise ValueError("initial_frenet_domain")
@@ -1866,9 +2149,9 @@ class FrenetLatticePlanner:
                 raise ValueError("low_speed_yaw_inconsistent")
             dsecond = (initial_k*(a*a+dprime*dprime)**1.5-k*(a*a+2*dprime*dprime)-dk*d0*dprime)/a
             sdot = speed/math.hypot(a, dprime)
-            diag["initialization"] = {"s0": s0, "d0": d0, "dprime": dprime, "dsecond": dsecond,
-                                      "curvature_method": "yaw_over_speed" if speed >= 0.05 else "low_speed_zero_assumption",
-                                      "acceleration_method": "zero_start_assumption"}
+            diag["initialization"].update(dprime=dprime, dsecond=dsecond,
+                curvature_method="yaw_over_speed" if speed >= 0.05 else "low_speed_zero_assumption",
+                acceleration_method="zero_start_assumption")
             diag["near_support"] = {"observed_x_start_m": near, "extension_m": extension,
                                      "method": "c2_curvature_fade" if extension > 0 else "observed_support",
                                      "clear_start_assumed": cfg.clear_start_assumed}
@@ -1923,31 +2206,46 @@ class FrenetLatticePlanner:
                     diag["candidates"].append(row)
                     if length > horizon+1e-8:
                         row["reason"] = "transition_exceeds_common_horizon"
+                        row["violation"] = {"actual_m": length, "maximum_m": horizon}
                         continue
                     coeffs = _lattice_lateral(d0, dprime, dsecond, target, length)
                     grid_n = math.ceil(horizon/cfg.geometry_step_m)
                     geometries = []
+                    g = None
                     try:
                         for i in range(grid_n+1):
                             if i % 8 == 0:
                                 budget()
-                            g = _lattice_geometry(curve, s0, coeffs, length, target, s0+horizon*i/grid_n)
+                            sample_s = s0+horizon*i/grid_n
+                            g = None
+                            g = _lattice_geometry(curve, s0, coeffs, length, target, sample_s)
                             g["steering"] = _lattice_steering(g["curvature"], model)
                             if abs(g["steering"]) > model["steering_limit_rad"]:
+                                row["violation"] = {"actual_rad": abs(g["steering"]), "maximum_rad": model["steering_limit_rad"]}
                                 raise ValueError("steering_limit")
                             if g["support"] == "extrapolated" and (abs(g["d"]-d0) > cfg.blind_lateral_change_m or
                                    abs(g["steering"]) > cfg.blind_steering_limit_rad):
+                                row["violation"] = {"lateral_change_m": abs(g["d"]-d0),
+                                    "maximum_lateral_change_m": cfg.blind_lateral_change_m,
+                                    "steering_rad": abs(g["steering"]), "maximum_steering_rad": cfg.blind_steering_limit_rad}
                                 raise ValueError("blind_correction_limit")
                             g["clearance"] = self._clearance(g, left, right, obstacle_index, model)
                             if g["clearance"] < 0:
+                                row["violation"] = {}
+                                # Re-evaluate only the first rejected pose for
+                                # diagnostics; accepted candidates keep one pass.
+                                self._clearance(g, left, right, obstacle_index, model, row["violation"])
                                 raise ValueError("body_boundary_or_obstacle_collision")
                             if geometries and g["x"] <= geometries[-1]["x"]:
+                                row["violation"] = {"actual_x_m": g["x"], "must_exceed_x_m": geometries[-1]["x"]}
                                 raise ValueError("nonmonotonic_cartesian_path")
                             g["distance"] = (geometries[-1]["distance"]+math.hypot(g["x"]-geometries[-1]["x"],
                                 g["y"]-geometries[-1]["y"])) if geometries else 0.0
                             geometries.append(g)
                     except ValueError as error:
                         row["reason"] = str(error)
+                        row["first_rejected_s_m"] = sample_s
+                        row["first_rejected_pose"] = None if g is None else dict(g)
                         continue
                     lateral = {"coeffs_low_to_high": coeffs, "origin": s0, "scale": length,
                                "range": [s0, end_s], "transition_end_s": s0+length, "terminal_offset_m": target}
@@ -1955,6 +2253,8 @@ class FrenetLatticePlanner:
                     distance = sum(math.hypot(b["x"]-a["x"], b["y"]-a["y"]) for a, b in zip(geometries, geometries[1:]))
                     if speed*model["actuation_delay_s"]+speed**2/(2*model["braking_mps2"])+cfg.hard_margin_m > distance:
                         row["reason"] = "current_speed_cannot_stop_in_horizon"
+                        row["violation"] = {"required_stop_distance_m": speed*model["actuation_delay_s"]+
+                            speed**2/(2*model["braking_mps2"])+cfg.hard_margin_m, "available_distance_m": distance}
                         continue
                     times = [(t, v*speed_scale, False) for t in cfg.samples("durations_s") for v in cfg.samples("terminal_speeds_mps")]
                     # Always include a terminal-stop quintic at the common end.
@@ -1980,6 +2280,7 @@ class FrenetLatticePlanner:
                                 for _ in range(6):
                                     predicted_end = s0+duration*(sdot+terminal_srate)/2
                                     if not s0 <= predicted_end <= end_s:
+                                        candidate["violation"] = {"actual_s_m": predicted_end, "minimum_s_m": s0, "maximum_s_m": end_s}
                                         raise ValueError("longitudinal_exceeds_support")
                                     terminal_srate = terminal_speed/_lattice_interp(q_table, predicted_end)
                             stop_end, polynomial_duration = end_s, duration
@@ -1990,7 +2291,7 @@ class FrenetLatticePlanner:
                                 stop_end = min(end_s, s0+sdot*duration/2)
                                 polynomial_duration = 2*(stop_end-s0)/sdot
                             longitudinal = self._longitudinal(s0, sdot, stop_end, polynomial_duration, terminal_srate, stopping)
-                            motion = self._motion(curve, lateral, longitudinal, model, geometries, speed, budget)
+                            motion = self._motion(curve, lateral, longitudinal, model, geometries, speed, budget, candidate)
                             if "spatial_costs" not in row:
                                 row["spatial_costs"] = self._spatial_score(geometries, previous, curve)
                             costs = self._score(motion, speed, stopping, row["spatial_costs"], desired_speed)
@@ -2040,11 +2341,18 @@ class FrenetLatticePlanner:
                 lifetime = min(self.settings.reference_lifetime_s, *deadlines)
                 if self.clock()-started >= lifetime:
                     raise TimeoutError("source_deadline_during_planning")
-                # A positive preview target permits starting from zero without
-                # replacing the longitudinal initial speed by the desired speed.
-                target_speed = _lattice_interp([(p["t"], p["speed"]) for p in motion], min(cfg.speed_preview_s, longitudinal["duration_s"]))
+                # MVP follows the checked spatial path with its low-speed PI.
+                # Replanning a 3 s profile from measured zero speed must not
+                # repeatedly reset the controller to the tiny 0.3 s preview.
+                # Keep the measured longitudinal initial state and STOP profile;
+                # floor only the non-stopping MVP command at advised cruise.
+                preview_speed = _lattice_interp([(p["t"], p["speed"]) for p in motion], min(cfg.speed_preview_s, longitudinal["duration_s"]))
+                speed_floor = desired_speed if mvp and not choice["stop"] else 0.0
+                target_speed = max(preview_speed, speed_floor)
                 if road.get("degraded") and not choice["stop"]:
                     target_speed = min(target_speed, desired_speed)
+                diag["speed_target"] = {"preview_mps": preview_speed, "floor_mps": speed_floor,
+                                        "command_mps": target_speed, "measured_mps": speed}
                 ref.update(valid=True, status="STOP" if choice["stop"] else "TRACK", reason="lattice_selected",
                            valid_for_s=lifetime, path=path, target_speed_mps=target_speed,
                            stop_requested=False, stop_reason=None,
@@ -2086,7 +2394,7 @@ class FrenetLatticePlanner:
         return {"type": "S_REF_OF_TIME", "coeffs_low_to_high": c, "duration_s": duration,
                 "time_range_s": [0.0, duration], "reference_s_range_m": [s0, end], "stop": stopping}
 
-    def _motion(self, curve, lateral, longitudinal, model, geometries, initial_speed, budget):
+    def _motion(self, curve, lateral, longitudinal, model, geometries, initial_speed, budget, diagnostic=None):
         cfg = self.cfg
         duration, c = longitudinal["duration_s"], longitudinal["coeffs_low_to_high"]
         evaluation_time = max(duration, cfg.score_time_s)
@@ -2095,6 +2403,10 @@ class FrenetLatticePlanner:
             raise ValueError("longitudinal_sampling_cap")
         rates, accelerations = _lattice_derivative(c), _lattice_derivative(c, 2)
         motion = []
+        def reject(reason, **values):
+            if diagnostic is not None:
+                diagnostic["violation"] = {"time_s": t, "s_m": s, **values}
+            raise ValueError(reason)
         position_grid = [g["s"] for g in geometries]
         def sample_geometry(s):
             lo, hi = 0, len(geometries)-1
@@ -2115,7 +2427,8 @@ class FrenetLatticePlanner:
             s = _control_poly_eval(c, u)
             ds = _control_poly_eval(rates, u)/duration
             if ds < -1e-7 or not lateral["origin"]-1e-7 <= s <= lateral["range"][1]+1e-7:
-                raise ValueError("longitudinal_reverses_or_exceeds_support")
+                reject("longitudinal_reverses_or_exceeds_support", actual_s_m=s,
+                       minimum_s_m=lateral["origin"], maximum_s_m=lateral["range"][1], rate_mps=ds, minimum_rate_mps=-1e-7)
             s = min(lateral["range"][1], max(lateral["origin"], s))
             g = sample_geometry(s)
             speed = max(0.0, ds)*g["q"]
@@ -2126,17 +2439,20 @@ class FrenetLatticePlanner:
             # Cruise is a soft target, not a reason to reject measured overshoot.
             # Every profile must still respect the physical/development speed cap.
             if speed > model["speed_max_mps"]+1e-5:
-                raise ValueError("speed_limit")
+                reject("speed_limit", actual_mps=speed, maximum_mps=model["speed_max_mps"]+1e-5)
             if acceleration > model["acceleration_max_mps2"]+1e-5 or acceleration < -model["braking_mps2"]-1e-5:
-                raise ValueError("acceleration_limit")
+                reject("acceleration_limit", actual_mps2=acceleration,
+                       minimum_mps2=-model["braking_mps2"]-1e-5, maximum_mps2=model["acceleration_max_mps2"]+1e-5)
             if longitudinal["stop"] and acceleration > 1e-4:
-                raise ValueError("stop_trajectory_accelerates")
+                reject("stop_trajectory_accelerates", actual_mps2=acceleration, maximum_mps2=1e-4)
             if abs(speed*speed*g["curvature"]) > model["lateral_acceleration_max_mps2"]:
-                raise ValueError("lateral_acceleration_limit")
+                reject("lateral_acceleration_limit", actual_mps2=abs(speed*speed*g["curvature"]),
+                       maximum_mps2=model["lateral_acceleration_max_mps2"])
             if abs(steering_rate) > model["steering_rate_limit_radps"]:
-                raise ValueError("steering_rate_limit")
+                reject("steering_rate_limit", actual_radps=abs(steering_rate), maximum_radps=model["steering_rate_limit_radps"])
             if not longitudinal["stop"] and speed*model["actuation_delay_s"]+speed**2/(2*model["braking_mps2"])+cfg.hard_margin_m > remaining:
-                raise ValueError("visibility_stopping_limit")
+                reject("visibility_stopping_limit", required_stop_distance_m=speed*model["actuation_delay_s"]+
+                       speed**2/(2*model["braking_mps2"])+cfg.hard_margin_m, available_distance_m=remaining)
             motion.append({"t": t, "s": s, "speed": speed, "acceleration": acceleration,
                            "steering": steering, "steering_rate": steering_rate})
         if abs(motion[0]["speed"]-initial_speed) > 1e-4:
@@ -2432,8 +2748,9 @@ class MvpRecoveryPlanner:
 
 
 def _mvp_plan(planner, control, args):
-    """Simple feasible corridor first; lattice only when it adds a solution."""
-    if planner.cfg.recovery_enabled and control.mode == "mvp" and not planner.stop_latched:
+    """Select lattice directly unless optional centerline-first is enabled."""
+    if (planner.cfg.centerline_first_enabled and planner.cfg.recovery_enabled
+            and control.mode == "mvp" and not planner.stop_latched):
         ref, simple = MvpRecoveryPlanner(planner, control).plan(*args)
         if ref["valid"]:
             return ref, simple
@@ -3400,9 +3717,15 @@ class PolicyNode(Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        self.startup_reference_frames = 0
+        self.startup_last_source_s = None
+        self.last_planning_rejection = None
+        self.last_planning_rejection_key = None
+        self.last_startup_status = None
         self.planning_generation = 0
         self.last_planning_submit_s = -math.inf
         self.last_async_fault = None
+        self.last_async_diagnostics = {}
         self.last_worker_restart_s = -math.inf
         self.last_planner_elapsed_s = None
         self.async_planner = None
@@ -4239,6 +4562,12 @@ class PolicyNode(Node):
             if is_first_policy_step or not hasattr(self, "controller"):
                 self.controller = PolicyController(control, self.policy_frame_id)
                 self.control_has_run = False
+            if not self.planning_output["valid"]:
+                # Emit before priming, cache selection or a stop can clear the
+                # worker evidence. Never rely on the aggregate error alone.
+                self._log_planning_rejection(estimates)
+            if self._startup_lattice_wait(estimates, policy_elapsed_s):
+                return 0.0, 0.0, None, None, None
             # Delayed camera data may predate the reset motion history at start.
             # Bounded neutral priming is allowed only BEFORE the first valid
             # control step; any fault after tracking requires explicit resume.
@@ -4268,17 +4597,6 @@ class PolicyNode(Node):
                     raise PolicyStopRequest("Control reference: " + str(error)) from error
             if not selected_reference["valid"]:
                 reason = "Planning: " + str(self.planning_output["reason"])
-                self.get_logger().warning("Planning rejection details: " + str({
-                    "reason": self.planning_output["reason"],
-                    "road_status": estimates["road"].get("status"),
-                    "road_valid": estimates["road"].get("valid"),
-                    "road_visibility": estimates["road"].get("visibility"),
-                    "road_source_age_s": estimates["road"].get("source_age_s"),
-                    "state_valid": estimates["state"].get("valid"),
-                    "speed_valid": estimates["state"].get("speed_valid"),
-                    "yaw_rate_valid": estimates["state"].get("yaw_rate_valid"),
-                    "planning_diagnostics": self.planning_diagnostics,
-                }))
                 raise PolicyStopRequest(reason)
             drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
                 selected_reference, estimates["state"], estimates["vehicle_params"],
@@ -4342,13 +4660,21 @@ class PolicyNode(Node):
                 self.async_planner = worker = AsyncLatticePlanner()
                 self.last_worker_restart_s = now
         accepted = False
+        completed = result is not None and result.get("generation") == self.planning_generation
         selected_estimates = estimates
-        if result is not None and result.get("generation") == self.planning_generation:
+        if completed:
             if result.get("error"):
                 self.last_async_fault = "planning_worker_unavailable"
+                self.last_async_diagnostics = {"worker_error": result["error"]}
             else:
                 ref = result["reference"]
-                self.planning_diagnostics = result["diagnostics"]
+                self.last_async_diagnostics = {**result["diagnostics"],
+                    "trajectory_id": ref.get("trajectory_id"),
+                    "source_measurement_timestamp_s": result["road"].get("measurement_timestamp_s"),
+                    "result_timestamp_s": ref.get("timestamp_s"),
+                    "worker_road": {key: result["road"].get(key) for key in (
+                        "status", "valid", "visibility", "source_age_s", "degraded", "frame_id")}}
+                self.planning_diagnostics = dict(self.last_async_diagnostics)
                 self.last_planner_elapsed_s = result["diagnostics"].get("elapsed_s")
                 if ref.get("valid"):
                     try:
@@ -4361,14 +4687,16 @@ class PolicyNode(Node):
                         accepted = True
                     except (ValueError, TypeError, ArithmeticError) as error:
                         self.last_async_fault = "source_deadline_during_planning"
-                        self.planning_diagnostics["discarded_result"] = str(error)
+                        self.last_async_diagnostics["discarded_result"] = str(error)
                 else:
                     self.last_async_fault = ref.get("reason")
         if not accepted:
             reason = self.last_async_fault or "planning_pending"
             self.planning_output = {"valid": False, "reason": reason, "timestamp_s": stamp,
                                     "valid_for_s": 0.0, "stop_requested": True}
-            self.planning_diagnostics = {"async": True, "reason": reason, "pending_age_s": pending_age}
+            self.planning_diagnostics = {**getattr(self, "last_async_diagnostics", {}),
+                "async": True, "reason": reason, "pending_age_s": pending_age}
+        self.planning_diagnostics["worker_result_received"] = completed
         if (worker.process.poll() is None and worker.ready and worker.pending_at is None
                 and now-self.last_planning_submit_s >= 1.0/self.lattice_settings.update_rate_hz):
             job = {"generation": self.planning_generation, "frame_id": self.policy_frame_id,
@@ -4379,6 +4707,86 @@ class PolicyNode(Node):
             worker.submit(deepcopy(job), now)
             self.last_planning_submit_s = now
         return selected_estimates
+
+    def _log_planning_rejection(self, estimates):
+        """Keep bounded worker evidence across state-2 cleanup; log once/result."""
+        reference, diagnostics = self.planning_output, self.planning_diagnostics or {}
+        if reference.get("reason") == "planning_pending":
+            return
+        road, state = estimates["road"], estimates["state"]
+        source = diagnostics.get("source_measurement_timestamp_s", road.get("measurement_timestamp_s"))
+        key = (reference.get("reason"), diagnostics.get("trajectory_id", reference.get("trajectory_id")), source)
+        if key == getattr(self, "last_planning_rejection_key", None):
+            return
+        self.last_planning_rejection_key = key
+        self.last_planning_rejection = deepcopy({
+            "reason": reference.get("reason"), "control_has_run": self.control_has_run,
+            "road_status": road.get("status"), "road_valid": road.get("valid"),
+            "road_visibility": road.get("visibility"), "road_source_age_s": road.get("source_age_s"),
+            "state_valid": state.get("valid"), "speed_mps": state.get("speed_mps"),
+            "speed_valid": state.get("speed_valid"), "yaw_rate_valid": state.get("yaw_rate_valid"),
+            "planning_diagnostics": diagnostics})
+        self.get_logger().warning("Planning rejection details: " + str(self.last_planning_rejection))
+
+    def _startup_lattice_wait(self, estimates, elapsed_s):
+        """Neutral, bounded first-start retry; never replay an untrusted path.
+
+        Only robust MVP lattice starts use this gate. No-feasible/domain errors
+        may fluctuate with a new observed road while stationary. They remain
+        hard stops after the first control step. Watchdogs still run every cycle.
+        """
+        control = self.control_settings
+        if (self.control_has_run or self.planning_settings.algorithm != "lattice_v2"
+                or not self._robust_control_enabled()):
+            return False
+        reference, road, state = self.planning_output, estimates["road"], estimates["state"]
+        if elapsed_s >= control.startup_grace_s:
+            raise PolicyStopRequest("Control startup history deadline exceeded; last planning reason: " +
+                                    str(reference.get("reason")) + "; explicit resume required")
+        if not state.get("valid"):
+            return False  # The normal motion-feedback rejection is immediate.
+        diagnostics = self.planning_diagnostics or {}
+        reason = reference.get("reason")
+        stationary = finite_number(state.get("speed_mps")) and 0 <= state["speed_mps"] <= 0.005
+        retryable = reason in ControlReferenceManager.SOFT_REASONS or reason in {
+            "no_feasible_lattice_trajectory", "no_valid_cartesian_output", "initial_frenet_domain"}
+        if not reference.get("valid"):
+            if not stationary or not (retryable or road.get("status") == "missing_motion_history"):
+                return False
+            # A completed failed search breaks confirmation. An in-flight job
+            # between two successful observed frames does not count as failure.
+            if diagnostics.get("worker_result_received", not diagnostics.get("async", False)):
+                self.startup_reference_frames = 0
+            status = "awaiting_feasible_lattice"
+        elif reference.get("planned_stop") or reference.get("stop_requested"):
+            self.startup_reference_frames = 0
+            status = "awaiting_cruise_lattice"
+        elif road.get("degraded"):
+            self.startup_reference_frames = 0
+            status = "awaiting_observed_reference"
+        else:
+            source = road.get("measurement_timestamp_s")
+            previous = getattr(self, "startup_last_source_s", None)
+            if not finite_number(source) or source > state["timestamp_s"]:
+                raise PolicyStopRequest("Invalid startup road source timestamp")
+            if previous is not None and source < previous:
+                raise PolicyStopRequest("Startup road sample moved backwards")
+            if previous is None or source > previous:
+                self.startup_reference_frames = getattr(self, "startup_reference_frames", 0)+1
+                self.startup_last_source_s = source
+            if self.startup_reference_frames >= control.recovery_confirm_frames:
+                return False
+            status = "confirming_observed_lattice"
+        frames = getattr(self, "startup_reference_frames", 0)
+        self.control_diagnostics = {"valid": False, "stop_requested": False, "reason": status,
+                                    "confirmed_frames": frames, "required_frames": control.recovery_confirm_frames}
+        message = (status, reason, frames)
+        if message != getattr(self, "last_startup_status", None):
+            self.last_startup_status = message
+            self.state_reason = f"Startup waiting: {status}; planning={reason}; frames={frames}/{control.recovery_confirm_frames}"
+            self.get_logger().info(self.state_reason)
+            self.publish_state()
+        return True
 
     # ---- Bounded reference recovery and control execution ---------------------
     def _robust_control_enabled(self):
@@ -4463,6 +4871,7 @@ class PolicyNode(Node):
         self.planning_generation = getattr(self, "planning_generation", 0)+1
         self.last_planning_submit_s = -math.inf
         self.last_async_fault = None
+        self.last_async_diagnostics = {}
         self.fsm_state = state
         self.state_reason = reason
         # An internal consumer must not mistake the previous run's estimate
@@ -4478,7 +4887,12 @@ class PolicyNode(Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        self.startup_reference_frames = 0
+        self.startup_last_source_s = None
+        self.last_startup_status = None
         if state == FSM_STATE_PUBLISHING_POLICY_ACTION:
+            self.last_planning_rejection = None
+            self.last_planning_rejection_key = None
             wheel = self.observations.get("wheel_speed")
             speed = wheel.value if wheel is not None else None
             self.distance_limiter.reset(self._monotonic(), speed)
@@ -4513,7 +4927,9 @@ class PolicyNode(Node):
             return "Control reference expired; explicit resume required"
         if (not self.control_has_run and self.policy_started_at is not None
                 and monotonic_now-self.policy_started_at >= self.control_settings.startup_grace_s):
-            return "Control startup history deadline exceeded; explicit resume required"
+            rejection = getattr(self, "last_planning_rejection", None)
+            detail = "" if rejection is None else "; last planning reason: " + str(rejection.get("reason"))
+            return "Control startup history deadline exceeded" + detail + "; explicit resume required"
         return None
 
     def supervision_callback(self):

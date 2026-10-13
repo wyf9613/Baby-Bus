@@ -1,0 +1,6 @@
+[INFO] [1791850968.091932489] [car.mvp2_shadow_probe]: Policy update source: timer; required sensors: ['cone_detections', 'wheel_speed', 'imu_angular_velocity']; namespace: /car
+Traceback (most recent call last):
+  File "/home/ai4r/mvp2-test-20261013/road-v2/diagnosis/shadow_probe.py", line 39, in <module>
+    poll = node.async_planner.poll
+           ^^^^^^^^^^^^^^^^^^
+AttributeError: 'PolicyNode' object has no attribute 'async_planner'

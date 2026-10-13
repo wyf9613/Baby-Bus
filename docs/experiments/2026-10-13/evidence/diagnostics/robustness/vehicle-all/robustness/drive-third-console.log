@@ -1,0 +1,167 @@
+Publishing zero actions: Control startup history deadline exceeded; last planning reason: source_deadline_during_planning; explicit resume required
+Starting drive policy test now
+Publishing policy actions: Operator request
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=planning_pending; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=invalid_estimates_or_boundaries; frames=0/3
+Publishing policy actions: Startup waiting: awaiting_feasible_lattice; planning=insufficient_lattice_coverage; frames=0/3
+Publishing zero actions: Control startup history deadline exceeded; last planning reason: insufficient_lattice_coverage; explicit resume required
+{
+  "result": "stopped",
+  "stop_reason": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: insufficient_lattice_coverage; explicit resume required",
+  "run_seconds": 3.0677162909996696,
+  "seen_active": true,
+  "confirmed_stop": true,
+  "mode": "drive",
+  "candidate": "ae74be4+road-v2@6552033+lattice-only+mvp-domain+margin-0.02+startup-retry+rejection-details",
+  "final_actions": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_applied": {
+    "units": 1,
+    "drive": 0.0,
+    "steer": 0.0
+  },
+  "final_wheel_speed_mps": 0.0,
+  "max_wheel_speed_mps": 0.0,
+  "max_requested_drive": 0.0,
+  "max_distance_debug_m": 0.0,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: Control startup history deadline exceeded; last planning reason: insufficient_lattice_coverage; explicit resume required",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "5",
+    "session_id": "60",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1",
+    "selected_source": "2",
+    "host_seq": "57622",
+    "host_fresh": "1",
+    "host_permitted": "1",
+    "applied_drive_normalized": "0.000000",
+    "drive_pwm_us": "1500",
+    "rc_drive_us": "1502",
+    "last_positive_vehicle_ack": "57624",
+    "last_written_vehicle_command": null
+  },
+  "latest_cones": {
+    "counts": {
+      "2": 12,
+      "1": 9
+    },
+    "stamp_s": 1791854037.3553653,
+    "latency_s": 0.204960078,
+    "positions": [
+      [
+        0.8777224829773004,
+        0.4470753479003908,
+        2
+      ],
+      [
+        1.119217946321075,
+        0.45214175415039076,
+        2
+      ],
+      [
+        0.934374954618363,
+        -0.5749733276367188,
+        1
+      ],
+      [
+        0.5834843319053091,
+        0.432207733154297,
+        2
+      ],
+      [
+        1.0227244036843024,
+        -0.5012703552246093,
+        1
+      ],
+      [
+        1.7359179869897998,
+        -0.5094585571289061,
+        1
+      ],
+      [
+        1.4274543138023599,
+        -0.55927294921875,
+        1
+      ],
+      [
+        0.7503051808860327,
+        0.4610681762695312,
+        2
+      ],
+      [
+        1.7780841224621033,
+        0.498028991699219,
+        2
+      ],
+      [
+        1.777312704589003,
+        -0.4065484924316407,
+        1
+      ],
+      [
+        2.07173886266751,
+        0.49338769531249993,
+        2
+      ],
+      [
+        1.2722963678063266,
+        0.4576665344238281,
+        2
+      ],
+      [
+        1.4329675546762126,
+        0.4718398437500001,
+        2
+      ],
+      [
+        2.6301865497304804,
+        -0.4631621704101563,
+        1
+      ],
+      [
+        2.04968424040434,
+        -0.405260986328125,
+        1
+      ],
+      [
+        2.925430061078563,
+        -0.4333580627441407,
+        1
+      ],
+      [
+        2.970150981525381,
+        0.49511163330078134,
+        2
+      ],
+      [
+        2.548912970976071,
+        0.5078827514648439,
+        2
+      ],
+      [
+        2.1953117281346755,
+        0.5002632446289064,
+        2
+      ],
+      [
+        2.8068678495429626,
+        0.5214620971679689,
+        2
+      ],
+      [
+        2.9693163253403063,
+        -0.4025345458984374,
+        1
+      ]
+    ]
+  }
+}
