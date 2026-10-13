@@ -299,7 +299,7 @@ class RobustControlChecks(unittest.TestCase):
 
 
 class RobustLatticeIntegrationChecks(unittest.TestCase):
-    def node(self, direct=False):
+    def node(self, direct=False, recovery_frames=1, speed=0.2):
         node = make_node(simulated=False, mvp=True)
         node.estimation_settings = replace(node.estimation_settings, road_hold_s=0)
         node.planning_settings = replace(node.planning_settings, algorithm="lattice_v2",
@@ -307,9 +307,9 @@ class RobustLatticeIntegrationChecks(unittest.TestCase):
         node.lattice_settings = ns["LatticeSettings"](obstacle_check_enabled=False, budget_s=5.0,
                                                      clear_start_assumed=True, direct_sample_output=direct)
         node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp", robustness_enabled=True,
-            drive_max=0.35, mvp_drive_feedforward=0.30)
+            drive_max=0.35, mvp_drive_feedforward=0.30, recovery_confirm_frames=recovery_frames)
         node.controller = ns["PolicyController"](node.control_settings)
-        feed(node, center=0.1, speed=0.2)
+        feed(node, center=0.1, speed=speed)
         start(node)
         # Numerical integration test uses deterministic planner time; separate
         # watchdog tests retain real elapsed-control and source deadline checks.
@@ -320,6 +320,31 @@ class RobustLatticeIntegrationChecks(unittest.TestCase):
         self.assertEqual(node.fsm_state, 3, node.state_reason)
         self.assertEqual(node.planning_output["planner_version"], "frenet_lattice_v2")
         return node
+
+    def test_first_observed_lattice_reference_drives_without_recovery_frame_gate(self):
+        node = self.node(direct=True, recovery_frames=9, speed=0.0)
+        self.assertTrue(node.control_has_run)
+        self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+        self.assertEqual(node.control_settings.recovery_confirm_frames, 9)
+
+    def test_startup_wait_keeps_deadline_and_excludes_stop_or_prediction(self):
+        node = self.node(direct=True, speed=0.0)
+        node.control_has_run = False
+        estimates = deepcopy(node.estimation_output)
+        cruise = deepcopy(node.planning_output)
+        for reason in ("planning_pending", "no_feasible_lattice_trajectory"):
+            node.planning_output = {"valid": False, "reason": reason}
+            self.assertTrue(node._startup_lattice_wait(estimates, 0.1))
+        node.planning_output = {**cruise, "planned_stop": True}
+        self.assertTrue(node._startup_lattice_wait(estimates, 0.1))
+        node.planning_output = cruise
+        estimates["road"]["degraded"] = True
+        self.assertTrue(node._startup_lattice_wait(estimates, 0.1))
+        estimates["road"]["degraded"] = False
+        self.assertFalse(node._startup_lattice_wait(estimates, 0.1))
+        node.planning_output = {"valid": False, "reason": "planning_pending"}
+        with self.assertRaisesRegex(ns["PolicyStopRequest"], "startup history deadline"):
+            node._startup_lattice_wait(estimates, node.control_settings.startup_grace_s)
 
     def test_actual_quintic_reference_degrades_recovers_with_preview(self):
         node = self.node()

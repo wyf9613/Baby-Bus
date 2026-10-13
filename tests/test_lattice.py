@@ -31,6 +31,200 @@ def planner(**kwargs):
 
 
 class LatticeChecks(unittest.TestCase):
+    def short_road(self, near=0.2, far=0.85, offset=0.0):
+        args = fixture(near=near, speed=0)
+        xs = [near]+[i*0.1 for i in range(1, 31) if near+1e-8 < i*0.1 < far-1e-8]+[far]
+        for key, shift in (("centerline_xy", 0), ("left_boundary_xy", .5), ("right_boundary_xy", -.5)):
+            args[0][key] = [(x, offset+shift) for x in xs]
+        return args
+
+    def test_short_supported_straight_gets_checked_transition_in_both_modes(self):
+        for startup_enabled in (False, True):
+            p = self.startup_planner()
+            p.cfg.startup_connection_enabled = startup_enabled
+            ref, diag = p.plan(*self.short_road(), mvp=True)
+            self.assertTrue(ref["valid"], ref["reason"])
+            selected = diag["selected"]
+            self.assertTrue(selected["adaptive_short_transition"])
+            self.assertGreaterEqual(selected["length_m"], .4)
+            self.assertLess(selected["length_m"], .6)
+            self.assertLessEqual(diag["longitudinal_candidates"], 16)
+            self.assertFalse(ref["planned_stop"])
+            self.assertAlmostEqual(ref["path"]["range"][1], .5077671649257326)
+            if startup_enabled:
+                self.assertLess(selected["startup_join_x_m"], ref["path"]["range"][1])
+                self.assertGreaterEqual(selected["startup_join_x_m"], .2)
+
+    def test_startup_join_is_not_rejected_by_original_long_sample_label(self):
+        p = self.startup_planner()
+        p.cfg.transition_lengths_m = "1.5"
+        ref, diag = p.plan(*self.short_road(far=1.4), mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertAlmostEqual(diag["selected"]["startup_join_x_m"], .9)
+        self.assertLess(diag["selected"]["length_m"], 1.5)
+        self.assertLessEqual(diag["longitudinal_candidates"], 16)
+
+    def test_startup_missing_join_space_has_explicit_diagnostics(self):
+        ref, diag = self.startup_planner().plan(*self.short_road(near=.6, far=.92), mvp=True)
+        self.assertFalse(ref["valid"])
+        self.assertEqual(ref["reason"], "startup_insufficient_join_space")
+        self.assertLess(diag["startup_join_space"]["maximum_join_x_m"], .6)
+        self.assertEqual(diag["candidates"], [])
+
+    def test_short_candidate_preserves_minimum_length_and_geometry_rejection(self):
+        for startup_enabled in (False, True):
+            p = self.startup_planner()
+            p.cfg.startup_connection_enabled = startup_enabled
+            ref, _ = p.plan(*self.short_road(far=.7), mvp=True)
+            self.assertFalse(ref["valid"])
+            self.assertEqual(ref["reason"], "insufficient_body_supported_horizon")
+            p = self.startup_planner()
+            p.cfg.startup_connection_enabled = startup_enabled
+            ref, diag = p.plan(*self.short_road(offset=.4), mvp=True)
+            self.assertFalse(ref["valid"])
+            self.assertEqual(ref["reason"], "no_feasible_lattice_trajectory")
+            self.assertTrue(any(c.get("reason") in ("steering_limit", "blind_correction_limit",
+                "body_boundary_or_obstacle_collision") for c in diag["candidates"]))
+
+    def startup_planner(self):
+        return planner(startup_connection_enabled=True, direct_sample_output=True,
+                       obstacle_check_enabled=False, recovery_enabled=True,
+                       transition_lengths_m="0.6,1.5", terminal_offsets_m="0.0",
+                       durations_s="3.0", terminal_speeds_mps="0.1,0.2",
+                       max_candidates=16, geometry_step_m=0.05, hard_margin_m=0.02)
+
+    def test_controlled_start_connects_origin_without_extrapolated_boundaries(self):
+        args = fixture(near=0.6, speed=0.0)
+        forward = deepcopy(args[0])
+        forward.update(valid=False, geometry_valid=True, time_aligned=True, status="near_field_unobserved")
+        args[0].update(valid=False, status="near_field_unobserved", forward_geometry=forward)
+        before = deepcopy(args[0])
+        ref, diag = self.startup_planner().plan(*args, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertEqual(diag["near_support"]["extension_m"], 0)
+        self.assertEqual(diag["near_support"]["method"], "controlled_start_connection")
+        self.assertEqual(diag["initialization"]["heading_error_rad"], 0)
+        samples = ref["path"]["samples_xy_heading_curvature"]
+        for value in samples[0]:
+            self.assertAlmostEqual(value, 0.0, places=8)
+        self.assertLessEqual(diag["selected"]["startup_join_x_m"], 0.9)
+        self.assertLessEqual(diag["longitudinal_candidates"], 16)
+        self.assertEqual(args[0], before)
+        original = ns["LatticeCurve"](args[0]["centerline_xy"], 0, 0.05)
+        connected = ns["LatticeCurve"].startup_connection(original, 0.9, 0, 0.05)
+        for a, b in zip(connected.at_x(0.9-1e-7)[:3], original.at_x(0.9)[:3]):
+            self.assertAlmostEqual(a, b, places=5)
+        point = ns["evaluate_frenet_path"](ref, 0.1, 10.01)
+        self.assertIsNotNone(point)
+        self.assertAlmostEqual(point["y"], 0)
+
+    def test_controlled_start_keeps_coverage_stationary_and_observation_guards(self):
+        for near, speed, degraded, reason in ((1.0, 0, False, "insufficient_lattice_coverage"),
+                (0.6, 0.1, False, "startup_requires_stationary_vehicle"),
+                (0.6, 0, True, "startup_requires_observed_road")):
+            args = fixture(near=near, speed=speed)
+            args[0].update(degraded=degraded, prediction_remaining_s=0.1)
+            ref, _ = self.startup_planner().plan(*args, mvp=True)
+            self.assertFalse(ref["valid"])
+            self.assertEqual(ref["reason"], reason)
+        args = fixture(near=0.9, speed=0)
+        self.assertTrue(self.startup_planner().plan(*args, mvp=True)[0]["valid"])
+
+    def test_observed_body_points_are_checked_even_during_startup(self):
+        args = fixture(near=0.2, speed=0)
+        for key, sign in (("left_boundary_xy", 1), ("right_boundary_xy", -1)):
+            args[0][key] = [(x, sign*0.13) for x, _ in args[0][key]]
+        ref, _ = self.startup_planner().plan(*args, mvp=True)
+        self.assertFalse(ref["valid"])
+        self.assertEqual(ref["reason"], "startup_corridor_too_narrow")
+        p = self.startup_planner()
+        model = p._model({})
+        left = ns["LatticeCurve"]([(0.6, 0.5), (1, 0.5), (2, 0.5)], 0, 0.05)
+        right = ns["LatticeCurve"]([(0.6, -0.5), (1, -0.5), (2, -0.5)], 0, 0.05)
+        corridor = {"half_width": 1.0, "far_x": 0.6, "pose": [0, 0, 0]}
+        g = {"x": 0.5, "y": 0.45, "heading": 0, "curvature": 0, "q": 1}
+        detail = {}
+        self.assertLess(p._clearance(g, left, right, [], model, detail, corridor), 0)
+        self.assertEqual(detail["constraint"], "body_boundary_clearance")
+
+    def test_startup_corridor_stays_in_initial_frame_and_handles_motion_gap(self):
+        p = self.startup_planner()
+        args = fixture(near=0.6, speed=0)
+        self.assertTrue(p.plan(*args, mvp=True)[0]["valid"])
+        args = fixture(near=0.59, speed=0.2)
+        for item in args[:3]:
+            item["timestamp_s"] = 10.1
+        args[4] = 10.1
+        ref, diag = p.plan(*args, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertAlmostEqual(diag["startup_connection"]["corridor"]["pose"][0], 0.01)
+        self.assertAlmostEqual(diag["startup_connection"]["corridor"]["far_x"], 0.6)
+        for item in args[:3]:
+            item["timestamp_s"] = 10.5
+        args[4] = 10.5
+        self.assertEqual(p.plan(*args, mvp=True)[0]["reason"], "startup_motion_history_gap")
+
+    def test_archived_curved_fit_can_start_without_rear_extension_conflict(self):
+        # Near-end values/derivatives from the 2026-10-13 archived diagnostic.
+        args = fixture(near=0.6, speed=0)
+        near = 0.5789475868
+        xs = [near]+[0.7+i*0.1 for i in range(26)]
+        params = (("left_boundary_xy", .564627678, -.500394556, .540256409),
+                  ("right_boundary_xy", -.449592367, -.221775210, .455337377))
+        for key, y, slope, second in params:
+            args[0][key] = [(x, y+slope*(x-near)+second*(x-near)**2/2) for x in xs]
+        args[0]["centerline_xy"] = [(a[0], (a[1]+b[1])/2) for a, b in
+            zip(args[0]["left_boundary_xy"], args[0]["right_boundary_xy"])]
+        ref, diag = self.startup_planner().plan(*args, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertEqual(diag["initialization"]["d0"], 0)
+        self.assertEqual(diag["initialization"]["heading_error_rad"], 0)
+        original = ns["LatticeCurve"](args[0]["centerline_xy"], near+.348, .05)
+        s, _ = original.project_origin()
+        old_heading = abs(math.atan2(original.at_s(s)[3], original.at_s(s)[2]))
+        self.assertGreater(old_heading, math.radians(20))
+
+    def test_startup_connection_does_not_hide_unreachable_observed_road(self):
+        args = fixture(offset=1.5, near=0.6, speed=0)
+        ref, diag = self.startup_planner().plan(*args, mvp=True)
+        self.assertFalse(ref["valid"])
+        self.assertEqual(ref["reason"], "no_feasible_lattice_trajectory")
+        self.assertTrue(any(c.get("reason") == "steering_limit" for c in diag["candidates"]))
+
+    def test_curved_startup_connection_is_c2_and_survives_serialization(self):
+        original = ns["LatticeCurve"](fixture(offset=0.05, near=0.6, curve=0.02)[0]["centerline_xy"], 0, 0.05)
+        connected = ns["LatticeCurve"].startup_connection(original, 0.9, 0, 0.05)
+        self.assertAlmostEqual(connected.at_x(0)[0], 0)
+        self.assertAlmostEqual(connected.at_x(0)[1], 0)
+        self.assertAlmostEqual(connected.at_x(0)[2], 0)
+        self.assertGreater(connected.at_x(0.3)[0], 0)
+        for a, b in zip(connected.at_x(0.9-1e-7)[:3], original.at_x(0.9)[:3]):
+            self.assertAlmostEqual(a, b, places=5)
+        restored = ns["LatticeCurve"].from_record(json.loads(json.dumps(connected.record())))
+        for x in (0.0, 0.3, 0.59, 0.9, 1.2):
+            for a, b in zip(connected.at_x(x), restored.at_x(x)):
+                self.assertAlmostEqual(a, b, places=8)
+
+    def test_startup_turn_cannot_shift_the_cleared_corridor(self):
+        p = self.startup_planner()
+        model = p._model({})
+        left = ns["LatticeCurve"]([(0.6, 0.5), (1, 0.5), (2, 0.5)], 0, 0.05)
+        right = ns["LatticeCurve"]([(0.6, -0.5), (1, -0.5), (2, -0.5)], 0, 0.05)
+        corridor = {"half_width": 0.5, "far_x": 0.6, "pose": [0, 0.6, 0]}
+        g = {"x": 0, "y": 0, "heading": 0, "curvature": 0, "q": 1}
+        detail = {}
+        self.assertLess(p._clearance(g, left, right, [], model, detail, corridor), 0)
+        self.assertEqual(detail["constraint"], "controlled_start_corridor")
+
+    def test_observed_origin_exits_startup_connection_mode(self):
+        p = self.startup_planner()
+        self.assertTrue(p.plan(*fixture(near=0.6, speed=0), mvp=True)[0]["valid"])
+        args = fixture(near=0, speed=0)
+        ref, diag = p.plan(*args, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertTrue(p.observed_origin_seen)
+        self.assertNotIn("startup_connection", diag)
+
     def test_reduced_hard_margin_admits_narrow_corridor_but_keeps_body_checks(self):
         # A 0.40 m lane fits the 0.25 m body with 0.02 m hard margin and the
         # existing sampling guard, but fails with the previous 0.05 m margin.
@@ -92,13 +286,13 @@ class LatticeChecks(unittest.TestCase):
         self.assertFalse(planner(obstacle_check_enabled=False).plan(bad, out["state"], None, {}, 10.0)[0]["valid"])
         self.assertEqual(road, before)
 
-    def test_degraded_fused_road_caps_speed_and_reference_deadline(self):
+    def test_degraded_fused_road_caps_speed_and_checks_prediction_at_admission(self):
         args = fixture(speed=0.2)
         args[0].update(degraded=True, recommended_speed_scale=0.5, prediction_remaining_s=0.08)
         ref, diag = planner().plan(*args)
         self.assertTrue(ref["valid"], ref["reason"])
         self.assertLessEqual(ref["target_speed_mps"], 0.1)
-        self.assertLessEqual(ref["valid_for_s"], 0.08)
+        self.assertAlmostEqual(ref["expires_at_s"]-ref["generated_at_s"], 0.2)
         self.assertTrue(diag["road_degraded"])
         self.assertAlmostEqual(ref["speed_profile"][0][1], 0.2)
         self.assertLessEqual(diag["selected"]["terminal_speed_mps"], 0.1)
@@ -131,7 +325,8 @@ class LatticeChecks(unittest.TestCase):
             self.assertTrue(node.planning_diagnostics["road_degraded"])
             self.assertLessEqual(node.planning_output["target_speed_mps"], 0.1)
             prediction_deadline = node.planning_output["timestamp_s"]+node.planning_diagnostics["prediction_remaining_s"]
-            self.assertLessEqual(node.last_control_reference_deadline_s, prediction_deadline+1e-8)
+            self.assertAlmostEqual(node.last_control_reference_deadline_s,
+                                   node.planning_output["generated_at_s"]+0.2)
             deadlines.append(prediction_deadline)
         self.assertEqual(node.fsm_state, 2)
         self.assertEqual(node.action_publisher.messages[-1].drive, 0)
@@ -351,7 +546,7 @@ class LatticeChecks(unittest.TestCase):
             self.assertTrue(ref["stop_requested"])
             self.assertIsNone(ref["path"])
 
-    def test_freshness_frame_point_cap_and_source_deadline(self):
+    def test_freshness_frame_point_cap_and_independent_trajectory_lifetime(self):
         for change in ("road_age", "obstacle_age", "frame", "points", "missing"):
             args = fixture()
             if change == "road_age": args[0]["source_age_s"] = 0.4
@@ -363,7 +558,39 @@ class LatticeChecks(unittest.TestCase):
             self.assertFalse(ref["valid"], change)
         ref, _ = planner().plan(*fixture(), source_timeout_s={"road": 0.12, "wheel_speed": 0.15, "imu_angular_velocity": 0.15, "obstacles": 0.08})
         self.assertTrue(ref["valid"], ref["reason"])
-        self.assertLessEqual(ref["valid_for_s"], 0.07+1e-9)
+        self.assertAlmostEqual(ref["valid_for_s"], 0.2)
+
+    def test_generated_trajectory_survives_old_source_deadlines_without_renewal(self):
+        tick = [0.0]
+        class DelayedPlanner(Planner):
+            def _sampled_output(self, geometries, budget):
+                path = super()._sampled_output(geometries, budget)
+                tick[0] = 0.09  # Valid inputs expire during a bounded search.
+                return path
+        p = DelayedPlanner(Settings(algorithm="lattice_v2", max_source_age_s=0.4,
+                                    reference_lifetime_s=0.2),
+                           Config(budget_s=0.1, clear_start_assumed=True,
+                                  direct_sample_output=True, obstacle_check_enabled=False),
+                           clock=lambda: tick[0])
+        args = fixture()
+        args[0]["source_age_s"] = 0.39
+        args[1]["source_age_s"] = {"wheel_speed": 0.24, "imu_angular_velocity": 0.24}
+        ref, _ = p.plan(*args, source_timeout_s={"road": 0.4, "wheel_speed": 0.25,
+                                               "imu_angular_velocity": 0.25})
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertEqual(ref["timestamp_s"], 10.0)
+        self.assertAlmostEqual(ref["generated_at_s"], 10.09)
+        self.assertAlmostEqual(ref["expires_at_s"], 10.29)
+        motion = ns["EstimationMotionHistory"](ns["EstimationSettings"]())
+        for stamp in (10.0, 10.05, 10.1, 10.15, 10.2, 10.25, 10.3):
+            motion.observe("wheel_speed", 0.2, stamp, stamp, stamp)
+            motion.observe("imu_angular_velocity", 0.1, stamp, stamp, stamp)
+        first = ns["transport_control_reference"](ref, motion, 10.12)
+        second = ns["transport_control_reference"](first, motion, 10.22)
+        self.assertAlmostEqual(second["timestamp_s"]+second["valid_for_s"], 10.29)
+        self.assertEqual(second["generated_at_s"], ref["generated_at_s"])
+        with self.assertRaisesRegex(ValueError, "reference_expired"):
+            ns["transport_control_reference"](second, motion, 10.3)
 
     def test_budget_timeout_is_deterministic_and_neutral(self):
         tick = [0.0]
@@ -551,8 +778,10 @@ class Mvp2Checks(unittest.TestCase):
                 time.sleep(0.005)
             self.assertTrue(worker.ready)
             _, args, cfg = self.plan()
-            job = {"generation": 42, "frame_id": "base_link", "planning": vars(Settings(algorithm="lattice_v2")),
-                   "lattice": vars(Config(direct_sample_output=True, clear_start_assumed=True, obstacle_check_enabled=False)),
+            job = {"generation": 42, "frame_id": "base_link", "planning": vars(Settings(algorithm="lattice_v2", reference_lifetime_s=0.2)),
+                   "lattice": vars(Config(direct_sample_output=True, clear_start_assumed=True,
+                                          obstacle_check_enabled=False, centerline_first_enabled=False,
+                                          budget_s=0.1)),
                    "control": vars(cfg), "args": args}
             self.assertTrue(worker.submit(job, time.monotonic()))
             self.assertFalse(worker.submit(job, time.monotonic()))
@@ -564,6 +793,28 @@ class Mvp2Checks(unittest.TestCase):
             self.assertEqual(result["generation"], 42)
             self.assertTrue(result["reference"]["valid"], result)
             self.assertEqual(result["reference"]["path"]["type"], "CARTESIAN_SAMPLES")
+            ref = result["reference"]
+            self.assertGreater(ref["generated_at_s"], ref["timestamp_s"])
+            self.assertAlmostEqual(ref["expires_at_s"]-ref["generated_at_s"], 0.2)
+            self.assertAlmostEqual(ref["timestamp_s"]+ref["valid_for_s"], ref["expires_at_s"])
+            args = LatticeChecks().short_road()
+            args.append({"road": 0.4, "wheel_speed": 0.25, "imu_angular_velocity": 0.25})
+            job["generation"] = 43
+            job["args"] = args
+            job["lattice"].update(startup_connection_enabled=True, recovery_enabled=True,
+                transition_lengths_m="0.6,1.5", terminal_offsets_m="0.0", durations_s="3.0",
+                terminal_speeds_mps="0.1,0.2", max_candidates=16)
+            self.assertTrue(worker.submit(job, time.monotonic()))
+            result = None
+            deadline = time.monotonic()+2.0
+            while result is None and time.monotonic() < deadline:
+                result = worker.poll()
+                time.sleep(0.005)
+            self.assertIsNotNone(result)
+            self.assertTrue(result["reference"]["valid"], result)
+            self.assertEqual(result["diagnostics"]["near_support"]["extension_m"], 0)
+            self.assertEqual(result["reference"]["path"]["samples_xy_heading_curvature"][0], [0, 0, 0, 0])
+            self.assertTrue(result["diagnostics"]["selected"]["adaptive_short_transition"])
         finally:
             worker.close()
         self.assertIsNotNone(worker.process.poll())

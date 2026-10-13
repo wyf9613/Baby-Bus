@@ -1,5 +1,92 @@
 # AI4R policy acceptance
 
+## First-reference startup, no confirmation counter (local, not deployed)
+
+The user requested removal of the FIRST-drive three-frame gate. The first
+healthy observed cruise lattice reference now proceeds directly to reference
+selection/control. Startup frame counters and reset/status fields were removed.
+Stationary zero-output waiting before any such result remains bounded by 3 s;
+STOP/degraded first results still cannot establish startup trust. Reference
+expiry, current motion feedback and downstream constraints remain checked.
+recovery_confirm_frames=3 in the shipped YAML still applies to degraded tracking
+recovery, independently of startup.
+
+211 portable checks passed (estimation 91, planning 18, lattice 58, control 44).
+An actual policy-method test starts from zero speed and issues drive on the
+first reference even with recovery_confirm_frames=9. Separate checks preserve
+pending/failure waiting, STOP/prediction exclusion and the 3 s deadline; existing
+degraded-recovery regressions pass. Syntax/whitespace checks passed. No vehicle
+deployment or full ROS gate (bash unavailable on this host) was performed.
+
+## Adaptive short trajectories and independent startup joins (local, not deployed)
+
+Minimum output remains 0.4 m. If no configured lateral transition fits the
+supported horizon, ordinary lattice also evaluates a transition over that
+horizon. Controlled startup joins are sampled independently in body-x between
+observed start and min(0.9 m, body-supported end minus one geometry grid step),
+deduplicated, with lateral transition arc length separately fitted to support.
+Original 1.5 m sampling labels no longer reject a feasible 0.9 m join merely
+because the available arc is shorter than 1.5 m. All body/motion/stopping checks,
+the compute budget and candidate cap remain. Missing join space has explicit
+startup_insufficient_join_space diagnostics and bounded stationary retry.
+
+209 portable checks passed: estimation 91, planning 18, lattice 58, control 42.
+Regressions cover the 0.508 m straight path in both modes, a long-label/short-join
+case, explicit insufficient space, sub-0.4 m rejection and excessive correction
+rejection. Actual subprocess coverage includes a short startup path. Syntax
+and whitespace checks passed. No ROS gate or vehicle run is claimed; this host
+still has no bash for the required installed gate.
+
+## Controlled lattice startup connection (local, not deployed)
+
+The shipped profile enables startup_connection_enabled. With an explicit
+clear-start assumption, a first stationary MVP start and no observed origin
+support, the planner constructs candidate quintic references from body origin
+with forward tangent and initial motion curvature to observed centreline joins.
+Joins are sampled from the existing transition lengths, bounded to the observed
+start / 0.9 m interval; position, tangent and curvature match at each join.
+These are lattice candidate references, not invented observed road boundaries.
+No backward road extension or extension-derived Frenet heading is used in this
+mode. Once actual origin support is seen, this startup mode cannot re-enter.
+
+Unobserved body points are checked in a fixed operator-cleared corridor centred
+on the INITIAL vehicle, with width from the first observed road and bounded
+longitudinal support. It is carried into later frames using bounded trapezoidal
+wheel/gyro constant-twist integration; it is not re-centred on a moving car.
+Motion gaps reject. Body points inside observed support retain the actual
+boundary checks; steering, motion, obstacle (if enabled), budget and candidate
+limits remain. The three-frame/3 s startup gate remains unchanged.
+
+205 portable checks passed: estimation 91, planning 18, lattice 54, control 42.
+Coverage includes C2 joins/serialization, origin anchoring, the 0.9 m bound,
+stationary/observed admission, observed-boundary conflict, a fixed corridor
+under motion, excessive-curvature rejection, exit on observed origin and an
+actual worker-process startup job. Offline replay of the archived diagnostic
+road selected the 0.9 m connection; the 0.6 m connection failed steering limits.
+This does not establish physical driving or frame accuracy. The installed ROS
+gate remains unavailable on this host (no bash); no deployment was made.
+
+## Independent lattice execution lifetime, 2026-10-13 (local, not deployed)
+
+At the user's request, lattice input ages remain admission checks, while a
+successful trajectory receives the configured 0.2 s execution window starting
+at completion. It no longer inherits road/wheel/IMU or prediction remaining
+lifetimes. The original body-frame timestamp remains for motion compensation;
+generated_at_s and expires_at_s describe completion and execution expiry.
+valid_for_s spans from the frame timestamp to that expiry for existing consumers.
+Async completion includes queue/pipe time via the shared host perf-counter clock.
+Transport preserves the absolute expiry and never renews the trajectory.
+Current motion-feedback checks, geometry constraints and compute budget remain.
+Predicted-road expiry is still checked at admission; its deadline no longer
+truncates a successfully generated lattice reference's execution window.
+
+196 portable checks passed: estimation 91, planning 18, lattice 45, control 42,
+including actual worker-process completion and delayed/repeated path transport.
+Python syntax and whitespace checks passed. The required installed ROS gate
+could not run because bash is unavailable on this Windows host. PyYAML is also
+unavailable in the selected Python; the YAML edit contains comments only and
+changes no parameter values. No vehicle deployment or physical run was made.
+
 The [2026-10-13 daily review](experiments/2026-10-13/MVP2_REVIEW_CN.md) records
 the complete sequence, failed acceptance, source hashes and archived raw logs.
 No autonomous 3 m run or post-fix physical startup success was established.
@@ -216,6 +303,27 @@ Evidence is in workspace `diagnostics/mvp2-20261013/road-v2/` and vehicle
 `6b757605c81105e74976ccd89ab931724febf2413286bb4a34be3ec2b88e4fe1`,
 and YAML SHA-256 was
 `84c3b9b197bf4652608f7705a4a3702ba4c80300f57308711b992db046453c65`.
+## MVP2 local road geometry evaluation, 2026-10-09
+
+- Evaluated `ae74be454bccec472c677092afb35de899cdc130` with shipped YAML,
+  obstacles disabled: 4800 paired static calls, 3840 multi-frame geometry calls,
+  11520 direct closed-loop calls, 160 actual subprocess requests and 24 full
+  estimation/async/control model runs. Production source/config hashes unchanged.
+- Independent clearance, common-world trajectory continuity, fixed-distance
+  tracking error, progress and steering-change metrics use no planner costs.
+  See [road geometry report](experiments/2026-10-09/mvp2/report.md).
+- Main geometry 35 ms samples had no overruns; all 48 direct model loops reached
+  the 12 s horizon. Full pipeline had one 35.09 ms planning spike bridged by the
+  bounded cache; 22/24 runs reached the horizon. Two misaligned starts could not
+  establish valid road geometry and stopped at the startup deadline.
+- Centerline/lattice switching produced up to 6.52 cm adjacent-path difference
+  in the common world-coordinate overlap. Narrow/short-support and adverse
+  initial-heading cases remain geometric failure modes, also at relaxed budget.
+- 156 portable regressions passed. Local required ROS gate could not start:
+  `bash` is unavailable. Prior installed gate evidence below is historical.
+  No ROS, vehicle, sensor, or live calibration change was made in this study.
+- Feature uncommitted changes were preserved in a named Git stash before the
+  user-requested switch to `mvp2.0`; no commit or push was performed.
 
 ## MVP2 direct-sample update, 2026-10-09
 

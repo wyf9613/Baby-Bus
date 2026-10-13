@@ -1636,6 +1636,8 @@ class LatticeSettings:
     # Dispatch choice is separate from the MVP lattice startup domain above.
     centerline_first_enabled: bool = True
     direct_sample_output: bool = False
+    # Explicit controlled-start corridor, not an inferred rear road boundary.
+    startup_connection_enabled: bool = False
     worker_timeout_s: float = 0.3
     recovery_speed_mps: float = 0.12
     initial_heading_max_rad: float = 1.22
@@ -1655,9 +1657,9 @@ class LatticeSettings:
                 if name != "terminal_offsets_m" and any(v <= 0 for v in samples):
                     raise ValueError("lattice lengths, durations and speeds must be positive")
             elif isinstance(value, bool):
-                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output"):
+                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled"):
                     raise ValueError("invalid lattice boolean")
-            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output"):
+            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled"):
                 raise ValueError("lattice flags must be booleans")
             elif not finite_number(value) or value <= 0:
                 raise ValueError("lattice numeric settings must be finite and positive: " + name)
@@ -1787,7 +1789,7 @@ class LatticeCurve:
     def at_x(self, x):
         if not self.xmin-1e-8 <= x <= self.xmax+1e-8:
             raise ValueError("curve_range")
-        if x < self.points[0][0]:
+        if x < self.segments[0][0]:
             c = self.extension[2]
             u = x-self.points[0][0]
             return c[0]+u*(c[1]+u*(c[2]+u*c[3])), c[1]+u*(2*c[2]+3*c[3]*u), 2*c[2]+6*c[3]*u, 6*c[3]
@@ -1800,8 +1802,48 @@ class LatticeCurve:
                 hi = mid
         origin, _, coeffs = self.segments[lo]
         u = x-origin
-        a, b, c, d = coeffs
-        return a+u*(b+u*(c+u*d)), b+u*(2*c+3*d*u), 2*c+6*d*u, 6*d
+        if len(coeffs) == 4:
+            a, b, c, d = coeffs
+            return a+u*(b+u*(c+u*d)), b+u*(2*c+3*d*u), 2*c+6*d*u, 6*d
+        return tuple(_control_poly_eval(_lattice_derivative(coeffs, order), u) for order in range(4))
+
+    @classmethod
+    def startup_connection(cls, observed, join_x, initial_curvature, step):
+        """Candidate quintic from actual body origin to observed centreline.
+
+        This is a driving reference, not a reconstructed road. Observed
+        boundaries remain unchanged and are checked independently.
+        """
+        y, slope, second, _ = observed.at_x(join_x)
+        c = [0.0, 0.0, initial_curvature*join_x**2/2]
+        tail = _estimation_solve([[1, 1, 1], [3, 4, 5], [6, 12, 20]],
+            [y-sum(c), slope*join_x-c[1]-2*c[2], second*join_x**2-2*c[2]])
+        if tail is None:
+            raise ValueError("startup_connection_singular")
+        obj = cls.__new__(cls)
+        obj.xmin, obj.xmax = 0.0, observed.xmax
+        obj.points = list(observed.points)
+        obj.extension = (0.0, 0.0, [0.0]*4)
+        obj.segments = [(0.0, join_x, [v/join_x**i for i, v in enumerate(c+tail)])]
+        for a, b, coeffs in observed.segments:
+            if b <= join_x:
+                continue
+            start = max(a, join_x)
+            values = observed.at_x(start)
+            obj.segments.append((start, b, [v/math.factorial(i) for i, v in enumerate(values)]))
+        count = math.ceil(obj.xmax/step)
+        if count > 400:
+            raise ValueError("reference_grid_cap")
+        obj.arc = [(0.0, 0.0)]
+        for i in range(count):
+            a, b = obj.xmax*i/count, obj.xmax*(i+1)/count
+            length = (b-a)*(math.hypot(1, obj.at_x(a)[1])+4*math.hypot(1, obj.at_x((a+b)/2)[1])+
+                           math.hypot(1, obj.at_x(b)[1]))/6
+            obj.arc.append((b, obj.arc[-1][1]+length))
+        obj.inverse_arc = [(s, x) for x, s in obj.arc]
+        obj._s_cache = {}
+        obj.startup_join_x = join_x
+        return obj
 
     def at_s(self, s):
         if s in self._s_cache:
@@ -1843,7 +1885,8 @@ class LatticeCurve:
         return s, (-y+x*slope)/math.hypot(1, slope)
 
     def record(self):
-        return {"type": "CUBIC_Y_OF_X_ARCLENGTH", "segments": deepcopy(self.segments),
+        kind = "PIECEWISE_POLYNOMIAL_Y_OF_X_ARCLENGTH" if any(len(c) > 4 for _, _, c in self.segments) else "CUBIC_Y_OF_X_ARCLENGTH"
+        return {"type": kind, "segments": deepcopy(self.segments),
                 "extension": deepcopy(self.extension), "arc_table": list(self.arc),
                 "observed_x_range_m": [self.points[0][0], self.xmax],
                 "supported_x_range_m": [self.xmin, self.xmax]}
@@ -1924,6 +1967,8 @@ class FrenetLatticePlanner:
         self.clock = clock or time.perf_counter
         self.sequence, self.previous, self.stop_latched = 0, None, False
         self.observed_origin_seen = False
+        self.startup_corridor = None
+        self.startup_motion = None
 
     def _model(self, limits):
         cfg = self.cfg
@@ -1943,7 +1988,7 @@ class FrenetLatticePlanner:
                 raise ValueError("incomplete_lattice_vehicle_limits")
         return model
 
-    def _clearance(self, geom, left, right, obstacles, model, details=None):
+    def _clearance(self, geom, left, right, obstacles, model, details=None, startup=None):
         cfg = self.cfg
         c, s = math.cos(geom["heading"]), math.sin(geom["heading"])
         # Boundary signed vertical distances converted to local normal metres.
@@ -1957,6 +2002,23 @@ class FrenetLatticePlanner:
         for bx in [-model["rear_extent_m"]+body_length*i/4 for i in range(5)]:
             for by in (-model["width_m"]/2, model["width_m"]/2):
                 x, y = geom["x"]+c*bx-s*by, geom["y"]+s*bx+c*by
+                if startup is not None and x < left.points[0][0]:
+                    # Only points outside observed support use the fixed,
+                    # operator-cleared initial corridor. Never move it to
+                    # follow the vehicle or move the observed boundaries.
+                    px, py, angle = startup["pose"]
+                    world_x = px+math.cos(angle)*x-math.sin(angle)*y
+                    world_y = py+math.sin(angle)*x+math.cos(angle)*y
+                    worst = min(startup["half_width"]-abs(world_y),
+                                world_x+model["rear_extent_m"]+0.15)-cfg.hard_margin_m-sweep_guard
+                    if world_x > startup["far_x"]+0.15:
+                        worst = min(worst, startup["far_x"]+0.15-world_x)
+                    if details is not None and worst < clearance:
+                        details.clear()
+                        details.update(constraint="controlled_start_corridor", actual_m=worst,
+                                       body_point_xy_m=[bx, by], point_xy_m=[world_x, world_y])
+                    clearance = min(clearance, worst)
+                    continue
                 yl, sl, _, _ = left.at_x(x)
                 yr, sr, _, _ = right.at_x(x)
                 extra = cfg.extension_margin_growth*max(0.0, max(left.points[0][0], right.points[0][0])-x)
@@ -2125,15 +2187,53 @@ class FrenetLatticePlanner:
                 clipped.append([(near, CenterlinePlanner._interpolate(p, near)),
                                 *[(x, y) for x, y in p if near < x < far],
                                 (far, CenterlinePlanner._interpolate(p, far))])
-            extension = max(0.0, near+model["rear_extent_m"]+0.15)
+            startup = None
+            use_startup = (cfg.startup_connection_enabled and cfg.clear_start_assumed and mvp
+                           and not self.observed_origin_seen and near > 0)
+            if use_startup:
+                if road.get("degraded") and self.startup_corridor is None:
+                    raise ValueError("startup_requires_observed_road")
+                if self.startup_corridor is None:
+                    if speed > 0.005:
+                        raise ValueError("startup_requires_stationary_vehicle")
+                    width = clipped[1][0][1]-clipped[2][0][1]
+                    if width <= model["width_m"]+2*cfg.hard_margin_m:
+                        raise ValueError("startup_corridor_too_narrow")
+                    self.startup_corridor = {"half_width": width/2, "far_x": near,
+                                             "pose": [0.0, 0.0, 0.0]}
+                if self.startup_motion is not None:
+                    stamp, previous_speed, previous_yaw = self.startup_motion
+                    dt = now_s-stamp
+                    if not 0 <= dt <= min((source_timeout_s or {}).get("wheel_speed", 0.25),
+                                         (source_timeout_s or {}).get("imu_angular_velocity", 0.25)):
+                        raise ValueError("startup_motion_history_gap")
+                    v, rate = (speed+previous_speed)/2, (yaw+previous_yaw)/2
+                    turn = rate*dt
+                    dx = v*dt if abs(rate) < 1e-8 else v*math.sin(turn)/rate
+                    dy = 0.0 if abs(rate) < 1e-8 else v*(1-math.cos(turn))/rate
+                    px, py, angle = self.startup_corridor["pose"]
+                    self.startup_corridor["pose"] = [px+math.cos(angle)*dx-math.sin(angle)*dy,
+                        py+math.sin(angle)*dx+math.cos(angle)*dy, wrap_angle(angle+turn)]
+                self.startup_motion = (now_s, speed, yaw)
+                startup = self.startup_corridor
+            extension = 0.0 if use_startup else max(0.0, near+model["rear_extent_m"]+0.15)
             if extension < 1e-9:
                 extension = 0.0
             if extension > cfg.max_extension_m:
                 raise ValueError("extension_limit")
             curve, left, right = [LatticeCurve(p, extension, cfg.geometry_step_m) for p in clipped]
-            s0, d0 = curve.project_origin()
+            observed_curve = curve
+            if use_startup:
+                curve = LatticeCurve.startup_connection(observed_curve, near,
+                    yaw/speed if speed >= 0.05 else 0.0, cfg.geometry_step_m)
+                s0 = d0 = 0.0
+                diag["startup_connection"] = {"enabled": True, "observed_start_x_m": near,
+                    "maximum_join_x_m": cfg.max_near_gap_m, "corridor": deepcopy(startup),
+                    "motion_assumption": "bounded_trapezoidal_constant_twist"}
+            else:
+                s0, d0 = curve.project_origin()
             rx, ry, tx, ty, k, dk = curve.at_s(s0)
-            heading_error = -math.atan2(ty, tx)
+            heading_error = 0.0 if use_startup else -math.atan2(ty, tx)
             diag["initialization"] = {"s0": s0, "d0": d0, "heading_error_rad": heading_error,
                 "heading_max_rad": cfg.initial_heading_max_rad if cfg.recovery_enabled else 0.5,
                 "yaw_rate_rps": yaw, "speed_mps": speed,
@@ -2153,7 +2253,8 @@ class FrenetLatticePlanner:
                 curvature_method="yaw_over_speed" if speed >= 0.05 else "low_speed_zero_assumption",
                 acceleration_method="zero_start_assumption")
             diag["near_support"] = {"observed_x_start_m": near, "extension_m": extension,
-                                     "method": "c2_curvature_fade" if extension > 0 else "observed_support",
+                                     "method": "controlled_start_connection" if use_startup else (
+                                         "c2_curvature_fade" if extension > 0 else "observed_support"),
                                      "clear_start_assumed": cfg.clear_start_assumed}
             # Trim for full body, with extra allowance for orientation projection.
             end_x = far-math.hypot(model["front_extent_m"], model["width_m"]/2)-0.02
@@ -2192,9 +2293,35 @@ class FrenetLatticePlanner:
                 targets.append(d0)  # Preserve current offset as a real option.
             targets.sort(key=lambda target: (abs(target), target))
             search_truncated = False
-            for length in sorted(cfg.samples("transition_lengths_m"), reverse=True):
+            configured_lengths = sorted(cfg.samples("transition_lengths_m"), reverse=True)
+            if use_startup:
+                # Join distance is body-x; lateral transition length is arc
+                # distance. Never use a join's sampling label as an arc limit.
+                # Keep one checked grid interval after the join in real support.
+                maximum_join = min(cfg.max_near_gap_m, end_x-cfg.geometry_step_m)
+                diag["startup_join_space"] = {"observed_start_x_m": near,
+                    "usable_end_x_m": end_x, "maximum_join_x_m": maximum_join,
+                    "observed_tail_reserve_m": cfg.geometry_step_m}
+                if maximum_join < near-1e-8:
+                    return fail("startup_insufficient_join_space", "NO_FEASIBLE_PATH")
+                joins = sorted({min(maximum_join, max(near, value)) for value in configured_lengths}, reverse=True)
+                searches = [(min(configured_lengths), join) for join in joins]
+            else:
+                searches = [(length, None) for length in configured_lengths]
+                if horizon+1e-8 < min(configured_lengths):
+                    # A short supported path gets an actual short transition,
+                    # not an exemption from geometry or motion checks.
+                    searches.insert(0, (horizon, None))
+            for length, join_x in searches:
                 if search_truncated:
                     break
+                if use_startup:
+                    curve = LatticeCurve.startup_connection(observed_curve, join_x,
+                        yaw/speed if speed >= 0.05 else 0.0, cfg.geometry_step_m)
+                    end_s = min(cfg.horizon_m, _lattice_interp(curve.arc, end_x))
+                    horizon = end_s
+                    length = min(min(configured_lengths), horizon)
+                    reference_record = curve.record()
                 for target in targets:
                     # This is a deliberate search cutoff, NOT a total deadline
                     # overrun. Reserve 40% for ranking and output revalidation.
@@ -2203,7 +2330,14 @@ class FrenetLatticePlanner:
                         break
                     budget()
                     row = {"length_m": length, "offset_m": target, "reason": None}
+                    row["adaptive_short_transition"] = length+1e-8 < min(configured_lengths)
+                    if use_startup:
+                        row["startup_join_x_m"] = join_x
                     diag["candidates"].append(row)
+                    if horizon+1e-8 < cfg.minimum_output_m:
+                        row["reason"] = "insufficient_body_supported_horizon"
+                        row["violation"] = {"actual_m": horizon, "minimum_m": cfg.minimum_output_m}
+                        continue
                     if length > horizon+1e-8:
                         row["reason"] = "transition_exceeds_common_horizon"
                         row["violation"] = {"actual_m": length, "maximum_m": horizon}
@@ -2219,6 +2353,8 @@ class FrenetLatticePlanner:
                             sample_s = s0+horizon*i/grid_n
                             g = None
                             g = _lattice_geometry(curve, s0, coeffs, length, target, sample_s)
+                            if use_startup and g["x"] < join_x:
+                                g["support"] = "controlled_start_connection"
                             g["steering"] = _lattice_steering(g["curvature"], model)
                             if abs(g["steering"]) > model["steering_limit_rad"]:
                                 row["violation"] = {"actual_rad": abs(g["steering"]), "maximum_rad": model["steering_limit_rad"]}
@@ -2229,12 +2365,12 @@ class FrenetLatticePlanner:
                                     "maximum_lateral_change_m": cfg.blind_lateral_change_m,
                                     "steering_rad": abs(g["steering"]), "maximum_steering_rad": cfg.blind_steering_limit_rad}
                                 raise ValueError("blind_correction_limit")
-                            g["clearance"] = self._clearance(g, left, right, obstacle_index, model)
+                            g["clearance"] = self._clearance(g, left, right, obstacle_index, model, startup=startup)
                             if g["clearance"] < 0:
                                 row["violation"] = {}
                                 # Re-evaluate only the first rejected pose for
                                 # diagnostics; accepted candidates keep one pass.
-                                self._clearance(g, left, right, obstacle_index, model, row["violation"])
+                                self._clearance(g, left, right, obstacle_index, model, row["violation"], startup=startup)
                                 raise ValueError("body_boundary_or_obstacle_collision")
                             if geometries and g["x"] <= geometries[-1]["x"]:
                                 row["violation"] = {"actual_x_m": g["x"], "must_exceed_x_m": geometries[-1]["x"]}
@@ -2297,7 +2433,7 @@ class FrenetLatticePlanner:
                             costs = self._score(motion, speed, stopping, row["spatial_costs"], desired_speed)
                             total = sum(getattr(cfg, "weight_"+key)*value for key, value in costs.items())
                             candidate.update(reason="feasible", costs=costs, cost=total, score=-total)
-                            accepted.append((total, candidate, lateral, longitudinal, geometries, motion))
+                            accepted.append((total, candidate, lateral, longitudinal, geometries, motion, reference_record))
                         except ValueError as error:
                             candidate["reason"] = str(error)
                     row["reason"] = "geometry_feasible"
@@ -2327,20 +2463,22 @@ class FrenetLatticePlanner:
                               -min(g["clearance"] for g in v[4]), v[1]["costs"]["steering"],
                               v[1]["length_m"], v[1]["offset_m"], v[1]["duration_s"]))
             ordered = near_best+sorted([v for v in accepted if v not in near_best], key=lambda v: v[0])
-            for _, choice, lateral, longitudinal, geometries, motion in ordered:
+            for _, choice, lateral, longitudinal, geometries, motion, reference_record in ordered:
                 budget()
                 try:
                     if cfg.direct_sample_output:
                         path, errors = self._sampled_output(geometries, budget)
                     else:
                         path, errors = self._compatibility(geometries, left, right, obstacle_index, model, budget,
-                                                          lateral["scale"], max(p["speed"] for p in motion))
+                                                          lateral["scale"], max(p["speed"] for p in motion), startup)
                 except ValueError as error:
                     choice["reason"] = ("sample_output_" if cfg.direct_sample_output else "compatibility_")+str(error)
                     continue
-                lifetime = min(self.settings.reference_lifetime_s, *deadlines)
-                if self.clock()-started >= lifetime:
-                    raise TimeoutError("source_deadline_during_planning")
+                # Input ages are admission checks, not execution deadlines.
+                # Keep the input-frame timestamp for motion compensation;
+                # the execution window starts when this trajectory is ready.
+                generated_at = now_s+self.clock()-started
+                lifetime = generated_at-now_s+self.settings.reference_lifetime_s
                 # MVP follows the checked spatial path with its low-speed PI.
                 # Replanning a 3 s profile from measured zero speed must not
                 # repeatedly reset the controller to the tiny 0.3 s preview.
@@ -2353,7 +2491,10 @@ class FrenetLatticePlanner:
                     target_speed = min(target_speed, desired_speed)
                 diag["speed_target"] = {"preview_mps": preview_speed, "floor_mps": speed_floor,
                                         "command_mps": target_speed, "measured_mps": speed}
-                ref.update(valid=True, status="STOP" if choice["stop"] else "TRACK", reason="lattice_selected",
+                ref.update(valid=True, generated_at_s=generated_at,
+                           trajectory_lifetime_s=self.settings.reference_lifetime_s,
+                           expires_at_s=generated_at+self.settings.reference_lifetime_s,
+                           status="STOP" if choice["stop"] else "TRACK", reason="lattice_selected",
                            valid_for_s=lifetime, path=path, target_speed_mps=target_speed,
                            stop_requested=False, stop_reason=None,
                            planned_stop=choice["stop"], stop_at_path_m=_lattice_interp(
@@ -2536,7 +2677,7 @@ class FrenetLatticePlanner:
         budget()
         return path, {"conversion": "none", "sample_count": len(points)}
 
-    def _compatibility(self, geometries, left, right, obstacles, model, budget, transition_length, maximum_speed):
+    def _compatibility(self, geometries, left, right, obstacles, model, budget, transition_length, maximum_speed, startup=None):
         cfg = self.cfg
         # Only expose the continuous initial polynomial portion to the current
         # single-polynomial consumer. The full Frenet trajectory stays in ref.
@@ -2590,7 +2731,7 @@ class FrenetLatticePlanner:
                 1+(model["wheelbase_m"]**2-model["rear_axle_from_cg_m"]**2)*curvature**2))
             if steering_rate > model["steering_rate_limit_radps"] or maximum_speed**2*abs(curvature) > model["lateral_acceleration_max_mps2"]:
                 raise ValueError("fit_motion_limit")
-            if self._clearance({**g, "y": y, "heading": heading}, left, right, obstacles, model) < 0:
+            if self._clearance({**g, "y": y, "heading": heading}, left, right, obstacles, model, startup=startup) < 0:
                 raise ValueError("fit_collision")
         return path, errors
 
@@ -2749,7 +2890,7 @@ class MvpRecoveryPlanner:
 
 def _mvp_plan(planner, control, args):
     """Select lattice directly unless optional centerline-first is enabled."""
-    if (planner.cfg.centerline_first_enabled and planner.cfg.recovery_enabled
+    if (planner.cfg.centerline_first_enabled and not planner.cfg.startup_connection_enabled and planner.cfg.recovery_enabled
             and control.mode == "mvp" and not planner.stop_latched):
         ref, simple = MvpRecoveryPlanner(planner, control).plan(*args)
         if ref["valid"]:
@@ -2788,6 +2929,18 @@ def _planner_worker_main():
                                               LatticeSettings(**job["lattice"]), job["frame_id"])
                 generation = job["generation"]
             ref, diag = _mvp_plan(planner, ControlSettings(**job["control"]), job["args"])
+            if ref.get("valid") and ref.get("planner_version") == "frenet_lattice_v2":
+                # Include submission/pipe delay in the completion timestamp.
+                # perf_counter has a shared host clock across these processes;
+                # map its elapsed interval onto the job's ROS reference time.
+                submitted = job.get("submitted_monotonic_s")
+                if submitted is not None:
+                    generated = job["args"][4]+time.perf_counter()-submitted
+                    ref.update(generated_at_s=generated,
+                               expires_at_s=generated+planner.settings.reference_lifetime_s,
+                               valid_for_s=generated-ref["timestamp_s"]+planner.settings.reference_lifetime_s)
+                    if planner.previous is not None:
+                        planner.previous["valid_for_s"] = ref["valid_for_s"]
             result = {"generation": generation, "reference": ref, "diagnostics": diag, "road": job["args"][0]}
         except Exception as error:
             result = {"generation": job.get("generation"), "error": str(error)}
@@ -2835,7 +2988,7 @@ class AsyncLatticePlanner:
     def submit(self, job, now_s):
         if self.pending_at is not None or not self.ready:
             return False
-        self.requests.put_nowait(job)
+        self.requests.put_nowait({**job, "submitted_monotonic_s": time.perf_counter()})
         self.pending_at = now_s
         return True
 
@@ -3717,8 +3870,6 @@ class PolicyNode(Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
-        self.startup_reference_frames = 0
-        self.startup_last_source_s = None
         self.last_planning_rejection = None
         self.last_planning_rejection_key = None
         self.last_startup_status = None
@@ -4670,6 +4821,9 @@ class PolicyNode(Node):
                 ref = result["reference"]
                 self.last_async_diagnostics = {**result["diagnostics"],
                     "trajectory_id": ref.get("trajectory_id"),
+                    "generated_at_s": ref.get("generated_at_s"),
+                    "expires_at_s": ref.get("expires_at_s"),
+                    "worker_reference_valid_for_s": ref.get("valid_for_s"),
                     "source_measurement_timestamp_s": result["road"].get("measurement_timestamp_s"),
                     "result_timestamp_s": ref.get("timestamp_s"),
                     "worker_road": {key: result["road"].get(key) for key in (
@@ -4745,45 +4899,32 @@ class PolicyNode(Node):
                                     str(reference.get("reason")) + "; explicit resume required")
         if not state.get("valid"):
             return False  # The normal motion-feedback rejection is immediate.
-        diagnostics = self.planning_diagnostics or {}
         reason = reference.get("reason")
         stationary = finite_number(state.get("speed_mps")) and 0 <= state["speed_mps"] <= 0.005
         retryable = reason in ControlReferenceManager.SOFT_REASONS or reason in {
-            "no_feasible_lattice_trajectory", "no_valid_cartesian_output", "initial_frenet_domain"}
+            "no_feasible_lattice_trajectory", "no_valid_cartesian_output", "initial_frenet_domain",
+            "startup_insufficient_join_space"}
         if not reference.get("valid"):
             if not stationary or not (retryable or road.get("status") == "missing_motion_history"):
                 return False
-            # A completed failed search breaks confirmation. An in-flight job
-            # between two successful observed frames does not count as failure.
-            if diagnostics.get("worker_result_received", not diagnostics.get("async", False)):
-                self.startup_reference_frames = 0
             status = "awaiting_feasible_lattice"
         elif reference.get("planned_stop") or reference.get("stop_requested"):
-            self.startup_reference_frames = 0
             status = "awaiting_cruise_lattice"
         elif road.get("degraded"):
-            self.startup_reference_frames = 0
             status = "awaiting_observed_reference"
         else:
             source = road.get("measurement_timestamp_s")
-            previous = getattr(self, "startup_last_source_s", None)
             if not finite_number(source) or source > state["timestamp_s"]:
                 raise PolicyStopRequest("Invalid startup road source timestamp")
-            if previous is not None and source < previous:
-                raise PolicyStopRequest("Startup road sample moved backwards")
-            if previous is None or source > previous:
-                self.startup_reference_frames = getattr(self, "startup_reference_frames", 0)+1
-                self.startup_last_source_s = source
-            if self.startup_reference_frames >= control.recovery_confirm_frames:
-                return False
-            status = "confirming_observed_lattice"
-        frames = getattr(self, "startup_reference_frames", 0)
-        self.control_diagnostics = {"valid": False, "stop_requested": False, "reason": status,
-                                    "confirmed_frames": frames, "required_frames": control.recovery_confirm_frames}
-        message = (status, reason, frames)
+            # The first healthy observed cruise reference may start control.
+            # Reference expiry and current feedback are checked downstream;
+            # recovery_confirm_frames applies only to degraded recovery.
+            return False
+        self.control_diagnostics = {"valid": False, "stop_requested": False, "reason": status}
+        message = (status, reason)
         if message != getattr(self, "last_startup_status", None):
             self.last_startup_status = message
-            self.state_reason = f"Startup waiting: {status}; planning={reason}; frames={frames}/{control.recovery_confirm_frames}"
+            self.state_reason = f"Startup waiting: {status}; planning={reason}"
             self.get_logger().info(self.state_reason)
             self.publish_state()
         return True
@@ -4887,8 +5028,6 @@ class PolicyNode(Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
-        self.startup_reference_frames = 0
-        self.startup_last_source_s = None
         self.last_startup_status = None
         if state == FSM_STATE_PUBLISHING_POLICY_ACTION:
             self.last_planning_rejection = None

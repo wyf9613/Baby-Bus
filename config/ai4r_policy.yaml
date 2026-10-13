@@ -209,6 +209,8 @@
       cruise_speed_mps: 0.2
       max_source_age_s: 0.4
       reference_lifetime_s: 0.2
+      # Lattice execution window starts at trajectory completion. Input ages
+      # are checked before search; timestamp_s retains the input body frame.
       # Actual supported x range, metres; do not extrapolate to the car origin.
       max_near_x_m: 0.5
       min_forward_x_m: 1.5
@@ -254,6 +256,10 @@
         # Lattice search: 2 lengths x (center + current offset) x (2 speeds + stop).
         # Keep the existing sampling set and the 16-candidate cap below.
         transition_lengths_m: "0.6,1.5"
+        # If neither length fits, also check a transition over the supported
+        # short horizon (minimum_output_m unchanged). Startup joins are sampled
+        # independently within observed support / 0.9 m, with one grid step
+        # reserved after the join. All candidates retain the same constraints.
         terminal_offsets_m: "0.0"
         durations_s: "3.0"
         terminal_speeds_mps: "0.1,0.2"
@@ -264,6 +270,11 @@
         # Controlled-start assumption: operator confirms near road is clear and
         # vehicle is inside it. This does not mean lidar proves free boundaries.
         clear_start_assumed: true
+        # First stationary start uses origin-anchored C2 connection candidates.
+        # No road is extrapolated behind the car. Unobserved body points use a
+        # fixed operator-cleared corridor, transported with wheel/gyro motion.
+        # Observed boundary checks remain active; reconnect within 0.9 m.
+        startup_connection_enabled: true
         max_near_gap_m: 0.9
         max_extension_m: 1.3
         extension_margin_growth: 0.08
@@ -340,8 +351,8 @@
       reference_hold_max_distance_m: 0.25
       degraded_speed_mps: 0.1
       recovery_confirm_frames: 3
-      # Also require 3 distinct observed cone frames with accepted cruise
-      # lattice paths before FIRST drive. Pending jobs do not count as frames.
+      # This confirms recovery from degraded tracking only. FIRST drive uses
+      # the first healthy observed cruise reference, without a frame counter.
       speed_recovery_accel_mps2: 0.15
       # Leave the car stationary in state 2 for >=1 s before starting. Learn
       # a stable small yaw-rate bias from fresh zero-wheel samples; freeze it
