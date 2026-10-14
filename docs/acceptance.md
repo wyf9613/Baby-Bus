@@ -2,6 +2,16 @@
 
 ## Smooth dual/single centerline handoff, 2026-10-14 (local)
 
+Final integration: commit acc84b8 preserved the local feature, then merge
+f973a15 integrated origin/mvp2.0 through 2ce7b1e (Foxglove accepted-reference
+Path publisher and layout). Post-merge 257 portable checks passed (estimation
+115, control 59, lattice 65, planning 18). Active YAML plus the actual async
+worker passed dual -> curved yellow-only -> dual recovery with transition
+activation and continued control. Package XML and layout JSON parsed cleanly.
+The new /car/policy_trajectory topic displays accepted references, not measured
+vehicle motion. Runtime Path display needs ROS validation on the car. Local
+commits have not been pushed. Full ROS fast gate unavailable on Windows.
+
 Active YAML enables centerline_transition_enabled (code default false), with
 centerline_transition_s=0.5 and centerline_transition_rate_mps=0.3. Width remains
 variable. Incrementally transport previous output and handoff anchor using real
