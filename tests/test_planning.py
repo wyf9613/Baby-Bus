@@ -207,6 +207,8 @@ class PlanningChecks(unittest.TestCase):
                                                received_ros_ns=10_000_000_000) for key in obs},
             get_clock=lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_050_000_000)))
         method = api["namespace"]["calculate_policy_actions"]
+        node.get_logger = lambda: SimpleNamespace(info=lambda _: None)
+        node._log_planned_trajectory = lambda ref, source: api["namespace"]["_log_planned_trajectory"](node, ref, source)
         self.assertEqual(method(node, obs, ages, stamps, receipts["wheel_speed"], 0.0, True),
                          (0.0, 0.0, None, None, None))
         self.assertTrue(node.planning_output["valid"], node.planning_output["reason"])

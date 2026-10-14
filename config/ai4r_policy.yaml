@@ -154,6 +154,8 @@
       history_propagation: continuous
       # Refit already observed, moved cones during short camera interruptions.
       # Existing hold/source deadlines still apply; no startup extrapolation.
+      # Accepted history survives a failed merged fit. Local segmented fits may
+      # preserve curved rear support; neither path manufactures missing points.
       continuous_road_output: true
       # Absolute wheel/gyro integrated travel since the last accepted camera
       # epoch, metres. Predictions also stop at 0.8 s hold / 1.5 s source age.
