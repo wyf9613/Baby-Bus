@@ -69,6 +69,8 @@ else:
     from rclpy.time import Time
     from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
     from sensor_msgs.msg import Imu, LaserScan
+    from geometry_msgs.msg import PoseStamped
+    from nav_msgs.msg import Path as TrajectoryPath
     from std_msgs.msg import Float32, Int8, String, UInt16
     from dream_interfaces.msg import (ConeDetection, ConeDetections, DriveAndSteer,
                                       FiducialDetections)
@@ -4187,6 +4189,12 @@ class PolicyNode(Node):
         self.heading_publisher = self.create_publisher(Float32, "imu_heading_angle", 10)
         self.debug1_publisher = self.create_publisher(Float32, "debug1", 10)
         self.debug2_publisher = self.create_publisher(Float32, "debug2", 10)
+        self.declare_parameter("visualization.enabled", True, ParameterDescriptor(read_only=True))
+        self.trajectory_enabled = self.get_parameter("visualization.enabled").value
+        self.trajectory_publisher = self.create_publisher(TrajectoryPath, "policy_trajectory", 1)
+        self._trajectory_reference = None
+        self._trajectory_last_publish_s = -math.inf
+        self._publish_trajectory(self.get_clock().now().nanoseconds, force=True)
 
         self.create_subscription(ConeDetections, "cone_detections",
                                  self.cone_detection_callback, reliable_one)
@@ -4646,6 +4654,8 @@ class PolicyNode(Node):
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
         self._publish_actions(drive, steer, pan)
+        if hasattr(self, "trajectory_publisher"):
+            self._publish_trajectory(ros_now)
         if debug1 is not None:
             self.debug1_publisher.publish(Float32(data=float(debug1)))
         if debug2 is not None:
@@ -5051,6 +5061,7 @@ class PolicyNode(Node):
                 reason = "Control: " + self.control_diagnostics["reason"]
                 raise PolicyStopRequest(reason)
             self.control_has_run = True
+            self._trajectory_reference = selected_reference
             self.last_control_reference_deadline_s = (
                 selected_reference["timestamp_s"]+selected_reference["valid_for_s"])
             if self._robust_control_enabled():
@@ -5264,6 +5275,7 @@ class PolicyNode(Node):
         if not info.get("valid") or info.get("stop_requested"):
             raise PolicyStopRequest("Straight startup control: " + str(info.get("reason")))
         self.control_has_run = True
+        self._trajectory_reference = reference
         self.last_control_reference_deadline_s = reference["expires_at_s"]
         if self.last_startup_status != "STRAIGHT_STARTUP":
             self.last_startup_status = "STRAIGHT_STARTUP"
@@ -5532,6 +5544,57 @@ class PolicyNode(Node):
             self.publish_zero_actions()
         self.get_logger().info(f"{STATE_NAMES[state]}: {reason}")
         self.publish_state()
+        self._trajectory_reference = None
+        if hasattr(self, "trajectory_publisher"):
+            self._publish_trajectory(self.get_clock().now().nanoseconds, force=True)
+            self._trajectory_last_publish_s = -math.inf
+
+    def _publish_trajectory(self, ros_now_ns, force=False):
+        """Display the accepted reference at 10 Hz; existing stops clear it."""
+        if not self.trajectory_enabled:
+            return
+        now = self._monotonic()
+        if not force and now-self._trajectory_last_publish_s < 0.1:
+            return
+        message = TrajectoryPath()
+        message.header.frame_id = self.policy_frame_id
+        message.header.stamp = Time(nanoseconds=ros_now_ns).to_msg()
+        try:
+            ref = self._trajectory_reference
+            if (self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION and ref
+                    and ref.get("valid") is True and ref.get("frame_id") == self.policy_frame_id
+                    and ref["timestamp_s"] <= ros_now_ns/1e9 < ref["timestamp_s"]+ref["valid_for_s"]):
+                path = ref["path"]
+                if path.get("type") == "CARTESIAN_CENTERLINE":
+                    points = path["samples_xy"]
+                else:
+                    cached = ref.get("control_cached_path_samples")
+                    lo, hi = (cached[0][0], cached[-1][0]) if cached else path["range"]
+                    points = []
+                    for i in range(81):
+                        x = lo if i == 0 else hi if i == 80 else lo+(hi-lo)*i/80
+                        sample = evaluate_planning_path(ref, x, ros_now_ns/1e9)
+                        if sample is None:
+                            points = []
+                            break
+                        points.append(sample["position_xy_m"])
+                if (2 <= len(points) <= 201
+                        and all(len(p) == 2 and all(finite_number(v) for v in p) for p in points)):
+                    message.header.stamp = Time(nanoseconds=round(ref["timestamp_s"]*1e9)).to_msg()
+                    for x, y in points:
+                        pose = PoseStamped(header=message.header)
+                        pose.pose.position.x, pose.pose.position.y = float(x), float(y)
+                        pose.pose.orientation.w = 1.0
+                        message.poses.append(pose)
+        except Exception as error:
+            message.poses = []
+            self._warn("trajectory_display", f"Trajectory display unavailable: {error}")
+        try:
+            self.trajectory_publisher.publish(message)
+            self._trajectory_last_publish_s = now
+        except Exception as error:
+            self._warn("trajectory_display", f"Trajectory display publication unavailable: {error}")
+
 
     def _control_problem(self, monotonic_now, ros_now_ns):
         """Distance/time budgets and reference expiry need no sensor callback."""
