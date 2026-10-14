@@ -1,0 +1,38 @@
+{
+  "base_commit": "271bfb9360a1fbc1fd83f598c291e575156bf92a",
+  "branch": "fix/newcar-control",
+  "interfaces_commit": "5f50902ccee44e8370d6e2be85607b3054ffbf98",
+  "gate": {
+    "checks": 270,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "portable": 181,
+    "ros_policy": 84,
+    "colcon_entries": 5
+  },
+  "profile": {
+    "road_geometry": "ordered_xy",
+    "target_speed_mps": 0.2,
+    "preview_arc_length_m": 0.35,
+    "mvp_error_filter_tau_s": 0.1,
+    "end_straight_distance_m": 0.0
+  },
+  "deployment": "not run",
+  "physical_tests": "not run",
+  "model_fixture": {
+    "wheelbase_m": 0.33,
+    "steering_limit_rad": 0.7853981633974483,
+    "hairpin_radius_m": 1.0,
+    "maximum_internal_cross_track_error_m": 0.04835490533452091,
+    "limitations": "Ideal bicycle, assumed linear actuator map, perfect speed and pose; not real car calibration or FOV validation."
+  },
+  "files": {
+    "scripts/policy_node.py": "efc979ad1d94be128bfc2779e26456dc2a9db9bfc445c7c9fe8c11e3aeea51df",
+    "config/ai4r_policy.yaml": "45a8b6031c7be2081d3f67441a7474250b6df012ffd41888f5041c6e1a44060c",
+    "package.xml": "d8b3ae10c4dfc938b94c9704866ab288a36670846285dbfb77d16dc58fb367f9",
+    "tests/test_estimation.py": "3fb297e2df66d863ff96af50441eb651b8f5874049a8af7435b093a904a145e9",
+    "tests/test_centerline_follow.py": "f43ad21e2336c95380d08c8db810e6f4f7b5d9ed4b3d8ba647836ec16e22196f",
+    "tests/test_policy_node.py": "77c7c129af20186d25b33543d83a8803c95f6d307c346e19d726a1f9793da5d5"
+  }
+}

@@ -1,6 +1,41 @@
 # AI4R policy acceptance
 
-Current terminal setting: automatic 0.80 m terminal straight on tracked-road
+## Ordered XY / PID bend candidate, 2026-10-14
+
+The local `fix/newcar-control` candidate selects `estimation.road_geometry=ordered_xy`:
+bounded directional cone chains, local normal boundary pairing, ordered
+arc-length centreline samples, and 0.35 m arc-length PID preview with atan2
+headings. The previous y(x) implementation remains selectable. Current-frame
+lateral/heading errors use a 0.10 s low-pass filter; immediate faults and Stop
+clear it. Speed remains 0.2 m/s with the existing PI/feedforward settings.
+Single-boundary width inference is preserved, including disjoint far-side
+return. Its actually observed visible chain can now bridge a short subsequent
+blind gap under the original source/hold/travel deadlines. Predictions do not
+refresh acquisition ages or relearn lane width. The complex-track YAML disables
+automatic terminal straight (`end_straight_distance_m=0.0`); the optional old
+patch remains available.
+
+Pinned Jazzy fast gate passed 270 checks, zero errors/failures/skips:
+181 portable, 84 ROS policy cases and 5 colcon entries. Coverage includes left/
+right U turns, vertical right-angle segments, avoiding a nearer rear-facing
+exit, wheel/gyro alignment, single-side dropout/restoration, recorded Car 15
+dropouts, blind-gap expiry, PID smoothing and immediate zero/Path clear.
+An explicitly labelled ideal bicycle fixture completes both 1 m radius
+hairpins with maximum internal cross-track error about 0.0484 m. This uses an
+assumed 0.33 m wheelbase and +/- pi/4 steering map; neither is physical car
+calibration. Two extra source probes reject unknown-width cold starts and
+swapped overlapping boundaries. The initial ROS cases correctly stopped when
+their 0.11 s fixture update exceeded the default 0.1 s reference; setting the
+fixture to the production 0.2 s lifetime fixed the test setup.
+
+Gate and provenance: `experiments/2026-10-14/evidence/ordered-road/`.
+Candidate deployment, actual corner clearance and physical turn trials: **not run**.
+The pushed gentle-bend baseline is `271bfb9`; the evidence below describes that
+and earlier physical trials, not physical acceptance of the new candidate.
+
+## Archived terminal profile
+
+Archived terminal setting: automatic 0.80 m terminal straight on tracked-road
 `invalid_road_insufficient_geometry`, requested and clarified by the user.
 0.30 m and 1.0 m settings were deployed and physically exercised; both stopped
 on the terminal distance condition with zero/Disabled telemetry confirmed.

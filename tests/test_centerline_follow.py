@@ -587,5 +587,245 @@ class CenterlineFollowChecks(unittest.TestCase):
                 self.assertLess(error, 0.15)
 
 
+class OrderedRoadChecks(unittest.TestCase):
+    def batch(self, left, right):
+        return api["api"]["cones"](left, right)
+
+    def settings(self, **changes):
+        values = dict(road_geometry="ordered_xy", road_min_coverage_m=0.3,
+                      road_forward_max_m=4.0, road_rear_support_m=1.0,
+                      road_width_min_m=0.15, road_width_max_m=2.5,
+                      single_side_from_learned_width=True,
+                      max_source_age_s=1.5, motion_max_gap_s=0.25, motion_max_interval_s=0.5,
+                      history_propagation="continuous", continuous_road_output=True,
+                      road_hold_s=0.8, road_prediction_max_distance_m=0.5)
+        return ns["EstimationSettings"](**{**values, **changes})
+
+    def hairpin(self, turn=1):
+        # Entry, concentric semicircle and a returning leg. Colours describe
+        # travel-side boundaries, including after the heading rotates 180 deg.
+        sides = []
+        for radius in (0.7, 1.3):
+            points = [(-0.6, 1-radius), (-0.3, 1-radius)]
+            points += [(radius*math.cos(-math.pi/2+math.pi*i/24),
+                        1+radius*math.sin(-math.pi/2+math.pi*i/24)) for i in range(25)]
+            points += [(-0.3, 1+radius), (-0.6, 1+radius)]
+            sides.append([(x, turn*y) for x, y in points])
+        return sides if turn == 1 else list(reversed(sides))
+
+    def reference(self, points, **changes):
+        lengths = ns["_path_lengths"](points)
+        count = math.ceil(lengths[-1]/0.1)
+        points = [ns["_path_sample"](points, lengths, lengths[-1]*i/count) for i in range(count+1)]
+        args = list(fixture())
+        args[0].update(centerline_xy=points, geometry_encoding="ordered_xy", **changes)
+        reference, diagnostic = planner().plan(*args, mvp=True)
+        self.assertTrue(reference["valid"], reference["reason"])
+        self.assertEqual(reference["target_speed_mps"], 0.2)
+        return reference, args[1], diagnostic
+
+    def test_unordered_hairpin_keeps_entry_arc_and_return_without_closing_loop(self):
+        import random
+        for turn in (-1, 1):
+            left, right = self.hairpin(turn)
+            random.Random(17).shuffle(left)
+            random.Random(32).shuffle(right)
+            road = ns["EstimationPipeline"](self.settings()).road(self.batch(left, right), 10_000_000_000, 0.0)
+            self.assertTrue(road["valid"], road["status"])
+            self.assertAlmostEqual(road["lane_width_m"], 0.6, delta=0.04)
+            points = road["centerline_xy"]
+            self.assertLess(points[-1][0], -0.3)
+            self.assertAlmostEqual(points[-1][1], turn*2.0, delta=0.04)
+            self.assertTrue(any(b[0] < a[0] for a, b in zip(points, points[1:])))
+            for x, y in points:
+                if x > 0.1:
+                    self.assertAlmostEqual(math.hypot(x, y-turn), 1.0, delta=0.08)
+            for fit in road["_boundary_fits"].values():
+                chain = fit["support_points"]
+                self.assertLess(turn*chain[0][1], 0.5)
+                self.assertGreater(turn*chain[-1][1], 1.5)
+            self.reference(points)
+
+    def test_right_angle_can_contain_vertical_samples_and_preview_around_corner(self):
+        left = [(x, 0.3) for x in (-0.6, -0.3, 0., 0.3, 0.5, 0.7)]
+        left += [(0.7, y) for y in (0.5, 0.7, 0.9, 1.1, 1.3, 1.5)]
+        right = [(x, -0.3) for x in (-0.6, -0.3, 0., 0.3, 0.6, 0.9, 1.1, 1.3)]
+        right += [(1.3, y) for y in (0., 0.3, 0.6, 0.9, 1.2, 1.5)]
+        road = ns["EstimationPipeline"](self.settings()).road(self.batch(left, right), 10_000_000_000, 0.)
+        self.assertTrue(road["valid"], road["status"])
+        self.assertGreater(road["centerline_xy"][-1][1], 1.2)
+        points = [(x-0.85, y) for x, y in road["centerline_xy"]]
+        ref, state, _ = self.reference(points)
+        geometry = ns["control_path_geometry"](ref["path"])
+        self.assertGreater(geometry["preview_y_m"], 0.1)
+        self.assertGreater(geometry["path_heading_rad"], 0.7)
+        self.assertAlmostEqual(geometry["preview_s_m"]-geometry["closest_s_m"], 0.35)
+        controller = ns["PolicyController"](ns["ControlSettings"](
+            mode="mvp", mvp_steering_direction=-1, mvp_lateral_kp=2.5, mvp_heading_kp=1.0))
+        drive, steer, diagnostic = controller.calculate(ref, state, {}, 10., 0.05)
+        self.assertTrue(diagnostic["valid"])
+        self.assertLess(steer, 0.)
+        self.assertGreater(drive, 0.)
+
+    def test_single_side_hairpin_offsets_normally_and_two_sides_return(self):
+        for missing in (0, 1):
+            left, right = self.hairpin()
+            pipeline = ns["EstimationPipeline"](self.settings())
+            both = pipeline._history_road(self.batch(left, right), 10_000_000_000, 0., 10.)
+            partial = [left, right]
+            partial[missing] = []
+            road = pipeline._history_road(self.batch(*partial), 10_100_000_000, 0., 10.1)
+            self.assertTrue(road["valid"], road["status"])
+            self.assertTrue(road["single_side_inferred_from_learned_width"])
+            self.assertAlmostEqual(road["inward_offset_m"], both["lane_width_m"]/2)
+            for x, y in road["centerline_xy"]:
+                if x > 0.1:
+                    self.assertAlmostEqual(math.hypot(x, y-1), 1., delta=0.08)
+            restored = pipeline._history_road(self.batch(left, right), 10_200_000_000, 0., 10.2)
+            self.assertTrue(restored["valid"], restored["status"])
+            self.assertEqual(restored["visibility"], "both")
+
+    def test_recorded_dropout_and_far_return_remain_usable_in_ordered_mode(self):
+        for filename in ("car15_single_side_dropout.json", "car15_disjoint_boundary_return.json"):
+            record = json.loads((Path(__file__).parent/"fixtures"/filename).read_text())
+            pipeline = ns["EstimationPipeline"](ns["EstimationSettings"](**dict(
+                record["estimation_parameters_at_capture"], road_geometry="ordered_xy",
+                single_side_from_learned_width=True)))
+            for i, frame in enumerate(record["frames"]):
+                road = pipeline._history_road({"detections": frame["detections"]},
+                                             10_000_000_000+i*100_000_000, 0., 10+i*0.1)
+                self.assertTrue(road["valid"], (filename, i, road["status"]))
+            self.assertTrue(road["single_side_inferred_from_learned_width"])
+
+    def test_projection_does_not_jump_to_nearer_rear_facing_exit(self):
+        # Exit passes nearer to the origin than the entry. Its tangent faces
+        # backward, so acquiring it would skip the entire U turn.
+        points = [(-0.3, 0.2), (0.6, 0.2), (0.9, 0.5), (0.6, 0.8),
+                  (0.3, 0.05), (-0.3, 0.05)]
+        ref, _, _ = self.reference(points)
+        geometry = ns["control_path_geometry"](ref["path"])
+        self.assertAlmostEqual(geometry["closest_y_m"], 0.2)
+        self.assertLess(geometry["closest_s_m"], 1.)
+
+    def test_delay_alignment_preserves_order_after_x_turns_back(self):
+        pipeline = ns["EstimationPipeline"](self.settings())
+        left, right = self.hairpin()
+        road = pipeline.road(self.batch(left, right), 10_000_000_000, 0.)
+        for stamp in (10., 10.1):
+            pipeline.motion.observe("wheel_speed", 0.2, stamp, stamp, stamp)
+            pipeline.motion.observe("imu_angular_velocity", 0.3, stamp, stamp, stamp)
+        aligned = pipeline._align_road(road, 10.1, True)
+        self.assertTrue(aligned["valid"], aligned["status"])
+        self.assertTrue(aligned["time_aligned"])
+        self.assertEqual(aligned["measurement_timestamp_s"], 10.)
+        self.assertTrue(any(b[0] < a[0] for a, b in zip(aligned["centerline_xy"], aligned["centerline_xy"][1:])))
+
+    def test_pid_completes_left_and_right_hairpins_in_labelled_bicycle_fixture(self):
+        # Explicit OFFLINE model: L=0.33 m, normalized steering maps linearly
+        # to +/- pi/4 wheel angle, perfect speed/pose, no servo/ESC dynamics.
+        # This verifies path progression and feedback, not real-car feasibility.
+        raw = [(-0.6, 0.), (-0.3, 0.)]
+        raw += [(math.cos(-math.pi/2+math.pi*i/80),
+                 1+math.sin(-math.pi/2+math.pi*i/80)) for i in range(81)]
+        raw += [(-0.3, 2.), (-0.6, 2.)]
+        lengths = ns["_path_lengths"](raw)
+        world = [ns["_path_sample"](raw, lengths, lengths[-1]*i/100) for i in range(101)]
+        for turn in (-1, 1):
+            x, y, yaw, errors = -0.4, 0., 0., []
+            controller = ns["PolicyController"](ns["ControlSettings"](
+                mode="mvp", mvp_lateral_kp=2.5, mvp_heading_kp=1.,
+                mvp_steering_direction=-1., steering_max_normalized=1.,
+                mvp_steering_slew_rate_per_s=2., mvp_error_filter_tau_s=0.1))
+            for tick in range(600):
+                now = 10+tick*0.05
+                c, s = math.cos(yaw), math.sin(yaw)
+                body = [(c*(px-x)+s*(turn*py-y), -s*(px-x)+c*(turn*py-y)) for px, py in world]
+                args = list(fixture())
+                args[0].update(centerline_xy=body, geometry_encoding="ordered_xy", timestamp_s=now)
+                args[1].update(timestamp_s=now, speed_mps=0.2)
+                args[4] = now
+                ref, _ = planner().plan(*args, mvp=True)
+                _, steer, diagnostic = controller.calculate(ref, args[1], {}, now, 0.05)
+                self.assertTrue(diagnostic["valid"], diagnostic)
+                self.assertEqual(ref["target_speed_mps"], 0.2)
+                errors.append(abs(diagnostic["path_error_m"]))
+                wheel_angle = -steer*math.pi/4
+                x += 0.01*math.cos(yaw)
+                y += 0.01*math.sin(yaw)
+                yaw += 0.01*math.tan(wheel_angle)/0.33
+                if x < -0.3 and turn*y > 1.8:
+                    break
+            self.assertLess(tick, 599)
+            self.assertGreater(turn*y, 1.8)
+            self.assertAlmostEqual(turn*y, 2., delta=0.12)
+            self.assertLess(max(errors), 0.1)
+
+    def test_error_filter_smooths_source_switch_but_stop_bypasses_filter(self):
+        controller = ns["PolicyController"](ns["ControlSettings"](
+            mode="mvp", mvp_error_filter_tau_s=0.1, mvp_lateral_kp=1.0, mvp_heading_kp=0.0))
+        for y in (0.1, -0.1):
+            ref, state, _ = self.reference([(-0.3, y), (0., y), (0.3, y), (0.6, y)])
+            _, _, diagnostic = controller.calculate(ref, state, {}, 10., 0.05)
+        self.assertAlmostEqual(diagnostic["raw_lateral_error_m"], -0.1)
+        self.assertGreater(diagnostic["control_lateral_error_m"], 0.)
+        ref["stop_requested"] = True
+        self.assertEqual(controller.calculate(ref, state, {}, 10., 0.05)[:2], (0., 0.))
+        self.assertIsNone(controller._mvp_filtered_errors)
+
+    def test_clock_sensor_loss_and_prediction_budget_still_stop_without_terminal_straight(self):
+        for fault in ("both", "wheel_speed", "imu_angular_velocity"):
+            node = CenterlineFollowChecks().learned_width_node(active=False)
+            node.estimation_settings = self.settings()
+            node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)
+            node.control_settings.end_straight_distance_m = 0.
+            api["feed"](node, speed=0.2)
+            api["start"](node)
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+            for _ in range(19):
+                node.test_clock.advance(0.05)
+                api["feed"](node, speed=0.2, empty=True)
+                if fault != "both":
+                    node.observations[fault] = None
+                node.supervision_callback()
+                node.run_policy_step()
+            self.assertEqual(node.fsm_state, 2, node.state_reason)
+            self.assertIsNone(node._end_straight_start_distance_m)
+            self.assertEqual(node.action_publisher.messages[-1].drive, 0.)
+
+    def test_short_blind_gap_after_single_side_keeps_real_source_epoch_then_expires(self):
+        node = CenterlineFollowChecks().learned_width_node(active=False)
+        node.sensor_timeout_s["cone_detections"] = 1.5
+        node.estimation_settings = self.settings()
+        node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)
+        api["feed"](node, center=0.15, speed=0.2)
+        api["start"](node)
+        node.run_policy_step()
+        width_stamp = node.estimator._learned_lane_width_stamp_s
+        node.test_clock.advance(0.05)
+        api["feed"](node, center=0.15, speed=0.2)
+        batch = node.observations["cone_detections"].value
+        batch["detections"] = [p for p in batch["detections"] if p[3] == node.estimation_settings.left_colour]
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertTrue(node.planning_diagnostics["inferred_single_side"])
+        single_stamp = node.test_clock.ros_ns/1e9
+        for tick in range(1, 19):
+            node.test_clock.advance(0.05)
+            api["feed"](node, speed=0.2, empty=True)
+            node.supervision_callback()
+            node.run_policy_step()
+            if tick <= 15:
+                self.assertEqual(node.fsm_state, 3, node.state_reason)
+                road = node.estimation_output["road"]
+                self.assertTrue(road["degraded"])
+                self.assertEqual(road["measurement_timestamp_s"], single_stamp)
+                self.assertEqual(node.estimator._learned_lane_width_stamp_s, width_stamp)
+                self.assertIn("inferred_width", road["boundary_source"].values())
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIsNone(node._end_straight_start_distance_m)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0.)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

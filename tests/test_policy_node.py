@@ -365,6 +365,66 @@ def test_learned_single_boundary_trajectory_reaches_real_ros_subscriber(make_nod
         peer.destroy_node()
 
 
+@pytest.mark.parametrize("turn", [-1, 1])
+def test_ordered_hairpin_pid_and_single_boundary_publish_real_path(make_node, turn):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.drive_max": 0.35,
+           "control.mvp_drive_feedforward": 0.30, "control.mvp_lateral_kp": 2.5,
+           "control.mvp_heading_kp": 1.0, "control.mvp_steering_direction": -1.0,
+           "control.mvp_error_filter_tau_s": 0.1, "control.end_straight_distance_m": 0.0,
+           "planning.algorithm": "road_centerline", "planning.allow_forward_only": True,
+           "planning.reference_lifetime_s": 0.2,
+           "estimation.road_geometry": "ordered_xy", "estimation.road_min_coverage_m": 0.3,
+           "estimation.road_forward_max_m": 4.0, "estimation.road_rear_support_m": 1.0,
+           "estimation.left_colour": 1, "estimation.right_colour": 2,
+           "estimation.single_side_from_learned_width": True,
+           "estimation.road_hold_s": 0.0})
+
+    def feed(only=None, empty=False):
+        node.wheel_speed_callback(Float32(data=0.0))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        for radius in (0.7, 1.3):
+            colour = (1 if radius == 0.7 else 2) if turn == 1 else (2 if radius == 0.7 else 1)
+            if empty or only is not None and colour != only:
+                continue
+            points = [(-0.6, turn*(1-radius)), (-0.3, turn*(1-radius))]
+            points += [(radius*math.cos(-math.pi/2+math.pi*i/24),
+                        turn*(1+radius*math.sin(-math.pi/2+math.pi*i/24))) for i in range(25)]
+            points += [(-0.3, turn*(1+radius)), (-0.6, turn*(1+radius))]
+            for x, y in points:
+                cone = ConeDetection()
+                cone.position.x, cone.position.y = x, y
+                cone.color, cone.classification_confidence = colour, 0.95
+                batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    feed()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3, node.state_reason
+    assert node.planning_output["path"]["type"] == "ORDERED_CENTERLINE"
+    assert node.planning_output["target_speed_mps"] == 0.2
+    assert turn*node.action_publisher.messages[-1].steer < 0
+    points = node.trajectory_publisher.messages[-1].poses
+    assert points and any(b.pose.position.x < a.pose.position.x for a, b in zip(points, points[1:]))
+    node.test_clock.advance(0.11)
+    feed(only=1)
+    node.run_policy_step()
+    assert node.fsm_state == 3, node.state_reason
+    assert node.planning_diagnostics["inferred_single_side"]
+    assert node.trajectory_publisher.messages[-1].poses
+    node.test_clock.advance(0.11)
+    feed(empty=True)
+    node.run_policy_step()
+    assert node.fsm_state == 2
+    assert node._end_straight_start_distance_m is None
+    assert node.trajectory_publisher.messages[-1].poses == []
+    assert node.action_publisher.messages[-1].drive == 0.0
+
+
 def test_end_straight_uses_live_odometry_and_clears_trajectory(make_node):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.mode": "mvp", "control.drive_max": 0.35,
@@ -1279,7 +1339,9 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.control_settings.reference_hold_max_distance_m == 0.25
         assert node.control_settings.max_distance_m == 0.0
         assert node.control_settings.max_run_time_s == 0.0
-        assert node.control_settings.end_straight_distance_m == 0.8
+        assert node.estimation_settings.road_geometry == "ordered_xy"
+        assert node.control_settings.mvp_error_filter_tau_s == 0.10
+        assert node.control_settings.end_straight_distance_m == 0.0
         assert node.control_settings.end_straight_drive_normalized == 0.30
         assert node.control_settings.end_straight_max_time_s == 8.0
         assert node.vehicle_settings.valid is False

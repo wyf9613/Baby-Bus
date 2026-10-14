@@ -201,6 +201,9 @@ class EstimationSettings:
     # A fresh single boundary then defines an inward normal-offset centreline.
     # This is a constant-track-width assumption, not a hold of an old path.
     single_side_from_learned_width: bool = False
+    # Ordered XY curves support vertical and returning road segments. The
+    # legacy y(x) estimator remains selectable for the archived workshop run.
+    road_geometry: str = "y_of_x"
     # Imported mpc-car-run switches (docs/ESTIMATION_V1_CN.md); defaults keep
     # the original behaviour. "continuous" moves the cone history to every
     # policy step with short wheel/gyro intervals, so a camera gap no longer
@@ -231,6 +234,8 @@ class EstimationSettings:
             raise ValueError("estimation.history_propagation must be camera or continuous")
         if self.road_history_mode not in ("time", "distance"):
             raise ValueError("estimation.road_history_mode must be time or distance")
+        if self.road_geometry not in ("y_of_x", "ordered_xy"):
+            raise ValueError("estimation.road_geometry must be y_of_x or ordered_xy")
         if not isinstance(self.history_merge_single_side, bool):
             raise ValueError("estimation.history_merge_single_side must be bool")
         if not isinstance(self.continuous_road_output, bool):
@@ -240,7 +245,7 @@ class EstimationSettings:
         if self.continuous_road_output and self.history_propagation != "continuous":
             raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
-            if name in ("history_propagation", "road_history_mode", "history_merge_single_side",
+            if name in ("history_propagation", "road_history_mode", "road_geometry", "history_merge_single_side",
                         "continuous_road_output", "single_side_from_learned_width"):
                 continue
             if not finite_number(value):
@@ -542,6 +547,123 @@ def _estimation_fit_boundary(points, settings):
             "inlier_fraction": len(inliers)/len(points)}
 
 
+def _path_points(value):
+    """Validate an ordered polyline, without assuming increasing body x."""
+    if not isinstance(value, (list, tuple)) or not 2 <= len(value) <= 201:
+        return None
+    if any(not isinstance(p, (list, tuple)) or len(p) != 2
+           or not all(finite_number(v) for v in p) for p in value):
+        return None
+    points = [tuple(float(v) for v in p) for p in value]
+    if any(math.hypot(b[0]-a[0], b[1]-a[1]) <= 1e-6 for a, b in zip(points, points[1:])):
+        return None
+    return points
+
+
+def _path_lengths(points):
+    lengths = [0.0]
+    for a, b in zip(points, points[1:]):
+        lengths.append(lengths[-1]+math.hypot(b[0]-a[0], b[1]-a[1]))
+    return lengths
+
+
+def _path_sample(points, lengths, distance):
+    distance = min(lengths[-1], max(0.0, distance))
+    for i, (a, b) in enumerate(zip(points, points[1:])):
+        if distance <= lengths[i+1]+1e-9:
+            u = (distance-lengths[i])/(lengths[i+1]-lengths[i])
+            return (a[0]+u*(b[0]-a[0]), a[1]+u*(b[1]-a[1]))
+    return points[-1]
+
+
+def _path_tangent(points, lengths, distance, window=0.15):
+    a = _path_sample(points, lengths, distance-window)
+    b = _path_sample(points, lengths, distance+window)
+    norm = math.hypot(b[0]-a[0], b[1]-a[1])
+    return ((b[0]-a[0])/norm, (b[1]-a[1])/norm)
+
+
+def _path_project(points, lengths, query=(0.0, 0.0), forward=True):
+    """Project onto the local travel branch; a returning leg is not a shortcut.
+
+    Forward motion cannot acquire a rear-facing segment on a cold start. The
+    branch is selected in the current body frame on every tick, so a completed
+    U turn naturally presents its exit as forward-facing. At ties prefer the
+    earlier path segment. No global Euclidean reordering is performed.
+    """
+    best = None
+    for i, (a, b) in enumerate(zip(points, points[1:])):
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        length = lengths[i+1]-lengths[i]
+        if forward and dx/length < -0.25:
+            continue
+        u = min(1.0, max(0.0, ((query[0]-a[0])*dx+(query[1]-a[1])*dy)/length**2))
+        point = (a[0]+u*dx, a[1]+u*dy)
+        cost = (point[0]-query[0])**2+(point[1]-query[1])**2
+        candidate = (cost, lengths[i]+u*length, point, i, u)
+        if best is None or cost < best[0]-1e-9:
+            best = candidate
+    return best
+
+
+def _estimation_order_boundary(points, settings):
+    """Bounded local nearest-neighbour chain with direction continuity.
+
+    Confidence filters run before this function. Near duplicates are removed;
+    growth never bridges a gap larger than road_max_gap_m, or makes an abrupt
+    reverse. A sparse/ambiguous cone layout is not a complete track map.
+    """
+    unique = []
+    for p in sorted(points, key=lambda p: (-p[2], p[0], p[1])):
+        if not any(math.hypot(p[0]-q[0], p[1]-q[1]) < 0.03 for q in unique):
+            unique.append(p)
+    unique = sorted(unique, key=lambda p: (p[0]**2+p[1]**2, p[0], p[1]))[:64]
+    if len(unique) < 2:
+        return None
+    nearest_spacings = [min(math.hypot(p[0]-q[0], p[1]-q[1])
+                            for j, q in enumerate(unique) if j != i)
+                        for i, p in enumerate(unique)]
+    # Do not close a hairpin by jumping across its open end after ordinary
+    # adjacent cones run out. The absolute configured gap remains an upper
+    # bound, with a local spacing bound for densely populated tracks.
+    chain_gap = min(settings.road_max_gap_m,
+                    max(3*settings.road_sample_spacing_m, 3*_estimation_median(nearest_spacings)))
+    used = {0}
+
+    def grow(direction):
+        chain, current = [], unique[0]
+        while len(used) < len(unique):
+            choices = []
+            for i, p in enumerate(unique):
+                if i in used:
+                    continue
+                dx, dy = p[0]-current[0], p[1]-current[1]
+                distance = math.hypot(dx, dy)
+                cosine = (dx*direction[0]+dy*direction[1])/distance
+                if distance <= chain_gap+1e-9 and cosine >= -0.25:
+                    choices.append((distance*(1+0.5*(1-cosine)), distance, i, dx, dy))
+            if not choices:
+                break
+            _, distance, i, dx, dy = min(choices)
+            used.add(i)
+            current = unique[i]
+            chain.append(current)
+            direction = (dx/distance, dy/distance)
+        return chain
+
+    ahead = grow((1.0, 0.0))
+    behind = grow((-1.0, 0.0))
+    chain = list(reversed(behind))+[unique[0]]+ahead
+    if len(chain) < 2:
+        return None
+    lengths = _path_lengths(chain)
+    if lengths[-1] < settings.road_min_coverage_m:
+        return None
+    return {"support_points": chain, "range": (0.0, lengths[-1]),
+            "lengths": lengths, "rms_m": None,
+            "inlier_fraction": len(chain)/len(unique), "encoding": "ordered_xy"}
+
+
 class EstimationPipeline:
     """Local geometry aligned to the state epoch with bounded planar odometry.
 
@@ -656,6 +778,13 @@ class EstimationPipeline:
         Actual contradictions within overlapping measured support still clear
         history; no comparison or extension is made outside the observed span.
         """
+        if fit.get("encoding") == "ordered_xy":
+            points = [p[:2] for p in fit["support_points"]]
+            projection = _path_project(points, _path_lengths(points), (x, y), forward=False)
+            _, _, _, i, u = projection
+            if (i == 0 and u == 0) or (i == len(points)-2 and u == 1):
+                return False  # Beyond observed endpoints is not a contradiction.
+            return math.sqrt(projection[0]) > tolerance
         if not fit["range"][0] <= x <= fit["range"][1]:
             return False
         points = fit["support_points"]
@@ -718,7 +847,17 @@ class EstimationPipeline:
             # Old opposite-side cones must not veto or distort that trajectory.
             # Width remains fixed until both boundaries are observed again;
             # current camera and wheel/gyro deadlines still govern every step.
-            self._clear_road_history(keep_learned_width=True)
+            if self.settings.road_geometry == "ordered_xy":
+                # Retain only the actually observed visible chain for a
+                # bounded camera dropout. Do not fabricate opposite cones.
+                self._road_cones = [(x, y, 0.0, colour, confidence, source_s)
+                    for colour, fit in current["_boundary_fits"].items()
+                    if (colour == self.left_colour) == (current["visibility"] == "left_only")
+                    for x, y, confidence in fit["support_points"]]
+                self._road_stamp = self._fused_source_s = source_s
+                self._road_frame = deepcopy(current)
+            else:
+                self._clear_road_history(keep_learned_width=True)
             return current
         if not current["valid"] or current["visibility"] != "both":
             if current["status"] not in self.QUALITY_FAILURES:
@@ -867,6 +1006,10 @@ class EstimationPipeline:
         predicted = self.road({"detections": [p[:5] for p in placed]}, round(now_s*1e9), 0.0)
         predicted.update(timestamp_s=now_s, history_used=True, oldest_observation_timestamp_s=oldest)
         predicted = self._align_road(predicted, now_s, True)
+        if (self.settings.road_geometry == "ordered_xy" and not predicted["valid"]
+                and (predicted.get("forward_geometry") or {}).get("single_side_inferred_from_learned_width")):
+            predicted = predicted["forward_geometry"]
+            predicted["valid"] = True
         if not predicted["valid"]:
             return None, predicted["status"]
         # The fit above is in today's body frame; it is not a new camera sample.
@@ -882,7 +1025,8 @@ class EstimationPipeline:
                          prediction_remaining_distance_m=distance_left,
                          recommended_speed_scale=0.5,
                          confidence=0.5*predicted["confidence"],
-                         boundary_source={"left": "predicted_history", "right": "predicted_history"})
+                         boundary_source={side: "predicted_history" if predicted.get(side+"_boundary_xy")
+                                          else "inferred_width" for side in ("left", "right")})
         return predicted, "active"
 
     def _fresh(self, value, age):
@@ -914,6 +1058,8 @@ class EstimationPipeline:
                     and self.settings.min_cone_confidence <= confidence <= 1.0
                     and confidence > 0 and colour in sides):
                 sides[colour].append((x, y, confidence))
+        if self.settings.road_geometry == "ordered_xy":
+            return self._ordered_road(output, sides)
         left = _estimation_fit_boundary(sides[self.left_colour], self.settings)
         right = _estimation_fit_boundary(sides[self.right_colour], self.settings)
         output["_boundary_fits"] = {colour: fit for colour, fit in
@@ -1026,6 +1172,136 @@ class EstimationPipeline:
         # centreline's curvature. None is honest until that derivation is added.
         return output
 
+    def _ordered_road(self, output, sides):
+        """Normal-paired, ordered local boundary chains and single-side offsets.
+
+        Pairing follows the opposite chain's travel order and requires agreeing
+        tangents. It never pairs a U-turn entry to its rear-facing exit. Samples
+        are restricted to measured support; no endpoint tangent extension.
+        """
+        cfg = self.settings
+        fits = {name: _estimation_order_boundary(sides[colour], cfg)
+                for name, colour in (("left", self.left_colour), ("right", self.right_colour))}
+        output["geometry_encoding"] = "ordered_xy"
+        output["_boundary_fits"] = {}
+        for name, colour in (("left", self.left_colour), ("right", self.right_colour)):
+            fit = fits[name]
+            diag = output["boundary_diagnostics"][name]
+            diag.update(filtered_count=len(sides[colour]), fit_valid=fit is not None,
+                        fit_status="accepted" if fit else "insufficient_chain_support")
+            if fit:
+                diag.update(inlier_count=len(fit["support_points"]),
+                            arc_length_m=fit["lengths"][-1])
+                output["_boundary_fits"][colour] = fit
+        output["status"] = "insufficient_geometry"
+        if not any(fits.values()):
+            return output
+        near = lambda name: min(p[0]**2+p[1]**2 for p in fits[name]["support_points"])
+        side = min((name for name in fits if fits[name]), key=near)
+        fit, other = fits[side], fits["right" if side == "left" else "left"]
+        boundary = [p[:2] for p in fit["support_points"]]
+        total = min(fit["lengths"][-1], cfg.road_forward_max_m+cfg.road_rear_support_m)
+        count = min(200, math.ceil(total/cfg.road_sample_spacing_m))
+        candidates, runs, current, previous_other_s = [], [], [], -1.0
+        pairing_conflict = False
+        for i in range(count+1):
+            distance = total*i/count
+            p = _path_sample(boundary, fit["lengths"], distance)
+            tx, ty = _path_tangent(boundary, fit["lengths"], distance)
+            nx, ny = (ty, -tx) if side == "left" else (-ty, tx)
+            matches = []
+            if other:
+                for j, (a, b) in enumerate(zip(other["support_points"], other["support_points"][1:])):
+                    dx, dy = b[0]-a[0], b[1]-a[1]
+                    length = other["lengths"][j+1]-other["lengths"][j]
+                    if (tx*dx+ty*dy)/length < 0.3:
+                        continue
+                    denominator = nx*dy-ny*dx
+                    if abs(denominator) < 1e-9:
+                        continue
+                    ax, ay = a[0]-p[0], a[1]-p[1]
+                    width = (ax*dy-ay*dx)/denominator
+                    u = (ax*ny-ay*nx)/denominator
+                    if -1e-6 <= u <= 1+1e-6 and not cfg.road_width_min_m <= width <= cfg.road_width_max_m:
+                        pairing_conflict = True
+                    other_s = other["lengths"][j]+min(1.0, max(0.0, u))*length
+                    if (cfg.road_width_min_m <= width <= cfg.road_width_max_m
+                            and -1e-6 <= u <= 1+1e-6 and other_s >= previous_other_s-0.03):
+                        # Prefer the expected width once measured, otherwise
+                        # the first inward boundary crossing on this branch.
+                        expected = self._learned_lane_width_m
+                        score = abs(width-expected) if expected is not None else width
+                        matches.append((score, width, other_s))
+            if matches:
+                _, width, previous_other_s = min(matches)
+                current.append(((p[0]+nx*width/2, p[1]+ny*width/2), width))
+            elif current:
+                runs.append(current)
+                current = []
+            candidates.append((p, nx, ny))
+        if current:
+            runs.append(current)
+        runs = [run for run in runs if len(run) >= 2
+                and _path_lengths([p for p, _ in run])[-1] >= cfg.road_min_coverage_m]
+        inferred = not runs
+        if not inferred:
+            # Prefer the nearest usable contiguous corridor over a longer far
+            # branch; discarded gaps never become implicit connecting lines.
+            run = min(runs, key=lambda r: min(p[0]**2+p[1]**2 for p, _ in r))
+            center = [p for p, _ in run]
+            width = _estimation_median([w for _, w in run])
+        else:
+            width = (self._learned_lane_width_m if cfg.single_side_from_learned_width
+                     else None) or cfg.known_lane_width_m
+            output["visibility"] = side+"_only"
+            if width == 0:
+                output["status"] = "single_side_width_unknown" if other is None else "insufficient_common_range"
+                return output
+            # A visible but contradictory opposite chain must not be hidden by
+            # a width fallback. Missing/too-short chains are handled normally.
+            if other is not None and pairing_conflict:
+                output["status"] = "invalid_boundary_pairing"
+                return output
+            if other is not None:
+                output["single_side_fallback_reason"] = "insufficient_common_range"
+            center = [(p[0]+nx*width/2, p[1]+ny*width/2) for p, nx, ny in candidates]
+        # One corner-cutting pass removes polyline heading steps. Bound each
+        # displacement by the local half-width, retaining measured endpoints.
+        # This is geometric smoothing, not a calibrated turning-radius planner.
+        smooth = [center[0]]
+        for a, p, b in zip(center, center[1:], center[2:]):
+            q = ((a[0]+2*p[0]+b[0])/4, (a[1]+2*p[1]+b[1])/4)
+            smooth.append(q if math.hypot(q[0]-p[0], q[1]-p[1]) <= width/8 else p)
+        smooth.append(center[-1])
+        if _path_points(smooth) is None or _path_lengths(smooth)[-1] < cfg.road_min_coverage_m:
+            output["status"] = "invalid_ordered_geometry"
+            return output
+        # Normal offsets change arc length, especially on an inner boundary.
+        # Resample the resulting centreline by its OWN length for consumers.
+        center_lengths = _path_lengths(smooth)
+        count = min(200, math.ceil(center_lengths[-1]/cfg.road_sample_spacing_m))
+        smooth = [_path_sample(smooth, center_lengths, center_lengths[-1]*i/count) for i in range(count+1)]
+        output.update(valid=True, centerline_xy=smooth, lane_width_m=width,
+                      x_range_m=[min(p[0] for p in smooth), max(p[0] for p in smooth)],
+                      arc_length_m=_path_lengths(smooth)[-1], local_curvature_1pm=None,
+                      visibility=side+"_only" if inferred else "both",
+                      status="single_side_inferred" if inferred else "observed",
+                      confidence=min(f["inlier_fraction"] for f in fits.values() if f)*(0.5 if inferred else 1.0),
+                      centerline_source=side+"_boundary_inward_offset" if inferred else "two_boundaries")
+        supported = []
+        for name, colour in (("left", self.left_colour), ("right", self.right_colour)):
+            f = fits[name]
+            output[name+"_boundary_xy"] = [p[:2] for p in f["support_points"]] if f else None
+            output["boundary_source"][name] = "observed" if f else "absent"
+            if f:
+                supported.extend((x, y, 0.0, colour, confidence) for x, y, confidence in f["support_points"])
+        output["_support_cones"] = supported
+        if inferred and self._learned_lane_width_m is not None:
+            output.update(single_side_inferred_from_learned_width=True,
+                          lane_width_source="last_two_sided_observation",
+                          inward_offset_m=width/2, lane_width_observed_at_s=self._learned_lane_width_stamp_s)
+        return output
+
     def _align_road(self, road, now_s, state_valid):
         center_coeffs = road.pop("_center_coeffs", None)
         road.pop("_boundary_fits", None)
@@ -1039,6 +1315,8 @@ class EstimationPipeline:
                     time_aligned=False, motion_compensation=None)
         if not road["valid"]:
             return road
+        if road.get("geometry_encoding") == "ordered_xy":
+            return self._align_ordered_road(road, source_time, now_s, state_valid)
         pose, problem = self.motion.pose_between(source_time, now_s)
         if not state_valid:
             problem = "motion_state_unavailable"
@@ -1108,6 +1386,61 @@ class EstimationPipeline:
                         centerline_xy=[], left_boundary_xy=None, right_boundary_xy=None,
                         lane_width_m=None, x_range_m=None, local_curvature_1pm=None,
                         confidence=0.0, motion_compensation=None)
+        return road
+
+    def _align_ordered_road(self, road, source_time, now_s, state_valid):
+        pose, problem = self.motion.pose_between(source_time, now_s)
+        if not state_valid:
+            problem = "motion_state_unavailable"
+        if problem is None:
+            center = [self.motion.transform_xy(p, pose) for p in road["centerline_xy"]]
+            points = _path_points(center)
+            if points is None:
+                problem = "motion_transformed_geometry_invalid"
+            else:
+                lengths = _path_lengths(points)
+                projection = _path_project(points, lengths)
+                if projection is None:
+                    problem = "ordered_branch_unavailable"
+                else:
+                    # Keep one contiguous local arc around this branch. Body
+                    # x may turn back; clipping/sorting by x would break U turns.
+                    near_s = projection[1]
+                    lo = max(0.0, near_s-self.settings.road_rear_support_m)
+                    hi = min(lengths[-1], near_s+self.settings.road_forward_max_m)
+                    center = [_path_sample(points, lengths, lo)]
+                    center.extend(p for p, s in zip(points, lengths) if lo+1e-6 < s < hi-1e-6)
+                    center.append(_path_sample(points, lengths, hi))
+                    if hi-lo < self.settings.road_min_coverage_m or _path_points(center) is None:
+                        problem = "motion_transformed_geometry_invalid"
+                    else:
+                        road.update(centerline_xy=center, arc_length_m=_path_lengths(center)[-1],
+                                    x_range_m=[min(p[0] for p in center), max(p[0] for p in center)],
+                                    timestamp_s=now_s, time_aligned=True, geometry_valid=True,
+                                    motion_compensated=pose["interval_s"] > 0, motion_compensation=pose)
+                        for side in ("left", "right"):
+                            key = side+"_boundary_xy"
+                            if road[key] is not None:
+                                road[key] = [self.motion.transform_xy(p, pose) for p in road[key]]
+                        road["near_field"].update(coverage_s_m=[lo-near_s, hi-near_s],
+                            oldest_observation_age_s=now_s-road.get("oldest_observation_timestamp_s", source_time))
+                        if road.get("single_side_inferred_from_learned_width"):
+                            problem = "near_field_requires_both_boundaries"
+                        elif near_s <= 1e-6 or near_s >= lengths[-1]-1e-6:
+                            problem = "near_field_unobserved"
+                        elif road["near_field"]["oldest_observation_age_s"] > self.settings.history_lifetime_s:
+                            problem = "near_field_history_expired"
+                        else:
+                            road["near_field"].update(valid=True, status="observed_support")
+        if problem is not None:
+            if road["geometry_valid"] and problem in ("near_field_unobserved", "near_field_requires_both_boundaries"):
+                forward = deepcopy(road)
+                forward.update(valid=False, status=problem)
+                road["forward_geometry"] = forward
+            road["near_field"]["status"] = problem
+            road.update(valid=False, status=problem, timestamp_s=None, time_aligned=False,
+                        centerline_xy=[], left_boundary_xy=None, right_boundary_xy=None,
+                        lane_width_m=None, x_range_m=None, arc_length_m=None, confidence=0.0)
         return road
 
     def update(self, observations, ages, stamps, sample_receipts, now_s,
@@ -1184,7 +1517,9 @@ class EstimationPipeline:
                         left_boundary_xy=None, right_boundary_xy=None, lane_width_m=None,
                         x_range_m=None, local_curvature_1pm=None, confidence=0.0)
             failure = road["status"]
-        trusted_candidate = (deepcopy(road) if road["valid"] and road["visibility"] == "both" else None)
+        trusted_candidate = (deepcopy(road) if road["valid"] and
+            (road["visibility"] == "both" or self.settings.road_geometry == "ordered_xy"
+             and road.get("single_side_inferred_from_learned_width")) else None)
         road = self._align_road(road, now_s, state["valid"])
         road.update(current_frame=current_frame, degraded=False, prediction_status="not_used",
                     prediction_elapsed_s=None, prediction_age_s=None,
@@ -1201,9 +1536,17 @@ class EstimationPipeline:
             self._failure_since_s = None
         elif (road.get("forward_geometry") or {}).get("single_side_inferred_from_learned_width"):
             # Fresh one-sided geometry is a new observation each frame, not
-            # a dead-reckoned hold. Preserve its width memory without starting
-            # or extending a trusted two-boundary prediction.
+            # a dead-reckoned hold. Legacy y(x) only preserves width here;
+            # ordered XY also retains the visible chain for bounded prediction.
             road["prediction_status"] = "fresh_single_side_geometry"
+            if self.settings.road_geometry == "ordered_xy" and trusted_candidate is not None:
+                forward = road["forward_geometry"]
+                if self._trusted_road is None or trusted_candidate["timestamp_s"] != self._trusted_road["timestamp_s"]:
+                    self._prediction_motion_stamp = now_s
+                    self._prediction_distance_m = forward["motion_compensation"]["travelled_distance_m"]
+                    self._prediction_pose = deepcopy(forward["motion_compensation"])
+                    self._prediction_expired_source_s = None
+                self._trusted_road, self._failure_since_s = trusted_candidate, None
         elif state["valid"] and (failure in self.QUALITY_FAILURES or
                 (self.settings.continuous_road_output and road["status"] in
                  self.CAMERA_GAP_FAILURES + ("camera_frame_not_advanced",))):
@@ -1361,7 +1704,8 @@ def planning_vehicle_limits(upstream, settings):
 def evaluate_planning_path(reference, x_m, now_s):
     """Shared V1 consumer evaluator. Invalid/expired/out-of-range means None.
 
-    Reusing this geometry in a later body frame additionally needs motion
+    For ORDERED_CENTERLINE the coordinate argument is arc length s (metres);
+    legacy encodings keep body x. Reusing geometry in a later frame needs motion
     alignment; checking its deadline alone does not perform that alignment.
     """
     if not isinstance(reference, dict) or not reference.get("valid"):
@@ -1371,6 +1715,17 @@ def evaluate_planning_path(reference, x_m, now_s):
             or lifetime <= 0 or not stamp <= now_s < stamp+lifetime):
         return None
     path = reference.get("path") or {}
+    if path.get("type") == "ORDERED_CENTERLINE":
+        points = _path_points(path.get("samples_xy"))
+        if points is None or path.get("independent_variable") != "s_m":
+            return None
+        lengths = _path_lengths(points)
+        if not 0 <= x_m <= lengths[-1]:
+            return None
+        position = _path_sample(points, lengths, x_m)
+        tangent = _path_tangent(points, lengths, x_m)
+        return {"position_xy_m": position, "heading_rad": math.atan2(tangent[1], tangent[0]),
+                "curvature_1pm": None}
     if path.get("type") == "CARTESIAN_CENTERLINE":
         points = CenterlinePlanner._points(path.get("samples_xy"))
         if points is None or not points[0][0] <= x_m <= points[-1][0]:
@@ -1726,22 +2081,32 @@ class RoadCenterlinePlanner:
             if not finite_number(remaining) or remaining <= 0:
                 return fail("expired_road_prediction")
             deadlines.append(remaining)
-        points = CenterlinePlanner._points(road.get("centerline_xy"))
-        if points is None or points[-1][0] <= 0:
+        ordered = road.get("geometry_encoding") == "ordered_xy"
+        points = (_path_points if ordered else CenterlinePlanner._points)(road.get("centerline_xy"))
+        if points is None or (not ordered and points[-1][0] <= 0):
             return fail("invalid_centerline_samples")
-        if any(b[0]-a[0] > cfg.max_sample_gap_m+1e-8 for a, b in zip(points, points[1:])):
+        if any((math.hypot(b[0]-a[0], b[1]-a[1]) if ordered else b[0]-a[0])
+               > cfg.max_sample_gap_m+1e-8 for a, b in zip(points, points[1:])):
             return fail("centerline_sample_gap")
         # No offset/heading/curvature rejection: the feedback controller pulls
         # the car toward the observed centerline instead of planning a return.
         path = {"type": "CARTESIAN_CENTERLINE", "independent_variable": "x_m",
                 "samples_xy": points, "range": [points[0][0], points[-1][0]],
                 "preview_m": cfg.preview_m}
+        if ordered:
+            lengths = _path_lengths(points)
+            if _path_project(points, lengths) is None:
+                return fail("ordered_branch_unavailable")
+            path.update(type="ORDERED_CENTERLINE", independent_variable="s_m",
+                        range=[0.0, lengths[-1]])
         # Explicit constant-speed policy, including valid predicted roads.
         # Do not consume their speed advisory; retain original prediction expiry.
         ref.update(valid=True, status="TRACK", reason="road_centerline_available",
                    valid_for_s=min(deadlines), path=path, target_speed_mps=cfg.cruise_speed_mps,
                    stop_requested=False, stop_reason=None, operating_profile="mvp_centerline_follow")
-        diag.update(reason=ref["reason"], point_count=len(points), x_range_m=list(path["range"]),
+        diag.update(reason=ref["reason"], point_count=len(points),
+                    x_range_m=[min(p[0] for p in points), max(p[0] for p in points)],
+                    path_encoding=path["type"], path_length_m=path["range"][1] if ordered else None,
                     inferred_single_side=inferred_single_side,
                     boundary_visibility=road.get("visibility"),
                     centerline_source=road.get("centerline_source", "two_boundaries"),
@@ -1799,6 +2164,9 @@ class ControlSettings:
     # Measured normalized effort needed to sustain the selected crawl speed.
     # Optional and zero by default; stop/invalid paths bypass this compensation.
     mvp_drive_feedforward: float = 0.0
+    # Low-pass only current-frame PID errors at boundary-source transitions.
+    # Zero keeps legacy feedback; invalid input/operator stop bypasses it.
+    mvp_error_filter_tau_s: float = 0.0
     # Control-only recovery from transient road failures; legacy code defaults
     # stay off. Shipped MVP YAML enables it. These are experiment budgets.
     robustness_enabled: bool = False
@@ -1824,7 +2192,7 @@ class ControlSettings:
                      "end_straight_max_time_s"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
-        for name in ("max_distance_m", "max_run_time_s", "end_straight_distance_m"):
+        for name in ("max_distance_m", "max_run_time_s", "end_straight_distance_m", "mvp_error_filter_tau_s"):
             if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"control.{name} must be finite and nonnegative (0 disables)")
         if (not finite_number(self.mvp_steering_slew_rate_per_s)
@@ -2069,6 +2437,41 @@ def _control_centerline_geometry(path):
     return result
 
 
+def _control_ordered_geometry(path):
+    points = _path_points(path.get("samples_xy"))
+    preview = path.get("preview_m")
+    if points is None or path.get("independent_variable") != "s_m" or not finite_number(preview) or preview <= 0:
+        raise ValueError("invalid_ordered_path")
+    lengths = _path_lengths(points)
+    bounds = path.get("range")
+    if (not isinstance(bounds, (tuple, list)) or len(bounds) != 2
+            or not all(finite_number(v) for v in bounds)
+            or bounds[0] != 0 or abs(bounds[1]-lengths[-1]) > 1e-6):
+        raise ValueError("invalid_ordered_path_range")
+    nearest = _path_project(points, lengths)
+    if nearest is None:
+        raise ValueError("ordered_branch_unavailable")
+    _, distance, (x, y), index, u = nearest
+    target_s = min(lengths[-1], distance+preview)
+    target = _path_sample(points, lengths, target_s)
+    tx, ty = _path_tangent(points, lengths, distance)
+    hx, hy = _path_tangent(points, lengths, target_s)
+    # Signed local-normal error and an arc-length preview tangent still drive
+    # the existing PI + heading P. No pure-pursuit curvature law is used.
+    before = max(0.0, target_s-0.15)
+    after = min(lengths[-1], target_s+0.15)
+    a = _path_tangent(points, lengths, before)
+    b = _path_tangent(points, lengths, after)
+    curvature = wrap_angle(math.atan2(b[1], b[0])-math.atan2(a[1], a[0]))/(after-before)
+    return {"path_error_m": -x*ty+y*tx, "path_heading_rad": math.atan2(hy, hx),
+            "curvature_1pm": curvature, "closest_x_m": x, "closest_y_m": y,
+            "closest_s_m": distance, "preview_s_m": target_s,
+            "preview_x_m": target[0], "preview_y_m": target[1],
+            "closest_at_range_end": index == 0 and u == 0 or index == len(points)-2 and u == 1,
+            "forward_target_only": index == 0 and u == 0 and x*tx+y*ty > 1e-6,
+            "path_encoding": "ORDERED_CENTERLINE"}
+
+
 def control_path_geometry(path):
     """Bounded closest observed point for y(x), up to fifth degree.
 
@@ -2078,6 +2481,8 @@ def control_path_geometry(path):
     """
     if isinstance(path, dict) and path.get("type") == "CARTESIAN_CENTERLINE":
         return _control_centerline_geometry(path)
+    if isinstance(path, dict) and path.get("type") == "ORDERED_CENTERLINE":
+        return _control_ordered_geometry(path)
     if (not isinstance(path, dict) or path.get("type") != "CARTESIAN_Y_OF_X"
             or path.get("independent_variable") != "x_m"):
         raise ValueError("unsupported_path_encoding")
@@ -2256,6 +2661,7 @@ class PolicyController:
         self.lateral = ControlPID(cfg.lateral_kp, cfg.lateral_ki, cfg.lateral_kd, cfg.derivative_tau_s)
         self.mvp_lateral = ControlPID(cfg.mvp_lateral_kp, cfg.mvp_lateral_ki, 0.0, cfg.derivative_tau_s)
         self._mvp_previous_steer = 0.0
+        self._mvp_filtered_errors = None
 
     def calculate(self, reference, state, vehicle_params, now_s, dt):
         try:
@@ -2291,8 +2697,9 @@ class PolicyController:
                 heading = geometry["path_heading_rad"]
                 lateral_error = geometry["path_error_m"]
                 error_basis = "nearest_segment_normal"
-                if (geometry.get("path_encoding") == "CARTESIAN_CENTERLINE"
-                        and reference["path"]["range"][0] > 1e-9):
+                if ((geometry.get("path_encoding") == "CARTESIAN_CENTERLINE"
+                        and reference["path"]["range"][0] > 1e-9)
+                        or geometry.get("forward_target_only")):
                     # The curve does not observe the vehicle origin. Projecting
                     # a distant bend's tangent back to the car manufactures a
                     # local cross-track error (seen as a 0.41 m jump on car 15).
@@ -2301,6 +2708,13 @@ class PolicyController:
                     lateral_error = geometry["preview_y_m"]
                     heading = math.atan2(geometry["preview_y_m"], geometry["preview_x_m"])
                     error_basis = "observed_forward_target"
+                raw_errors = (lateral_error, heading)
+                if cfg.mvp_error_filter_tau_s > 0 and self._mvp_filtered_errors is not None:
+                    weight = dt/(cfg.mvp_error_filter_tau_s+dt)
+                    old_lateral, old_heading = self._mvp_filtered_errors
+                    lateral_error = old_lateral+weight*(lateral_error-old_lateral)
+                    heading = wrap_angle(old_heading+weight*wrap_angle(heading-old_heading))
+                self._mvp_filtered_errors = (lateral_error, heading)
                 # Direct normalized PI + heading P, no degree-to-servo map or
                 # curvature feedforward borrowed from the bicycle simulation.
                 steer = self.mvp_lateral.update(lateral_error, -lateral_error, dt,
@@ -2318,6 +2732,7 @@ class PolicyController:
                 return drive, output_steer, {
                     **geometry, "valid": True, "stop_requested": False, "reason": "mvp_tracking",
                     "control_lateral_error_m": lateral_error, "error_basis": error_basis,
+                    "raw_lateral_error_m": raw_errors[0], "raw_heading_error_rad": raw_errors[1],
                     "steer_before_slew": requested_steer,
                     "steer_slew_limited": output_steer != requested_steer,
                     "heading_error_rad": heading, "speed_error_mps": target-speed,
@@ -2445,6 +2860,9 @@ class PolicyNode(Node):
                 values[name] = self.get_parameter(parameter_name).value
             setattr(self, f"{prefix}_settings", settings_type(**values))
         if self.control_settings.enabled:
+            if (self.estimation_settings.road_geometry == "ordered_xy"
+                    and self.planning_settings.algorithm != "road_centerline"):
+                raise ValueError("Ordered XY geometry requires planning.algorithm=road_centerline")
             if (self.control_settings.end_straight_distance_m > 0
                     and self.planning_settings.algorithm != "road_centerline"):
                 raise ValueError("End straight requires planning.algorithm=road_centerline")
@@ -3367,6 +3785,10 @@ class PolicyNode(Node):
                     "control_lateral_error_m": info.get("control_lateral_error_m", info["path_error_m"]),
                     "heading_error_rad": info["heading_error_rad"],
                     "error_basis": info.get("error_basis", "calibrated"),
+                    "path_encoding": info.get("path_encoding"),
+                    "closest_s_m": info.get("closest_s_m"),
+                    "preview_s_m": info.get("preview_s_m"),
+                    "raw_heading_error_rad": info.get("raw_heading_error_rad"),
                     "preview_xy_m": [info.get("preview_x_m"), info.get("preview_y_m")],
                     "steer_requested": steering_action,
                     "steer_before_slew": info.get("steer_before_slew", steering_action),
@@ -3514,7 +3936,7 @@ class PolicyNode(Node):
                     and ref.get("valid") is True and ref.get("frame_id") == self.policy_frame_id
                     and ref["timestamp_s"] <= ros_now_ns/1e9 < ref["timestamp_s"]+ref["valid_for_s"]):
                 path = ref["path"]
-                if path.get("type") == "CARTESIAN_CENTERLINE":
+                if path.get("type") in ("CARTESIAN_CENTERLINE", "ORDERED_CENTERLINE"):
                     points = path["samples_xy"]
                 else:
                     cached = ref.get("control_cached_path_samples")
