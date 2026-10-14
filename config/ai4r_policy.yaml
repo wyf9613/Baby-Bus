@@ -146,7 +146,10 @@
       # Align geometry using bounded wheel/gyro history on the ROS clock.
       # Forward no-slip planar model; wheel time is receipt, NOT acquisition.
       # Missing/old motion or a gap rejects geometry instead of retimestamping.
-      motion_max_gap_s: 0.25
+      # Match wheel/gyro source deadlines above: a 250-500 ms transport pause
+      # must not fail only the inner motion cache while source health passes.
+      # Missing/future/nonfinite feedback and >=0.5 s source age still stop.
+      motion_max_gap_s: 0.5
       motion_max_interval_s: 0.5
       # Imported mpc-car-run estimation fixes; advance history on each policy
       # step and fuse validated partial frames with real two-sided history.
@@ -202,6 +205,9 @@
       road_max_abs_slope: 2.0
       # Learn near-field perpendicular width from the latest 5 distinct
       # dual-side camera frames; current single-side fits may use that width.
+      # Also try a reliable single fit when dual common support/width fails.
+      # Keep both actual fits as collision constraints. Validate centreline
+      # and inferred boundary separately; use only their common valid range.
       single_side_width_memory_enabled: true
       width_memory_max_age_s: 30.0
       # Smooth both->single, single->both and left->right transitions in the
@@ -221,8 +227,9 @@
     planning:
       algorithm: lattice_v2
       cruise_speed_mps: 0.2
-      # Requested road-age allowance; wheel/gyro remain capped at 0.25 s.
-      max_source_age_s: 0.6
+      # Warmstart replan road-age allowance, matched to the estimator/camera.
+      # FIRST controlled start retains its 0.6 s road gate; wheel/gyro use 0.5 s.
+      max_source_age_s: 1.5
       reference_lifetime_s: 0.2
       # Lattice execution window starts at trajectory completion. Input ages
       # are checked before search; timestamp_s retains the input body frame.
@@ -271,15 +278,16 @@
         # Explicit teacher approximation, not measured calibration. Simulation
         # selects course_simulation; upstream requires ALL supplied model limits.
         model_source: course_approximation
-        # Lattice search: 2 lengths x (center + current offset) x (2 speeds + stop).
-        # Keep the existing sampling set and the 16-candidate cap below.
-        transition_lengths_m: "0.3,0.6"
+        # Lateral search: 2 lengths x (center + current offset) x (2 speeds + stop).
+        # Short transition first for early correction; retain a gentle fallback.
+        # Startup also samples the permitted far/intermediate observed joins.
+        transition_lengths_m: "0.25,0.6"
         # If neither length fits, also check a transition over the supported
         # short horizon (minimum_output_m unchanged). Startup joins are sampled
         # independently within observed support / 0.9 m, with one grid step
         # reserved after the join. All candidates retain the same constraints.
         terminal_offsets_m: "0.0"
-        # Keep 1 s longitudinal prediction inside the 0.6 m local horizon,
+        # Keep 1 s longitudinal prediction inside the 1.0 m local horizon,
         # including margin for wheel speed temporarily exceeding 0.2 m/s.
         durations_s: "1.0"
         terminal_speeds_mps: "0.1,0.2"
@@ -295,9 +303,30 @@
         # fixed operator-cleared corridor, transported with wheel/gyro motion.
         # Observed boundary checks remain active; reconnect within 0.9 m.
         startup_connection_enabled: true
+        # Penalize deviation from the observed road centre during startup.
+        # Consume the join preference with measured travel; do not reset it on
+        # replans. It is a soft early-entry preference: preserve longer checked
+        # joins if a short connection is geometrically impossible.
+        startup_progress_enabled: true
         # Temporary requested trial: skip fixed unobserved startup-corridor
         # clearance only. Restore true to re-enable; observed body checks remain.
         startup_corridor_check_enabled: false
+        # Requested geometric body-boundary check: no added clearance padding.
+        # Check the complete rectangle edges against the fitted boundary curves.
+        # Pose checks retain the 0.05 m path grid; this is not a hardware guarantee.
+        boundary_collision_only_enabled: true
+        # Full-center target plus current-offset fallback. The old 25% / 2 cm
+        # incremental mode is disabled so replans do not keep delaying correction.
+        incremental_centering_enabled: false
+        centering_step_max_m: 0.02
+        # Rank supported prefix errors (5/10/20/30 cm) before whole-path cost;
+        # penalize initially moving away. Steering/history soft weights x0.1
+        # while correcting. No invented centreline in unobserved near space.
+        immediate_centering_enabled: true
+        # Requested model trial: bypass angle/rate rejection in planning.
+        # Mathematical domains, collisions, lateral acceleration, blind-space
+        # gates and real control output saturation remain independent.
+        steering_limits_enabled: false
         max_near_gap_m: 0.9
         max_extension_m: 1.3
         extension_margin_growth: 0.08
@@ -305,9 +334,9 @@
         blind_steering_limit_rad: 0.3490658504
         geometry_step_m: 0.05
         time_step_s: 0.1
-        # Low-speed trial: check 0.6 m of forward path arc. Body footprint
-        # checks still extend beyond the path's vehicle-reference point.
-        horizon_m: 0.6
+        # Cache up to 1 m of checked path arc. Shorter supported paths remain
+        # allowed, including controlled start; body checks extend beyond CG.
+        horizon_m: 1.0
         score_time_s: 1.0
         # One 100 ms planning period at 10 Hz; control stays at 20 Hz.
         budget_s: 0.1
@@ -329,8 +358,9 @@
         # Requested planning-model ceiling (90 deg), not measured wheel travel.
         steering_limit_rad: 1.5707963267948966
         steering_rate_limit_radps: 1.5707963267948966
-        # Shared hard body-boundary margin for recovery and lattice, metres.
-        # Trial setting: reduced from 0.05 to 0.02; body dimensions stay above.
+        # Padding mode uses this shared margin; collision-only boundary mode
+        # ignores it and the interpolation/sweep/extension boundary margins.
+        # Other uses (stopping distance and enabled obstacle checks) retain it.
         hard_margin_m: 0.02
         # Accepted half-car-width scales and five-group score.
         d_scale_m: 0.125
@@ -380,6 +410,15 @@
       # unchanged frames never extend them. No automatic restart after state 2.
       # Requires fresh wheel/gyro, usable motion history and remaining support.
       robustness_enabled: true
+      # Seed ONLY after the first checked observed trajectory; no blind start.
+      # Replan failure/pending/road expiry keeps the motion-aligned remaining
+      # path. Legacy 1 s / 0.25 m cache budgets below apply when this is false.
+      # Fresh motion and the 0.2 s control watchdog remain mandatory. No path
+      # extension: slow for the endpoint; fresh confirmed collisions stop.
+      warmstart_enabled: true
+      warmstart_end_margin_m: 0.08
+      warmstart_handoff_max_error_m: 0.15
+      warmstart_handoff_max_heading_rad: 0.35
       reference_hold_max_s: 1.0
       reference_hold_max_distance_m: 0.25
       degraded_speed_mps: 0.1

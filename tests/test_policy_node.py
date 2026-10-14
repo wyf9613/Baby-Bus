@@ -1111,13 +1111,22 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.estimation_settings.history_merge_radius_m == 0.08
         assert node.estimation_settings.road_prediction_max_distance_m == 0.5
         assert node.estimation_settings.max_source_age_s == 1.5
+        assert node.estimation_settings.motion_max_gap_s == 0.5
         assert node.sensor_timeout_s["cone_detections"] == 1.5
         assert node.cone_empty_timeout_s == 2.0
 
         assert node.control_settings.robustness_enabled is True
+        assert node.control_settings.warmstart_enabled is True
+        assert node.control_settings.warmstart_end_margin_m == 0.08
+        assert node.planning_settings.max_source_age_s == 1.5
+        assert node.lattice_settings.horizon_m == 1.0
+        assert node.lattice_settings.startup_progress_enabled is True
+        assert node.lattice_settings.immediate_centering_enabled is True
+        assert node.lattice_settings.steering_limits_enabled is False
+        assert node.lattice_settings.incremental_centering_enabled is False
         assert node.control_settings.reference_hold_max_s == 1.0
         assert node.control_settings.reference_hold_max_distance_m == 0.25
-        assert node.control_settings.max_distance_m == 3.0
+        assert node.control_settings.max_distance_m == 0.0
         assert node.control_settings.max_run_time_s == 30.0
         assert node.lattice_settings.direct_sample_output is True
         assert node.lattice_settings.async_enabled is True

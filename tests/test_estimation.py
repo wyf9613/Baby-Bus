@@ -35,7 +35,7 @@ names.update({"LatticeSettings", "LatticeCurve", "FrenetLatticePlanner", "_latti
 names.add("evaluate_frenet_path")
 names.add("_planning_control_geometry")
 names.update({"_control_cached_geometry", "_control_sample_points", "_control_sample_at"})
-names.update({"MvpRecoveryPlanner", "_mvp_plan", "transport_control_reference", "control_reference_snapshot", "AsyncLatticePlanner"})
+names.update({"MvpRecoveryPlanner", "_mvp_plan", "transport_control_reference", "control_reference_snapshot", "AsyncLatticePlanner", "AsyncPolicyLog"})
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in names]
 policy_class = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
@@ -1387,6 +1387,72 @@ class RelaxedContinuityProfileChecks(unittest.TestCase):
 class PersistentHistoryChecks(unittest.TestCase):
     """Coverage, cache retention and downstream contracts in the active profile."""
 
+    def test_empty_cache_reuses_valid_current_fit_instead_of_fitting_twice(self):
+        class CountFits(Pipeline):
+            merged_fit_calls = 0
+            def road(self, batch, stamp, age, *, piecewise=False, learn_width=True):
+                if piecewise and not learn_width:
+                    self.merged_fit_calls += 1
+                return super().road(batch, stamp, age, piecewise=piecewise, learn_width=learn_width)
+        p = self.pipeline(CountFits)
+        self.assertTrue(self.step(p, 10)["valid"])
+        self.assertEqual(p.merged_fit_calls, 0)
+        self.assertTrue(p._road_cones)
+        front = [.6+.1*i for i in range(14)]
+        self.assertTrue(self.step(p, 10.1, [(x,.5) for x in front], [(x,-.5) for x in front])["valid"])
+        self.assertEqual(p.merged_fit_calls, 1)
+
+    def test_valid_global_coverage_does_not_retry_local_fits_for_interior_outlier(self):
+        class NoLocal(Pipeline):
+            def _fit_segmented_boundary(self, *args, **kwargs):
+                raise AssertionError("Unnecessary local refit")
+        p = self.pipeline(NoLocal)
+        points = [(i*.1, .5+(.8 if i == 10 else 0), .95) for i in range(21)]
+        detail = {}
+        fit = p._fit_boundary(points, True, detail)
+        self.assertIsNotNone(fit)
+        self.assertLess(fit["inlier_fraction"], 1)
+        self.assertEqual(fit["range"], (0, 2))
+        self.assertEqual(detail["selected_method"], "global")
+
+    def test_cold_curve_uses_segmented_fit_before_history_exists(self):
+        p = self.pipeline()
+        xs = [.64+.15*i for i in range(17)]
+        left = [(x, .5+.3*math.sin(4*(x-.64))) for x in xs]
+        right = [(.64+.22*i, -.5) for i in range(8)]
+        global_road = p.road(cones(left, right), 10_000_000_000, 0)
+        self.assertFalse(global_road["valid"])
+        detail = global_road["boundary_diagnostics"]["left"]["fit_details"]
+        self.assertEqual(detail["global_fit"]["reason"], "rms_limit")
+        self.assertEqual(len(detail["input_points_xy_confidence"]), 17)
+        road = self.step(p, 10, left, right)
+        self.assertEqual(road["status"], "near_field_unobserved")
+        self.assertTrue(road["forward_geometry"]["geometry_valid"])
+        self.assertEqual(road["forward_geometry"]["reconstruction_method"], "segmented_observed_support")
+        self.assertTrue(p._road_cones)
+        self.assertTrue(all(d["fit_valid"] for d in road["current_frame"]["boundary_diagnostics"].values()))
+        # A second real frame uses segmented history and conflict checks too.
+        again = self.step(p, 10.1, left, right)
+        self.assertTrue(again["forward_geometry"]["geometry_valid"])
+        self.assertNotEqual(again["status"], "observed_history_conflict")
+        # Actual contradictory observations must still invalidate history.
+        fit = p._fit_boundary([(x,y,.95) for x,y in left], True)
+        point = (1.24, p._evaluate_boundary(fit,1.24)[0]+.8, 0, 2, .95, 10)
+        current = {"valid": True}
+        self.assertTrue(p._reject_history_conflict(current,[point],{2:fit},10.2))
+
+    def test_segmented_fit_preserves_only_contiguous_prefix_before_bad_far_window(self):
+        p = self.pipeline()
+        points = [(i*.1, .5, .95) for i in range(9)]
+        points += [(1+i*.1, 3*(1+i*.1)-2, .95) for i in range(15)]
+        details = {}
+        fit = p._fit_segmented_boundary(points, details)
+        self.assertIsNotNone(fit)
+        self.assertTrue(details["truncated"])
+        self.assertLess(fit["range"][1], 1.1)
+        self.assertGreaterEqual(fit["range"][1]-fit["range"][0], .3)
+        self.assertLessEqual(fit["range"][1], details["window_x_m"][1])
+
     def pipeline(self, cls=Pipeline, check_conflicts=True):
         import yaml
         cfg = yaml.safe_load((SOURCE.parents[1]/"config/ai4r_policy.yaml").read_text(encoding="utf-8"))
@@ -1413,8 +1479,8 @@ class PersistentHistoryChecks(unittest.TestCase):
         self.assertTrue(any(q[3] == 2 and q[0] < 0 for q in p._road_cones))
         self.assertTrue(any(q[3] == 1 and q[0] < 0 for q in p._road_cones))
         # Cancellation does not allow unlocatable motion history to survive.
-        road = self.step(p, 10.5)
-        self.assertIn("motion_history_gap", [e["reason"] for e in road["history_diagnostics"]["events"]])
+        road = self.step(p, 10.7)
+        self.assertIn("motion_interval_too_long", [e["reason"] for e in road["history_diagnostics"]["events"]])
 
     def test_conflict_switch_requires_a_boolean(self):
         with self.assertRaises(ValueError):
@@ -1425,7 +1491,7 @@ class PersistentHistoryChecks(unittest.TestCase):
             fail_merge = False
             def road(self, batch, stamp, age, *, piecewise=False, learn_width=True):
                 result = super().road(batch, stamp, age, piecewise=piecewise, learn_width=learn_width)
-                if piecewise and self.fail_merge:
+                if piecewise and not learn_width and self.fail_merge:
                     self.fail_merge = False
                     result.update(valid=False, status="insufficient_geometry")
                 return result
@@ -1461,7 +1527,7 @@ class PersistentHistoryChecks(unittest.TestCase):
             fail_merge = False
             def road(self, batch, stamp, age, *, piecewise=False, learn_width=True):
                 result = super().road(batch, stamp, age, piecewise=piecewise, learn_width=learn_width)
-                if piecewise and self.fail_merge:
+                if piecewise and not learn_width and self.fail_merge:
                     self.fail_merge = False
                     result.update(valid=False, status="insufficient_geometry")
                 return result
@@ -1504,9 +1570,9 @@ class PersistentHistoryChecks(unittest.TestCase):
     def test_missing_motion_invalidates_history_instead_of_extending_it(self):
         p = self.pipeline()
         self.step(p, 10.0)
-        road = self.step(p, 10.35)
+        road = self.step(p, 10.6)
         self.assertFalse(road.get("history_used", False))
-        self.assertIn("motion_history_gap", [e["reason"] for e in road["history_diagnostics"]["events"]])
+        self.assertIn("motion_interval_too_long", [e["reason"] for e in road["history_diagnostics"]["events"]])
 
     def test_missing_one_side_history_does_not_fabricate_rear_coverage(self):
         p = self.pipeline()
@@ -1716,6 +1782,82 @@ class LearnedWidthChecks(unittest.TestCase):
         for l, r in ((left, []), ([], right)):
             self.assertEqual(p.road(cones(l, r), 10_000_000_000, 0)["status"],
                              "single_side_width_unknown")
+
+    def test_short_dual_overlap_falls_back_without_relearning_width(self):
+        p = self.pipeline(road_min_coverage_m=.3)
+        left, right = straight()
+        p.road(cones(left, right), 10_000_000_000, 0)
+        left = [(1+i*.1, .5) for i in range(11)]
+        right = [(i*.1, -.5) for i in range(11)]
+        out = p.road(cones(left, right), 10_100_000_000, 0)
+        self.assertTrue(out["valid"], out)
+        self.assertEqual(out["visibility"], "right_only")
+        self.assertEqual(out["single_side_fallback"]["trigger"], "insufficient_common_range")
+        self.assertEqual(out["single_side_fallback"]["selected_side"], "right")
+        self.assertTrue(all(v["fit_valid"] for v in out["boundary_diagnostics"].values()))
+        self.assertEqual(set(out["observed_boundary_constraints"]), {"left", "right"})
+        self.assertEqual(set(point[3] for point in out["_support_cones"]), {1})
+        self.assertEqual(out["width_memory"]["measurement_timestamp_s"], 10)
+        self.assertEqual(len(p._lane_width_samples), 1)
+        stale = p.road(cones(left, right), 41_000_000_000, 0)
+        self.assertFalse(stale["valid"])
+        self.assertNotIn("single_side_fallback", stale)
+
+    def test_real_boundary_crossing_is_not_hidden_by_single_side_fallback(self):
+        p = self.pipeline(road_max_abs_slope=2)
+        left, right = straight()
+        p.road(cones(left, right), 10_000_000_000, 0)
+        cases = [(right, left),
+            ([(i*.1, 1.4-1.2*i*.1) for i in range(16)],
+             [(i*.1, -1.4+1.2*i*.1) for i in range(16)]),
+            ([(1+i*.1, -.5) for i in range(11)], [(i*.1, .5) for i in range(12)])]
+        for observed_left, observed_right in cases:
+            with self.subTest(left=observed_left, right=observed_right):
+                bad = p.road(cones(observed_left, observed_right), 10_100_000_000, 0)
+                self.assertFalse(bad["valid"])
+                self.assertEqual(bad["reconstruction_failure"]["reason"], "observed_boundary_order_conflict")
+                self.assertNotIn("single_side_fallback", bad)
+
+    def test_centerline_survives_failed_full_width_offset_without_drivable_corridor(self):
+        p = self.pipeline(road_min_coverage_m=.3, road_max_abs_slope=2)
+        left, right = straight()
+        p.road(cones(left, right), 10_000_000_000, 0)
+        visible = [(i*.1, .5-.5*(i*.1)**2) for i in range(13)]
+        road = p.road(cones(visible, []), 10_100_000_000, 0)
+        self.assertFalse(road["valid"])
+        self.assertTrue(road["centerline_geometry"]["valid"])
+        self.assertGreater(len(road["centerline_geometry"]["points_xy"]), 2)
+        self.assertFalse(road["inferred_boundary_geometry"]["valid"])
+        self.assertEqual(road["reconstruction_failure"]["reason"], "inferred_boundary_offset_cusp")
+        state = {"valid": True, "speed_valid": True, "yaw_rate_valid": True,
+            "timestamp_s": 10.1, "frame_id": "base_link", "speed_mps": 0, "yaw_rate_rps": 0}
+        planner = namespace["FrenetLatticePlanner"](namespace["PlanningSettings"](),
+            namespace["LatticeSettings"](obstacle_check_enabled=False))
+        ref, _ = planner.plan(road, state, None, {}, 10.1)
+        self.assertFalse(ref["valid"])
+
+    def test_far_offset_failure_retains_near_common_support(self):
+        p = self.pipeline(road_min_coverage_m=.3, road_max_abs_slope=2)
+        left, right = straight()
+        p.road(cones(left, right), 10_000_000_000, 0)
+        visible = [(i*.1, .5-.5*(i*.1-1.2)**2) for i in range(13)]
+        road = p.road(cones(visible, []), 10_100_000_000, 0)
+        self.assertTrue(road["valid"], road)
+        self.assertTrue(road["centerline_geometry"]["valid"])
+        self.assertTrue(road["inferred_boundary_geometry"]["truncated"])
+        self.assertGreaterEqual(road["planning_coverage_x_m"][1]-road["planning_coverage_x_m"][0], .3)
+        self.assertGreater(road["centerline_geometry"]["coverage_x_m"][1], road["planning_coverage_x_m"][1])
+
+    def test_single_side_fallback_constraints_survive_history_and_alignment(self):
+        p = self.pipeline(road_min_coverage_m=.3, history_propagation="continuous",
+            continuous_road_output=True, history_merge_single_side=True, history_conflict_check_enabled=False)
+        RoadDropoutChecks.step(p, 10, speed=0, yaw=0)
+        left = [(1+i*.1, .5) for i in range(11)]
+        right = [(i*.1, -.5) for i in range(11)]
+        road = RoadDropoutChecks.step(p, 10.1, left=left, right=right, speed=0, yaw=0)["road"]
+        geometry = road.get("forward_geometry") or road
+        self.assertEqual(set(geometry["observed_boundary_constraints"]), {"left", "right"})
+        self.assertEqual(geometry["single_side_fallback"]["selected_side"], "right")
 
     def test_both_sides_learn_width_and_either_curved_side_offsets_normally(self):
         for visible in ("left", "right"):

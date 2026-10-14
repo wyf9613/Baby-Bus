@@ -1,5 +1,473 @@
 # AI4R policy acceptance
 
+## Soft startup join preference and execution-gap evidence, 2026-10-14 (local)
+
+The supplied run continued on warmstart after planning failures with about
+0.79 m still available. Later startup searches had only one short join, shrinking
+from 0.221 to 0.082 m, and rejected with unreachable_cg_curvature. Its final stop
+was Wheel-speed distance clock/gap invalid; no actual interval was logged, so
+the exact blocking operation or clock condition remains unproven.
+
+Consumed startup progress now supplies a preferred observed join, not a maximum.
+Search retains the original geometric upper range, adds the preferred point and
+an intermediate connection, and reserves a long fallback within the same
+16-candidate cap. Prefix centering remains the primary active ranking; normalized
+join delay adds 0.1 * weight_center * delay_cost to the secondary score. The
+remaining preference still consumes measured travel and never renews on replan.
+Math-domain, collision, startup stationary admission and observed handoff gates
+remain. Logs expose preferred_join_x_m, progress_is_hard_limit=false,
+selected_beyond_preference and candidate startup_join_delay_cost.
+
+Main-thread work is reduced without changing geometry gates: initial or fully
+reobserved valid frames reuse their accepted road fit when no old points remain
+to merge. Robust global fits with valid end coverage do not retry local windows
+merely because interior outliers were removed. Missing end coverage or failed
+global fitting still permits segmented reconstruction; genuinely retained history
+still uses a merged fit. These are reductions in redundant work, not evidence
+that a particular target-host stall was caused by fitting.
+
+RunDistanceLimiter records its input/previous times and speeds, actual interval,
+gap/distance limits and a distinct clock_reversed/integration_gap diagnostic.
+All enabled-control transitions from running to zero emit Control timing, so
+wheel-distance faults no longer omit the diagnostic. Records include distance_check,
+execution_check and total prior policy_duration_s. When both the distance and
+execution interval exceed their existing bounds, the reason explicitly identifies
+the control execution gap. No control deadline or distance gap check was relaxed.
+
+Eight focused portable tests passed after correcting two test-fixture assumptions:
+shrinking observed support with exhausted progress retains a longer feasible
+join, feasible early entry remains preferred, startup progress/cache failure
+continuation is preserved, duplicate cold-frame fitting is skipped while actual
+history is merged, interior-outlier handling avoids needless local fits, a real
+250 ms control gap still publishes zero and logs both measured intervals, and
+disabled distance limits still count travel and enforce gap checks. Two recorded
+successful inputs (trajectory 29/31) were also reconstructed from rounded logged
+geometry; search remained valid with exhausted progress. They are not a replay
+of the later rejected raw camera frames. git diff --check passed. Required fast
+gate attempted; Git Bash cannot start (NtCreateDirectoryObject / 0xC0000022).
+Full installed ROS and physical verification: not run. No robot deployment.
+
+## Cold curve entry and motion-feedback jitter, 2026-10-14 (local)
+
+The new supplied run generated trajectories 8–12 and stopped with "Warmstart
+motion feedback unavailable" at 1791972378.8114305, shortly after trajectory 12
+was accepted. Its stop record has no collision. It does not record which motion
+field failed, so an exact raw-feedback replay or attribution to gyro versus
+wheel is unavailable. Specific-force warnings alone do not establish gyro loss.
+
+Cold observed frames now pass continuous_road_output to the initial road fit.
+Previously only history refits used segmented fitting, but a rejected global fit
+and empty history returned before that path could run. History conflict/merge
+evaluation now uses the shared boundary evaluator instead of assuming coeffs;
+both segmented first frames and later frames are supported. A failed far local
+window may retain its already fitted, contiguous near prefix if coverage meets
+the existing threshold. There is no gap bridging or unsupported extrapolation.
+Global/local fit_details record rejection gates and measured thresholds, failed
+window information and at most 64 failed-fit input coordinates/confidences.
+
+Active motion_max_gap_s is now 0.5 s, matching the already configured 0.5 s wheel
+and gyro source timeouts, rather than the inner estimator stopping at 0.25 s
+while outer source health still accepts feedback. Bare defaults stay unchanged.
+The 0.5 s integration bound, 20 Hz execution, control deadline and source-health
+checks remain. Missing, invalid or genuinely expired motion does not drive.
+Per-field causal/latest sample epochs, ages, status and gap limits are recorded
+in estimation state. Stop logs include the last estimation state plus fresh
+motion_at_stop and sensor_ages_at_stop_s, avoiding attributing a later watchdog
+stop to the older successful state. Planned trajectory logs now expose the
+previously omitted near_centering and immediate/steering-limit switches.
+
+Ten distinct focused portable tests passed (one rerun after stop-log changes):
+three new tests cover segmented cold entry/history/conflict handling, retaining
+only a contiguous near prefix before a bad far window, and continued warmstart
+through a 350 ms motion pause with fresh recovery and a real 500 ms source stop.
+Seven existing checks cover first-start gates, planning-failure cache reuse,
+failed-merge provenance/expiry, conflict and motion-history invalidation, and
+shipped YAML loading. No full portable-suite expansion was run, per user request.
+An additional synthetic 17-left/8-right cold-road check reached lattice_selected
+with the actual YAML lattice configuration and a 0.64 m controlled join. This is
+not the user's original rejected raw point cloud, which was not in the logs.
+git diff --check passed. Required fast gate attempted, but installed Git Bash
+fails at startup (NtCreateDirectoryObject / 0xC0000022). Installed ROS and physical
+verification: not run. No deployment or live robot configuration was changed.
+
+## Immediate prefix centering trial, 2026-10-14 (local)
+
+Active YAML enables immediate_centering_enabled, disables incremental_centering
+and steering_limits_enabled, and samples 0.25 / 0.6 m transitions, shortest first.
+Full-centre and current-offset candidates retain the 16-candidate / 100 ms cap.
+The new flag bypasses model steering angle/rate gates in lattice geometry/motion,
+polynomial conversion and recovery rollout rate limiting. It does not remove the
+CG-curvature mathematical domain, lateral acceleration/speed/braking limits,
+blind-space checks, collision checks or actual controller output saturation.
+
+Feasible cruising candidates prioritize weighted prefix normal-error squared
+at body x=0.05/0.1/0.2/0.3 m (weights 4/3/2/1), with an additional twice-squared
+penalty for worsening error relative to continuing along the current heading.
+Only actual road-centre support is sampled. When road support starts beyond
+0.3 m, checkpoints use that nearest supported x plus 0/0.05/0.1/0.2 m instead;
+near_field_supported=false makes the absence of near-field evidence explicit.
+No supported checkpoint means no prefix override. Above 1 cm baseline error,
+prefix cost precedes full-path cost and consistency tie-breaking; steering and
+consistency soft weights are multiplied by 0.1. Otherwise original soft ranking
+applies. Logs retain raw costs, effective_weights and near_centering samples.
+Current origin/heading/curvature continuity, stationary first start, observed
+support handoff and warmstart acceptance/cache behavior remain in place.
+
+Per user request verification was limited to seven focused tests, all passed:
+four new cases for mirrored early-vs-delayed prefix ranking, integrated full
+centering despite large steering/history costs, stationary startup with only
+distant supported scoring, and collision/domain rejection; plus shipped YAML
+loading, existing planning-failure cache continuation, and actual control output
+limiting. Integrated cases cover both road sides, preserve initial pose/curvature
+and show that restoring model gates restores rejection of correction candidates.
+git diff --check passed. Required fast gate attempted using installed Git Bash;
+it cannot start (NtCreateDirectoryObject / 0xC0000022) on this Windows host.
+Full installed ROS and physical verification: not run. No robot deployment.
+
+## Startup road-centre scoring, progress and motion sync, 2026-10-14 (local)
+
+Active YAML enables planning.lattice.startup_progress_enabled (bare default
+false). Startup centre cost is now the signed normal displacement from the
+actual observed centreline, integrated only over supported road samples and
+normalized by supported length. It is no longer necessarily zero when the
+candidate lies on its own startup connection. The blind near region does not
+acquire invented centreline observations. Earlier joins are searched before
+distant joins so the bounded early cutoff need not hide feasible earlier entry.
+Other cost weights, body/steering/rate gates, candidate/time caps and 1 m horizon
+are unchanged. This does not assert that every more-centred candidate is feasible.
+
+Successful startup references carry the selected join distance and its original
+frame epoch. Control admission transports this travel allowance with measured
+motion and retains the smaller remaining allowance across accepted replans.
+Both successful replans and cache-only continuation consume it; new plans cannot
+renew it to 0.9 m. Worker/synchronous search restricts joins to this allowance,
+subject to actual observed start and one geometry step. Reaching that allowance
+does not invent a zero-length/unsupported connection or force normal mode.
+The original stationary first start, neutral first-reference wait, and three
+distinct frames of full dual-boundary body support before handoff remain.
+Explicit stops/reset clear progress. If no checked new path exists, the existing
+remaining-path cache continues; actual faults, conflicts and exhaustion retain
+their behavior. No cache endpoint or actuator command is extrapolated.
+
+The supplied first run also exposed a 270 ms worker input interval exceeding the
+250 ms short-twist startup gate. Worker state then stayed at the old epoch and
+subsequent calls repeatedly rejected startup. Now every job can synchronize its
+fixed corridor from current-epoch parent motion history, not just on worker
+construction. Parent integration runs at control cadence; delayed worker
+snapshots cannot roll it backward. Sync requires a verified-history marker,
+matching epoch, finite motion/pose and the same initial width/far-x corridor.
+Fresh wheel/gyro validation still runs after sync; an unverified gap still fails.
+Startup-complete/observed-origin/stop latches cannot be rolled back by old results.
+
+Logs include startup_motion_sync, startup_connection.center_reference,
+road_center_cost, remaining_join_distance_m, join_limited_by_observed_support
+and remaining_startup_join_m. Portable tests passed: estimation 120, lattice 79,
+control 81, planning 18 (298 total). New cases exercise left/right-symmetric
+observed-road scoring versus zero self-reference cost, progress-constrained
+search without relaxing stationary start, join consumption across successful
+and failed replans, delayed-state merge/reset and actual same-worker recovery
+after 270 ms gaps. The real child-process test also verifies that an unverified
+gap rejects and a later verified snapshot recovers without a process restart.
+Local reconstruction of supplied logged geometry confirms nonzero startup
+road-centre cost for off-centre paths; it is not full sensor or physical replay.
+git diff --check passed. Required fast gate attempted: Git Bash fails to start
+on this Windows host (NtCreateDirectoryObject / 0xC0000022). Installed ROS and
+physical validation: not run. No deployment or live robot settings changed.
+
+## Exclude consumed warmstart poses from collision checks, 2026-10-14 (local)
+
+The supplied stop record checked retained path sample 0 at CG x=-0.0281896 m
+and reported a ~7.4 mm inferred-left conflict at the OLD rear corner
+x=-0.226603 m. That negative-x CG sample was retained to interpolate the origin;
+it was already behind the actual vehicle and was not an unexecuted body pose.
+Warmstart now separately checks the actual current body at (0,0,0), followed by
+the interpolated path origin and strictly forward samples. The negative-x
+bracket remains available to interpolation/control, but does not produce an old
+full-body collision check. Enabled obstacle checks use the same current/future
+poses. Actual-body checking runs every control cycle, even when the camera/path
+key already has successful remaining-path validation. Rejection logs label
+check_pose_type and ignored_consumed_path_samples; diagnostics/stop snapshots
+remain available. No collision threshold, body dimension or margin is relaxed.
+
+With remaining accepted geometry, all invalid planning results continue through
+warmstart without clearing the path; replan attempts continue. First controlled
+start and explicit restart are unchanged. This does not extrapolate an exhausted
+endpoint or suppress actual current/future conflicts or motion-feedback faults.
+
+Portable tests passed: estimation 120, lattice 76, control 79, planning 18
+(293 total). New regressions reproduce the supplied retained CG/contact and a
+local fitted-boundary approximation: the old pose has ~7.4 mm negative clearance,
+the actual body is clear, and candidate/selected validation both accept the
+remaining path while preserving the interpolation bracket. Additional checks
+cover actual-body collision despite an existing validation key, a genuine future
+body collision, and continued driving on the unchanged accepted cache across
+pending/no-feasible/no-output/domain/budget/worker/source/input failure reasons.
+This is synthetic local geometry, not replay of full sensor data or a physical
+collision guarantee. git diff --check passed. Required full ROS gate attempted:
+Windows Git Bash fails at startup with NtCreateDirectoryObject / 0xC0000022.
+Installed ROS and physical validation: not run; no vehicle deployment performed.
+
+## Warmstart collision and logger diagnostics, 2026-10-14 (local)
+
+Warmstart boundary checks now retain the existing edge-clearance details at
+the first rejected path pose. Warmstart collision records distinguish candidate
+admission from final selected-path validation. They include both trajectory
+IDs, current frame/epochs, path sample index and arc distance from the body-x
+origin, predicted CG pose, signed normal clearance/penetration, side, body-edge
+contact coordinates, boundary contact and nearby curve samples, source labels,
+support range, geometry/measurement times and the body dimensions. Distances
+describe predicted fitted-geometry conflict, not a measured physical contact.
+Candidate rejection evidence survives a successful fallback within that cycle.
+The existing Control timing stop snapshot retains both stages after zero
+publication, independently of background diagnostic queue loss. Collision
+thresholds, path selection, startup and warmstart behavior are unchanged.
+
+Background info/warning/error writes use distinct caller locations for rclpy's
+per-call-site logging context. Errors are counted instead of silently swallowed;
+the first error is emitted on the daemon's stderr. Stop snapshots include
+written/dropped/error counts, last error, queue length and writer liveness.
+Logging I/O remains off the control thread during normal operation.
+
+Portable tests passed: estimation 120, lattice 76, control 75, planning 18
+(289 total). Collision tests verify side/clearance/contact/source and retained
+stop evidence, plus future candidate rejection while the safe cache remains
+selected. Logging tests exercise alternating caller-bound severities and an
+injected logger exception followed by recovery; the existing blocked-writer
+test still verifies a bounded queue and responsive control. These portable
+checks do not exercise an installed rclpy logger. git diff --check passed.
+Required full ROS gate attempted: Windows Git Bash fails at startup with
+NtCreateDirectoryObject / 0xC0000022. Installed ROS and physical tests: not run.
+
+## Warmstart remaining-path execution, 2026-10-14 (local)
+
+Active YAML enables control.warmstart_enabled, a 1.0 m lattice horizon and a
+1.5 s road-age allowance. Before FIRST successful control the road timeout
+remains 0.6 s. The existing stationary origin connection, body-support handoff,
+short supported output and 3 s neutral startup wait remain; there is no cache
+before a checked observed trajectory and no blind initial motion. Per-run
+resets clear cache and planner handoff state. The 20 Hz control loop, 0.25 s
+motion-feedback age, 0.2 s execution/cadence watchdog and 30 s run limit remain.
+
+Warmstart caches geometry rather than drive/steering commands. Every control
+cycle transforms the remaining Cartesian samples with measured motion, drops
+consumed prefix points while retaining the origin bracket, and recomputes
+control. Road age and legacy 1 s / 0.25 m hold budgets do not expire an already
+accepted path. They do not become new timestamps on its source observations.
+Remaining arc length controls the speed cap using the existing braking/delay
+model and an 0.08 m endpoint reserve; exhausted geometry, missing motion,
+excessive tracking error and actual current-observation collisions stop.
+The path endpoint is never extrapolated. These model-based checks do not
+establish physical stopping performance or accuracy of dead reckoning.
+
+Pending, no-feasible, fit failures, invalid/expired results, old generations and
+worker errors preserve the remaining trusted path. Async dispatch continues
+at 10 Hz. Candidate admission checks frame/expiry, original road age, ordered
+source time, non-predicted road, near support, origin error, continuity and
+stopping range. Handoff allows <=0.15 m lateral and <=0.35 rad heading difference.
+Current supported boundary segments (including both real fallback constraints)
+check the proposed path before cache replacement. A rejected candidate retains
+the old path, which is also checked against usable new observations. Explicit
+planned stops remain authoritative. Enabled obstacle checks remain applicable.
+
+The parent supplies the motion-aligned remaining path as a worker consistency
+hint, so a failed search does not lose it. Worker reconstruction restores the
+same run's controlled-start corridor/motion and startup_complete latch; the
+parent advances saved corridor motion while planning is pending. A failed child
+is terminated without waiting for reaping on the control thread. Rich trajectory,
+planning-rejection and control-status logs use a daemon writer with one queued
+record; backlog is replaced by newer diagnostics. Control gap and expiry errors
+are now distinct. Stop timing includes estimator/handoff/selection/controller
+attempt milestones, alongside the previous accepted control and worker timing.
+
+Portable tests passed: estimation 120, lattice 76, control 73, planning 18
+(287 total). Added checks cover >3 s of failed replans across road/legacy cache
+expiry with incremental motion and successful recovery; endpoint slowdown and
+exhaustion; shorter controlled-start references; unchanged first-start neutral
+deadline and age gate; stale motion/control gaps; new boundary collisions;
+discontinuous/colliding candidate rejection before replacing a safe cache;
+supervisor refresh; async errors/expiry/old generations with continued dispatch;
+and blocked logging with bounded backlog. An actual worker process verifies
+1 m output, consistency seeding, failed planning and handoff restoration after
+worker replacement. Existing legacy-mode tests still pass. YAML and
+git diff --check passed. Full installed ROS and physical validation: not run;
+the required fast gate fails to start Git Bash on this Windows host with
+NtCreateDirectoryObject / 0xC0000022. No deployment or live configuration change.
+
+## Sharp-bend single-side reconstruction steps 1–3, 2026-10-14 (local)
+
+Road rejection now records reconstruction_failure with distinct observed-order,
+observed-width, common-range, centreline offset/fold and inferred-boundary
+offset/fold reasons. Applicable failures include side, x, curvature or measured
+width. Aggregate hard rejection statuses remain compatible with the controller.
+Independent centreline diagnostics retain their source-frame timestamp; they
+are not a drivable reference when the corridor is invalid.
+
+With fresh learned width and two individually valid fits, insufficient dual
+overlap or an out-of-range combined width triggers two single-fit candidates.
+Selection uses common coverage, inlier support/fraction, RMS, proximity and
+motion-aligned prior-centreline continuity when available. A prior usable side
+within 10% of the best score is retained. Fallback never learns width. Both real
+fits remain independent collision constraints, including after history merge
+and motion alignment; the planner checks them along the full body edges.
+An observed order conflict is not a fallback trigger.
+
+The half-width centreline and full-width inferred boundary are validated
+separately. An inferred cusp/fold truncates its usable prefix, while centreline
+diagnostics retain the independently valid geometry. Only sufficient common
+support across centreline and both boundaries can reach planning. A valid
+centreline alone never admits a path. Existing motion, source-age, body,
+near-field and trajectory checks remain in place. No general arc-length XY
+representation, speed change or additional right-bias tuning is included.
+
+Portable tests passed: estimation 120, lattice 75, control 62, planning 18
+(275 total). New cases cover short dual overlap and expired width memory,
+observed order conflict, valid centreline with an unusable full-width offset,
+preserved near support before a far cusp, constraint preservation through
+continuous history/alignment, and collision with a non-selected real boundary
+in both padded and collision-only modes. These tests use synthetic geometry.
+The required fast gate was attempted but Windows Git Bash failed at startup
+with NtCreateDirectoryObject / 0xC0000022. Full installed ROS and physical
+validation: not run. No vehicle deployment or live configuration was performed.
+
+## Async completion epoch and ready-result handoff, 2026-10-14 (local)
+
+Actual submission ROS time is paired with the worker's submission perf_counter
+epoch after parent job copying. Completion/lifetime map onto that submission
+epoch, retaining the older input-frame timestamp for motion transport. A
+nonblocking receive stages at most one result before policy/supervisor expiry
+checks. At an expired execution deadline, only a valid unexpired current-generation
+result within the existing max control interval can attempt the normal estimator,
+transport, source, reference-selection, controller and publication checks. The
+supervisor invokes that validation immediately; no old actuator command is
+extended. Without a qualifying result the independent zero-output path remains.
+State transitions clear the staged result. Existing sensor/hold/dt limits and
+reference lifetime settings are unchanged. Full trajectory logging now follows
+transport/next dispatch. Per-result timing records preparation, worker queue and
+compute, receipt and poll; relevant stops log the last accepted control epoch and
+actual execution deadline before evidence is cleared, after zero publication.
+
+Portable tests passed: control 62, lattice 74, planning 18 (154 total).
+The real worker regression injects 150 ms between input and submission and
+checks that completion includes it, input epoch is retained, and receipt follows
+worker completion. Controlled-clock regressions cover ready-result refresh from
+policy and supervision plus old generation, expiry, invalid/error results,
+excessive control gap, missing motion, and staged-result clearing on stop.
+Existing no-result reference-expiry/independent-zero checks still pass.
+git diff --check passed. Full installed ROS gate and physical validation: not run;
+Windows Git Bash cannot start (NtCreateDirectoryObject access denied).
+No vehicle deployment or live setting changes were made.
+
+## Bounded incremental MVP centering, 2026-10-14 (local)
+
+Active YAML enables incremental_centering_enabled and centering_step_max_m=0.02.
+Normal MVP lattice tracking replaces the zero-offset target with a target
+reducing current absolute offset by min(25%, 0.02 m); it retains the current
+offset fallback and the original candidate product. Feasible progress candidates
+rank before holding candidates; existing soft ordering remains within each group.
+Output failures may still fall through to a holding path. Startup connections,
+source/motion checks, weights, horizon, speed and steering limits are unchanged.
+Success/rejection diagnostics include centering targets and selected progress.
+
+Portable tests passed: lattice 74, control 59, planning 18 (151 total).
+Regressions exercise both offset signs, the 2 cm cap and proportional smaller
+steps, no overshoot, unchanged candidate bounds, motion-rejected progress with
+holding fallback, and unchanged startup behavior. Logged frames 49, 53, 73, 83,
+93, 103, 104 and 114 were rebuilt from rounded geometry/motion/previous paths
+with completed startup; all yielded valid references selecting smaller absolute
+offsets, evaluating 8 longitudinal candidates each (cap 16). Frame 83 changed
+from holding about -0.1008 m to targeting -0.0808 m, frame 103 from about
+-0.1299 m to -0.1099 m. This is partial-input offline reconstruction, not closed
+loop vehicle validation or evidence that measured lateral error converges.
+git diff --check passed. Installed ROS gate and physical validation: not run.
+
+## Preserve completed startup through single-side reconstruction, 2026-10-14
+
+startup_complete now latches only after a successful non-stopping MVP lattice
+output with the existing three-source complete-body confirmation. Current
+body_support confirmation still resets on lost observed dual support or a failed
+plan, but no longer resets the run phase. Valid width-inferred single-side input
+therefore stays on normal lattice tracking after handoff. Invalid sources still
+reject; no stale input is admitted by this latch. New planner generations start
+with startup_complete false. Success/rejection diagnostics expose the phase.
+The independent fixed initial-area footprint fallback is preserved.
+
+Portable working-tree tests passed: lattice 72, control 59, planning 18
+(149 total). Regression covers successful handoff, subsequent right-only
+reconstruction, invalid yaw feedback, return to valid single-side input, and
+fresh-planner reset. Logged frames 104 and 114 from the supplied run were rebuilt
+using the logged rounded geometry, motion and preceding path with completed
+startup; both produced valid normal lattice references without startup_connection.
+This is partial-input offline reconstruction, not full sensor/vehicle replay.
+Right-bias candidate selection, costs and controller parameters were not changed.
+git diff --check passed. Installed ROS gate and physical validation: not run.
+
+## Complete-body startup handoff, 2026-10-14 (local)
+
+Controlled MVP startup now ends after three distinct source frames whose
+observed/observed-with-history dual boundaries cover the whole current body
+[-0.198, 0.297] m with the active model. Origin-only or width-inferred support
+does not confirm handoff. Repeated propagated frames do not increment the count;
+lost support or a failed plan resets confirmation. Fresh motion keeps carrying
+the original startup area through and after handoff, without moving its origin.
+Unknown body edges use that area rather than backward boundary extrapolation;
+the full-edge collision checker follows the same support clipping. Current
+startup_corridor_check_enabled remains false as previously requested; unknown
+parts retain the existing clear-start assumption, not measured clearance.
+Enabled corridor checks also test clipped edge endpoints. Actual observed
+boundary crossings remain rejected. Body-support diagnostics are included in
+successful trajectory logs and rejection diagnostics.
+
+Portable working-tree checks passed: lattice 71, control 59, planning 18
+(148 total). Regressions cover origin-only support, three-source confirmation,
+repeated-source suppression, loss of coverage, inward rear extrapolation,
+observed edge crossings and the fixed-area check when enabled.
+git diff --check passed. Installed ROS gate and physical vehicle validation
+remain not run on this Windows host; no live deployment was performed.
+
+## Collision-only body-boundary rejection, 2026-10-14 (local)
+
+Active YAML enables planning.lattice.boundary_collision_only_enabled. The
+shared lattice/recovery footprint checker no longer subtracts hard clearance,
+boundary interpolation, sweep or extension padding in this mode. It uses local
+boundary slope for signed clearance and checks extrema of every cubic boundary
+segment against all four rectangle edges, so an inward bend between the ten
+original footprint samples is still rejected. Diagnostic boundary margins are
+zero and collision_only is true. Default false preserves the padding mode.
+Enabled obstacle checks keep their existing separate margins; active YAML still
+disables lidar obstacle response. Sensor/motion/source/hold/time limits remain.
+
+Portable working-tree checks passed: lattice 70, planning 18, control 59
+(147 total). Regressions exercise a 0.26 m corridor around the 0.25 m body,
+reject a 0.24 m corridor, detect a cubic boundary crossing between footprint
+samples, and preserve enabled start-corridor/obstacle checks. Active planning
+parameters were loaded through the same scalar extraction used by the portable
+suite; three synthetic startup/moving snapshots produced valid references in
+approximately 6-9 ms locally, within the 100 ms configured budget.
+git diff --check passed. The required fast-gate command was attempted; Git Bash
+could not start (NtCreateDirectoryObject access denied). Installed ROS gate and
+physical validation: not run. Pose checking remains on the 0.05 m path grid;
+this does not establish continuous swept-body or real-car collision avoidance.
+No live configuration or deployment was performed.
+
+## Wider controlled-start join search, 2026-10-14 (local)
+
+Startup searches now include the maximum permitted observed join and a midpoint
+between it and the previous longest join. Longer joins take priority; their
+count reserves the complete actual offset/longitudinal product within the
+existing candidate cap. Motion, boundary, source-age and computation limits
+are unchanged. Diagnostics record sampled joins and candidate-cap truncation.
+
+Portable working-tree checks passed: lattice 67, planning 18, control 59
+(144 total), plus git diff --check. A synthetic tilted-road regression rejects
+the original 0.5/0.6 m joins on steering rate while accepting a longer join
+under the same rate limit; another checks the offset product stays within 16.
+These are synthetic checks, not a replay of the supplied vehicle log.
+The required CONTRIBUTING fast-gate command was attempted through Git Bash,
+but Bash failed to start with NtCreateDirectoryObject access denied. ROS Jazzy,
+colcon and the pinned verification interface checkout are also unavailable in
+this Windows environment. Full installed ROS gate and physical vehicle test:
+not run. This change has not been deployed to the vehicle.
+
 ## Smooth dual/single centerline handoff, 2026-10-14 (local)
 
 Final integration: commit acc84b8 preserved the local feature, then merge

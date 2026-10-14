@@ -396,6 +396,19 @@ class EstimationMotionHistory:
         return (None if sample is None or now_s-sample[0] > self.settings.motion_max_gap_s
                 else sample[1])
 
+    def diagnostics(self, now_s):
+        fields = {}
+        for name, samples in self.samples.items():
+            sample = self.sample_at(name, now_s)
+            age = None if sample is None else now_s-sample[0]
+            fields[name] = {"sample_timestamp_s": None if sample is None else sample[0],
+                "latest_timestamp_s": samples[-1][0] if samples else None,
+                "age_s": age, "maximum_gap_s": self.settings.motion_max_gap_s,
+                "sample_count": len(samples), "reason": (
+                    "future_samples_only" if sample is None and samples else "missing" if sample is None
+                    else "stale" if age > self.settings.motion_max_gap_s else "valid")}
+        return fields
+
     def pose_between(self, start_s, end_s):
         if not all(finite_number(v) for v in (start_s, end_s)) or end_s < start_s:
             return None, "invalid_motion_time"
@@ -473,21 +486,27 @@ def _estimation_solve(matrix, rhs):
     return result if all(math.isfinite(v) for v in result) else None
 
 
-def _estimation_fit_boundary(points, settings):
+def _estimation_fit_boundary(points, settings, diagnostic=None):
     """Finite, bounded Huber IRLS followed by an inlier refit.
 
     Fits y(x) only for modest local slopes. Ordered points, measured support and
     gaps determine validity. This reconstructs a road, not a driving reference.
     """
     points = sorted(points)
+    def reject(reason, **details):
+        if diagnostic is not None:
+            diagnostic.update(reason=reason, **details)
+        return None
+    if diagnostic is not None:
+        diagnostic.update(reason="pending", point_count=len(points))
     # Keep bounded work, retaining points across the visible range.
     if len(points) > 64:
         points = [points[round(i*(len(points)-1)/63)] for i in range(64)]
     if len(points) < 2:
-        return None
+        return reject("insufficient_points", minimum_points=2)
     x0, x1 = points[0][0], points[-1][0]
     if x1 - x0 < settings.road_min_coverage_m:
-        return None
+        return reject("insufficient_x_coverage", coverage_m=x1-x0, minimum_m=settings.road_min_coverage_m)
     origin, scale = (x0+x1)/2.0, (x1-x0)/2.0
     degree = 2 if len(points) >= 5 and len({p[0] for p in points}) >= 3 else 1
     basis = [[((p[0]-origin)/scale)**j for j in range(degree+1)] for p in points]
@@ -497,7 +516,7 @@ def _estimation_fit_boundary(points, settings):
     slopes = [(points[i+d][1]-points[i][1])/(points[i+d][0]-points[i][0])
               for d in strides for i in range(len(points)-d) if points[i+d][0]-points[i][0] > 1e-6]
     if not slopes:
-        return None
+        return reject("no_distinct_x_baseline")
     slope = _estimation_median(slopes)
     intercept = _estimation_median([p[1]-slope*p[0] for p in points])
     coeffs = [intercept+slope*origin, slope*scale] + ([0.0] if degree == 2 else [])
@@ -513,7 +532,7 @@ def _estimation_fit_boundary(points, settings):
                for i in range(degree+1)]
         updated = _estimation_solve(matrix, rhs)
         if updated is None:
-            return None
+            return reject("singular_robust_fit")
         converged = max(abs(a-b) for a, b in zip(coeffs, updated)) < 1e-7
         coeffs = updated
         if converged:
@@ -521,7 +540,8 @@ def _estimation_fit_boundary(points, settings):
     residuals = [sum(c*b for c, b in zip(coeffs, row))-p[1] for row, p in zip(basis, points)]
     inliers = [i for i, r in enumerate(residuals) if abs(r) <= 2*settings.huber_delta_m]
     if len(inliers) < degree+1 or len(inliers) < 0.6*len(points):
-        return None
+        return reject("insufficient_inliers", inlier_count=len(inliers),
+            minimum_points=degree+1, minimum_fraction=.6, residual_limit_m=2*settings.huber_delta_m)
     # Restrict support to a near contiguous inlier segment; never bridge a large gap.
     segment = []
     for i in inliers:
@@ -529,7 +549,7 @@ def _estimation_fit_boundary(points, settings):
             break
         segment.append(i)
     if len(segment) < degree+1:
-        return None
+        return reject("insufficient_contiguous_inliers", inlier_count=len(segment), minimum_points=degree+1)
     inliers = segment
     matrix = [[sum(points[k][2]*basis[k][i]*basis[k][j] for k in inliers)
                for j in range(degree+1)] for i in range(degree+1)]
@@ -537,20 +557,23 @@ def _estimation_fit_boundary(points, settings):
            for i in range(degree+1)]
     coeffs = _estimation_solve(matrix, rhs)
     if coeffs is None:
-        return None
+        return reject("singular_inlier_refit")
     lo, hi = points[inliers[0]][0], points[inliers[-1]][0]
     if hi-lo < settings.road_min_coverage_m:
-        return None
+        return reject("insufficient_inlier_coverage", coverage_m=hi-lo, minimum_m=settings.road_min_coverage_m)
     c2 = coeffs[2] if degree == 2 else 0.0
     a2 = c2/(scale*scale)
     a1 = coeffs[1]/scale - 2*a2*origin
     a0 = coeffs[0] - coeffs[1]*origin/scale + a2*origin*origin
-    if max(abs(a1+2*a2*x) for x in (lo, hi)) > settings.road_max_abs_slope:
-        return None
+    maximum_slope = max(abs(a1+2*a2*x) for x in (lo, hi))
+    if maximum_slope > settings.road_max_abs_slope:
+        return reject("slope_limit", actual_abs_slope=maximum_slope, maximum_abs_slope=settings.road_max_abs_slope)
     rms = math.sqrt(sum((a0+a1*points[i][0]+a2*points[i][0]**2-points[i][1])**2
                         for i in inliers)/len(inliers))
     if rms > settings.huber_delta_m:
-        return None
+        return reject("rms_limit", rms_m=rms, maximum_rms_m=settings.huber_delta_m, inlier_count=len(inliers))
+    if diagnostic is not None:
+        diagnostic.update(reason="accepted", rms_m=rms, inlier_count=len(inliers), x_range_m=[lo, hi])
     return {"coeffs": (a0, a1, a2), "range": (lo, hi), "rms_m": rms,
             "support_points": [points[i] for i in inliers],
             "inlier_fraction": len(inliers)/len(points)}
@@ -597,6 +620,7 @@ class EstimationPipeline:
                 "source": "observed_both_sides"}
 
     def _clear_road_history(self, reason="reset"):
+        self._single_side_choice = None
         previous = len(getattr(self, "_road_cones", []))
         if not hasattr(self, "_history_events"):
             self._history_events = []
@@ -741,6 +765,10 @@ class EstimationPipeline:
                 "conflict_check_enabled": self.settings.history_conflict_check_enabled,
                 "alignment_problem": problem, "events": deepcopy(self._history_events),
                 "common_coverage_x_m": road.get("near_field", {}).get("coverage_x_m"),
+                "reconstruction_failure": deepcopy(road.get("reconstruction_failure")),
+                "single_side_fallback": deepcopy(road.get("single_side_fallback")),
+                "centerline_geometry": {k: v for k, v in (road.get("centerline_geometry") or {}).items() if k != "points_xy"},
+                "inferred_boundary_geometry": deepcopy(road.get("inferred_boundary_geometry")),
                 "current_camera_boundaries": deepcopy(road.get("current_frame", {}).get("boundary_diagnostics", {}))}
 
     def _reject_history_conflict(self, current, placed, fits, source_s):
@@ -756,8 +784,7 @@ class EstimationPipeline:
         for point in placed:
             fit = fits.get(point[3])
             if fit is not None and fit["range"][0] <= point[0] <= fit["range"][1]:
-                a0, a1, a2 = fit["coeffs"]
-                if abs(point[1]-(a0+a1*point[0]+a2*point[0]**2)) > radius:
+                if abs(point[1]-self._evaluate_boundary(fit, point[0])[0]) > radius:
                     conflicts.append(point)
         if not conflicts:
             return False
@@ -885,7 +912,10 @@ class EstimationPipeline:
 
         if source_s != self._observation_stamp or self._observation_road is None:
             self._observation_stamp = source_s
-            self._observation_road = self.road(batch, stamp_ns, age)
+            # Cold starts need the same local-curve fallback as history refits;
+            # otherwise a failed global fit cannot ever populate that history.
+            self._observation_road = self.road(batch, stamp_ns, age,
+                piecewise=self.settings.continuous_road_output)
         current = deepcopy(self._observation_road)
         current["source_age_s"] = age
         if (self.settings.history_conflict_check_enabled and self._conflict_source_s is not None
@@ -926,6 +956,9 @@ class EstimationPipeline:
             merged = self.road({"detections": [p[:5] for p in visible]}, stamp_ns, age,
                                piecewise=self.settings.continuous_road_output, learn_width=False)
             if merged.get("valid") and merged.get("single_side_reconstructed"):
+                for key in ("observed_boundary_constraints", "single_side_fallback"):
+                    if key in current:
+                        merged[key] = current[key]
                 current = merged
                 current["history_used"] = any(p[5] < source_s for p in visible)
                 current["oldest_observation_timestamp_s"] = min(p[5] for p in visible)
@@ -963,9 +996,8 @@ class EstimationPipeline:
             current.pop("_support_cones", None)
             return current
         for colour, fit in fits.items():
-            a0, a1, a2 = fit["coeffs"]
             if self.settings.history_conflict_check_enabled and any(p[3] == colour and fit["range"][0] <= p[0] <= fit["range"][1]
-                   and abs(p[1]-(a0+a1*p[0]+a2*p[0]*p[0])) > radius for p in previous):
+                   and abs(p[1]-self._evaluate_boundary(fit, p[0])[0]) > radius for p in previous):
                 previous = []
                 break
         fresh = [(x, y, 0.0, colour, confidence, source_s)
@@ -982,13 +1014,20 @@ class EstimationPipeline:
                 side = [side[round(i*(len(side)-1)/63)] for i in range(64)]
             bounded.extend(side)
         supported = [p[:5] for p in fresh]
-        result = self.road({"detections": [p[:5] for p in bounded]}, stamp_ns, age,
-                           piecewise=self.settings.continuous_road_output, learn_width=False)
+        if self.settings.continuous_road_output and not previous and not partial:
+            # Reuse the accepted fits for an initial or fully reobserved frame.
+            # No older points were merged: do not run every local fit a second
+            # time on the control thread just to seed the cache.
+            result = deepcopy(current)
+        else:
+            result = self.road({"detections": [p[:5] for p in bounded]}, stamp_ns, age,
+                               piecewise=self.settings.continuous_road_output, learn_width=False)
         if not result["valid"] or (partial and result["visibility"] != "both"):
             if self.settings.continuous_road_output:
                 # Keep the already advanced cache. Never replace its rear
                 # support with the current camera's forward-only observations.
                 self._history_events.append({"reason": "merged_fit_failed", "status": result["status"],
+                                             "reconstruction_failure": result.get("reconstruction_failure"),
                                              "retained_points": len(self._road_cones)})
                 current.pop("_support_cones", None)
                 current.update(valid=False, status="history_fit_failed", centerline_xy=[],
@@ -1122,7 +1161,7 @@ class EstimationPipeline:
     def _fresh(self, value, age):
         return value is not None and finite_number(age) and 0 <= age < self.settings.max_source_age_s
 
-    def _fit_segmented_boundary(self, points):
+    def _fit_segmented_boundary(self, points, diagnostic=None):
         """Overlapping local fits, with no extrapolation of observed support.
 
         Reuse the existing coverage/error/slope gates. Window size derives
@@ -1131,21 +1170,38 @@ class EstimationPipeline:
         """
         points = sorted(points)
         if len(points) < 2:
+            if diagnostic is not None:
+                diagnostic.update(reason="insufficient_points")
             return None
         lo, hi = points[0][0], points[-1][0]
         width = max(2*self.settings.road_min_coverage_m, 4*self.settings.road_sample_spacing_m)
         if hi-lo <= width:
-            return _estimation_fit_boundary(points, self.settings)
+            return _estimation_fit_boundary(points, self.settings, diagnostic)
         count = min(32, max(2, math.ceil(2*(hi-lo)/width)))
         segments = []
+        truncated = False
         for i in range(count):
             start = lo+(hi-lo-width)*i/(count-1)
             local = [p for p in points if start-1e-9 <= p[0] <= start+width+1e-9]
-            fit = _estimation_fit_boundary(local, self.settings)
+            detail = {}
+            fit = _estimation_fit_boundary(local, self.settings, detail)
             if fit is None or (segments and fit["range"][0] > segments[-1]["range"][1]+1e-9):
-                return None
+                if diagnostic is not None:
+                    diagnostic.update(reason="local_fit_failed" if fit is None else "local_support_gap",
+                        failed_window_index=i, window_x_m=[start, start+width], local_fit=detail)
+                # Never bridge a failed window. A continuous observed near
+                # prefix may still be usable; its far support ends here.
+                if not segments or segments[-1]["range"][1]-segments[0]["range"][0] < self.settings.road_min_coverage_m:
+                    return None
+                truncated = True
+                break
             segments.append(fit)
         supported = sorted({p for fit in segments for p in fit["support_points"]})
+        if diagnostic is not None:
+            diagnostic.update(accepted=True, truncated=truncated, segment_count=len(segments),
+                x_range_m=[segments[0]["range"][0], segments[-1]["range"][1]])
+            if not truncated:
+                diagnostic["reason"] = "accepted"
         return {"segments": segments, "range": (segments[0]["range"][0], segments[-1]["range"][1]),
                 "rms_m": max(f["rms_m"] for f in segments), "support_points": supported,
                 "inlier_fraction": len(supported)/len(points)}
@@ -1177,23 +1233,98 @@ class EstimationPipeline:
         second = (totals[2]-y*totals[5]-2*slope*totals[4])/totals[3]
         return y, slope, second
 
-    def _fit_boundary(self, points, piecewise):
-        fit = _estimation_fit_boundary(points, self.settings)
+    def _fit_boundary(self, points, piecewise, diagnostic=None):
+        global_detail, local_detail = {}, {}
+        fit = _estimation_fit_boundary(points, self.settings, global_detail)
+        selected = "global" if fit is not None else None
         if piecewise and points:
             lo, hi = min(p[0] for p in points), max(p[0] for p in points)
             # A single parabola is preferred when it preserves real coverage.
             # Local fitting is for a changing curve, not for manufacturing gaps.
-            if (fit is None or fit["inlier_fraction"] < 1.0-1e-9
+            # A validated robust global fit need not become 32 local fits just
+            # because it discarded an interior outlier. Recover lost END support
+            # or a failed global fit; retain all existing global acceptance gates.
+            if (fit is None
                     or fit["range"][0] > lo+self.settings.road_sample_spacing_m
                     or fit["range"][1] < hi-self.settings.road_sample_spacing_m):
-                segmented = self._fit_segmented_boundary(points)
+                segmented = self._fit_segmented_boundary(points, local_detail)
                 if segmented is not None and (fit is None
                         or len(segmented["support_points"]) > len(fit["support_points"])
                         or segmented["range"][1]-segmented["range"][0] > fit["range"][1]-fit["range"][0]):
-                    return segmented
+                    fit, selected = segmented, "segmented"
+        if diagnostic is not None:
+            diagnostic.update(selected_method=selected, global_fit=global_detail,
+                segmented_fit=local_detail if local_detail else None)
+            if fit is None:
+                # Failed fits previously discarded all coordinates and the
+                # rejection gate. Keep bounded input for an exact next replay.
+                ordered = sorted(points)
+                diagnostic["input_points_xy_confidence"] = [list(p) for p in ordered[:64]]
         return fit
 
     def road(self, batch, stamp_ns, age, *, piecewise=False, learn_width=True):
+        result = self._road_geometry(batch, stamp_ns, age, piecewise=piecewise, learn_width=learn_width)
+        fits = result.get("_boundary_fits", {})
+        reason = (result.get("reconstruction_failure") or {}).get("reason")
+        if (result["valid"] or not self.settings.single_side_width_memory_enabled
+                or result.get("width_memory") is None or len(fits) != 2
+                or reason not in ("insufficient_common_range", "observed_width_out_of_range")):
+            if result.get("valid") and result.get("single_side_reconstructed"):
+                self._single_side_choice = result["visibility"].split("_")[0]
+            return result
+        candidates, records = [], []
+        for side, colour in (("left", self.left_colour), ("right", self.right_colour)):
+            fit = fits[colour]
+            candidate = self._road_geometry(batch, stamp_ns, age, piecewise=piecewise,
+                learn_width=False, fits_override=(fit, None) if side == "left" else (None, fit))
+            coverage = candidate.get("planning_coverage_x_m")
+            score = 0.0
+            continuity = None
+            if candidate["valid"]:
+                score = ((coverage[1]-coverage[0])*min(1.0, len(fit["support_points"])/6)
+                         *fit["inlier_fraction"]/(1+fit["rms_m"]/self.settings.huber_delta_m))
+                score /= 1+max(0.0, coverage[0])  # Prefer support closer to the body at equal quality.
+                previous = getattr(self, "_road_frame", None)
+                if previous and previous.get("valid"):
+                    pose, problem = self.motion.pose_between(previous["timestamp_s"], candidate["timestamp_s"])
+                    if problem is None:
+                        old = [self.motion.transform_xy(p, pose) for p in previous["centerline_xy"]]
+                        new = candidate["centerline_xy"]
+                        lo, hi = max(old[0][0], new[0][0]), min(old[-1][0], new[-1][0])
+                        if hi-lo >= self.settings.road_min_coverage_m and all(b[0] > a[0] for a, b in zip(old, old[1:])):
+                            continuity = _estimation_median([abs(CenterlinePlanner._interpolate(old, x)
+                                -CenterlinePlanner._interpolate(new, x)) for x in (lo, (lo+hi)/2, hi)])
+                            score /= 1+continuity/candidate["lane_width_m"]
+                candidates.append((score, side, candidate))
+            records.append({"side": side, "valid": candidate["valid"], "score": score,
+                "coverage_x_m": coverage, "inlier_count": len(fit["support_points"]),
+                "fit_rms_m": fit["rms_m"], "continuity_m": continuity,
+                "failure": candidate.get("reconstruction_failure")})
+        result["single_side_fallback"] = {"trigger": reason, "candidates": records, "selected_side": None}
+        if not candidates:
+            return result
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        best = candidates[0]
+        # Keep the previous usable side when quality is within ten percent;
+        # the existing centreline handoff handles larger source changes.
+        best = next((c for c in candidates if c[1] == getattr(self, "_single_side_choice", None)
+                     and c[0] >= best[0]*.9), best)
+        _, side, candidate = best
+        self._single_side_choice = side
+        candidate["single_side_fallback"] = {**result["single_side_fallback"], "selected_side": side}
+        candidate["boundary_diagnostics"] = result["boundary_diagnostics"]
+        # Retain BOTH real fits as independent collision constraints, even
+        # though only the selected side defines the reconstructed reference.
+        candidate["observed_boundary_constraints"] = {}
+        for name, colour in (("left", self.left_colour), ("right", self.right_colour)):
+            fit = fits[colour]
+            lo, hi = fit["range"]
+            n = min(200, math.ceil((hi-lo)/self.settings.road_sample_spacing_m))
+            candidate["observed_boundary_constraints"][name] = [
+                (lo+(hi-lo)*i/n, self._evaluate_boundary(fit, lo+(hi-lo)*i/n)[0]) for i in range(n+1)]
+        return candidate
+
+    def _road_geometry(self, batch, stamp_ns, age, *, piecewise=False, learn_width=True, fits_override=None):
         timestamp = stamp_ns/1e9 if stamp_ns is not None and stamp_ns > 0 else None
         output = {"timestamp_s": timestamp, "frame_id": self.frame_id, "valid": False,
                   "centerline_xy": [], "left_boundary_xy": None, "right_boundary_xy": None,
@@ -1224,12 +1355,20 @@ class EstimationPipeline:
                     and self.settings.min_cone_confidence <= confidence <= 1.0
                     and confidence > 0 and colour in sides):
                 sides[colour].append((x, y, confidence))
-        left = self._fit_boundary(sides[self.left_colour], piecewise)
-        right = self._fit_boundary(sides[self.right_colour], piecewise)
+        fit_details = {"left": {}, "right": {}}
+        left, right = fits_override if fits_override is not None else (
+            self._fit_boundary(sides[self.left_colour], piecewise, fit_details["left"]),
+            self._fit_boundary(sides[self.right_colour], piecewise, fit_details["right"]))
+        def reject(status, reason, **details):
+            output["status"] = status
+            output["reconstruction_failure"] = {"reason": reason, "timestamp_s": timestamp,
+                "lane_width_m": width_m, **details}
+            return output
         output["_boundary_fits"] = {colour: fit for colour, fit in
                                     ((self.left_colour, left), (self.right_colour, right)) if fit is not None}
         for side, colour, fit in (("left", self.left_colour, left), ("right", self.right_colour, right)):
             diag = output["boundary_diagnostics"][side]
+            diag["fit_details"] = fit_details[side]
             diag["filtered_count"] = len(sides[colour])
             points = sides[colour]
             diag["fit_status"] = ("insufficient_points" if len(points) < 2 else
@@ -1240,19 +1379,26 @@ class EstimationPipeline:
                             fit_rms_m=fit["rms_m"], x_range_m=list(fit["range"]))
         output["status"] = "insufficient_geometry"
         if left is None and right is None:
-            return output
+            return reject("insufficient_geometry", "no_usable_boundary_fit")
         if left is None or right is None:
             output["visibility"] = "left_only" if left is not None else "right_only"
             if width_m == 0:
-                output["status"] = "single_side_width_unknown"
-                return output
+                return reject("single_side_width_unknown", "width_memory_unavailable")
         fits = [fit for fit in (left, right) if fit is not None]
         lo, hi = max(f["range"][0] for f in fits), min(f["range"][1] for f in fits)
+        if left is not None and right is not None and hi >= lo:
+            # Check the whole shared support before width/range fallback;
+            # an earlier wide sample must not hide a later real order conflict.
+            probes = max(1, min(200, math.ceil((hi-lo)/self.settings.road_sample_spacing_m)))
+            for i in range(probes+1):
+                x = lo+(hi-lo)*i/probes
+                if self._evaluate_boundary(left, x)[0] <= self._evaluate_boundary(right, x)[0]:
+                    return reject("invalid_width_or_order", "observed_boundary_order_conflict", sample_x_m=x)
         if hi-lo < self.settings.road_min_coverage_m:
-            output["status"] = "insufficient_common_range"
-            return output
+            return reject("insufficient_common_range", "insufficient_common_range", coverage_x_m=[lo, hi])
         count = min(200, math.ceil((hi-lo)/self.settings.road_sample_spacing_m))
         center, widths, curvatures, samples = [], [], [], {"left": [], "right": []}
+        missing_failure = None
         for i in range(count+1):
             x = lo+(hi-lo)*i/count
             evaluated = []
@@ -1262,39 +1408,76 @@ class EstimationPipeline:
                     continue
                 y, slope, second = self._evaluate_boundary(fit, x)
                 if abs(slope) > self.settings.road_max_abs_slope:
-                    output["status"] = "invalid_segmented_slope"
-                    return output
+                    return reject("invalid_segmented_slope", "visible_boundary_slope", side=side,
+                                  sample_x_m=x, slope=slope)
                 samples[side].append((x, y))
                 evaluated.append((y, slope, second))
             if all(v is not None for v in evaluated):
                 (yl, sl, ql), (yr, sr, qr) = evaluated
                 slope = (sl+sr)/2
                 width = (yl-yr)/math.hypot(1, slope)
+                if width <= 0:
+                    return reject("invalid_width_or_order", "observed_boundary_order_conflict", sample_x_m=x)
+                if not self.settings.road_width_min_m <= width <= self.settings.road_width_max_m:
+                    return reject("invalid_width_or_order", "observed_width_out_of_range", sample_x_m=x,
+                                  measured_width_m=width)
                 center.append((x, (yl+yr)/2))
                 curvatures.append((ql+qr)/2/(1+slope*slope)**1.5)
             else:
                 y, slope, _ = next(v for v in evaluated if v is not None)
                 width = width_m
+                if not self.settings.road_width_min_m <= width <= self.settings.road_width_max_m:
+                    return reject("invalid_width_or_order", "width_memory_out_of_range", sample_x_m=x)
                 # Offset along the local normal, not simply along body y.
                 direction = -1 if left is not None else 1
                 half = direction*width/2/math.hypot(1, slope)
+                curvature = evaluated[0 if left is not None else 1][2]/(1+slope*slope)**1.5
+                if 1-direction*width/2*curvature <= .2:
+                    output["centerline_geometry"] = {"valid": False, "reason": "centerline_offset_cusp",
+                        "timestamp_s": timestamp, "frame_id": self.frame_id, "points_xy": center}
+                    return reject("invalid_width_or_order", "centerline_offset_cusp", sample_x_m=x,
+                                  curvature_1pm=curvature, side="left" if left is not None else "right")
                 center.append((x-half*slope, y+half))
                 if memory is not None:
                     # Offset the missing boundary by the FULL learned width.
                     # Reject inward offset cusps, never fold/reverse a corridor.
-                    curvature = evaluated[0 if left is not None else 1][2]/(1+slope*slope)**1.5
-                    if 1-direction*width*curvature <= 0.2:
-                        output["status"] = "invalid_width_or_order"
-                        return output
-                    samples["right" if left is not None else "left"].append(
-                        (x-2*half*slope, y+2*half))
+                    missing = "right" if left is not None else "left"
+                    point = (x-2*half*slope, y+2*half)
+                    reason = ("inferred_boundary_offset_cusp" if 1-direction*width*curvature <= .2
+                              else "inferred_boundary_fold" if samples[missing] and point[0] <= samples[missing][-1][0]
+                              else None)
+                    if missing_failure is None and reason is not None:
+                        missing_failure = {"reason": reason, "side": missing, "sample_x_m": x,
+                            "curvature_1pm": curvature, "lane_width_m": width}
+                    if missing_failure is None:
+                        samples[missing].append(point)
             widths.append(width)
-        if (any(not self.settings.road_width_min_m <= w <= self.settings.road_width_max_m for w in widths)
-                or any(b[0] <= a[0] for a, b in zip(center, center[1:]))
-                or center[0][0] < -self.settings.road_rear_support_m
-                or center[-1][0]-center[0][0] < self.settings.road_min_coverage_m):
-            output["status"] = "invalid_width_or_order"
-            return output
+        center_reason = ("centerline_fold" if any(b[0] <= a[0] for a, b in zip(center, center[1:]))
+            else "centerline_rear_range" if center[0][0] < -self.settings.road_rear_support_m
+            else "centerline_insufficient_coverage" if center[-1][0]-center[0][0] < self.settings.road_min_coverage_m
+            else None)
+        output["centerline_geometry"] = {"valid": center_reason is None, "reason": center_reason,
+            "timestamp_s": timestamp, "frame_id": self.frame_id, "points_xy": center,
+            "coverage_x_m": [center[0][0], center[-1][0]]}
+        if center_reason:
+            failed_x = next((b[0] for a, b in zip(center, center[1:]) if b[0] <= a[0]), center[0][0])
+            return reject("invalid_width_or_order", center_reason, sample_x_m=failed_x)
+        if len(fits) == 1 and memory is not None:
+            missing = "right" if left is not None else "left"
+            boundary = samples[missing]
+            boundary_valid = len(boundary) >= 2 and boundary[-1][0]-boundary[0][0] >= self.settings.road_min_coverage_m
+            output["inferred_boundary_geometry"] = {"valid": boundary_valid, "truncated": missing_failure is not None,
+                "side": missing, "failure": missing_failure,
+                "coverage_x_m": [boundary[0][0], boundary[-1][0]] if boundary else None}
+            if not boundary_valid:
+                # Retain the existing hard rejection when no usable corridor
+                # remains. Independent centreline validity alone cannot drive.
+                return reject("invalid_width_or_order", (missing_failure or {}).get("reason", "inferred_boundary_insufficient_coverage"))
+        supported = [center]+[p for p in samples.values() if p]
+        common = [max(p[0][0] for p in supported), min(p[-1][0] for p in supported)]
+        output["planning_coverage_x_m"] = common
+        if common[1]-common[0] < self.settings.road_min_coverage_m:
+            return reject("insufficient_common_range", "reconstructed_common_coverage", coverage_x_m=common)
         output.update(valid=True, centerline_xy=center, lane_width_m=_estimation_median(widths),
                       x_range_m=[center[0][0], center[-1][0]],
                       confidence=min(f["inlier_fraction"] for f in fits) * (1.0 if len(fits) == 2 else 0.5),
@@ -1398,6 +1581,16 @@ class EstimationPipeline:
                             motion_compensated=pose["interval_s"] > 0,
                             motion_compensation=pose)
                 road["geometry_valid"] = problem is None
+                constraints = {}
+                for side, points in road.get("observed_boundary_constraints", {}).items():
+                    moved = [self.motion.transform_xy(p, pose) for p in points]
+                    if (any(not all(finite_number(v) for v in p) for p in moved)
+                            or any(b[0] <= a[0] for a, b in zip(moved, moved[1:]))):
+                        problem = "motion_transformed_geometry_invalid"
+                        road["geometry_valid"] = False
+                    constraints[side] = moved
+                if constraints:
+                    road["observed_boundary_constraints"] = constraints
                 boundaries = [road.get(f"{side}_boundary_xy") for side in ("left", "right")]
                 if (any(not points or any(b[0] <= a[0] for a, b in zip(points, points[1:]))
                         for points in boundaries)):
@@ -1468,7 +1661,8 @@ class EstimationPipeline:
                  "sample_time_basis": {"wheel_speed": "ros_receipt_proxy",
                                        "imu_angular_velocity": "ros_acquisition"},
                  "source_age_s": {k: ages.get(k) for k in ("wheel_speed", "imu_angular_velocity")},
-                 "source_stamp_ns": {k: stamps.get(k) for k in ("wheel_speed", "imu_angular_velocity")}}
+                 "source_stamp_ns": {k: stamps.get(k) for k in ("wheel_speed", "imu_angular_velocity")},
+                 "motion_feedback": self.motion.diagnostics(now_s)}
         continuous = self.settings.history_propagation == "continuous"
         if not state["valid"]:
             self._clear_road_history("motion_state_unavailable")
@@ -1488,6 +1682,8 @@ class EstimationPipeline:
                          "fit_valid": observed["valid"] and observed["visibility"] == "both",
                          "status": observed["status"], "visibility": observed["visibility"],
                          "single_side_reconstructed": bool(observed.get("single_side_reconstructed")),
+                         "reconstruction_failure": deepcopy(observed.get("reconstruction_failure")),
+                         "single_side_fallback": deepcopy(observed.get("single_side_fallback")),
                          "boundary_diagnostics": deepcopy(observed["boundary_diagnostics"])}
         failure = road["status"]
         if (self.settings.continuous_road_output and self._failure_since_s is not None
@@ -2041,9 +2237,19 @@ class LatticeSettings:
     direct_sample_output: bool = False
     # Explicit controlled-start corridor, not an inferred rear road boundary.
     startup_connection_enabled: bool = False
+    # Score startup against the observed ROAD, and carry the accepted join's
+    # remaining travel instead of renewing a distant join on every replan.
+    startup_progress_enabled: bool = False
     # Temporary test switch: only fixed, unobserved startup-corridor clearance.
     # Observed boundary and obstacle checks remain independent.
     startup_corridor_check_enabled: bool = True
+    boundary_collision_only_enabled: bool = False
+    incremental_centering_enabled: bool = False
+    centering_step_max_m: float = 0.02
+    # Trial: prioritize the executed prefix over distant centering and old path.
+    immediate_centering_enabled: bool = False
+    # Planning-model angle/rate gates only; actuator saturation is independent.
+    steering_limits_enabled: bool = True
     worker_timeout_s: float = 0.3
     recovery_speed_mps: float = 0.12
     initial_heading_max_rad: float = 1.22
@@ -2065,9 +2271,9 @@ class LatticeSettings:
                 if name != "terminal_offsets_m" and any(v <= 0 for v in samples):
                     raise ValueError("lattice lengths, durations and speeds must be positive")
             elif isinstance(value, bool):
-                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled", "startup_corridor_check_enabled", "low_speed_yaw_check_enabled"):
+                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled", "startup_progress_enabled", "startup_corridor_check_enabled", "boundary_collision_only_enabled", "incremental_centering_enabled", "immediate_centering_enabled", "steering_limits_enabled", "low_speed_yaw_check_enabled"):
                     raise ValueError("invalid lattice boolean")
-            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled", "startup_corridor_check_enabled", "low_speed_yaw_check_enabled"):
+            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled", "startup_progress_enabled", "startup_corridor_check_enabled", "boundary_collision_only_enabled", "incremental_centering_enabled", "immediate_centering_enabled", "steering_limits_enabled", "low_speed_yaw_check_enabled"):
                 raise ValueError("lattice flags must be booleans")
             elif not finite_number(value) or value <= 0:
                 raise ValueError("lattice numeric settings must be finite and positive: " + name)
@@ -2377,8 +2583,13 @@ class FrenetLatticePlanner:
         self.clock = clock or time.perf_counter
         self.sequence, self.previous, self.stop_latched = 0, None, False
         self.observed_origin_seen = False
+        self.body_support_frames = 0
+        self.body_support_stamp_s = None
+        self.body_support_confirmed = False
+        self.startup_complete = False
         self.startup_corridor = None
         self.startup_motion = None
+        self.startup_join_limit_m = None
 
     def _advance_startup_motion(self, state, now_s, source_timeout_s):
         """Carry the fixed initial corridor even when this job rejects the road.
@@ -2418,6 +2629,28 @@ class FrenetLatticePlanner:
         self.startup_corridor["pose"] = [px+math.cos(angle)*dx-math.sin(angle)*dy,
             py+math.sin(angle)*dx+math.cos(angle)*dy, wrap_angle(angle+turn)]
         self.startup_motion = (now_s, speed, yaw)
+        return True
+
+    def _sync_startup_motion(self, snapshot, now_s):
+        """Accept current-epoch corridor motion integrated at control cadence.
+
+        This is measured-history transport of the fixed corridor, never a new
+        corridor around the car or an exemption for missing wheel/gyro history.
+        """
+        if not snapshot or snapshot.get("startup_motion_verified") is not True:
+            return False
+        motion, corridor = snapshot.get("startup_motion"), snapshot.get("startup_corridor")
+        if (not motion or len(motion) != 3 or not all(finite_number(v) for v in motion)
+                or abs(motion[0]-now_s) > 1e-6 or motion[1] < 0
+                or not corridor or self.startup_corridor is None
+                or any(abs(corridor.get(k, math.inf)-self.startup_corridor[k]) > 1e-9
+                       for k in ("half_width", "far_x"))
+                or len(corridor.get("pose", ())) != 3
+                or not all(finite_number(v) for v in corridor["pose"])
+                or self.startup_motion is not None and motion[0] < self.startup_motion[0]):
+            return False
+        self.startup_corridor = deepcopy(corridor)
+        self.startup_motion = tuple(motion)
         return True
 
     def _model(self, limits):
@@ -2466,7 +2699,9 @@ class FrenetLatticePlanner:
                     world_x = px+math.cos(angle)*x-math.sin(angle)*y
                     world_y = py+math.sin(angle)*x+math.cos(angle)*y
                     worst = min(startup["half_width"]-abs(world_y),
-                                world_x+model["rear_extent_m"]+0.15)-cfg.hard_margin_m-sweep_guard
+                                world_x+model["rear_extent_m"]+0.15)
+                    if not cfg.boundary_collision_only_enabled:
+                        worst -= cfg.hard_margin_m+sweep_guard
                     if world_x > startup["far_x"]+0.15:
                         worst = min(worst, startup["far_x"]+0.15-world_x)
                     if details is not None and worst < clearance:
@@ -2480,17 +2715,38 @@ class FrenetLatticePlanner:
                 extra = cfg.extension_margin_growth*max(0.0, max(left.points[0][0], right.points[0][0])-x)
                 raw_left = (yl-y)/math.hypot(1, left.max_slope)
                 raw_right = (y-yr)/math.hypot(1, right.max_slope)
-                guard = cfg.hard_margin_m+extra+edge_guard+sweep_guard
+                hard, interpolation, sweep = cfg.hard_margin_m, edge_guard, sweep_guard
+                if cfg.boundary_collision_only_enabled:
+                    hard = extra = interpolation = sweep = 0.0
+                    raw_left = (yl-y)/math.hypot(1, sl)
+                    raw_right = (y-yr)/math.hypot(1, sr)
+                observed_constraint = False
+                for side, boundary in (("left", left), ("right", right)):
+                    for actual in getattr(boundary, "observed_constraints", ()):
+                        if actual.xmin <= x <= actual.xmax:
+                            ay, slope, _, _ = actual.at_x(x)
+                            raw = ((ay-y) if side == "left" else (y-ay))/math.hypot(1, slope)
+                            if side == "left" and raw < raw_left:
+                                raw_left, observed_constraint = raw, True
+                            if side == "right" and raw < raw_right:
+                                raw_right, observed_constraint = raw, True
+                guard = hard+extra+interpolation+sweep
                 worst = min(raw_left, raw_right)-guard
                 if details is not None and worst < clearance:
                     details.clear()
                     details.update(constraint="body_boundary_clearance", side="left" if raw_left <= raw_right else "right",
                                    body_point_xy_m=[bx, by], point_xy_m=[x, y],
-                                   support="observed" if x >= max(left.points[0][0], right.points[0][0]) else "extrapolated",
-                                   raw_clearance_m=min(raw_left, raw_right), hard_margin_m=cfg.hard_margin_m,
-                                   extension_margin_m=extra, interpolation_guard_m=edge_guard,
-                                   sweep_guard_m=sweep_guard, actual_m=worst, minimum_m=0.0)
+                                   support="observed_fallback_constraint" if observed_constraint else (
+                                       "observed" if x >= max(left.points[0][0], right.points[0][0]) else "extrapolated"),
+                                   raw_clearance_m=min(raw_left, raw_right), hard_margin_m=hard,
+                                   extension_margin_m=extra, interpolation_guard_m=interpolation,
+                                   sweep_guard_m=sweep, actual_m=worst, minimum_m=0.0,
+                                   collision_only=cfg.boundary_collision_only_enabled)
                 clearance = min(clearance, worst)
+        if cfg.boundary_collision_only_enabled or any(getattr(b, "observed_constraints", ()) for b in (left, right)):
+            # Without interpolation padding, test cubic boundary extrema along
+            # all four footprint edges, including between the ten sample points.
+            clearance = self._boundary_edge_clearance(geom, left, right, model, clearance, details, startup)
         nearby = obstacles
         if isinstance(obstacles, dict):
             nearby = []
@@ -2513,6 +2769,88 @@ class FrenetLatticePlanner:
             clearance = min(clearance, worst)
         return clearance
 
+    def _boundary_edge_clearance(self, geom, left, right, model, clearance, details, startup=None):
+        c, s = math.cos(geom["heading"]), math.sin(geom["heading"])
+        corners = [(-model["rear_extent_m"], -model["width_m"]/2),
+                   (model["front_extent_m"], -model["width_m"]/2),
+                   (model["front_extent_m"], model["width_m"]/2),
+                   (-model["rear_extent_m"], model["width_m"]/2)]
+        points = [(geom["x"]+c*bx-s*by, geom["y"]+s*bx+c*by) for bx, by in corners]
+        boundaries = [("left", left, 1, False), ("right", right, -1, False)]
+        for side, boundary, sign in (("left", left, 1), ("right", right, -1)):
+            boundaries.extend((side, extra, sign, True) for extra in getattr(boundary, "observed_constraints", ()))
+        for side, boundary, sign, is_constraint in boundaries:
+            pieces = list(boundary.segments)
+            if startup is None and boundary.xmin < boundary.points[0][0]:
+                # Extension coefficients use the first observed x as origin.
+                pieces.insert(0, (boundary.xmin, boundary.points[0][0], None))
+            for (x0, y0), (x1, y1) in zip(points, points[1:]+points[:1]):
+                if startup is not None and not is_constraint and self.cfg.startup_corridor_check_enabled:
+                    # The unobserved edge is straight in the fixed initial
+                    # corridor, so its clipped endpoints bound all its points.
+                    cut = boundary.points[0][0]
+                    unknown = [(x, y) for x, y in ((x0, y0), (x1, y1)) if x < cut]
+                    if min(x0, x1) < cut < max(x0, x1):
+                        u = (cut-x0)/(x1-x0)
+                        unknown.append((cut, y0+u*(y1-y0)))
+                    for x, y in unknown:
+                        px, py, angle = startup["pose"]
+                        wx = px+math.cos(angle)*x-math.sin(angle)*y
+                        wy = py+math.sin(angle)*x+math.cos(angle)*y
+                        raw = min(startup["half_width"]-abs(wy),
+                                  wx+model["rear_extent_m"]+.15,
+                                  startup["far_x"]+.15-wx)
+                        if raw < clearance:
+                            clearance = raw
+                            if details is not None:
+                                details.clear()
+                                details.update(constraint="controlled_start_corridor", actual_m=raw,
+                                    point_xy_m=[wx, wy], edge_extremum_checked=True, collision_only=True)
+                if abs(x1-x0) < 1e-12:
+                    continue  # Vertical edge extrema are its checked corners.
+                slope = (y1-y0)/(x1-x0)
+                for start, end, coeffs in pieces:
+                    lo, hi = max(min(x0, x1), start), min(max(x0, x1), end)
+                    if hi < lo:
+                        continue
+                    base = start
+                    if coeffs is None:
+                        base, coeffs = boundary.points[0][0], boundary.extension[2]
+                    # Extrema of boundary(x) minus the straight body edge.
+                    a, b, d = 3*coeffs[3], 2*coeffs[2], coeffs[1]-slope
+                    roots = []
+                    if abs(a) < 1e-12:
+                        if abs(b) >= 1e-12:
+                            roots = [-d/b]
+                    else:
+                        disc = b*b-4*a*d
+                        if disc >= 0:
+                            q = -.5*(b+math.copysign(math.sqrt(disc), b))
+                            roots = [q/a, d/q] if q else [-b/(2*a)]
+                    for x in [lo, hi]+[base+u for u in roots if lo <= base+u <= hi]:
+                        y = y0+slope*(x-x0)
+                        by, bs, _, _ = boundary.at_x(x)
+                        raw = sign*(by-y)/math.hypot(1, bs)
+                        if raw < clearance:
+                            clearance = raw
+                            if details is not None:
+                                dx, dy = x-geom["x"], y-geom["y"]
+                                details.clear()
+                                details.update(constraint="body_boundary_clearance", side=side,
+                                    body_point_xy_m=[c*dx+s*dy, -s*dx+c*dy], point_xy_m=[x, y],
+                                    support="observed_fallback_constraint" if is_constraint else (
+                                        "observed" if x >= boundary.points[0][0] else "extrapolated"),
+                                    raw_clearance_m=raw, hard_margin_m=0.0, extension_margin_m=0.0,
+                                    interpolation_guard_m=0.0, sweep_guard_m=0.0, actual_m=raw,
+                                    minimum_m=0.0, collision_only=True, edge_extremum_checked=True)
+        return clearance
+
+    def _attach_observed_constraints(self, left, right, road):
+        for side, boundary in (("left", left), ("right", right)):
+            points = (road.get("observed_boundary_constraints") or {}).get(side)
+            if points is not None:
+                boundary.observed_constraints = [LatticeCurve(points, 0, self.cfg.geometry_step_m)]
+
     def plan(self, road, state, obstacles, vehicle_limits, now_s, source_timeout_s=None, mvp=False,
              _stop_before_x=None, _started=None):
         self.sequence += 1
@@ -2520,8 +2858,11 @@ class FrenetLatticePlanner:
         self._consistency_cache = {}
         diag = {"candidates": [], "obstacle_response_enabled": cfg.obstacle_check_enabled,
                 "startup_corridor_check_enabled": cfg.startup_corridor_check_enabled,
+                "boundary_collision_only_enabled": cfg.boundary_collision_only_enabled,
                 "model_source": cfg.model_source, "near_support": None, "initialization": {},
-                "observed_origin_seen": self.observed_origin_seen}
+                "observed_origin_seen": self.observed_origin_seen,
+                "startup_complete": self.startup_complete,
+                "startup_motion_sync": getattr(self, "startup_motion_sync", False)}
         ref = {"schema_version": "planning_reference_v2", "planner_version": "frenet_lattice_v2",
                "trajectory_id": self.sequence, "timestamp_s": now_s, "generated_at_s": now_s,
                "frame_id": self.frame_id, "vehicle_reference_point": "cg_ground_projection",
@@ -2532,6 +2873,9 @@ class FrenetLatticePlanner:
                "model_assumed": cfg.model_source != "upstream", "vehicle_limits_source": cfg.model_source}
 
         def fail(reason, status="INVALID_INPUT"):
+            self.body_support_frames = 0
+            self.body_support_stamp_s = None
+            self.body_support_confirmed = False
             ref.update(reason=reason, stop_reason=reason, status=status)
             diag["elapsed_s"] = self.clock()-started
             diag["reason"] = reason
@@ -2552,10 +2896,10 @@ class FrenetLatticePlanner:
                 raise ValueError("invalid_lattice_input")
             # Road/source rejection must not discard healthy motion updates.
             # This never admits a path or changes the road's validity/lifetime.
-            startup_motion_updated = (self._advance_startup_motion(state, now_s, source_timeout_s)
-                                      if not self.observed_origin_seen else False)
+            startup_motion_updated = self._advance_startup_motion(state, now_s, source_timeout_s)
             if (not road.get("valid") and road.get("status") == "near_field_unobserved"
-                    and cfg.clear_start_assumed and not self.observed_origin_seen):
+                    and cfg.clear_start_assumed and (not self.observed_origin_seen
+                        or (cfg.startup_connection_enabled and mvp and not self.startup_complete))):
                 forward = road.get("forward_geometry")
                 if (isinstance(forward, dict) and forward.get("geometry_valid") is True
                         and forward.get("time_aligned") is True
@@ -2638,6 +2982,27 @@ class FrenetLatticePlanner:
             near, far = max(p[0][0] for p in points), min(p[-1][0] for p in points)
             if near <= 0 <= far:
                 self.observed_origin_seen = True
+            diag["observed_origin_seen"] = self.observed_origin_seen
+            sources = road.get("boundary_source") or {}
+            full_body_support = (near <= -model["rear_extent_m"]+1e-9
+                and far >= model["front_extent_m"]-1e-9
+                and road.get("visibility") == "both"
+                and all(sources.get(side, "observed") in ("observed", "observed_with_history")
+                        for side in ("left", "right")))
+            support_stamp = road.get("measurement_timestamp_s", road.get("timestamp_s"))
+            if not full_body_support:
+                self.body_support_frames = 0
+                self.body_support_stamp_s = None
+                self.body_support_confirmed = False
+            elif finite_number(support_stamp) and (self.body_support_stamp_s is None
+                    or support_stamp > self.body_support_stamp_s):
+                self.body_support_frames = min(3, self.body_support_frames+1)
+                self.body_support_stamp_s = support_stamp
+                self.body_support_confirmed = self.body_support_frames >= 3
+            diag["body_support"] = {"full_body_observed": full_body_support,
+                "confirmed": self.body_support_confirmed, "confirmation_frames": self.body_support_frames,
+                "required_frames": 3, "required_x_range_m": [-model["rear_extent_m"], model["front_extent_m"]],
+                "coverage_x_m": [near, far], "source_timestamp_s": support_stamp}
             if near > cfg.max_near_gap_m+1e-9 or far <= near or far-near < 0.3:
                 raise ValueError("insufficient_lattice_coverage")
             if near > 1e-6 and not cfg.clear_start_assumed:
@@ -2651,9 +3016,12 @@ class FrenetLatticePlanner:
                 clipped.append([(near, CenterlinePlanner._interpolate(p, near)),
                                 *[(x, y) for x, y in p if near < x < far],
                                 (far, CenterlinePlanner._interpolate(p, far))])
-            startup = None
+            # Keep footprint support independent of reference-path mode. Even
+            # after handoff, unsupported body edges use the same initial area
+            # while fresh motion still locates it; never reset it around the car.
+            startup = self.startup_corridor if startup_motion_updated else None
             use_startup = (cfg.startup_connection_enabled and cfg.clear_start_assumed and mvp
-                           and not self.observed_origin_seen and near > 0)
+                           and not (self.startup_complete or self.body_support_confirmed))
             if use_startup:
                 if road.get("degraded") and self.startup_corridor is None:
                     raise ValueError("startup_requires_observed_road")
@@ -2675,9 +3043,10 @@ class FrenetLatticePlanner:
             if extension > cfg.max_extension_m:
                 raise ValueError("extension_limit")
             curve, left, right = [LatticeCurve(p, extension, cfg.geometry_step_m) for p in clipped]
+            self._attach_observed_constraints(left, right, road)
             observed_curve = curve
             if use_startup:
-                curve = LatticeCurve.startup_connection(observed_curve, near,
+                curve = LatticeCurve.startup_connection(observed_curve, max(near, cfg.geometry_step_m),
                     yaw/speed if speed >= 0.05 else 0.0, cfg.geometry_step_m)
                 s0 = d0 = 0.0
                 diag["startup_connection"] = {"enabled": True, "observed_start_x_m": near,
@@ -2724,7 +3093,7 @@ class FrenetLatticePlanner:
             previous = []
             if self.previous is not None:
                 dt = now_s-self.previous["timestamp_s"]
-                if 0 < dt < self.previous["valid_for_s"]:
+                if 0 <= dt < self.previous["valid_for_s"]:
                     turn = yaw*dt
                     dx = speed*dt if abs(yaw) < 1e-8 else speed*math.sin(turn)/yaw
                     dy = 0 if abs(yaw) < 1e-8 else speed*(1-math.cos(turn))/yaw
@@ -2743,22 +3112,74 @@ class FrenetLatticePlanner:
             accepted = []
             count = 0
             targets = cfg.samples("terminal_offsets_m")
+            immediate_centering = cfg.immediate_centering_enabled and mvp
+            incremental_centering = cfg.incremental_centering_enabled and mvp and not use_startup and not immediate_centering
+            diag["steering_limits_enabled"] = cfg.steering_limits_enabled
+            diag["immediate_centering_enabled"] = immediate_centering
+            if incremental_centering:
+                # Replace the full-center target, keeping the same candidate
+                # product. Correct at most 25% of the offset and 2 cm per plan
+                # with the active profile; retain the current offset fallback.
+                step = min(cfg.centering_step_max_m, abs(d0)*.25)
+                progress_target = d0-math.copysign(step, d0)
+                targets = [progress_target if abs(target) < 1e-9 else target for target in targets]
+                diag["centering"] = {"enabled": True, "initial_offset_m": d0,
+                    "progress_target_m": progress_target, "requested_step_m": step,
+                    "selection_rule": "feasible_progress_before_hold"}
             if all(abs(d0-target) > 1e-6 for target in targets):
                 targets.append(d0)  # Preserve current offset as a real option.
             targets.sort(key=lambda target: (abs(target), target))
             search_truncated = False
-            configured_lengths = sorted(cfg.samples("transition_lengths_m"), reverse=True)
+            configured_lengths = sorted(cfg.samples("transition_lengths_m"), reverse=not immediate_centering)
             if use_startup:
                 # Join distance is body-x; lateral transition length is arc
                 # distance. Never use a join's sampling label as an arc limit.
                 # Keep one checked grid interval after the join in real support.
                 maximum_join = min(cfg.max_near_gap_m, end_x-cfg.geometry_step_m)
+                progress_limit = self.startup_join_limit_m if cfg.startup_progress_enabled else None
+                preferred_join = None
+                if progress_limit is not None:
+                    if not finite_number(progress_limit) or progress_limit < 0:
+                        raise ValueError("invalid_startup_join_progress")
+                    # Travel progress is a preference, not a geometric deadline.
+                    # Keep longer observed joins when the shrinking connection
+                    # would violate the CG-curvature domain or collide.
+                    preferred_join = min(maximum_join, max(near, cfg.geometry_step_m, progress_limit))
                 diag["startup_join_space"] = {"observed_start_x_m": near,
                     "usable_end_x_m": end_x, "maximum_join_x_m": maximum_join,
+                    "preferred_join_x_m": preferred_join, "progress_is_hard_limit": False,
                     "observed_tail_reserve_m": cfg.geometry_step_m}
+                diag["startup_connection"].update(progress_enabled=cfg.startup_progress_enabled,
+                    remaining_join_distance_m=progress_limit,
+                    preferred_join_x_m=preferred_join,
+                    join_limited_by_observed_support=(progress_limit is not None
+                        and progress_limit < max(near, cfg.geometry_step_m)),
+                    center_reference="observed_road" if cfg.startup_progress_enabled or immediate_centering else "startup_connection")
                 if maximum_join < near-1e-8:
                     return fail("startup_insufficient_join_space", "NO_FEASIBLE_PATH")
                 joins = sorted({min(maximum_join, max(near, value)) for value in configured_lengths}, reverse=True)
+                # Search the remaining permitted observed support independently
+                # of lateral transition lengths, preferring gentler long joins.
+                # Reserve a full longitudinal/offset product for each join so
+                # widening startup search cannot exhaust the candidate cap.
+                joins = sorted(set(joins + [maximum_join, (joins[0]+maximum_join)/2]), reverse=True)
+                if preferred_join is not None:
+                    joins = sorted(set(joins+[preferred_join, (preferred_join+maximum_join)/2]))
+                per_join = len(targets)*(len(cfg.samples("durations_s"))*len(cfg.samples("terminal_speeds_mps"))+1)
+                join_limit = cfg.max_candidates//per_join
+                diag["startup_join_space"]["candidate_cap_limited"] = len(joins) > join_limit
+                if immediate_centering or preferred_join is not None:
+                    joins.sort()
+                    # A bounded early search must retain a genuine long fallback.
+                    joins = (joins[:join_limit-1]+[joins[-1]] if len(joins) > join_limit and join_limit > 1
+                             else joins[:join_limit])
+                else:
+                    joins = joins[:join_limit]
+                if cfg.startup_progress_enabled:
+                    # With a bounded search, test earlier road entry before a
+                    # low-steering distant join can consume the search window.
+                    joins.sort()
+                diag["startup_join_space"]["sampled_join_x_m"] = joins
                 searches = [(min(configured_lengths), join) for join in joins]
             else:
                 searches = [(length, None) for length in configured_lengths]
@@ -2810,7 +3231,7 @@ class FrenetLatticePlanner:
                             if use_startup and g["x"] < join_x:
                                 g["support"] = "controlled_start_connection"
                             g["steering"] = _lattice_steering(g["curvature"], model)
-                            if abs(g["steering"]) > model["steering_limit_rad"]:
+                            if cfg.steering_limits_enabled and abs(g["steering"]) > model["steering_limit_rad"]:
                                 row["violation"] = {"actual_rad": abs(g["steering"]), "maximum_rad": model["steering_limit_rad"]}
                                 raise ValueError("steering_limit")
                             if g["support"] == "extrapolated" and (abs(g["d"]-d0) > cfg.blind_lateral_change_m or
@@ -2837,6 +3258,8 @@ class FrenetLatticePlanner:
                         row["first_rejected_s_m"] = sample_s
                         row["first_rejected_pose"] = None if g is None else dict(g)
                         continue
+                    if immediate_centering:
+                        row["near_centering"] = self._near_center_score(geometries, observed_curve)
                     lateral = {"coeffs_low_to_high": coeffs, "origin": s0, "scale": length,
                                "range": [s0, end_s], "transition_end_s": s0+length, "terminal_offset_m": target}
                     # Current speed must be stoppable within checked full-body path.
@@ -2883,9 +3306,22 @@ class FrenetLatticePlanner:
                             longitudinal = self._longitudinal(s0, sdot, stop_end, polynomial_duration, terminal_srate, stopping)
                             motion = self._motion(curve, lateral, longitudinal, model, geometries, speed, budget, candidate)
                             if "spatial_costs" not in row:
-                                row["spatial_costs"] = self._spatial_score(geometries, previous, curve)
+                                row["spatial_costs"] = self._spatial_score(geometries, previous, curve,
+                                    observed_curve if immediate_centering or use_startup and cfg.startup_progress_enabled else None)
                             costs = self._score(motion, speed, stopping, row["spatial_costs"], desired_speed)
-                            total = sum(getattr(cfg, "weight_"+key)*value for key, value in costs.items())
+                            # Once recentering is needed, smoothness/history must
+                            # not bury it under a large old-path or rate penalty.
+                            correcting = row.get("near_centering", {}).get("active", False)
+                            weights = {key: getattr(cfg, "weight_"+key)*(
+                                .1 if correcting and key in ("steering", "consistency") else 1.0) for key in costs}
+                            total = sum(weights[key]*value for key, value in costs.items())
+                            if use_startup and preferred_join is not None:
+                                delay_cost = (max(0.0, join_x-preferred_join)/cfg.preview_m)**2
+                                candidate.update(startup_join_preference_m=preferred_join,
+                                    startup_join_delay_cost=delay_cost)
+                                total += .1*cfg.weight_center*delay_cost
+                            if immediate_centering:
+                                candidate["effective_weights"] = weights
                             candidate.update(reason="feasible", costs=costs, cost=total, score=-total)
                             accepted.append((total, candidate, lateral, longitudinal, geometries, motion, reference_record))
                         except ValueError as error:
@@ -2917,6 +3353,17 @@ class FrenetLatticePlanner:
                               -min(g["clearance"] for g in v[4]), v[1]["costs"]["steering"],
                               v[1]["length_m"], v[1]["offset_m"], v[1]["duration_s"]))
             ordered = near_best+sorted([v for v in accepted if v not in near_best], key=lambda v: v[0])
+            if incremental_centering:
+                # All candidates have passed geometry and motion constraints.
+                # Stable partition preserves existing soft ranking within each
+                # group and keeps holding paths if progress/output fails.
+                ordered.sort(key=lambda item: abs(item[1]["offset_m"]) >= abs(d0)-1e-6)
+            if immediate_centering and any(v[1].get("near_centering", {}).get("active") for v in ordered):
+                # Prefix error precedes the full-horizon score, including its
+                # consistency tie-break. Stable sorting retains soft ordering
+                # for equal prefix costs. All entries already passed hard gates.
+                ordered.sort(key=lambda item: round(item[1]["near_centering"]["cost"], 8)
+                    if item[1]["near_centering"]["available"] else math.inf)
             for _, choice, lateral, longitudinal, geometries, motion, reference_record in ordered:
                 budget()
                 try:
@@ -2937,9 +3384,14 @@ class FrenetLatticePlanner:
                         "heading_rad": math.atan(join_slope),
                         "curvature_1pm": join_second/(1+join_slope**2)**1.5,
                         "slope_dy_dx": join_slope, "second_derivative_d2y_dx2": join_second}
+                    diag["startup_connection"]["selected_beyond_preference"] = (
+                        preferred_join is not None and join_x > preferred_join+1e-8)
                     diag["startup_connection"]["start"] = {
                         "x_m": 0.0, "y_m": 0.0, "heading_rad": 0.0,
                         "curvature_1pm": yaw/speed if speed >= 0.05 else 0.0}
+                    if cfg.startup_progress_enabled:
+                        ref.update(startup_join_distance_m=join_x, startup_join_timestamp_s=now_s)
+                        diag["startup_connection"]["road_center_cost"] = choice["costs"]["center"]
                 # Keep the input-frame timestamp for motion compensation;
                 # the execution window starts when this trajectory is ready.
                 generated_at = now_s+self.clock()-started
@@ -2971,9 +3423,22 @@ class FrenetLatticePlanner:
                            operating_profile="lattice_approximate" if ref["model_assumed"] else "lattice_measured")
                 diag.update(selected=choice, output_errors=errors, output_encoding=path["type"], elapsed_s=self.clock()-started,
                             longitudinal_candidates=count, consistency_method="short_constant_twist_hint" if previous else "unavailable")
+                if immediate_centering:
+                    diag["near_centering"] = {**choice["near_centering"],
+                        "selection_rule": "supported_prefix_before_soft_cost",
+                        "full_center_target": not use_startup}
                 self.previous = {"timestamp_s": now_s, "valid_for_s": lifetime,
                                  "points": [(g["x"], g["y"]) for g in geometries]}
                 self.stop_latched = self.stop_latched or choice["stop"]
+                # One-way handoff for this run. Current source/footprint
+                # quality can change without rebuilding an origin-anchored
+                # startup path; invalid inputs still follow rejection/recovery.
+                if cfg.startup_connection_enabled and mvp and self.body_support_confirmed and not choice["stop"]:
+                    self.startup_complete = True
+                diag["startup_complete"] = self.startup_complete
+                if incremental_centering:
+                    diag["centering"].update(selected_offset_m=choice["offset_m"],
+                        selected_progress_m=abs(d0)-abs(choice["offset_m"]))
                 diag["search_truncated"] = search_truncated
                 diag["selection_scope"] = "best_of_evaluated_feasible_candidates"
                 return ref, diag
@@ -3054,7 +3519,7 @@ class FrenetLatticePlanner:
             if abs(speed*speed*g["curvature"]) > model["lateral_acceleration_max_mps2"]:
                 reject("lateral_acceleration_limit", actual_mps2=abs(speed*speed*g["curvature"]),
                        maximum_mps2=model["lateral_acceleration_max_mps2"])
-            if abs(steering_rate) > model["steering_rate_limit_radps"]:
+            if cfg.steering_limits_enabled and abs(steering_rate) > model["steering_rate_limit_radps"]:
                 reject("steering_rate_limit", actual_radps=abs(steering_rate), maximum_radps=model["steering_rate_limit_radps"])
             if not longitudinal["stop"] and speed*model["actuation_delay_s"]+speed**2/(2*model["braking_mps2"])+cfg.hard_margin_m > remaining:
                 reject("visibility_stopping_limit", required_stop_distance_m=speed*model["actuation_delay_s"]+
@@ -3065,15 +3530,56 @@ class FrenetLatticePlanner:
             raise ValueError("initial_speed_mismatch")
         return motion
 
-    def _spatial_score(self, geometries, previous, curve):
+    def _near_center_score(self, geometries, road):
+        """Compare the executable prefix against actual supported road centre.
+
+        The straight current-heading continuation is the baseline, not an
+        invented blind centreline. Extra error over that baseline penalizes
+        initially steering away. Checkpoints near the origin have most weight.
+        """
+        samples = []
+        path = [(g["x"], g["y"]) for g in geometries]
+        checkpoints = ((.05, 4), (.1, 3), (.2, 2), (.3, 1))
+        # If the camera sees only farther road, compare its nearest supported
+        # prefix. Record that fact rather than inventing near-field observations.
+        nearest = max(.05, road.points[0][0], path[0][0])
+        if nearest > .3:
+            checkpoints = tuple((nearest+dx, w) for dx, w in ((0, 4), (.05, 3), (.1, 2), (.2, 1)))
+        for x, weight in checkpoints:
+            if not (road.points[0][0] <= x <= road.xmax and path[0][0] <= x <= path[-1][0]):
+                continue
+            y, slope, _, _ = road.at_x(x)
+            error = (_lattice_interp(path, x)-y)/math.hypot(1, slope)
+            baseline = -y/math.hypot(1, slope)
+            away = max(0.0, abs(error)-abs(baseline))
+            samples.append({"x_m": x, "weight": weight, "error_m": error,
+                "baseline_error_m": baseline, "progress_m": abs(baseline)-abs(error),
+                "away_m": away})
+        denominator = sum(p["weight"] for p in samples)
+        cost = sum(p["weight"]*((p["error_m"]/self.cfg.d_scale_m)**2+
+            2*(p["away_m"]/self.cfg.d_scale_m)**2) for p in samples)/denominator if denominator else None
+        return {"available": bool(samples), "active": any(abs(p["baseline_error_m"]) > .01 for p in samples),
+            "cost": cost, "samples": samples, "reference": "observed_road_only",
+            "near_field_supported": nearest <= .3}
+
+    def _spatial_score(self, geometries, previous, curve, center_curve=None):
         cfg = self.cfg
         weighted, denominator, clearance_values = 0.0, 0.0, []
         consistency = []
         for a, b in zip(geometries, geometries[1:]):
             ds = b["s"]-a["s"]
             for g in (a, b):
+                if center_curve is not None:
+                    # No invented centreline in the blind near region. Normalize
+                    # over the portion with actual road-centre support only.
+                    if not center_curve.points[0][0] <= g["x"] <= center_curve.xmax:
+                        continue
+                    y, slope, _, _ = center_curve.at_x(g["x"])
+                    offset = (g["y"]-y)/math.hypot(1, slope)
+                else:
+                    offset = g["d"]
                 weight = cfg.blind_center_weight if g["support"] == "extrapolated" else 1.0
-                weighted += ds/2*weight*(g["d"]/cfg.d_scale_m)**2
+                weighted += ds/2*weight*(offset/cfg.d_scale_m)**2
                 denominator += ds/2*weight
             clearance_values.append((ds, (max(0, 1-a["clearance"]/cfg.clearance_soft_m)**2+
                                                max(0, 1-b["clearance"]/cfg.clearance_soft_m)**2)/2))
@@ -3099,7 +3605,7 @@ class FrenetLatticePlanner:
                     consistency.append(((g["d"]-old_d)/cfg.d_scale_m)**2)
         peak = max(max(0, 1-g["clearance"]/cfg.clearance_soft_m)**2 for g in geometries)
         clearance = (1-cfg.clearance_peak_ratio)*sum(ds*v for ds, v in clearance_values)/sum(ds for ds, _ in clearance_values)+cfg.clearance_peak_ratio*peak
-        return {"center": weighted/denominator, "clearance": clearance,
+        return {"center": weighted/denominator if denominator else 0.0, "clearance": clearance,
                 "consistency": sum(consistency)/len(consistency) if consistency else 0.0}
 
     def _score(self, motion, initial_speed, stopping, spatial_costs, cruise_speed=None):
@@ -3188,13 +3694,15 @@ class FrenetLatticePlanner:
             if (errors["position_m"] > cfg.fit_position_error_m or errors["heading_rad"] > cfg.fit_heading_error_rad or
                     errors["curvature_1pm"] > cfg.fit_curvature_error_1pm):
                 raise ValueError("fit_error")
-            if abs(_lattice_steering(curvature, model)) > model["steering_limit_rad"]:
+            steering = _lattice_steering(curvature, model)  # Domain check always runs.
+            if cfg.steering_limits_enabled and abs(steering) > model["steering_limit_rad"]:
                 raise ValueError("fit_steering_limit")
             curvature_rate_x = third/math.hypot(1, dy)**3-3*dy*ddy**2/math.hypot(1, dy)**5
             den = 1-(model["rear_axle_from_cg_m"]*curvature)**2
             steering_rate = abs(curvature_rate_x)*maximum_speed/math.hypot(1, dy)*model["wheelbase_m"]/(math.sqrt(den)*(
                 1+(model["wheelbase_m"]**2-model["rear_axle_from_cg_m"]**2)*curvature**2))
-            if steering_rate > model["steering_rate_limit_radps"] or maximum_speed**2*abs(curvature) > model["lateral_acceleration_max_mps2"]:
+            if (cfg.steering_limits_enabled and steering_rate > model["steering_rate_limit_radps"]
+                    or maximum_speed**2*abs(curvature) > model["lateral_acceleration_max_mps2"]):
                 raise ValueError("fit_motion_limit")
             if self._clearance({**g, "y": y, "heading": heading}, left, right, obstacles, model, startup=startup) < 0:
                 raise ValueError("fit_collision")
@@ -3272,6 +3780,7 @@ class MvpRecoveryPlanner:
             if coeffs is None or max(abs(_control_poly_eval(coeffs, r[1])-p[1]) for r, p in zip(rows, center)) > 0.04:
                 raise ValueError("recovery_fit_error")
             left, right = [LatticeCurve(p, extension, 0.05) for p in clipped[1:]]
+            self.planner._attach_observed_constraints(left, right, road)
             lo, hi = max(0.0, near-extension), min(cfg.horizon_m, far-math.hypot(model["front_extent_m"], model["width_m"]/2)-0.04)
             if hi-lo < cfg.minimum_output_m:
                 raise ValueError("insufficient_body_supported_horizon")
@@ -3317,7 +3826,7 @@ class MvpRecoveryPlanner:
                 # Rate limit using the faster of observed/commanded crawl speeds.
                 ds_time = step/max(state["speed_mps"], cfg.recovery_speed_mps)
                 change = model["steering_rate_limit_radps"]*ds_time
-                delta += max(-change, min(change, requested-delta))
+                delta = delta+max(-change, min(change, requested-delta)) if cfg.steering_limits_enabled else requested
                 beta = math.atan(model["rear_axle_from_cg_m"]/model["wheelbase_m"]*math.tan(delta))
                 nx = x+step*math.cos(heading+beta)
                 if nx <= x:
@@ -3390,18 +3899,38 @@ def _planner_worker_main():
         job = {}
         try:
             job = json.loads(line)
+            worker_started = time.perf_counter()
             if planner is None or generation != job["generation"]:
                 planner = FrenetLatticePlanner(PlanningSettings(**job["planning"]),
                                               LatticeSettings(**job["lattice"]), job["frame_id"])
                 generation = job["generation"]
+                if job["control"].get("warmstart_enabled") and job.get("planner_state"):
+                    # Restore the SAME run after worker replacement, including
+                    # its fixed controlled-start corridor and one-way handoff.
+                    for name, value in job["planner_state"].items():
+                        if name in ("startup_complete", "observed_origin_seen", "startup_corridor",
+                                    "startup_motion", "body_support_frames", "body_support_stamp_s",
+                                    "body_support_confirmed", "stop_latched"):
+                            setattr(planner, name, value)
+            if job["control"].get("warmstart_enabled") and job.get("warmstart"):
+                # Already motion-aligned by the parent; a scoring hint only.
+                planner.previous = job["warmstart"]
+            planner.startup_motion_sync = (job["control"].get("warmstart_enabled", False)
+                and planner._sync_startup_motion(job.get("planner_state"), job["args"][4]))
+            planner.startup_join_limit_m = job.get("startup_join_limit_m")
             ref, diag = _mvp_plan(planner, ControlSettings(**job["control"]), job["args"])
             if ref.get("valid") and ref.get("planner_version") == "frenet_lattice_v2":
                 # Include submission/pipe delay in the completion timestamp.
                 # perf_counter has a shared host clock across these processes;
-                # map its elapsed interval onto the job's ROS reference time.
+                # map its elapsed interval onto the actual submission ROS time.
                 submitted = job.get("submitted_monotonic_s")
                 if submitted is not None:
-                    generated = job["args"][4]+time.perf_counter()-submitted
+                    finished = time.perf_counter()
+                    # Submission has its own paired ROS/monotonic epoch. The
+                    # observation epoch precedes estimation and must not be
+                    # reused as if submission happened at that earlier time.
+                    submitted_ros = job.get("submitted_ros_s", job["args"][4])
+                    generated = submitted_ros+finished-submitted
                     ref.update(generated_at_s=generated,
                                expires_at_s=generated+planner.settings.reference_lifetime_s,
                                valid_for_s=generated-ref["timestamp_s"]+planner.settings.reference_lifetime_s)
@@ -3409,6 +3938,18 @@ def _planner_worker_main():
                         planner.previous["valid_for_s"] = ref["valid_for_s"]
             result = {"generation": generation, "reference": ref, "diagnostics": diag,
                       "road": job["args"][0], "state": job["args"][1]}
+            if job["control"].get("warmstart_enabled"):
+                result["planner_state"] = {name: getattr(planner, name) for name in (
+                    "startup_complete", "observed_origin_seen", "startup_corridor", "startup_motion",
+                    "body_support_frames", "body_support_stamp_s", "body_support_confirmed", "stop_latched")}
+            if job.get("submitted_monotonic_s") is not None:
+                result["timing"] = {"submitted_ros_s": job.get("submitted_ros_s", job["args"][4]),
+                    "submitted_monotonic_s": job["submitted_monotonic_s"],
+                    "worker_started_monotonic_s": worker_started,
+                    "worker_finished_monotonic_s": time.perf_counter()}
+                result["timing"].update(parent_preparation_s=result["timing"]["submitted_ros_s"]-job["args"][4],
+                    queue_wait_s=worker_started-job["submitted_monotonic_s"],
+                    worker_compute_s=result["timing"]["worker_finished_monotonic_s"]-worker_started)
         except Exception as error:
             result = {"generation": job.get("generation"), "error": str(error)}
         sys.stdout.write(json.dumps(result, allow_nan=False)+"\n")
@@ -3448,6 +3989,7 @@ class AsyncLatticePlanner:
                 if result.get("ready"):
                     self.ready = True
                 else:
+                    result["received_monotonic_s"] = time.perf_counter()
                     self.results.put_nowait(result)
         except (OSError, ValueError, queue.Full):
             return
@@ -3467,20 +4009,112 @@ class AsyncLatticePlanner:
         self.pending_at = None
         return result
 
-    def close(self):
+    def close(self, wait=True):
         try:
             self.requests.put_nowait(None)
         except queue.Full:
             pass
         if self.process.poll() is None:
             self.process.terminate()
+        if wait:
+            self._reap()
+        else:
+            threading.Thread(target=self._reap, daemon=True).start()
+
+    def _reap(self):
+        try:
             try:
                 self.process.wait(timeout=0.05)
             except subprocess.TimeoutExpired:
                 self.process.kill()
                 self.process.wait(timeout=0.1)
-        for pipe in (self.process.stdin, self.process.stdout):
-            pipe.close()
+        finally:
+            for pipe in (self.process.stdin, self.process.stdout):
+                try:
+                    pipe.close()
+                except (OSError, ValueError):
+                    pass
+
+
+class AsyncPolicyLog:
+    """Bounded diagnostic output; a blocked logger never blocks control.
+
+    Records are owned by the queue after submission. At most one queued record
+    plus the currently written record survives; newer evidence replaces backlog.
+    """
+    def __init__(self, logger):
+        self.logger, self.records = logger, queue.Queue(maxsize=1)
+        self.closed = False
+        self.dropped = 0
+        self.written = self.errors = 0
+        self.last_error = None
+        self.thread = threading.Thread(target=self._write, daemon=True)
+        self.thread.start()
+
+    def submit(self, level, prefix, record, json_format=True):
+        if self.closed:
+            return
+        item = (level, prefix, record, json_format)
+        try:
+            self.records.put_nowait(item)
+        except queue.Full:
+            try:
+                self.records.get_nowait()
+            except queue.Empty:
+                pass
+            self.dropped += 1
+            try:
+                self.records.put_nowait(item)
+            except queue.Full:
+                self.dropped += 1
+
+    def _write(self):
+        while not self.closed:
+            item = self.records.get()
+            if item is None or self.closed:
+                return
+            level, prefix, record, json_format = item
+            try:
+                value = json.dumps(record, allow_nan=False, separators=(",", ":")) if json_format else str(record)
+                message = prefix+value
+                # rclpy retains logging context per caller location. Give each
+                # severity its own call site instead of changing it at one line.
+                if level == "info":
+                    self.logger.info(message)
+                elif level == "warning":
+                    self.logger.warning(message)
+                elif level == "error":
+                    self.logger.error(message)
+                else:
+                    raise ValueError("Unsupported diagnostic severity: " + str(level))
+                self.written += 1
+            except Exception as error:
+                self.errors += 1
+                self.last_error = f"{type(error).__name__}: {error}"[:300]
+                if self.errors == 1:
+                    # Only the daemon may block here. Do not hide logger errors
+                    # or feed them back through the logger that just failed.
+                    try:
+                        sys.stderr.write("Policy diagnostic log error: " + self.last_error + "\n")
+                        sys.stderr.flush()
+                    except Exception:
+                        pass
+
+    def status(self):
+        return {"written": self.written, "dropped": self.dropped, "errors": self.errors,
+                "last_error": self.last_error, "queued": self.records.qsize(),
+                "thread_alive": self.thread.is_alive()}
+
+    def close(self):
+        self.closed = True
+        try:
+            self.records.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            self.records.put_nowait(None)
+        except queue.Full:
+            pass
 
 
 def transport_control_reference(reference, motion, now_s):
@@ -3557,6 +4191,13 @@ class ControlSettings:
     # Control-only recovery from transient road failures; legacy code defaults
     # stay off. Shipped MVP YAML enables it. These are experiment budgets.
     robustness_enabled: bool = False
+    # After the FIRST accepted observed trajectory only: retain its unexecuted
+    # geometry across planning failures. Road age/legacy hold budgets do not
+    # renew or expire that geometry; motion, endpoint and collision checks do.
+    warmstart_enabled: bool = False
+    warmstart_end_margin_m: float = 0.08
+    warmstart_handoff_max_error_m: float = 0.15
+    warmstart_handoff_max_heading_rad: float = 0.35
     reference_hold_max_s: float = 1.0
     reference_hold_max_distance_m: float = 0.25
     degraded_speed_mps: float = 0.2
@@ -3575,6 +4216,10 @@ class ControlSettings:
             raise ValueError("control.enabled must be bool")
         if not isinstance(self.robustness_enabled, bool):
             raise ValueError("control.robustness_enabled must be bool")
+        if not isinstance(self.warmstart_enabled, bool):
+            raise ValueError("control.warmstart_enabled must be bool")
+        if self.warmstart_enabled and (not self.robustness_enabled or self.mode != "mvp"):
+            raise ValueError("warmstart requires robust MVP control")
         if not isinstance(self.gyro_bias_learning_enabled, bool):
             raise ValueError("control.gyro_bias_learning_enabled must be bool")
         if self.mode not in ("mvp", "calibrated"):
@@ -3589,6 +4234,9 @@ class ControlSettings:
                      "max_dt_s", "startup_grace_s", "max_run_time_s",
                      "straight_startup_max_time_s", "straight_startup_max_distance_m",
                      "reference_hold_max_s", "reference_hold_max_distance_m", "gyro_bias_window_s", "gyro_bias_max_rps"):
+            if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
+                raise ValueError(f"control.{name} must be finite and positive")
+        for name in ("warmstart_end_margin_m", "warmstart_handoff_max_error_m", "warmstart_handoff_max_heading_rad"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
         if not finite_number(self.max_distance_m) or self.max_distance_m < 0:
@@ -3625,19 +4273,29 @@ class RunDistanceLimiter:
     def reset(self, now_s=None, speed_mps=None):
         self.distance_m = 0.0
         self.previous_time_s, self.previous_speed_mps = now_s, speed_mps
+        self.last_check = None
 
     def advance(self, speed_mps, now_s):
+        self.last_check = {"now_s": now_s, "previous_time_s": self.previous_time_s,
+            "speed_mps": speed_mps, "previous_speed_mps": self.previous_speed_mps,
+            "maximum_gap_s": self.max_gap_s, "maximum_distance_m": self.maximum_m,
+            "distance_before_m": self.distance_m, "reason": "valid"}
         if not all(finite_number(v) for v in (speed_mps, now_s)) or speed_mps < 0:
+            self.last_check["reason"] = "invalid_input"
             return "Invalid wheel-speed distance input"
         if self.previous_time_s is not None:
             dt = now_s-self.previous_time_s
+            self.last_check["dt_s"] = dt
             if not 0 <= dt <= self.max_gap_s+1e-9:
-                return "Wheel-speed distance clock/gap invalid"
+                self.last_check["reason"] = "clock_reversed" if dt < 0 else "integration_gap"
+                return f"Wheel-speed distance clock/gap invalid (dt_s={dt:.6f}, maximum_s={self.max_gap_s:.6f})"
             self.distance_m += 0.5*(self.previous_speed_mps+speed_mps)*dt
         self.previous_time_s, self.previous_speed_mps = now_s, speed_mps
         if not finite_number(self.distance_m):
+            self.last_check["reason"] = "nonfinite_distance"
             return "Wheel-speed distance estimate invalid"
         if self.maximum_m > 0 and self.distance_m+1e-9 >= self.maximum_m:
+            self.last_check["reason"] = "distance_limit"
             return f"Distance limit reached: {self.distance_m:.3f} m / {self.maximum_m:.3f} m; explicit resume required"
         return None
 
@@ -3955,10 +4613,10 @@ def control_reference_snapshot(reference):
 class ControlReferenceManager:
     """MVP Cartesian-reference cache; never edits the upstream planning output.
 
-    Cache budgets start at acceptance of a DISTINCT observed cone frame. Motion
-    is integrated incrementally, preserving the original source timestamp. The
-    manager generates geometry, never cached actuator commands. Prediction may
-    end earlier than its budgets when observed support or motion history ends.
+    Legacy budgets start at acceptance of a DISTINCT observed cone frame.
+    Warmstart consumes a checked remaining path instead of these age/distance
+    budgets. Both modes integrate motion incrementally and retain the original
+    source timestamp. Neither caches actuator commands or extrapolates an end.
     """
     SOFT_REASONS = frozenset({
         "invalid_estimates", "stale_road", "v1_requires_both_boundaries",
@@ -3988,6 +4646,9 @@ class ControlReferenceManager:
         self.recovering = False
         self.mode = "TRACKING"
         self.diagnostics = {}
+        self.warmstart_key = None
+        self.last_collision_key = None
+        self.startup_join_remaining_m = None
 
     def problem(self, monotonic_s, distance_m):
         if self.reference is None:
@@ -3995,13 +4656,167 @@ class ControlReferenceManager:
         elapsed, distance = monotonic_s-self.accepted_at_s, distance_m-self.accepted_distance_m
         if not all(finite_number(v) and v >= 0 for v in (elapsed, distance)):
             return "Control cache clock/distance invalid"
+        if self.settings.warmstart_enabled:
+            return None  # Geometry is consumed, not extended by resetting age.
         if elapsed+1e-9 >= self.settings.reference_hold_max_s:
             return "Control reference hold time exhausted"
         if distance+1e-9 >= self.settings.reference_hold_max_distance_m:
             return "Control reference hold distance exhausted"
         return None
 
-    def select(self, reference, road, state, motion, now_s, monotonic_s, distance_m, execution_lifetime_s):
+    def warmstart_points(self, motion, now_s):
+        if self.reference is None or self.curve_samples is None:
+            return None
+        pose, problem = motion.pose_between(self.frame_time_s, now_s)
+        if problem:
+            raise ValueError("Warmstart motion: " + problem)
+        points = [(*motion.transform_xy(p[:2], pose), wrap_angle(p[2]-pose["yaw_rad"]), p[3])
+                  for p in self.curve_samples]
+        # Discard consumed points, retaining one behind the origin for interpolation.
+        first = 0
+        while first+2 < len(points) and points[first+1][0] <= 0:
+            first += 1
+        points = points[first:]
+        _control_sample_points({"control_cached_path_samples": points})
+        return points
+
+    def warmstart_join_remaining(self, motion, now_s):
+        if self.startup_join_remaining_m is None or self.reference is None:
+            return None
+        pose, problem = motion.pose_between(self.frame_time_s, now_s)
+        if problem:
+            raise ValueError("Startup join progress motion: " + problem)
+        return max(0.0, self.startup_join_remaining_m-pose["travelled_distance_m"])
+
+    def _select_warmstart(self, reference, road, state, motion, now_s, monotonic_s,
+                          distance_m, execution_lifetime_s, path_limits, validate_path):
+        if (state.get("valid") is not True or state.get("speed_valid") is not True
+                or state.get("yaw_rate_valid") is not True
+                or not finite_number(state.get("speed_mps")) or state["speed_mps"] < 0
+                or not finite_number(state.get("yaw_rate_rps"))
+                or not finite_number(execution_lifetime_s) or execution_lifetime_s <= 0):
+            feedback = state.get("motion_feedback") or {}
+            failed = [name+":"+str(info.get("reason")) for name, info in feedback.items()
+                      if info.get("reason") != "valid"]
+            if not finite_number(execution_lifetime_s) or execution_lifetime_s <= 0:
+                failed.append("execution_lifetime_exhausted")
+            raise ValueError("Warmstart motion feedback unavailable; " + ",".join(failed or ["invalid_motion_state"]))
+        limits = path_limits or {"braking_mps2": .5, "actuation_delay_s": .2}
+        braking, delay = limits["braking_mps2"], limits["actuation_delay_s"]
+        if not finite_number(braking) or braking <= 0 or not finite_number(delay) or delay < 0:
+            raise ValueError("Invalid warmstart stopping model")
+        try:
+            old = self.warmstart_points(motion, now_s)
+        except ValueError:
+            old = None  # A fresh admissible replan may replace an exhausted path.
+        remaining_join = self.warmstart_join_remaining(motion, now_s)
+        key = (reference.get("trajectory_id"), reference.get("generated_at_s"),
+               road.get("measurement_timestamp_s"))
+        accepted = False
+        reason = reference.get("reason") or "planning_pending"
+        candidate = None
+        if reference.get("valid") is True and key != self.warmstart_key:
+            try:
+                if (reference.get("stop_requested") or reference.get("planned_stop")
+                        or reference.get("target_speed_mps") == 0):
+                    self.clear()
+                    return reference  # An explicit planned stop is never overridden.
+                if not finite_number(reference.get("target_speed_mps")) or reference["target_speed_mps"] < 0:
+                    raise ValueError("warmstart_candidate_speed")
+                stamp, lifetime = reference["timestamp_s"], reference["valid_for_s"]
+                if (reference.get("frame_id") != state.get("frame_id")
+                        or reference.get("vehicle_reference_point") != "cg_ground_projection"
+                        or abs(stamp-now_s) > 1e-6 or not stamp <= now_s < stamp+lifetime):
+                    raise ValueError("warmstart_candidate_frame_or_expiry")
+                source = road.get("measurement_timestamp_s")
+                if not finite_number(source) or source > now_s or (self.source_stamp_s is not None and source < self.source_stamp_s):
+                    raise ValueError("warmstart_candidate_source")
+                if now_s-source >= limits.get("road_max_age_s", 1.5):
+                    raise ValueError("warmstart_candidate_road_expired")
+                if road.get("degraded"):
+                    raise ValueError("warmstart_candidate_predicted_road")
+                candidate = [tuple(p) for p in _control_sample_points(reference)]
+                if candidate[0][0] > .03:
+                    raise ValueError("warmstart_candidate_near_gap")
+                start = _control_sample_at(candidate, max(0.0, candidate[0][0]))
+                if old is not None:
+                    anchor = _control_sample_at(old, max(0.0, old[0][0]))
+                    if (abs(start[1]-anchor[1]) > self.settings.warmstart_handoff_max_error_m
+                            or abs(wrap_angle(start[2]-anchor[2])) > self.settings.warmstart_handoff_max_heading_rad):
+                        raise ValueError("warmstart_candidate_discontinuous")
+                if abs(start[1]) > self.settings.warmstart_handoff_max_error_m:
+                    raise ValueError("warmstart_candidate_tracking_error")
+                # Admission may be shorter than 1 m during controlled startup.
+                ahead = [start]+[p for p in candidate if p[0] > start[0]]
+                available = sum(math.hypot(b[0]-a[0], b[1]-a[1]) for a, b in zip(ahead, ahead[1:]))
+                speed = state["speed_mps"]
+                if available <= self.settings.warmstart_end_margin_m+speed*delay+speed*speed/(2*braking):
+                    raise ValueError("warmstart_candidate_insufficient_stop_range")
+                if validate_path is not None:
+                    proposed = control_reference_snapshot(reference)
+                    proposed["control_cached_path_samples"] = tuple(candidate)
+                    validate_path(proposed)  # Commit only after current-observation checks.
+                join = reference.get("startup_join_distance_m")
+                if join is not None:
+                    pose, problem = motion.pose_between(reference["startup_join_timestamp_s"], now_s)
+                    if problem:
+                        raise ValueError("warmstart_candidate_join_motion: " + problem)
+                    join = max(0.0, join-pose["travelled_distance_m"])
+                    remaining_join = join if remaining_join is None else min(remaining_join, join)
+                else:
+                    remaining_join = None  # A checked normal-tracking result completed handoff.
+                self.reference = control_reference_snapshot(reference)
+                self.source_stamp_s = source
+                self.accepted_at_s, self.accepted_distance_m = monotonic_s, distance_m
+                self.warmstart_key = key
+                accepted = True
+            except (ValueError, TypeError, KeyError, ArithmeticError) as error:
+                candidate = None
+                reason = str(error)
+        if self.reference is None:
+            raise ValueError("No trusted warmstart trajectory: " + str(reason))
+        points = candidate if accepted else old
+        if points is None or points[0][0] > .03:
+            raise ValueError("Warmstart remaining support unavailable")
+        start = _control_sample_at(points, max(0.0, points[0][0]))
+        if abs(start[1]) > 2*self.settings.warmstart_handoff_max_error_m:
+            raise ValueError("Warmstart tracking error exceeded")
+        ahead = [start]+[p for p in points if p[0] > start[0]]
+        remaining = sum(math.hypot(b[0]-a[0], b[1]-a[1]) for a, b in zip(ahead, ahead[1:]))
+        usable = remaining-self.settings.warmstart_end_margin_m
+        if usable <= .005:
+            raise ValueError("Warmstart path exhausted; explicit resume required")
+        cap = math.sqrt((braking*delay)**2+2*braking*usable)-braking*delay
+        if cap < .02:
+            raise ValueError("Warmstart path exhausted; explicit resume required")
+        self.curve_samples, self.frame_time_s = points, now_s
+        self.startup_join_remaining_m = remaining_join
+        self.endpoints = [points[0][:2], points[-1][:2]]
+        selected = control_reference_snapshot(self.reference)
+        selected.update(timestamp_s=now_s, valid_for_s=execution_lifetime_s,
+                        expires_at_s=now_s+execution_lifetime_s,
+                        control_cached_path_samples=tuple(points))
+        selected["target_speed_mps"] = min(self.reference["target_speed_mps"], cap)
+        self.last_target_speed_mps = selected["target_speed_mps"]
+        self.mode = "TRACKING" if accepted or reason == "planning_pending" and self.mode == "TRACKING" else "WARMSTART"
+        self.diagnostics = {"tracking_mode": self.mode, "warmstart_enabled": True,
+            "upstream_rejection_reason": None if accepted else reason,
+            "cached_trajectory_id": self.reference.get("trajectory_id"),
+            "original_measurement_timestamp_s": self.source_stamp_s,
+            "original_source_age_s": now_s-self.source_stamp_s,
+            "cache_age_s": monotonic_s-self.accepted_at_s,
+            "prediction_distance_m": distance_m-self.accepted_distance_m,
+            "remaining_path_range_m": [max(0.0, points[0][0]), points[-1][0]],
+            "remaining_path_length_m": remaining, "endpoint_speed_cap_mps": cap,
+            "remaining_startup_join_m": remaining_join,
+            "replan_accepted": accepted}
+        return selected
+
+    def select(self, reference, road, state, motion, now_s, monotonic_s, distance_m, execution_lifetime_s,
+               path_limits=None, validate_path=None):
+        if self.settings.warmstart_enabled:
+            return self._select_warmstart(reference, road, state, motion, now_s, monotonic_s,
+                                          distance_m, execution_lifetime_s, path_limits, validate_path)
         if road.get("status") in self.HARD_ROAD_STATUSES:
             reason = road["status"]
             self.clear()
@@ -4168,10 +4983,11 @@ class PolicyController:
                     or not isinstance(state, dict) or state.get("speed_valid") is not True):
                 raise ValueError("invalid_planning_or_speed")
             stamp, lifetime = reference.get("timestamp_s"), reference.get("valid_for_s")
-            if (not all(finite_number(v) for v in (stamp, lifetime, now_s, dt))
-                    or lifetime <= 0 or not 0 <= dt <= self.settings.max_dt_s
-                    or not stamp <= now_s < stamp+lifetime):
-                raise ValueError("reference_expired_or_control_gap")
+            if not finite_number(dt) or not 0 <= dt <= self.settings.max_dt_s:
+                raise ValueError("control_gap_exceeded")
+            if (not all(finite_number(v) for v in (stamp, lifetime, now_s))
+                    or lifetime <= 0 or not stamp <= now_s < stamp+lifetime):
+                raise ValueError("control_reference_expired_during_calculation")
             if (reference.get("frame_id") != self.frame_id or state.get("frame_id") != self.frame_id
                     or reference.get("vehicle_reference_point") != "cg_ground_projection"
                     or not finite_number(state.get("timestamp_s"))
@@ -4364,6 +5180,9 @@ class PolicyNode(Node):
         self.last_async_diagnostics = {}
         self.last_worker_restart_s = -math.inf
         self.last_planner_elapsed_s = None
+        self.warmstart_planner_state = None
+        self.last_control_attempt = None
+        self.diagnostic_log = AsyncPolicyLog(self.get_logger())
         self.async_planner = None
         self.gyro_bias_rps = 0.0
         self.gyro_bias_samples = []
@@ -4807,7 +5626,8 @@ class PolicyNode(Node):
         now, ros_now = self._times()
         if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
             return
-        problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
+        self._receive_async_result()
+        problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now, allow_ready_result=True)
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
@@ -4827,6 +5647,9 @@ class PolicyNode(Node):
 
         try:
             result = self.calculate_policy_actions(values, ages, stamps, dt, elapsed, first)
+            if getattr(self, "last_control_attempt", None) is not None:
+                self.last_control_attempt.update(policy_duration_s=self._monotonic()-now,
+                    policy_returned_at_s=self.get_clock().now().nanoseconds/1e9)
             drive, steer, pan, debug1, debug2 = result
             # Validate ALL outputs before publishing ANY of them.
             outputs = [drive, steer] + [v for v in (pan, debug1, debug2) if v is not None]
@@ -5146,6 +5969,10 @@ class PolicyNode(Node):
         # "obstacles"/"vehicle_params"/"vehicle_limits"]. Valid geometry is aligned
         # to state.timestamp_s; measurement_timestamp_s keeps source time. No
         # ReferenceTrajectory or target speed is generated by the estimator.
+        attempt_start = time.perf_counter()
+        self.last_control_attempt = {"started_at_s": self.get_clock().now().nanoseconds/1e9,
+                                     "control_dt_s": dt}
+        self.warmstart_collision_diagnostics = {}
         if is_first_policy_step or not hasattr(self, "estimator"):
             self.estimator = EstimationPipeline(
                 self.estimation_settings, self.policy_frame_id,
@@ -5163,6 +5990,7 @@ class PolicyNode(Node):
         self.estimation_output = self.estimator.update(
             motion_observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
             self.get_clock().now().nanoseconds / 1e9, receipt_ros_ns)
+        self.last_control_attempt["estimation_s"] = time.perf_counter()-attempt_start
 
         # Supply explicit car calibration at the integration boundary without
         # changing the estimator or substituting simulation for missing facts.
@@ -5190,6 +6018,10 @@ class PolicyNode(Node):
         source_timeouts["obstacles"] = min(self.estimation_settings.max_source_age_s,
                                           self.sensor_timeout_s["lidar_cartesian"])
         control = getattr(self, "control_settings", ControlSettings())
+        if control.warmstart_enabled and not self.control_has_run:
+            # Keep the existing first controlled-start road-age gate. The
+            # relaxed road-age profile applies only after control first succeeds.
+            source_timeouts["road"] = min(source_timeouts["road"], .6)
         straight_start = control.enabled and control.straight_startup_enabled
         if straight_start:
             if self.planning_settings.algorithm != "lattice_v2":
@@ -5198,8 +6030,15 @@ class PolicyNode(Node):
             if reference is not None:
                 return self._drive_straight_startup(reference, estimates, dt)
         if getattr(self, "async_planner", None) is not None:
+            if control.warmstart_enabled:
+                self.warmstart_planner_state = self._warmstart_job_state(
+                    estimates["state"]["timestamp_s"], estimates["state"])
             estimates = self._async_planning_cycle(estimates, source_timeouts)
         else:
+            if (control.warmstart_enabled and self.lattice_settings.startup_progress_enabled
+                    and hasattr(self, "control_reference_manager")):
+                self.planner.startup_join_limit_m = self.control_reference_manager.warmstart_join_remaining(
+                    self.motion_history, estimates["state"]["timestamp_s"])
             args = (estimates["road"], estimates["state"], estimates["obstacles"],
                     estimates["vehicle_limits"], estimates["state"]["timestamp_s"], source_timeouts)
             if self.planning_settings.algorithm == "lattice_v2":
@@ -5210,6 +6049,7 @@ class PolicyNode(Node):
                     *args, mvp=getattr(self, "control_settings", ControlSettings()).mode == "mvp")
             self._log_planned_trajectory(self.planning_output, "synchronous_planner",
                 estimates["road"], self.planning_diagnostics, estimates["state"])
+        self.last_control_attempt["planning_handoff_s"] = time.perf_counter()-attempt_start
 
         if straight_start and not getattr(self, "straight_startup_complete", False):
             if (self.planning_output.get("valid") and not self.planning_output.get("planned_stop")
@@ -5261,9 +6101,14 @@ class PolicyNode(Node):
             if not selected_reference["valid"]:
                 reason = "Planning: " + str(self.planning_output["reason"])
                 raise PolicyStopRequest(reason)
+            self.last_control_attempt.update(selection_s=time.perf_counter()-attempt_start,
+                trajectory_id=selected_reference.get("trajectory_id"),
+                control_frame_timestamp_s=selected_reference.get("timestamp_s"),
+                deadline_s=selected_reference["timestamp_s"]+selected_reference["valid_for_s"])
             drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
                 selected_reference, estimates["state"], estimates["vehicle_params"],
                 self.get_clock().now().nanoseconds/1e9, dt)
+            self.last_control_attempt["calculation_s"] = time.perf_counter()-attempt_start
             if not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]:
                 reason = "Control: " + self.control_diagnostics["reason"]
                 raise PolicyStopRequest(reason)
@@ -5271,6 +6116,11 @@ class PolicyNode(Node):
             self._trajectory_reference = selected_reference
             self.last_control_reference_deadline_s = (
                 selected_reference["timestamp_s"]+selected_reference["valid_for_s"])
+            self.last_control_timing = {"trajectory_id": selected_reference.get("trajectory_id"),
+                "control_frame_timestamp_s": selected_reference["timestamp_s"],
+                "accepted_at_s": self.get_clock().now().nanoseconds/1e9,
+                "deadline_s": self.last_control_reference_deadline_s,
+                "control_dt_s": dt}
             if self._robust_control_enabled():
                 self._report_control_status()
             # Existing debug topics: lateral error (m), per-run distance (m).
@@ -5310,17 +6160,86 @@ class PolicyNode(Node):
             if sum((v-mean)**2 for _, v in samples)/len(samples) <= 0.003**2:
                 self.gyro_bias_rps = mean
 
+    def _receive_async_result(self):
+        """Nonblocking receive before expiry checks; no command/deadline change."""
+        worker = getattr(self, "async_planner", None)
+        if worker is None or getattr(self, "ready_async_result", None) is not None:
+            return
+        result = worker.poll()
+        if result is not None:
+            result["polled_at_s"] = self.get_clock().now().nanoseconds/1e9
+            result["polled_monotonic_s"] = self._monotonic()
+            result["polled_perf_counter_s"] = time.perf_counter()
+            self.ready_async_result = result
+
+    def _ready_async_result_usable(self, monotonic_now, ros_now_ns):
+        result = getattr(self, "ready_async_result", None)
+        if not isinstance(result, dict) or result.get("generation") != self.planning_generation or result.get("error"):
+            return False
+        ref = result.get("reference") or {}
+        expiry = ref.get("expires_at_s")
+        previous_step = self.previous_policy_step_at
+        return (ref.get("valid") is True and finite_number(expiry) and ros_now_ns/1e9 < expiry
+                and previous_step is not None
+                and 0 <= monotonic_now-previous_step <= self.control_settings.max_dt_s)
+
+    def _warmstart_refresh_usable(self, monotonic_now):
+        manager = getattr(self, "control_reference_manager", None)
+        previous = self.previous_policy_step_at
+        return (self.control_settings.warmstart_enabled and self.control_has_run
+                and manager is not None and manager.reference is not None
+                and previous is not None and 0 <= monotonic_now-previous <= self.control_settings.max_dt_s
+                and manager.problem(monotonic_now, self.distance_limiter.distance_m) is None)
+
+    def _warmstart_job_state(self, stamp, state):
+        snapshot = deepcopy(getattr(self, "warmstart_planner_state", None))
+        if snapshot is None:
+            return None
+        if (not state.get("valid") or not state.get("speed_valid") or not state.get("yaw_rate_valid")
+                or state.get("frame_id") != self.policy_frame_id or state.get("timestamp_s") != stamp):
+            return snapshot
+        previous = snapshot.get("startup_motion")
+        corridor = snapshot.get("startup_corridor")
+        if corridor is not None and previous is not None:
+            pose, problem = self.motion_history.pose_between(previous[0], stamp)
+            if problem is None:
+                x, y, yaw = corridor["pose"]
+                corridor["pose"] = [x+math.cos(yaw)*pose["dx_m"]-math.sin(yaw)*pose["dy_m"],
+                    y+math.sin(yaw)*pose["dx_m"]+math.cos(yaw)*pose["dy_m"], wrap_angle(yaw+pose["yaw_rad"])]
+                snapshot["startup_motion"] = (stamp, state["speed_mps"], state["yaw_rate_rps"])
+                snapshot["startup_motion_verified"] = True
+        return snapshot
+
+    def _merge_warmstart_planner_state(self, incoming):
+        """A delayed worker result cannot roll back continuously tracked motion."""
+        result = deepcopy(incoming)
+        previous = getattr(self, "warmstart_planner_state", None) or {}
+        before, after = previous.get("startup_motion"), result.get("startup_motion")
+        old_corridor, new_corridor = previous.get("startup_corridor"), result.get("startup_corridor")
+        same_corridor = (old_corridor and (new_corridor is None or
+            all(old_corridor.get(k) == new_corridor.get(k) for k in ("half_width", "far_x"))))
+        if (before is not None and (after is None or before[0] >= after[0])
+                and previous.get("startup_motion_verified") and same_corridor):
+            result["startup_motion"] = before
+            result["startup_corridor"] = deepcopy(previous["startup_corridor"])
+            result["startup_motion_verified"] = True
+        for flag in ("startup_complete", "observed_origin_seen", "stop_latched"):
+            result[flag] = bool(result.get(flag) or previous.get(flag))
+        self.warmstart_planner_state = result
+
     def _async_planning_cycle(self, estimates, source_timeouts):
         now = self._monotonic()
         stamp = estimates["state"]["timestamp_s"]
         worker = self.async_planner
-        result = worker.poll()
+        self._receive_async_result()
+        result = getattr(self, "ready_async_result", None)
+        self.ready_async_result = None
         pending_age = None if worker.pending_at is None else now-worker.pending_at
         failed = worker.process.poll() is not None
         if failed or pending_age is not None and pending_age >= self.lattice_settings.worker_timeout_s:
             self.last_async_fault = "planning_worker_unavailable" if failed else "planning_worker_timeout"
             if now-getattr(self, "last_worker_restart_s", -math.inf) >= 0.5:
-                worker.close()
+                worker.close(wait=False)  # Reaping a failed child cannot stall control.
                 self.async_planner = worker = AsyncLatticePlanner()
                 self.last_worker_restart_s = now
         accepted = False
@@ -5332,10 +6251,16 @@ class PolicyNode(Node):
                 self.last_async_diagnostics = {"worker_error": result["error"]}
             else:
                 ref = result["reference"]
-                # Log the generated path in its ORIGINAL planning frame, before
-                # transport to the later control epoch or reference selection.
-                self._log_planned_trajectory(ref, "planner_worker", result["road"],
-                    result["diagnostics"], result.get("state"))
+                if self.control_settings.warmstart_enabled and result.get("planner_state") is not None:
+                    self._merge_warmstart_planner_state(result["planner_state"])
+                timing = result.get("timing") or {}
+                if timing:
+                    timing = {**timing, "received_monotonic_s": result.get("received_monotonic_s"),
+                        "polled_at_s": result.get("polled_at_s"),
+                        "polled_perf_counter_s": result.get("polled_perf_counter_s")}
+                    if finite_number(timing.get("received_monotonic_s")):
+                        timing["result_to_receive_s"] = timing["received_monotonic_s"]-timing["worker_finished_monotonic_s"]
+                        timing["receive_to_poll_s"] = timing["polled_perf_counter_s"]-timing["received_monotonic_s"]
                 self.last_async_diagnostics = {**result["diagnostics"],
                     "trajectory_id": ref.get("trajectory_id"),
                     "generated_at_s": ref.get("generated_at_s"),
@@ -5347,8 +6272,12 @@ class PolicyNode(Node):
                         "status", "valid", "visibility", "source_age_s", "degraded", "frame_id",
                         "near_field", "history_used", "boundary_source", "geometry_valid",
                         "history_diagnostics", "reconstruction_method",
-                        "single_side_reconstructed", "width_memory")}}
+                        "single_side_reconstructed", "width_memory", "reconstruction_failure",
+                        "single_side_fallback", "inferred_boundary_geometry")}}
                 self.planning_diagnostics = dict(self.last_async_diagnostics)
+                if timing:
+                    self.last_async_diagnostics["timing"] = timing
+                    self.planning_diagnostics["timing"] = self.last_async_diagnostics["timing"]
                 self.last_planner_elapsed_s = result["diagnostics"].get("elapsed_s")
                 if ref.get("valid"):
                     try:
@@ -5378,8 +6307,27 @@ class PolicyNode(Node):
                    "control": vars(self.control_settings),
                    "args": [estimates["road"], estimates["state"], estimates["obstacles"],
                             estimates["vehicle_limits"], stamp, source_timeouts]}
-            worker.submit(deepcopy(job), now)
+            if self.control_settings.warmstart_enabled:
+                job["planner_state"] = self._warmstart_job_state(stamp, estimates["state"])
+                try:
+                    points = self.control_reference_manager.warmstart_points(self.motion_history, stamp)
+                except ValueError:
+                    points = None
+                if points:
+                    job["warmstart"] = {"timestamp_s": stamp, "valid_for_s": self.control_settings.max_dt_s,
+                                        "points": [p[:2] for p in points]}
+                if self.lattice_settings.startup_progress_enabled:
+                    job["startup_join_limit_m"] = self.control_reference_manager.warmstart_join_remaining(
+                        self.motion_history, stamp)
+            job = deepcopy(job)
+            job["submitted_ros_s"] = self.get_clock().now().nanoseconds/1e9
+            worker.submit(job, now)
             self.last_planning_submit_s = now
+        if completed and not result.get("error"):
+            # Record original geometry only after transport and next submission;
+            # Background diagnostic output cannot delay control or dispatch.
+            self._log_planned_trajectory(result["reference"], "planner_worker", result["road"],
+                self.last_async_diagnostics, result.get("state"))
         return selected_estimates
 
     def _startup_road_ready(self, estimates, source_timeouts):
@@ -5538,6 +6486,11 @@ class PolicyNode(Node):
                     "visibility", "near_field", "boundary_source", "reconstruction_method",
                     "single_side_reconstructed", "width_memory", "centerline_transition")},
                 "point_fields": ["x_m", "y_m"]}
+            inputs["reconstruction_failure"] = geometry.get("reconstruction_failure")
+            inputs["single_side_fallback"] = geometry.get("single_side_fallback")
+            inputs["centerline_geometry"] = {k: v for k, v in (geometry.get("centerline_geometry") or {}).items() if k != "points_xy"}
+            inputs["inferred_boundary_geometry"] = geometry.get("inferred_boundary_geometry")
+            inputs["observed_boundary_constraints"] = geometry.get("observed_boundary_constraints")
             for name in ("centerline_xy", "raw_centerline_xy", "left_boundary_xy", "right_boundary_xy"):
                 raw = geometry.get(name) or []
                 selected = (list(range(len(raw))) if len(raw) <= 128 else
@@ -5547,12 +6500,18 @@ class PolicyNode(Node):
                     "points": [[round(float(v), 6) for v in raw[i]] for i in selected]}
             record["planning_input"] = inputs
         if diagnostics is not None:
+            record["timing"] = diagnostics.get("timing")
             record["planning_details"] = {name: diagnostics.get(name) for name in (
-                "startup_connection", "initialization", "near_support", "selected", "speed_target")}
+                "startup_connection", "startup_join_space", "startup_complete", "startup_motion_sync", "body_support", "centering", "initialization", "near_support", "selected", "speed_target",
+                "immediate_centering_enabled", "steering_limits_enabled", "near_centering")}
         if state is not None:
             record["planning_state"] = {name: state.get(name) for name in (
-                "timestamp_s", "frame_id", "speed_mps", "yaw_rate_rps", "source_age_s")}
-        self.get_logger().info("Planned trajectory: " + json.dumps(record, allow_nan=False, separators=(",", ":")))
+                "timestamp_s", "frame_id", "speed_mps", "yaw_rate_rps", "source_age_s", "motion_feedback")}
+        sink = getattr(self, "diagnostic_log", None)
+        if sink is not None:
+            sink.submit("info", "Planned trajectory: ", record)
+        else:
+            self.get_logger().info("Planned trajectory: " + json.dumps(record, allow_nan=False, separators=(",", ":")))
         self.last_logged_trajectory_key = key
 
     def _log_planning_rejection(self, estimates):
@@ -5578,8 +6537,13 @@ class PolicyNode(Node):
             "road_reconstruction_method": road.get("reconstruction_method"),
             "state_valid": state.get("valid"), "speed_mps": state.get("speed_mps"),
             "speed_valid": state.get("speed_valid"), "yaw_rate_valid": state.get("yaw_rate_valid"),
+            "motion_feedback": state.get("motion_feedback"),
             "planning_diagnostics": diagnostics})
-        self.get_logger().warning("Planning rejection details: " + str(self.last_planning_rejection))
+        sink = getattr(self, "diagnostic_log", None)
+        if sink is not None:
+            sink.submit("warning", "Planning rejection details: ", self.last_planning_rejection, False)
+        else:
+            self.get_logger().warning("Planning rejection details: " + str(self.last_planning_rejection))
 
     def _startup_lattice_wait(self, estimates, elapsed_s):
         """Neutral, bounded first-start retry; never replay an untrusted path.
@@ -5657,7 +6621,8 @@ class PolicyNode(Node):
         # conflict in the current estimator must not be hidden by that snapshot
         # or mapped to a generic, cache-tolerable planning-input rejection.
         current = (getattr(self, "estimation_output", None) or {}).get("road") or {}
-        if current.get("status") in ControlReferenceManager.HARD_ROAD_STATUSES:
+        if (not self.control_settings.warmstart_enabled
+                and current.get("status") in ControlReferenceManager.HARD_ROAD_STATUSES):
             self.control_reference_manager.clear()
             raise ValueError("Observed road rejected: " + current["status"])
         state = estimates["state"]
@@ -5667,10 +6632,117 @@ class PolicyNode(Node):
         ages = state.get("source_age_s") or {}
         remaining = [self.sensor_timeout_s[name]-ages.get(name, math.inf)
                      for name in ("wheel_speed", "imu_angular_velocity")]
-        return self.control_reference_manager.select(
+        limits = (self.planner._model(estimates["vehicle_limits"])
+                  if self.control_settings.warmstart_enabled else None)
+        if limits is not None:
+            limits["road_max_age_s"] = min(self.planning_settings.max_source_age_s,
+                self.estimation_settings.max_source_age_s, self.sensor_timeout_s["cone_detections"],
+                .6 if not self.control_has_run else math.inf)
+        selected = self.control_reference_manager.select(
             self.planning_output, estimates["road"], state, self.motion_history,
             state["timestamp_s"], self._monotonic(), self.distance_limiter.distance_m,
-            min(0.2, self.control_settings.max_dt_s, *remaining))
+            min(0.2, self.control_settings.max_dt_s, *remaining), limits,
+            (lambda proposed: self._validate_warmstart_path(proposed, current, estimates, limits, stage="candidate"))
+            if self.control_settings.warmstart_enabled else None)
+        if self.control_settings.warmstart_enabled:
+            self._validate_warmstart_path(selected, current, estimates, limits)
+        return selected
+
+    def _validate_warmstart_path(self, selected, current, estimates, model, stage="selected"):
+        """Fresh usable observations can invalidate an otherwise retained path.
+
+        A failed road FIT is not evidence that the last accepted path collides.
+        Check actual supported boundary segments; never extend new observations.
+        """
+        road = current.get("forward_geometry") or current
+        manager = self.control_reference_manager
+        checks = getattr(self, "warmstart_collision_diagnostics", {})
+        checks.pop(stage, None)
+        self.warmstart_collision_diagnostics = checks
+        if (not road.get("geometry_valid") or not road.get("time_aligned")
+                or road.get("degraded") or not road.get("left_boundary_xy") or not road.get("right_boundary_xy")):
+            return
+        key = ((selected.get("trajectory_id"), selected.get("generated_at_s")), road.get("measurement_timestamp_s"))
+        check_remaining_path = key != manager.last_collision_key or self.lattice_settings.obstacle_check_enabled
+        left, right = [LatticeCurve(road[side+"_boundary_xy"], 0, self.lattice_settings.geometry_step_m)
+                       for side in ("left", "right")]
+        self.planner._attach_observed_constraints(left, right, road)
+        points = _control_sample_points(selected)
+        origin = _control_sample_at(points, max(0.0, points[0][0]))
+        # A retained negative-x sample is an interpolation bracket, not an
+        # unexecuted vehicle pose. Always check the ACTUAL current body first;
+        # then check the interpolated path origin and strictly forward samples.
+        # Even an unchanged camera frame must recheck the moving actual body.
+        poses = [("current_body", None, 0.0, (0.0, 0.0, 0.0, 0.0))]
+        path_distance = 0.0
+        if check_remaining_path:
+            poses.append(("path_origin", None, 0.0, origin))
+            previous = origin
+            for index, point in enumerate(points):
+                if point[0] <= origin[0]:
+                    continue
+                path_distance += math.hypot(point[0]-previous[0], point[1]-previous[1])
+                poses.append(("future_path", index, path_distance, point))
+                previous = point
+        for pose_type, index, path_distance, (x, y, heading, curvature) in poses:
+            details = {}
+            clearance = self.planner._boundary_edge_clearance(
+                {"x": x, "y": y, "heading": heading}, left, right, model, math.inf, details)
+            if clearance < -1e-8:
+                side = details["side"]
+                boundary = left if side == "left" else right
+                actual = details.get("support") == "observed_fallback_constraint"
+                if actual:
+                    boundary = boundary.observed_constraints[0]
+                contact_x = details["point_xy_m"][0]
+                nearby_x = sorted(set(max(boundary.xmin, min(boundary.xmax, contact_x+dx))
+                                     for dx in (-.1, -.05, 0, .05, .1)))
+                cached = manager.reference or {}
+                record = {"stage": stage, "trajectory_id": selected.get("trajectory_id"),
+                    "cached_trajectory_id": cached.get("trajectory_id"),
+                    "frame_id": selected.get("frame_id"), "timestamp_s": selected.get("timestamp_s"),
+                    "generated_at_s": selected.get("generated_at_s"),
+                    "check_pose_type": pose_type,
+                    "path_sample_index": index, "path_sample_count": len(points),
+                    "ignored_consumed_path_samples": sum(p[0] < 0 for p in points),
+                    "path_distance_from_origin_m": path_distance,
+                    "path_pose_behind_origin": x < 0,
+                    "path_pose_xy_heading_curvature": [x, y, heading, curvature],
+                    "signed_clearance_m": clearance, "penetration_m": -clearance,
+                    "boundary_source": "observed_fallback_constraint" if actual else (
+                        road.get("boundary_source") or {}).get(side, "unknown"),
+                    "boundary_coverage_x_m": [boundary.xmin, boundary.xmax],
+                    "boundary_point_xy_m": [contact_x, boundary.at_x(contact_x)[0]],
+                    "boundary_near_contact_xy_m": [[px, boundary.at_x(px)[0]] for px in nearby_x],
+                    "road_status": current.get("status"), "geometry_status": road.get("status"),
+                    "geometry_source": "forward_geometry" if road is not current else "road",
+                    "geometry_timestamp_s": road.get("timestamp_s"),
+                    "measurement_timestamp_s": road.get("measurement_timestamp_s"),
+                    "road_source_age_s": road.get("source_age_s"), "visibility": road.get("visibility"),
+                    "boundary_sources": road.get("boundary_source"),
+                    "body_model_m": {key: model[key] for key in ("front_extent_m", "rear_extent_m", "width_m")},
+                    "contact": details}
+                checks[stage] = record
+                sink = getattr(self, "diagnostic_log", None)
+                if sink is not None:
+                    sink.submit("warning", "Warmstart collision: ", record)
+                else:
+                    self.get_logger().warning("Warmstart collision: " + json.dumps(record, allow_nan=False))
+                raise ValueError("Warmstart path conflicts with current boundaries")
+        if self.lattice_settings.obstacle_check_enabled:
+            obstacles = estimates["obstacles"]
+            if not obstacles.get("available"):
+                raise ValueError("Warmstart obstacles unavailable")
+            for _, _, _, (x, y, heading, curvature) in poses:
+                c, s = math.cos(heading), math.sin(heading)
+                for ox, oy, *_ in obstacles.get("points_xyz_m", ()):
+                    dx, dy = ox-x, oy-y
+                    bx, by = c*dx+s*dy, -s*dx+c*dy
+                    outside = math.hypot(max(-model["rear_extent_m"]-bx, bx-model["front_extent_m"], 0),
+                                         max(abs(by)-model["width_m"]/2, 0))
+                    if outside <= self.lattice_settings.obstacle_margin_m+self.lattice_settings.hard_margin_m:
+                        raise ValueError("Warmstart path conflicts with current obstacle")
+        manager.last_collision_key = key if not self.lattice_settings.obstacle_check_enabled else None
 
     def _report_control_status(self):
         manager = self.control_reference_manager
@@ -5684,7 +6756,13 @@ class PolicyNode(Node):
             "last_planner_elapsed_s": self.control_diagnostics["last_planner_elapsed_s"]})
         if manager.mode != getattr(self, "last_control_tracking_mode", None):
             self.last_control_tracking_mode = manager.mode
-            self.get_logger().info(self.state_reason)
+            sink = getattr(self, "diagnostic_log", None)
+            if sink is not None:
+                sink.submit("info", "Control: ", {**manager.diagnostics,
+                    "gyro_bias_rps": self.control_diagnostics["gyro_bias_rps"],
+                    "last_planner_elapsed_s": getattr(self, "last_planner_elapsed_s", None)}, False)
+            else:
+                self.get_logger().info(self.state_reason)
             self.publish_state()
 
     # ---- State requests, watchdog, and publication ---------------------------
@@ -5713,12 +6791,40 @@ class PolicyNode(Node):
         self._change_state(requested, "Operator request")
 
     def _change_state(self, state, reason):
+        stop_timing = None
+        if (state == FSM_STATE_PUBLISHING_ZERO_ACTIONS and self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION
+                and self.control_settings.enabled):
+            worker = getattr(self, "async_planner", None)
+            pending = getattr(worker, "pending_at", None)
+            ready = getattr(self, "ready_async_result", None)
+            stop_timing = {"reason": reason, "stop_at_s": self.get_clock().now().nanoseconds/1e9,
+                "last_control": getattr(self, "last_control_timing", None),
+                "control_attempt": getattr(self, "last_control_attempt", None),
+                "execution_check": getattr(self, "last_execution_check", None),
+                "distance_check": deepcopy(getattr(self.distance_limiter, "last_check", None)),
+                "motion_feedback": deepcopy((getattr(self, "estimation_output", None) or {}).get("state")),
+                "warmstart_collision": deepcopy(getattr(self, "warmstart_collision_diagnostics", {})),
+                "diagnostic_log": self.diagnostic_log.status() if getattr(self, "diagnostic_log", None) else None,
+                "last_worker_timing": getattr(self, "last_async_diagnostics", {}).get("timing"),
+                "ready_trajectory_id": (ready.get("reference") or {}).get("trajectory_id") if ready else None,
+                "pending_age_s": None if pending is None else self._monotonic()-pending}
+            stamp = stop_timing["stop_at_s"]
+            stop_timing["motion_at_stop"] = self.motion_history.diagnostics(stamp)
+            stop_timing["sensor_ages_at_stop_s"] = {name: (
+                None if self.observations[name] is None else self._age(
+                    self.observations[name], self._monotonic(), int(stamp*1e9)))
+                for name in ("wheel_speed", "imu_angular_velocity")}
         if hasattr(self, "gyro_bias_samples"):
             self.gyro_bias_samples.clear()
         self.planning_generation = getattr(self, "planning_generation", 0)+1
         self.last_planning_submit_s = -math.inf
         self.last_async_fault = None
         self.last_async_diagnostics = {}
+        self.ready_async_result = None
+        self.last_control_timing = None
+        self.last_control_attempt = None
+        self.warmstart_collision_diagnostics = {}
+        self.warmstart_planner_state = None
         self.fsm_state = state
         self.state_reason = reason
         # An internal consumer must not mistake the previous run's estimate
@@ -5753,6 +6859,8 @@ class PolicyNode(Node):
             if self.control_settings.enabled:
                 self.debug2_publisher.publish(Float32(data=float(self.distance_limiter.distance_m)))
             self.publish_zero_actions()
+        if stop_timing is not None:
+            self.get_logger().warning("Control timing: " + str(stop_timing))
         self.get_logger().info(f"{STATE_NAMES[state]}: {reason}")
         self.publish_state()
         self._trajectory_reference = None
@@ -5807,15 +6915,23 @@ class PolicyNode(Node):
             self._warn("trajectory_display", f"Trajectory display publication unavailable: {error}")
 
 
-    def _control_problem(self, monotonic_now, ros_now_ns):
+    def _control_problem(self, monotonic_now, ros_now_ns, allow_ready_result=False):
         """Distance/time budgets and reference expiry need no sensor callback."""
         if not self.control_settings.enabled:
             return None
         wheel = self.observations.get("wheel_speed")
+        previous_step = self.previous_policy_step_at
+        self.last_execution_check = {"monotonic_now_s": monotonic_now,
+            "previous_policy_step_s": previous_step,
+            "control_gap_s": None if previous_step is None else monotonic_now-previous_step,
+            "maximum_gap_s": self.control_settings.max_dt_s}
         if wheel is None or not self._fresh("wheel_speed", monotonic_now, ros_now_ns):
             return "Wheel speed unavailable for distance limit"
         problem = self.distance_limiter.advance(wheel.value, monotonic_now)
         if problem:
+            gap = self.last_execution_check["control_gap_s"]
+            if self.control_has_run and gap is not None and gap > self.control_settings.max_dt_s+1e-9:
+                return f"Control execution gap exceeded (dt_s={gap:.6f}); " + problem
             return problem
         if (self.policy_started_at is not None and
                 monotonic_now-self.policy_started_at >= self.control_settings.max_run_time_s):
@@ -5831,6 +6947,9 @@ class PolicyNode(Node):
             if problem:
                 return problem + "; explicit resume required"
         if deadline is not None and ros_now_ns/1e9 >= deadline:
+            if allow_ready_result and (self._ready_async_result_usable(monotonic_now, ros_now_ns)
+                                      or self._warmstart_refresh_usable(monotonic_now)):
+                return None  # One calculation may validate the fresh result; no old action is published.
             return "Control reference expired; explicit resume required"
         if (not self.control_has_run and self.policy_started_at is not None
                 and monotonic_now-self.policy_started_at >= self.control_settings.startup_grace_s):
@@ -5842,7 +6961,14 @@ class PolicyNode(Node):
     def supervision_callback(self):
         now, ros_now = self._times()
         if self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION:
+            self._receive_async_result()
             problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
+            if (problem == "Control reference expired; explicit resume required"
+                    and (self._ready_async_result_usable(now, ros_now) or self._warmstart_refresh_usable(now))):
+                # A completed result gets the normal estimator/transport/control
+                # validation now. A failed refresh still publishes zero.
+                self.run_policy_step()
+                problem = None
             if problem:
                 self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
         elif self.fsm_state == FSM_STATE_PUBLISHING_ZERO_ACTIONS:
@@ -5873,6 +6999,8 @@ class PolicyNode(Node):
             self.publish_zero_actions()
 
     def destroy_node(self):
+        if getattr(self, "diagnostic_log", None) is not None:
+            self.diagnostic_log.close()
         if getattr(self, "async_planner", None) is not None:
             self.async_planner.close()
             self.async_planner = None

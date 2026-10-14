@@ -24,6 +24,9 @@ method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
                 "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
 method_names.add("_async_planning_cycle")
+method_names.update({"_receive_async_result", "_ready_async_result_usable"})
+method_names.update({"_warmstart_refresh_usable", "_warmstart_job_state", "_validate_warmstart_path"})
+method_names.add("_merge_warmstart_planner_state")
 method_names.add("_observe_stationary_gyro")
 method_names.update({"_log_planning_rejection", "_startup_lattice_wait", "_log_planned_trajectory"})
 method_names.update({"_startup_road_ready", "_straight_startup_reference", "_drive_straight_startup",
@@ -437,7 +440,7 @@ class RobustLatticeIntegrationChecks(unittest.TestCase):
         node.run_policy_step()
         node.test_clock.advance(.05)
         feed(node, center=0, speed=.2)
-        node.async_planner = object()
+        node.async_planner = SimpleNamespace(poll=lambda: None)
         def pending(estimates, timeouts):
             node.planning_output = {"valid": False, "reason": "planning_pending"}
             return estimates
@@ -472,7 +475,7 @@ class RobustLatticeIntegrationChecks(unittest.TestCase):
         node.run_policy_step()
         node.test_clock.advance(.05)
         feed(node, center=0, speed=.2)
-        node.async_planner = object()
+        node.async_planner = SimpleNamespace(poll=lambda: None)
         def pending(estimates, timeouts):
             node.planning_output = {"valid": False, "reason": "planning_pending"}
             return estimates
@@ -1124,6 +1127,8 @@ class DistanceChecks(unittest.TestCase):
         self.assertIsNone(limiter.advance(1.0, .2))
         self.assertAlmostEqual(limiter.distance_m, 3.3)
         self.assertIn("clock/gap", limiter.advance(1.0, .5))
+        self.assertEqual(limiter.last_check["reason"], "integration_gap")
+        self.assertAlmostEqual(limiter.last_check["dt_s"], .3)
 
     def test_variable_speed_cached_checks_and_exact_threshold(self):
         limiter = ns["RunDistanceLimiter"](3.0, 0.2)
@@ -1150,7 +1155,7 @@ class Mvp2RecoveryChecks(unittest.TestCase):
     def test_initial_prediction_stays_neutral_until_observed_control_trust(self):
         node = make_node(simulated=False, mvp=True)
         node.control_settings = replace(node.control_settings, robustness_enabled=True)
-        node.async_planner = object()
+        node.async_planner = SimpleNamespace(poll=lambda: None)
         def cycle(estimates, timeouts):
             if not hasattr(node, "first_request_seen"):
                 node.first_request_seen = True
@@ -1272,6 +1277,584 @@ class Mvp2RecoveryChecks(unittest.TestCase):
         node._change_state(2, "Operator request")
         self.assertEqual(node.planning_generation, 11)
         self.assertIsNone(node.control_reference_manager.reference)
+
+
+class WarmstartChecks(unittest.TestCase):
+    def test_control_gap_stop_reports_actual_distance_and_execution_intervals(self):
+        node = self.node()
+        warnings = []
+        node.get_logger = lambda: SimpleNamespace(info=lambda *_:None, warning=warnings.append, error=lambda *_:None)
+        node.test_clock.advance(.25)
+        mono, ros = node._times()
+        node._store("wheel_speed", .2, None, mono, ros)
+        node._store("imu_angular_velocity", (0,0,0), ros, mono, ros)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("Control execution gap exceeded", node.state_reason)
+        record = ast.literal_eval(next(s.split("Control timing: ",1)[1] for s in warnings if "Control timing: " in s))
+        self.assertAlmostEqual(record["distance_check"]["dt_s"], .25)
+        self.assertEqual(record["distance_check"]["reason"], "integration_gap")
+        self.assertAlmostEqual(record["execution_check"]["control_gap_s"], .25)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+    def test_feedback_jitter_uses_active_half_second_budget_but_real_timeout_stops(self):
+        node = self.node()
+        node.sensor_timeout_s.update(wheel_speed=.5, imu_angular_velocity=.5)
+        node.estimation_settings = replace(node.estimation_settings, motion_max_gap_s=.5)
+        node.estimator.settings = node.estimation_settings
+        node.motion_history.settings = node.estimation_settings
+        self.fail_planning(node)
+        # Keep the 20 Hz control cadence while both motion streams pause.
+        for _ in range(7):
+            node.test_clock.advance(.05)
+            node.supervision_callback()
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+        diag = node.estimation_output["state"]["motion_feedback"]
+        self.assertGreater(diag["imu_angular_velocity"]["age_s"], .25)
+        self.assertEqual(diag["imu_angular_velocity"]["reason"], "valid")
+        self.tick(node)
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        for _ in range(11):
+            node.test_clock.advance(.05)
+            node.supervision_callback()
+            node.run_policy_step()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("stale", node.state_reason.lower())
+
+    def node(self, front=False, progress=False):
+        node = make_node(simulated=False, mvp=True)
+        node.estimation_settings = replace(node.estimation_settings, max_source_age_s=1.5,
+            motion_max_gap_s=.25, motion_max_interval_s=.5, road_hold_s=0)
+        node.sensor_timeout_s.update(cone_detections=1.5, wheel_speed=.25, imu_angular_velocity=.25)
+        node.planning_settings = replace(node.planning_settings, algorithm="lattice_v2", max_source_age_s=1.5)
+        node.lattice_settings = ns["LatticeSettings"](horizon_m=1, minimum_output_m=.2, preview_m=.2,
+            durations_s="1.0", score_time_s=1, transition_lengths_m="0.3,0.6", budget_s=5,
+            obstacle_check_enabled=False, direct_sample_output=True, clear_start_assumed=True,
+            startup_connection_enabled=True, startup_corridor_check_enabled=False,
+            startup_progress_enabled=progress,
+            boundary_collision_only_enabled=True, recovery_enabled=True)
+        node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp", robustness_enabled=True,
+            warmstart_enabled=True, max_distance_m=0, startup_grace_s=3,
+            drive_max=.35, mvp_drive_feedforward=.3)
+        node.controller = ns["PolicyController"](node.control_settings)
+        node.distance_limiter = ns["RunDistanceLimiter"](0, .2)
+        if front:
+            mono, ros = node._times()
+            node._store("wheel_speed", 0, None, mono, ros)
+            node._store("imu_angular_velocity", (0, 0, 0), ros, mono, ros)
+            xs = [.2+i*.1 for i in range(9)]
+            node._store("cone_detections", api["cones"]([(x, .5) for x in xs], [(x, -.5) for x in xs]), ros, mono, ros)
+            node.last_nonempty_cones = node.observations["cone_detections"]
+        else:
+            feed(node, center=0, speed=0)
+        start(node)
+        node.planner = ns["FrenetLatticePlanner"](node.planning_settings, node.lattice_settings, clock=lambda: 0)
+        node.previous_policy_step_at = node.test_clock.monotonic
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertTrue(node.control_has_run, node.state_reason)
+        return node
+
+    def fail_planning(self, node):
+        original = node.planner.plan
+        def rejected(*args, **kwargs):
+            args = list(args)
+            args[0] = {**args[0], "valid": False, "status": "insufficient_geometry"}
+            return original(*args, **kwargs)
+        node.planner.plan = rejected
+        return original
+
+    def tick(self, node, speed=.2, cones=False):
+        node.test_clock.advance(.05)
+        if cones:
+            feed(node, center=0, speed=speed)
+        else:
+            mono, ros = node._times()
+            node._store("wheel_speed", speed, None, mono, ros)
+            node._store("imu_angular_velocity", (0, 0, 0), ros, mono, ros)
+        node.supervision_callback()
+        node.run_policy_step()
+
+    def test_failure_survives_road_age_and_legacy_hold_budgets_then_replans(self):
+        node = self.node()
+        manager = node.control_reference_manager
+        original = self.fail_planning(node)
+        cached_id = manager.reference["trajectory_id"]
+        accepted, endpoint = manager.accepted_at_s, manager.curve_samples[-1][0]
+        for _ in range(60):
+            self.tick(node)
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertEqual(manager.mode, "WARMSTART")
+        self.assertEqual(manager.reference["trajectory_id"], cached_id)
+        self.assertEqual(manager.accepted_at_s, accepted)
+        self.assertGreater(node.control_diagnostics["original_source_age_s"], 1.5)
+        self.assertGreater(node.control_diagnostics["prediction_distance_m"], .25)
+        self.assertGreater(endpoint-manager.curve_samples[-1][0], .5)
+        self.assertLess(endpoint-manager.curve_samples[-1][0], .6)
+        node.planner.plan = original
+        self.tick(node, cones=True)
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertEqual(manager.mode, "TRACKING")
+        self.assertNotEqual(manager.reference["trajectory_id"], cached_id)
+        self.assertGreater(manager.accepted_at_s, accepted)
+
+    def test_cache_brakes_for_endpoint_and_never_extends_it(self):
+        node = self.node()
+        self.fail_planning(node)
+        slowed = False
+        for _ in range(110):
+            self.tick(node)
+            if node.fsm_state == 2:
+                break
+            slowed |= node.control_reference_manager.last_target_speed_mps < .19
+        self.assertTrue(slowed)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("exhausted", node.state_reason)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        self.assertLess(node.distance_limiter.distance_m, 1.0)
+
+    def test_controlled_start_can_seed_short_path_and_continue_without_restarting(self):
+        node = self.node(front=True)
+        self.assertFalse(node.planner.startup_complete)
+        self.assertLess(node.control_reference_manager.curve_samples[-1][0], 1.0)
+        corridor = node.planner.startup_corridor
+        self.fail_planning(node)
+        for _ in range(8):
+            self.tick(node)
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertIs(node.planner.startup_corridor, corridor)
+        self.assertGreater(corridor["pose"][0], .03)
+        self.assertFalse(node.planner.startup_complete)
+        self.assertIsNotNone(node.control_reference_manager.reference)
+
+    def test_accepted_startup_join_does_not_move_away_on_success_or_failure(self):
+        node = self.node(front=True, progress=True)
+        manager = node.control_reference_manager
+        first = manager.startup_join_remaining_m
+        self.assertIsNotNone(first)
+        for _ in range(8):
+            previous = manager.startup_join_remaining_m
+            self.tick(node)
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+            self.assertLessEqual(manager.startup_join_remaining_m, previous+1e-9)
+            if node.planning_output["valid"]:
+                self.assertLessEqual(node.planning_diagnostics["startup_join_space"]["preferred_join_x_m"],
+                    max(previous, node.planning_diagnostics["startup_join_space"]["observed_start_x_m"], .05)+1e-8)
+        self.assertLess(manager.startup_join_remaining_m, first-.03)
+        self.fail_planning(node)
+        cached_id = manager.reference["trajectory_id"]
+        before = manager.startup_join_remaining_m
+        for _ in range(8):
+            self.tick(node)
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertEqual(manager.reference["trajectory_id"], cached_id)
+        self.assertLess(manager.startup_join_remaining_m, before-.03)
+        self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+
+    def test_delayed_worker_state_cannot_undo_verified_control_cadence_motion(self):
+        node = self.node(front=True, progress=True)
+        snapshot = {"startup_corridor": deepcopy(node.planner.startup_corridor),
+                    "startup_motion": tuple(node.planner.startup_motion), "startup_complete": False,
+                    "observed_origin_seen": False, "stop_latched": False}
+        node.warmstart_planner_state = deepcopy(snapshot)
+        for _ in range(6):
+            self.tick(node)
+            state = node.estimation_output["state"]
+            current = node._warmstart_job_state(state["timestamp_s"], state)
+            self.assertTrue(current["startup_motion_verified"])
+            node.warmstart_planner_state = current
+            node._merge_warmstart_planner_state(snapshot)
+            self.assertEqual(node.warmstart_planner_state["startup_motion"][0], state["timestamp_s"])
+            self.assertGreaterEqual(node.warmstart_planner_state["startup_corridor"]["pose"][0], 0)
+        self.assertGreater(node.warmstart_planner_state["startup_corridor"]["pose"][0], .02)
+        node.warmstart_planner_state["startup_complete"] = True
+        node._merge_warmstart_planner_state(snapshot)
+        self.assertTrue(node.warmstart_planner_state["startup_complete"])
+        node._change_state(2, "Operator request")
+        self.assertIsNone(node.warmstart_planner_state)
+        self.assertIsNone(node.control_reference_manager.startup_join_remaining_m)
+
+    def test_first_start_has_no_cache_and_retains_original_age_and_wait_gate(self):
+        node = self.node()
+        node._change_state(2, "Operator request")
+        self.assertIsNone(node.control_reference_manager.reference)
+        start(node)
+        self.assertIsNone(node.control_reference_manager.reference)
+        node.previous_policy_step_at = node.test_clock.monotonic
+        seen_limits = []
+        def pending(*args, **kwargs):
+            seen_limits.append(args[5]["road"])
+            return {"valid": False, "reason": "no_feasible_lattice_trajectory"}, {}
+        node.planner.plan = pending
+        node.control_has_run = False
+        for _ in range(8):
+            self.tick(node, speed=0, cones=True)
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+            self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+            self.assertIsNone(node.control_reference_manager.reference)
+        self.assertEqual(set(seen_limits), {.6})
+        for _ in range(56):
+            self.tick(node, speed=0, cones=True)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("startup history deadline", node.state_reason)
+
+    def test_stale_motion_and_control_gap_still_stop(self):
+        for fault in ("gyro", "gap"):
+            with self.subTest(fault=fault):
+                node = self.node()
+                if fault == "gyro":
+                    node.observations["imu_angular_velocity"] = None
+                else:
+                    node.test_clock.advance(.25)
+                    feed(node, speed=.2)
+                node.supervision_callback()
+                self.assertEqual(node.fsm_state, 2, node.state_reason)
+                self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+    def test_all_planning_failure_reasons_keep_the_accepted_path(self):
+        node = self.node()
+        manager = node.control_reference_manager
+        cached_id, accepted = manager.reference["trajectory_id"], manager.accepted_at_s
+        for reason in ("planning_pending", "no_feasible_lattice_trajectory", "no_valid_cartesian_output",
+                       "initial_frenet_domain", "lattice_time_budget_exceeded", "planning_worker_timeout",
+                       "planning_worker_unavailable", "source_deadline_during_planning", "invalid_estimates_or_boundaries"):
+            with self.subTest(reason=reason):
+                node.planner.plan = lambda *args, _reason=reason, **kwargs: (
+                    {"valid": False, "reason": _reason, "stop_requested": True}, {})
+                self.tick(node)
+                self.assertEqual(node.fsm_state, 3, node.state_reason)
+                self.assertEqual(manager.reference["trajectory_id"], cached_id)
+                self.assertEqual(manager.accepted_at_s, accepted)
+                self.assertEqual(manager.diagnostics["upstream_rejection_reason"], reason)
+                self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+
+    def collision_fixture(self, node, left_y, points):
+        node.control_reference_manager.last_collision_key = None
+        selected = deepcopy(node._trajectory_reference)
+        selected["control_cached_path_samples"] = points
+        road = deepcopy(node.estimation_output["road"])
+        xs = [-.5+i*.05 for i in range(41)]
+        road.update(valid=True, geometry_valid=True, time_aligned=True,
+            left_boundary_xy=[(x, left_y(x)) for x in xs],
+            right_boundary_xy=[(x, left_y(x)-1) for x in xs],
+            boundary_source={"left": "width_inferred", "right": "observed_with_history"},
+            visibility="right_only", status="single_side_inferred")
+        model = node.planner._model(node.estimation_output["vehicle_limits"])
+        return selected, road, model
+
+    def test_logged_passed_pose_collision_does_not_reject_remaining_path(self):
+        node = self.node()
+        # Reproduce the measured retained CG/rear-left pose and inferred-left
+        # boundary contact. Its past rear corner crosses by about 7.4 mm, while
+        # the actual current rear corner is already forward of that conflict.
+        old = (-.028189591294579965, -.00004314644702826714, .00331504327235717, -.15319165673866275)
+        points = [old, (.02, 0, 0, 0), (.1, 0, 0, 0), (.2, 0, 0, 0)]
+        selected, road, model = self.collision_fixture(node,
+            lambda x: .11573892993616514+.58*(x+.22660288298397044), points)
+        left, right = [ns["LatticeCurve"](road[side+"_boundary_xy"], 0, .05) for side in ("left", "right")]
+        clearance = node.planner._boundary_edge_clearance(
+            {"x": old[0], "y": old[1], "heading": old[2]}, left, right, model, math.inf, {})
+        self.assertAlmostEqual(clearance, -.0074, delta=.0002)
+        actual = node.planner._boundary_edge_clearance(
+            {"x": 0, "y": 0, "heading": 0}, left, right, model, math.inf, {})
+        self.assertGreater(actual, 0)
+        original_check = node.planner._boundary_edge_clearance
+        checked = []
+        def capture(geom, *args, **kwargs):
+            checked.append(dict(geom))
+            return original_check(geom, *args, **kwargs)
+        node.planner._boundary_edge_clearance = capture
+        for stage in ("candidate", "selected"):
+            node.control_reference_manager.last_collision_key = None
+            node._validate_warmstart_path(selected, road, node.estimation_output, model, stage=stage)
+        self.assertEqual(checked[0], {"x": 0, "y": 0, "heading": 0})
+        self.assertTrue(all(p["x"] >= 0 for p in checked))
+        self.assertEqual(points[0], old)  # Keep the bracket for controller interpolation.
+        self.assertFalse(node.warmstart_collision_diagnostics)
+
+    def test_actual_current_body_is_checked_even_when_the_same_path_was_validated(self):
+        node = self.node()
+        selected, road, model = self.collision_fixture(node, lambda x: .05,
+            [(-.02, -.2, 0, 0), (0, -.2, 0, 0), (.2, -.2, 0, 0)])
+        manager = node.control_reference_manager
+        manager.last_collision_key = ((selected.get("trajectory_id"), selected.get("generated_at_s")),
+                                      road.get("measurement_timestamp_s"))
+        with self.assertRaisesRegex(ValueError, "conflicts with current boundaries"):
+            node._validate_warmstart_path(selected, road, node.estimation_output, model)
+        collision = node.warmstart_collision_diagnostics["selected"]
+        self.assertEqual(collision["check_pose_type"], "current_body")
+        self.assertEqual(collision["path_pose_xy_heading_curvature"], [0, 0, 0, 0])
+        self.assertEqual(collision["ignored_consumed_path_samples"], 1)
+
+    def test_future_body_collision_still_rejects_a_currently_clear_path(self):
+        node = self.node()
+        selected, road, model = self.collision_fixture(node, lambda x: .5-.9*x,
+            [(-.02, 0, 0, 0), (0, 0, 0, 0), (.2, 0, 0, 0)])
+        with self.assertRaisesRegex(ValueError, "conflicts with current boundaries"):
+            node._validate_warmstart_path(selected, road, node.estimation_output, model)
+        collision = node.warmstart_collision_diagnostics["selected"]
+        self.assertEqual(collision["check_pose_type"], "future_path")
+        self.assertEqual(collision["path_sample_index"], 2)
+        self.assertGreater(collision["path_distance_from_origin_m"], .1)
+        self.assertFalse(collision["path_pose_behind_origin"])
+
+    def test_new_real_boundary_collision_stops_cached_path(self):
+        node = self.node()
+        warnings = []
+        node.get_logger = lambda: SimpleNamespace(info=lambda *_: None, warning=warnings.append,
+                                                  error=node.logged_errors.append)
+        self.fail_planning(node)
+        node.test_clock.advance(.05)
+        feed(node, center=-.45, speed=.2)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 2, node.state_reason)
+        self.assertIn("conflicts with current boundaries", node.state_reason)
+        stop = ast.literal_eval(next(s.split("Control timing: ", 1)[1] for s in warnings if s.startswith("Control timing: ")))
+        record = stop["warmstart_collision"]["selected"]
+        self.assertEqual(record["stage"], "selected")
+        self.assertEqual(record["contact"]["side"], "left")
+        self.assertEqual(record["boundary_source"], "observed")
+        self.assertLess(record["signed_clearance_m"], 0)
+        self.assertAlmostEqual(record["penetration_m"], -record["signed_clearance_m"])
+        self.assertAlmostEqual(record["boundary_point_xy_m"][1], .05)
+        self.assertEqual(record["body_model_m"]["width_m"], .25)
+        self.assertEqual(len(record["contact"]["body_point_xy_m"]), 2)
+        self.assertTrue(record["boundary_near_contact_xy_m"])
+        self.assertTrue(any(s.startswith("Warmstart collision: ") for s in warnings))
+
+    def test_discontinuous_replan_keeps_previous_reference(self):
+        node = self.node()
+        manager = node.control_reference_manager
+        cached_id = manager.reference["trajectory_id"]
+        candidate = deepcopy(manager.reference)
+        candidate.pop("control_cached_path_samples", None)
+        candidate["trajectory_id"] = 999
+        candidate["path"]["samples_xy_heading_curvature"] = [
+            (x, y+.25, h, k) for x, y, h, k in candidate["path"]["samples_xy_heading_curvature"]]
+        def replanned(*args, **kwargs):
+            candidate.update(timestamp_s=args[4], valid_for_s=.2)
+            return candidate, {}
+        node.planner.plan = replanned
+        self.tick(node, cones=True)
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertEqual(manager.reference["trajectory_id"], cached_id)
+        self.assertEqual(manager.diagnostics["upstream_rejection_reason"], "warmstart_candidate_discontinuous")
+
+    def test_expired_execution_window_refreshes_cache_through_normal_supervision(self):
+        node = self.node()
+        self.fail_planning(node)
+        node.test_clock.advance(.05)
+        feed(node, center=0, speed=.2)
+        node.last_control_reference_deadline_s = node.test_clock.ros_ns/1e9-.001
+        previous = len(node.action_publisher.messages)
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertGreater(len(node.action_publisher.messages), previous)
+        self.assertGreater(node.last_control_reference_deadline_s, node.test_clock.ros_ns/1e9)
+
+    def test_async_invalid_error_old_generation_and_expired_results_keep_cache_and_dispatch(self):
+        for fault in ("invalid", "error", "generation", "expired"):
+            with self.subTest(fault=fault):
+                node = self.node()
+                cached_id = node.control_reference_manager.reference["trajectory_id"]
+                result = {"generation": node.planning_generation,
+                    "reference": deepcopy(node.planning_output), "road": deepcopy(node.estimation_output["road"]),
+                    "diagnostics": {}}
+                result["reference"]["trajectory_id"] = 999
+                if fault == "invalid":
+                    result["reference"].update(valid=False, reason="no_feasible_lattice_trajectory")
+                elif fault == "error":
+                    result["error"] = "synthetic worker fault"
+                elif fault == "generation":
+                    result["generation"] -= 1
+                else:
+                    result["reference"].update(valid_for_s=.001)
+                class Worker:
+                    pending_at, ready = None, True
+                    process = SimpleNamespace(poll=lambda: None)
+                    def poll(self):
+                        value, self.result = self.result, None
+                        self.pending_at = None
+                        return value
+                    def submit(self, job, now):
+                        self.job, self.pending_at = job, now
+                        return True
+                node.async_planner = Worker()
+                node.async_planner.result = result
+                node.last_planning_submit_s = -math.inf
+                node.lattice_settings = replace(node.lattice_settings, async_enabled=True)
+                self.tick(node, cones=True)
+                self.assertEqual(node.fsm_state, 3, node.state_reason)
+                self.assertEqual(node.control_reference_manager.reference["trajectory_id"], cached_id)
+                self.assertIn("warmstart", node.async_planner.job)
+                self.assertEqual(node.async_planner.job["warmstart"]["timestamp_s"], node.estimation_output["state"]["timestamp_s"])
+
+    def test_candidate_collision_is_rejected_before_replacing_safe_cache(self):
+        node = self.node()
+        manager = node.control_reference_manager
+        cached_id = manager.reference["trajectory_id"]
+        node.test_clock.advance(.05)
+        feed(node, center=0, speed=.2)
+        estimates = node.estimator.update(
+            {name: obs.value if obs else None for name, obs in node.observations.items()},
+            {name: 0 for name in node.observations},
+            {name: obs.stamp_ns if obs else None for name, obs in node.observations.items()},
+            {name: obs.received_at if obs else None for name, obs in node.observations.items()},
+            node.test_clock.ros_ns/1e9,
+            {name: obs.received_ros_ns if obs else None for name, obs in node.observations.items()})
+        candidate = deepcopy(manager.reference)
+        candidate.update(trajectory_id=999, timestamp_s=estimates["state"]["timestamp_s"], valid_for_s=.2)
+        candidate.pop("control_cached_path_samples", None)
+        candidate["path"]["samples_xy_heading_curvature"] = [
+            (x, y+(.6*x*x), h, k) for x, y, h, k in candidate["path"]["samples_xy_heading_curvature"]]
+        node.planning_output, node.estimation_output = candidate, estimates
+        selected = node._select_control_reference(estimates)
+        self.assertEqual(selected["trajectory_id"], cached_id)
+        self.assertIn("conflicts with current boundaries", manager.diagnostics["upstream_rejection_reason"])
+        collision = node.warmstart_collision_diagnostics["candidate"]
+        self.assertEqual(collision["trajectory_id"], 999)
+        self.assertEqual(collision["cached_trajectory_id"], cached_id)
+        self.assertGreater(collision["path_distance_from_origin_m"], .2)
+        self.assertNotIn("selected", node.warmstart_collision_diagnostics)
+
+    def test_background_log_severities_have_distinct_caller_locations(self):
+        import sys
+        import threading
+        event, calls, locations = threading.Event(), [], {}
+        class Logger:
+            def emit(self, level, message):
+                frame = sys._getframe(2)
+                key = (frame.f_code.co_filename, frame.f_lineno)
+                if key in locations and locations[key] != level:
+                    raise ValueError("Logger severity changed at one caller location")
+                locations[key] = level
+                calls.append((level, message))
+                event.set()
+            def info(self, message):
+                self.emit("info", message)
+            def warning(self, message):
+                self.emit("warning", message)
+        sink = ns["AsyncPolicyLog"](Logger())
+        try:
+            for level in ("warning", "info", "warning", "info"):
+                event.clear()
+                sink.submit(level, "record: ", {"value": 1})
+                self.assertTrue(event.wait(1), sink.status())
+            self.assertEqual([level for level, _ in calls], ["warning", "info", "warning", "info"])
+            self.assertEqual(sink.status()["errors"], 0)
+            self.assertEqual(len(locations), 2)
+        finally:
+            sink.close()
+            sink.thread.join(1)
+
+    def test_background_logger_failure_is_visible_and_next_record_still_writes(self):
+        import contextlib
+        import io
+        import threading
+        entered, recovered = threading.Event(), threading.Event()
+        def fails(message):
+            entered.set()
+            raise RuntimeError("synthetic logger failure")
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            sink = ns["AsyncPolicyLog"](SimpleNamespace(info=fails, warning=lambda _: recovered.set()))
+            try:
+                sink.submit("info", "bad: ", {})
+                self.assertTrue(entered.wait(1))
+                sink.submit("warning", "good: ", {})
+                self.assertTrue(recovered.wait(1))
+                status = sink.status()
+                self.assertEqual(status["errors"], 1)
+                self.assertIn("synthetic logger failure", status["last_error"])
+                self.assertTrue(status["thread_alive"])
+                self.assertIn("Policy diagnostic log error:", stderr.getvalue())
+            finally:
+                sink.close()
+                sink.thread.join(1)
+
+    def test_large_log_can_block_without_blocking_control_and_queue_is_bounded(self):
+        import threading
+        entered, release = threading.Event(), threading.Event()
+        def blocked(message):
+            entered.set()
+            release.wait(2)
+        node = self.node()
+        sink = ns["AsyncPolicyLog"](SimpleNamespace(info=blocked, warning=blocked))
+        node.diagnostic_log = sink
+        try:
+            sink.submit("info", "test", {})
+            self.assertTrue(entered.wait(.5))
+            began = ns["time"].perf_counter()
+            for _ in range(3):
+                self.tick(node, cones=True)
+                self.assertEqual(node.fsm_state, 3, node.state_reason)
+            self.assertLess(ns["time"].perf_counter()-began, .8)
+            self.assertEqual(sink.records.qsize(), 1)
+            self.assertGreater(sink.dropped, 0)
+            self.assertFalse(release.is_set())
+        finally:
+            release.set()
+            sink.close()
+            sink.thread.join(1)
+
+
+class AsyncDeadlineHandoffChecks(unittest.TestCase):
+    def ready_node(self, delay=.05):
+        node = RobustControlChecks().node(speed=0)
+        reference = deepcopy(node.planning_output)
+        reference["trajectory_id"] = 123
+        reference["expires_at_s"] = reference["timestamp_s"]+reference["valid_for_s"]
+        result = {"generation": node.planning_generation, "reference": reference,
+                  "road": deepcopy(node.estimation_output["road"]),
+                  "state": deepcopy(node.estimation_output["state"]), "diagnostics": {}}
+        class Worker:
+            ready, pending_at = False, None
+            process = SimpleNamespace(poll=lambda: None)
+            def poll(self):
+                value, self.result = self.result, None
+                return value
+        node.async_planner = Worker()
+        node.async_planner.result = result
+        node.lattice_settings = ns["LatticeSettings"](async_enabled=True)
+        node.test_clock.advance(delay)
+        feed(node, center=.05, speed=0)
+        node.last_control_reference_deadline_s = node.test_clock.ros_ns/1e9-.001
+        return node, result
+
+    def test_ready_result_refreshes_before_policy_preflight_expiry(self):
+        node, _ = self.ready_node()
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertEqual(node.last_control_timing["trajectory_id"], 123)
+        self.assertGreater(node.last_control_reference_deadline_s, node.test_clock.ros_ns/1e9)
+        self.assertIsNone(node.ready_async_result)
+
+    def test_supervisor_validates_ready_result_before_stopping(self):
+        node, _ = self.ready_node()
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertEqual(node.last_control_timing["trajectory_id"], 123)
+        self.assertGreater(node.last_control_reference_deadline_s, node.test_clock.ros_ns/1e9)
+
+    def test_bad_or_late_results_cannot_bypass_expiry(self):
+        for fault in ("generation", "expired", "invalid", "error", "control_gap", "motion"):
+            with self.subTest(fault=fault):
+                node, result = self.ready_node(.21 if fault == "control_gap" else .05)
+                if fault == "generation":
+                    result["generation"] -= 1
+                elif fault == "expired":
+                    result["reference"]["expires_at_s"] = node.test_clock.ros_ns/1e9
+                elif fault == "invalid":
+                    result["reference"]["valid"] = False
+                elif fault == "error":
+                    result["error"] = "worker failed"
+                elif fault == "motion":
+                    node.observations["imu_angular_velocity"] = None
+                node.supervision_callback()
+                self.assertEqual(node.fsm_state, 2, node.state_reason)
+                self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+                self.assertIsNone(node.ready_async_result)
 
 
 if __name__ == "__main__":

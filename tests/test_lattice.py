@@ -31,6 +31,137 @@ def planner(**kwargs):
 
 
 class LatticeChecks(unittest.TestCase):
+    def test_immediate_prefix_reward_is_symmetric_and_rejects_delayed_correction(self):
+        p = planner(immediate_centering_enabled=True)
+        results = []
+        for sign in (-1, 1):
+            road = ns["LatticeCurve"]([(0, sign*.1), (1, sign*.1)], 0, .05)
+            def score(ys):
+                return p._near_center_score([{"x": x, "y": sign*y} for x, y in
+                    zip((0, .05, .1, .2, .3, 1), ys)], road)
+            early = score((0, .015, .05, .09, .1, .1))
+            delayed = score((0, -.005, -.01, .01, .04, .1))
+            self.assertLess(early["cost"], delayed["cost"])
+            self.assertTrue(early["active"])
+            self.assertGreater(delayed["samples"][0]["away_m"], 0)
+            results.append(early["cost"])
+        self.assertAlmostEqual(*results)
+
+    def test_immediate_centering_beats_hold_and_large_steering_history_cost(self):
+        for sign in (-1, 1):
+            p = planner(immediate_centering_enabled=True, steering_limits_enabled=False,
+                incremental_centering_enabled=True, transition_lengths_m="0.25,0.6",
+                terminal_offsets_m="0.0", durations_s="1.0", score_time_s=1,
+                horizon_m=1, minimum_output_m=.2, geometry_step_m=.05, max_candidates=16,
+                obstacle_check_enabled=False, direct_sample_output=True,
+                steering_limit_rad=1e-6, steering_rate_limit_radps=1e-6,
+                weight_steering=1e6, weight_consistency=1e6)
+            p.previous = {"timestamp_s": 10, "valid_for_s": .2, "points": [(0, 0), (2, 0)]}
+            ref, diag = p.plan(*fixture(offset=sign*.06, speed=.2), mvp=True)
+            self.assertTrue(ref["valid"], diag)
+            selected = diag["selected"]
+            self.assertEqual(selected["offset_m"], 0)
+            self.assertEqual(selected["length_m"], .25)
+            self.assertNotIn("centering", diag)  # No incremental 2 cm target.
+            feasible = [c for c in diag["candidates"] if c.get("reason") == "feasible" and not c["stop"]]
+            self.assertEqual(selected["near_centering"]["cost"], min(c["near_centering"]["cost"] for c in feasible))
+            self.assertGreater(selected["near_centering"]["samples"][1]["progress_m"], .01)
+            start = ref["path"]["samples_xy_heading_curvature"][0]
+            for value in start:
+                self.assertAlmostEqual(value, 0, places=8)
+            # Switch restores BOTH angle/rate gates; holding remains possible.
+            p.cfg.steering_limits_enabled = True
+            ref, diag = p.plan(*fixture(offset=sign*.06, speed=.2), mvp=True)
+            self.assertTrue(ref["valid"], diag)
+            self.assertAlmostEqual(abs(diag["selected"]["offset_m"]), .06)
+
+    def test_immediate_mode_preserves_stationary_start_and_supported_scoring(self):
+        p = self.startup_planner()
+        p.cfg.immediate_centering_enabled = True
+        p.cfg.steering_limits_enabled = False
+        self.assertEqual(p.plan(*fixture(near=.6, speed=.1), mvp=True)[0]["reason"], "startup_requires_stationary_vehicle")
+        ref, diag = p.plan(*fixture(near=.6, offset=.04, speed=0), mvp=True)
+        self.assertTrue(ref["valid"], diag)
+        self.assertFalse(diag["near_centering"]["near_field_supported"])
+        self.assertTrue(all(p["x_m"] >= .6 for p in diag["near_centering"]["samples"]))
+        self.assertFalse(p.startup_complete)
+        for v in ref["path"]["samples_xy_heading_curvature"][0]:
+            self.assertAlmostEqual(v, 0)
+
+    def test_relaxed_steering_still_rejects_collision_and_curvature_domain(self):
+        p = planner(immediate_centering_enabled=True, steering_limits_enabled=False,
+            obstacle_check_enabled=False, direct_sample_output=True)
+        args = fixture()
+        for key, y in (("left_boundary_xy", .1), ("right_boundary_xy", -.1)):
+            args[0][key] = [(x, y) for x, _ in args[0][key]]
+        self.assertFalse(p.plan(*args, mvp=True)[0]["valid"])
+        with self.assertRaisesRegex(ValueError, "unreachable_cg_curvature"):
+            ns["_lattice_steering"](1/p.cfg.rear_axle_from_cg_m, p._model({}))
+        for flag in ("immediate_centering_enabled", "steering_limits_enabled"):
+            with self.assertRaises(ValueError):
+                Config(**{flag: 1})
+
+    def test_startup_center_cost_uses_observed_road_and_is_left_right_symmetric(self):
+        p = planner()
+        reference = ns["LatticeCurve"]([(0, 0), (1, 0)], 0, .05)
+        for direction in (-1, 1):
+            road = ns["LatticeCurve"]([(0, direction*.2), (1, direction*.2)], 0, .05)
+            def score(y, actual):
+                geometry = [{"s": x, "x": x, "y": direction*y, "d": 0,
+                             "support": "observed", "clearance": .5} for x in (0, .2, .4, .6, .8, 1)]
+                return p._spatial_score(geometry, [], reference, road if actual else None)["center"]
+            self.assertEqual(score(0, False), 0)
+            self.assertGreater(score(0, True), score(.1, True))
+            self.assertAlmostEqual(score(.2, True), 0)
+            self.assertAlmostEqual(score(0, True), 2.56)
+
+    def test_startup_join_progress_prefers_early_entry_without_relaxing_first_start(self):
+        p = self.startup_planner()
+        p.cfg.startup_progress_enabled = True
+        args = fixture(near=.2, speed=0)
+        ref, diag = p.plan(*args, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertEqual(diag["startup_connection"]["center_reference"], "observed_road")
+        p.startup_join_limit_m = .27
+        args = fixture(near=.2, speed=.1)
+        for item in args[:3]:
+            item["timestamp_s"] = 10.1
+        args[4] = 10.1
+        ref, diag = p.plan(*args, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertLessEqual(ref["startup_join_distance_m"], .27)
+        self.assertEqual(diag["startup_join_space"]["preferred_join_x_m"], .27)
+        self.assertTrue(any(x > .27 for x in diag["startup_join_space"]["sampled_join_x_m"]))
+        self.assertEqual(ref["startup_join_timestamp_s"], 10.1)
+        fresh = self.startup_planner()
+        fresh.cfg.startup_progress_enabled = True
+        self.assertEqual(fresh.plan(*fixture(near=.2, speed=.1), mvp=True)[0]["reason"], "startup_requires_stationary_vehicle")
+
+    def test_exhausted_startup_progress_keeps_longer_geometrically_valid_joins(self):
+        p = self.startup_planner()
+        p.cfg.startup_progress_enabled = p.cfg.immediate_centering_enabled = True
+        p.cfg.steering_limits_enabled = p.cfg.startup_corridor_check_enabled = False
+        p.cfg.transition_lengths_m, p.cfg.durations_s = "0.25,0.6", "1.0"
+        p.cfg.score_time_s, p.cfg.horizon_m, p.cfg.minimum_output_m = 1, 1, .2
+        self.assertTrue(p.plan(*fixture(near=.6, offset=.1, speed=0), mvp=True)[0]["valid"])
+        p.startup_join_limit_m = 0
+        for i, near in enumerate((.22, .15, .08), 1):
+            args = fixture(near=near, offset=.1, speed=.2)
+            for key, shift in (("centerline_xy",0),("left_boundary_xy",.5),("right_boundary_xy",-.5)):
+                args[0][key].insert(0, (near, .1+shift))
+            stamp = 10+i*.1
+            for item in args[:3]:
+                item["timestamp_s"] = stamp
+            args[4] = stamp
+            ref, diag = p.plan(*args, mvp=True)
+            self.assertTrue(ref["valid"], diag)
+            self.assertFalse(diag["startup_complete"])
+            self.assertTrue(diag["startup_connection"]["selected_beyond_preference"])
+            self.assertLessEqual(diag["longitudinal_candidates"], 16)
+            self.assertTrue(any(c["reason"] == "unreachable_cg_curvature" for c in diag["candidates"]))
+            self.assertLess(diag["startup_join_space"]["preferred_join_x_m"], ref["startup_join_distance_m"])
+            self.assertEqual(diag["near_centering"]["selection_rule"], "supported_prefix_before_soft_cost")
+
     def test_low_speed_yaw_switch_allows_lattice_and_preserves_motion_rejection(self):
         for recovery in (False, True):
             with self.subTest(recovery=recovery):
@@ -83,6 +214,43 @@ class LatticeChecks(unittest.TestCase):
         self.assertTrue(ref["valid"], ref["reason"])
         self.assertAlmostEqual(diag["selected"]["startup_join_x_m"], .9)
         self.assertLess(diag["selected"]["length_m"], 1.5)
+        self.assertLessEqual(diag["longitudinal_candidates"], 16)
+
+    def test_longer_startup_joins_recover_short_join_steering_rate_rejection(self):
+        p = self.startup_planner()
+        p.cfg.transition_lengths_m = "0.3,0.6"
+        p.cfg.durations_s, p.cfg.score_time_s = "1.0", 1.0
+        p.cfg.horizon_m, p.cfg.minimum_output_m = .6, .2
+        p.cfg.startup_corridor_check_enabled = False
+        p.cfg.steering_limit_rad = math.pi/2
+        # Synthetic tilted road; not a replay or measured vehicle calibration.
+        for index, speed in enumerate((0.0, .29)):
+            args = fixture(near=.5, speed=speed)
+            for key, shift in (("centerline_xy", 0), ("left_boundary_xy", .5), ("right_boundary_xy", -.5)):
+                args[0][key] = [(x, .24-.38*x+shift) for x, _ in args[0][key]]
+            args[4] = 10+index*.1
+            for item in args[:3]:
+                item["timestamp_s"] = args[4]
+            ref, diag = p.plan(*args, mvp=True)
+            self.assertTrue(ref["valid"], diag)
+        short = [c for c in diag["candidates"] if "duration_s" in c and c["startup_join_x_m"] <= .6]
+        self.assertTrue(short)
+        self.assertTrue(all(c["reason"] == "steering_rate_limit" for c in short))
+        self.assertGreater(diag["selected"]["startup_join_x_m"], .6)
+        self.assertFalse(ref["planned_stop"])
+        self.assertEqual(p.cfg.steering_rate_limit_radps, math.pi/2)
+        self.assertLessEqual(diag["longitudinal_candidates"], 16)
+
+    def test_startup_join_expansion_reserves_offset_product_within_cap(self):
+        p = self.startup_planner()
+        p.cfg.transition_lengths_m = "0.3,0.6"
+        p.cfg.terminal_offsets_m = "0.0,0.05"
+        ref, diag = p.plan(*fixture(near=.5, speed=0), mvp=True)
+        self.assertTrue(ref["valid"], diag)
+        joins = diag["startup_join_space"]
+        self.assertTrue(joins["candidate_cap_limited"])
+        self.assertAlmostEqual(joins["sampled_join_x_m"][0], .9)
+        self.assertEqual(len(joins["sampled_join_x_m"]), 2)
         self.assertLessEqual(diag["longitudinal_candidates"], 16)
 
     def test_point_three_horizon_needs_matching_longitudinal_duration(self):
@@ -346,14 +514,154 @@ class LatticeChecks(unittest.TestCase):
         with self.assertRaises(ValueError):
             Config(startup_corridor_check_enabled=1.0)
 
-    def test_observed_origin_exits_startup_connection_mode(self):
+    def test_origin_support_keeps_startup_until_three_full_body_frames(self):
         p = self.startup_planner()
         self.assertTrue(p.plan(*fixture(near=0.6, speed=0), mvp=True)[0]["valid"])
         args = fixture(near=0, speed=0)
+        for key in ("centerline_xy", "left_boundary_xy", "right_boundary_xy"):
+            args[0][key].insert(0, (-.015, args[0][key][0][1]))
+        args[4] = 10.1
+        for item in args[:3]:
+            item["timestamp_s"] = args[4]
         ref, diag = p.plan(*args, mvp=True)
         self.assertTrue(ref["valid"], ref["reason"])
         self.assertTrue(p.observed_origin_seen)
+        self.assertIn("startup_connection", diag)
+        self.assertFalse(diag["body_support"]["full_body_observed"])
+        for index in range(3):
+            args = fixture(speed=0)
+            for key in ("centerline_xy", "left_boundary_xy", "right_boundary_xy"):
+                args[0][key] = [(-.25, args[0][key][0][1]), (-.15, args[0][key][0][1])]+args[0][key]
+            args[4] = 10.2+index*.1
+            for item in args[:3]:
+                item["timestamp_s"] = args[4]
+            args[0]["measurement_timestamp_s"] = args[4]
+            ref, diag = p.plan(*args, mvp=True)
+            self.assertTrue(ref["valid"], diag)
+            self.assertEqual(diag["body_support"]["confirmation_frames"], index+1)
+            self.assertEqual("startup_connection" in diag, index < 2)
+            if index == 0:
+                # A repeated camera source propagated to a later time does
+                # not become another independent confirmation frame.
+                args[4] += .01
+                for item in args[:3]:
+                    item["timestamp_s"] = args[4]
+                _, repeated = p.plan(*args, mvp=True)
+                self.assertEqual(repeated["body_support"]["confirmation_frames"], 1)
+        self.assertTrue(p.body_support_confirmed)
+        self.assertTrue(p.startup_complete)
+        args = fixture(speed=0)
+        args[4] = 10.5
+        for item in args[:3]:
+            item["timestamp_s"] = args[4]
+        ref, diag = p.plan(*args, mvp=True)
+        self.assertTrue(ref["valid"], diag)
         self.assertNotIn("startup_connection", diag)
+        self.assertFalse(p.body_support_confirmed)
+        self.assertTrue(diag["startup_complete"])
+
+    def test_completed_startup_survives_single_side_and_rejected_inputs(self):
+        p = self.startup_planner()
+        p.cfg.boundary_collision_only_enabled = True
+        def snapshot(index, single=False):
+            args = fixture(speed=0)
+            for key in ("centerline_xy", "left_boundary_xy", "right_boundary_xy"):
+                args[0][key] = [(-.25, args[0][key][0][1]), (-.15, args[0][key][0][1])]+args[0][key]
+            args[4] = 10+index*.1
+            for item in args[:3]:
+                item["timestamp_s"] = args[4]
+            args[0]["measurement_timestamp_s"] = args[4]
+            if single:
+                args[0].update(visibility="right_only", single_side_reconstructed=True,
+                    status="single_side_inferred",
+                    boundary_source={"left": "width_inferred", "right": "observed_with_history"})
+            return args
+        for index in range(3):
+            ref, _ = p.plan(*snapshot(index), mvp=True)
+            self.assertTrue(ref["valid"], ref["reason"])
+        self.assertTrue(p.startup_complete)
+        for index in (3, 4):
+            ref, diag = p.plan(*snapshot(index, single=True), mvp=True)
+            self.assertTrue(ref["valid"], diag)
+            self.assertFalse(diag["body_support"]["confirmed"])
+            self.assertTrue(diag["startup_complete"])
+            self.assertNotIn("startup_connection", diag)
+            self.assertNotEqual(diag["near_support"]["method"], "controlled_start_connection")
+        bad = snapshot(5, single=True)
+        bad[1]["yaw_rate_valid"] = False
+        self.assertFalse(p.plan(*bad, mvp=True)[0]["valid"])
+        self.assertTrue(p.startup_complete)
+        ref, diag = p.plan(*snapshot(6, single=True), mvp=True)
+        self.assertTrue(ref["valid"], diag)
+        self.assertNotIn("startup_connection", diag)
+        self.assertTrue(diag["startup_complete"])
+        # A new run/generation creates a fresh planner rather than inheriting
+        # startup completion from the stopped run.
+        self.assertFalse(self.startup_planner().startup_complete)
+
+    def test_incremental_centering_prefers_small_checked_progress_on_both_sides(self):
+        for offset in (-.1, .1, .04):
+            with self.subTest(offset=offset):
+                p = planner(incremental_centering_enabled=True,
+                    transition_lengths_m="0.3,0.6", terminal_offsets_m="0.0",
+                    durations_s="1.0", score_time_s=1.0, horizon_m=.6,
+                    minimum_output_m=.2, geometry_step_m=.05, max_candidates=16,
+                    obstacle_check_enabled=False, direct_sample_output=True)
+                ref, diag = p.plan(*fixture(offset=offset, speed=.2), mvp=True)
+                self.assertTrue(ref["valid"], diag)
+                centering = diag["centering"]
+                initial, selected = centering["initial_offset_m"], diag["selected"]["offset_m"]
+                self.assertLess(abs(selected), abs(initial))
+                self.assertGreater(initial*selected, 0)  # No side-to-side overshoot.
+                self.assertAlmostEqual(abs(initial)-abs(selected), min(.02, abs(initial)*.25))
+                self.assertLessEqual(diag["longitudinal_candidates"], 16)
+                self.assertEqual(diag["selected"]["reason"], "feasible")
+        with self.assertRaises(ValueError):
+            Config(incremental_centering_enabled=1)
+
+    def test_incremental_centering_keeps_hold_when_motion_rejects_progress(self):
+        p = planner(incremental_centering_enabled=True,
+            transition_lengths_m="0.3,0.6", terminal_offsets_m="0.0",
+            durations_s="1.0", score_time_s=1.0, horizon_m=.6,
+            minimum_output_m=.2, geometry_step_m=.05, max_candidates=16,
+            obstacle_check_enabled=False, direct_sample_output=True,
+            steering_rate_limit_radps=1e-6)
+        ref, diag = p.plan(*fixture(offset=.1, speed=.2), mvp=True)
+        self.assertTrue(ref["valid"], diag)
+        self.assertAlmostEqual(diag["selected"]["offset_m"], diag["initialization"]["d0"])
+        self.assertEqual(diag["centering"]["selected_progress_m"], 0)
+        self.assertTrue(any(c["reason"] == "steering_rate_limit" for c in diag["candidates"]))
+        p = self.startup_planner()
+        p.cfg.incremental_centering_enabled = True
+        ref, diag = p.plan(*fixture(near=.6, speed=0), mvp=True)
+        self.assertTrue(ref["valid"], diag)
+        self.assertNotIn("centering", diag)
+
+    def test_initial_corridor_excludes_extrapolated_rear_but_checks_observed_edges(self):
+        p = self.startup_planner()
+        p.cfg.boundary_collision_only_enabled = True
+        p.cfg.startup_corridor_check_enabled = False
+        curve = ns["LatticeCurve"]
+        left = curve([(-.015, .5), (.1, .5), (.5, .5), (1, .5)], .333, .05)
+        right = curve([(-.015, -.05), (.1, -.3), (.5, -.5), (1, -.5)], .333, .05)
+        geom = {"x": 0, "y": 0, "heading": 0, "curvature": 0, "q": 1}
+        corridor = {"half_width": .5, "far_x": .6, "pose": [0, 0, 0]}
+        detail = {}
+        self.assertLess(p._clearance(geom, left, right, [], p._model({}), detail, corridor), 0)
+        # A real observed bend at x=-.015 must still reject; it is not hidden
+        # by the unsupported rear portion or the disabled initial-area check.
+        self.assertEqual(detail["support"], "observed")
+        self.assertTrue(detail["edge_extremum_checked"])
+        # Flat observed boundaries fit. A deliberately inward extension would
+        # reject without initial support, but cannot be treated as an observation.
+        right = curve([(-.015, -.3), (.1, -.3), (.5, -.3), (1, -.3)], .333, .05)
+        right.extension = (right.xmin, -.015, [-.3, -2, 0, 0])
+        self.assertLess(p._clearance(geom, left, right, [], p._model({})), 0)
+        self.assertGreater(p._clearance(geom, left, right, [], p._model({}), startup=corridor), 0)
+        p.cfg.startup_corridor_check_enabled = True
+        self.assertGreater(p._clearance(geom, left, right, [], p._model({}), startup=corridor), 0)
+        outside = dict(corridor, pose=[0, .6, 0])
+        self.assertLess(p._clearance(geom, left, right, [], p._model({}), startup=outside), 0)
 
     def test_reduced_hard_margin_admits_narrow_corridor_but_keeps_body_checks(self):
         # A 0.40 m lane fits the 0.25 m body with 0.02 m hard margin and the
@@ -374,6 +682,69 @@ class LatticeChecks(unittest.TestCase):
                         else:
                             ref, _ = p.plan(*args)
                         self.assertEqual(ref["valid"], expected, ref["reason"])
+
+    def test_collision_only_accepts_positive_gap_and_rejects_body_crossing(self):
+        for width, expected in ((.26, True), (.24, False)):
+            args = fixture(speed=0.0)
+            for key, sign in (("left_boundary_xy", 1), ("right_boundary_xy", -1)):
+                args[0][key] = [(x, sign*width/2) for x, _ in args[0][key]]
+            for recovery in (False, True):
+                with self.subTest(width=width, recovery=recovery):
+                    p = planner(boundary_collision_only_enabled=True, hard_margin_m=.02,
+                                obstacle_check_enabled=False, geometry_step_m=.05)
+                    if recovery:
+                        ref, _ = ns["MvpRecoveryPlanner"](p, ns["ControlSettings"](mode="mvp")).plan(
+                            *args, {"road": .4, "wheel_speed": .25, "imu_angular_velocity": .25})
+                    else:
+                        ref, diag = p.plan(*args)
+                        self.assertTrue(diag["boundary_collision_only_enabled"])
+                    self.assertEqual(ref["valid"], expected, ref["reason"])
+        with self.assertRaises(ValueError):
+            Config(boundary_collision_only_enabled=1)
+
+    def test_collision_only_detects_curved_boundary_between_body_samples(self):
+        p = planner(boundary_collision_only_enabled=True, geometry_step_m=.05)
+        curve = ns["LatticeCurve"]
+        left = curve([(-.3, .5), (.4, .5)], 0, .05)
+        right = curve([(-.3, -.2), (-.03, -.2), (0, -.1), (.03, -.2), (.4, -.2)], 0, .05)
+        geom = {"x": 0, "y": 0, "heading": 0, "curvature": 0, "q": 1}
+        model = p._model({})
+        # All original edge sample points fit, but the boundary crosses the
+        # rectangle between them. Removing padding must not miss this crossing.
+        for bx in [-model["rear_extent_m"]+(model["rear_extent_m"]+model["front_extent_m"])*i/4 for i in range(5)]:
+            self.assertLess(right.at_x(bx)[0], -model["width_m"]/2)
+        details = {}
+        self.assertLess(p._clearance(geom, left, right, [], model, details), 0)
+        self.assertTrue(details["edge_extremum_checked"])
+        self.assertEqual(details["side"], "right")
+        self.assertEqual(details["interpolation_guard_m"], 0)
+        self.assertEqual(details["sweep_guard_m"], 0)
+
+    def test_fallback_keeps_nonselected_real_boundary_collision_constraint(self):
+        for collision_only in (False, True):
+            p = planner(boundary_collision_only_enabled=collision_only)
+            curve = ns["LatticeCurve"]
+            left = curve([(-.3, .5), (.5, .5)], 0, .05)
+            right = curve([(-.3, -.5), (.5, -.5)], 0, .05)
+            geom = {"x": 0, "y": 0, "heading": 0, "curvature": 0, "q": 1}
+            self.assertGreater(p._clearance(geom, left, right, [], p._model({})), 0)
+            p._attach_observed_constraints(left, right,
+                {"observed_boundary_constraints": {"left": [(-.3, .1), (.5, .1)]}})
+            details = {}
+            self.assertLess(p._clearance(geom, left, right, [], p._model({}), details), 0)
+            self.assertEqual(details["support"], "observed_fallback_constraint")
+
+    def test_collision_only_preserves_enabled_obstacle_and_start_corridor_checks(self):
+        p = self.startup_planner()
+        p.cfg.boundary_collision_only_enabled = True
+        curve = ns["LatticeCurve"]
+        left = curve([(.6, .5), (1, .5), (2, .5)], 0, .05)
+        right = curve([(.6, -.5), (1, -.5), (2, -.5)], 0, .05)
+        geom = {"x": 0, "y": 0, "heading": 0, "curvature": 0, "q": 1}
+        corridor = {"half_width": .5, "far_x": .6, "pose": [0, .6, 0]}
+        self.assertLess(p._clearance(geom, left, right, [], p._model({}), startup=corridor), 0)
+        p.cfg.startup_corridor_check_enabled = False
+        self.assertLess(p._clearance(geom, left, right, [(0, 0)], p._model({}), startup=corridor), 0)
 
     def test_observed_rear_support_needs_no_extension_and_roundtrips(self):
         for start in (-1.5, -0.5, -0.348):
@@ -598,6 +969,9 @@ class LatticeChecks(unittest.TestCase):
         cfg = Config(**values)
         self.assertFalse(cfg.obstacle_check_enabled)
         self.assertTrue(cfg.clear_start_assumed)
+        self.assertTrue(cfg.immediate_centering_enabled)
+        self.assertFalse(cfg.steering_limits_enabled)
+        self.assertFalse(cfg.incremental_centering_enabled)
         self.assertEqual(set(values), set(vars(cfg)))
 
     def test_obstacle_disabled_ignores_missing_stale_and_noisy_lidar(self):
@@ -899,6 +1273,122 @@ class DirectSampleChecks(unittest.TestCase):
 
 
 class Mvp2Checks(unittest.TestCase):
+    def test_running_worker_recovers_270ms_startup_gap_from_verified_parent_history(self):
+        import time
+        worker = ns["AsyncLatticePlanner"]()
+        cfg = Config(horizon_m=1, direct_sample_output=True, clear_start_assumed=True,
+            startup_connection_enabled=True, startup_progress_enabled=True, recovery_enabled=True,
+            obstacle_check_enabled=False, startup_corridor_check_enabled=False,
+            boundary_collision_only_enabled=True, terminal_offsets_m="0.0", max_candidates=16,
+            transition_lengths_m="0.3,0.6", durations_s="1.0", score_time_s=1, budget_s=1)
+        args = fixture(near=.6, speed=0)
+        args.append({"road": 1.5, "wheel_speed": .25, "imu_angular_velocity": .25})
+        job = {"generation": 88, "frame_id": "base_link",
+            "planning": vars(Settings(algorithm="lattice_v2", max_source_age_s=1.5)), "lattice": vars(cfg),
+            "control": vars(ns["ControlSettings"](enabled=True, mode="mvp", robustness_enabled=True, warmstart_enabled=True)),
+            "args": args}
+        def exchange():
+            deadline = time.monotonic()+3
+            while not worker.ready and time.monotonic() < deadline:
+                time.sleep(.005)
+            self.assertTrue(worker.submit(job, time.monotonic()))
+            result = None
+            while result is None and time.monotonic() < deadline:
+                result = worker.poll()
+                time.sleep(.005)
+            self.assertIsNotNone(result)
+            self.assertNotIn("error", result)
+            return result
+        def move(stamp, pose_x, verified):
+            for item in args[:3]:
+                item["timestamp_s"] = stamp
+            args[1]["speed_mps"], args[4] = .2, stamp
+            snapshot = deepcopy(first["planner_state"])
+            snapshot["startup_corridor"]["pose"] = [pose_x, 0, 0]
+            snapshot.update(startup_motion=[stamp, .2, 0], startup_motion_verified=verified)
+            job["planner_state"] = snapshot
+        try:
+            first = exchange()
+            self.assertTrue(first["reference"]["valid"], first)
+            self.assertFalse(first["planner_state"]["startup_complete"])
+            move(10.27, .027, True)
+            second = exchange()
+            self.assertTrue(second["reference"]["valid"], second)
+            self.assertTrue(second["diagnostics"]["startup_motion_sync"])
+            self.assertAlmostEqual(second["planner_state"]["startup_corridor"]["pose"][0], .027)
+            # An equally large gap without measured-history proof still fails.
+            move(10.54, .081, False)
+            failed = exchange()
+            self.assertEqual(failed["reference"]["reason"], "startup_motion_history_gap")
+            self.assertFalse(failed["diagnostics"]["startup_motion_sync"])
+            job["planner_state"]["startup_motion_verified"] = True
+            recovered = exchange()
+            self.assertTrue(recovered["reference"]["valid"], recovered)
+            self.assertTrue(recovered["diagnostics"]["startup_motion_sync"])
+            self.assertAlmostEqual(recovered["planner_state"]["startup_corridor"]["pose"][0], .081)
+            self.assertEqual(recovered["generation"], first["generation"])
+        finally:
+            worker.close()
+
+    def test_warmstart_actual_worker_preserves_handoff_across_failure_and_restart(self):
+        import time
+        worker = ns["AsyncLatticePlanner"]()
+        args = fixture(near=.5, speed=.2)
+        args.append({"road": 1.5, "wheel_speed": .25, "imu_angular_velocity": .25})
+        cfg = Config(horizon_m=1, direct_sample_output=True, clear_start_assumed=True,
+            startup_connection_enabled=True, recovery_enabled=True, obstacle_check_enabled=False,
+            startup_corridor_check_enabled=False, boundary_collision_only_enabled=True, terminal_offsets_m="0.0",
+            max_near_gap_m=.9, max_extension_m=1.3, durations_s="1.0", score_time_s=1,
+            transition_lengths_m="0.3,0.6", budget_s=.1)
+        job = {"generation": 77, "frame_id": "base_link",
+            "planning": vars(Settings(algorithm="lattice_v2", max_source_age_s=1.5)), "lattice": vars(cfg),
+            "control": vars(ns["ControlSettings"](enabled=True, mode="mvp", robustness_enabled=True, warmstart_enabled=True)),
+            "args": args,
+            "planner_state": {"startup_complete": True, "observed_origin_seen": True,
+                "startup_corridor": {"half_width": .5, "far_x": .7, "pose": [.4, 0, 0]},
+                "startup_motion": [10, .2, 0], "body_support_frames": 0, "body_support_stamp_s": None,
+                "body_support_confirmed": False, "stop_latched": False},
+            "warmstart": {"timestamp_s": 10, "valid_for_s": .2, "points": [[0, 0], [1, 0]]}}
+        def exchange():
+            deadline = time.monotonic()+3
+            while not worker.ready and time.monotonic() < deadline:
+                time.sleep(.005)
+            self.assertTrue(worker.ready)
+            self.assertTrue(worker.submit(job, time.monotonic()))
+            result = None
+            while result is None and time.monotonic() < deadline:
+                result = worker.poll()
+                time.sleep(.005)
+            self.assertIsNotNone(result)
+            self.assertNotIn("error", result)
+            return result
+        try:
+            first = exchange()
+            self.assertTrue(first["reference"]["valid"], first)
+            self.assertAlmostEqual(first["reference"]["path"]["range"][1], 1)
+            self.assertTrue(first["planner_state"]["startup_complete"])
+            self.assertEqual(first["diagnostics"]["consistency_method"], "short_constant_twist_hint")
+            self.assertNotIn("startup_connection", first["diagnostics"])
+            job["args"] = deepcopy(args)
+            job["args"][0]["valid"] = False
+            job["args"][0]["timestamp_s"] = job["args"][1]["timestamp_s"] = job["args"][4] = 10.1
+            failed = exchange()
+            self.assertFalse(failed["reference"]["valid"])
+            self.assertTrue(failed["planner_state"]["startup_complete"])
+            worker.close(wait=False)
+            worker = ns["AsyncLatticePlanner"]()
+            job["planner_state"] = failed["planner_state"]
+            job["args"] = deepcopy(args)
+            job["args"][0]["timestamp_s"] = job["args"][1]["timestamp_s"] = job["args"][4] = 10.2
+            job["warmstart"]["timestamp_s"] = 10.2
+            recovered = exchange()
+            self.assertTrue(recovered["reference"]["valid"], recovered)
+            self.assertTrue(recovered["planner_state"]["startup_complete"])
+            self.assertAlmostEqual(recovered["planner_state"]["startup_corridor"]["pose"][0], .44)
+            self.assertNotIn("startup_connection", recovered["diagnostics"])
+        finally:
+            worker.close()
+
     def test_actual_worker_starts_without_ros_and_accepts_only_one_job(self):
         import time
         worker = ns["AsyncLatticePlanner"]()
@@ -912,7 +1402,8 @@ class Mvp2Checks(unittest.TestCase):
                    "lattice": vars(Config(direct_sample_output=True, clear_start_assumed=True,
                                           obstacle_check_enabled=False, centerline_first_enabled=False,
                                           budget_s=0.1)),
-                   "control": vars(cfg), "args": args}
+                   "control": vars(cfg), "args": args,
+                   "submitted_ros_s": args[4]+.15}
             self.assertTrue(worker.submit(job, time.monotonic()))
             self.assertFalse(worker.submit(job, time.monotonic()))
             result = None
@@ -925,6 +1416,11 @@ class Mvp2Checks(unittest.TestCase):
             self.assertEqual(result["reference"]["path"]["type"], "CARTESIAN_SAMPLES")
             ref = result["reference"]
             self.assertGreater(ref["generated_at_s"], ref["timestamp_s"])
+            # Parent preparation before submission must not shorten the
+            # completion-based lifetime or alter the input geometry epoch.
+            self.assertGreaterEqual(ref["generated_at_s"]-ref["timestamp_s"], .15)
+            self.assertAlmostEqual(result["timing"]["parent_preparation_s"], .15)
+            self.assertGreaterEqual(result["received_monotonic_s"], result["timing"]["worker_finished_monotonic_s"])
             self.assertAlmostEqual(ref["expires_at_s"]-ref["generated_at_s"], 0.2)
             self.assertAlmostEqual(ref["timestamp_s"]+ref["valid_for_s"], ref["expires_at_s"])
             args = LatticeChecks().short_road()
