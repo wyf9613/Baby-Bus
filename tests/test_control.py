@@ -251,6 +251,28 @@ class RobustControlChecks(unittest.TestCase):
                 self.assertEqual(node.fsm_state, 2)
                 self.assertIn(reason, node.state_reason)
 
+    def test_known_road_conflict_cannot_be_hidden_by_generic_planning_failure(self):
+        node = self.node(speed=0.0)
+        original = node.estimator.update
+        def conflict(*args, **kwargs):
+            out = original(*args, **kwargs)
+            out["road"].update(valid=False, status="observed_history_conflict")
+            return out
+        node.estimator.update = conflict
+        node.planner.plan = lambda *args, **kwargs: ({"valid": False, "reason": "invalid_estimates_or_boundaries"}, {})
+        self.tick(node, speed=0.0, empty=True)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("observed_history_conflict", node.state_reason)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+    def test_current_road_conflict_blocks_an_older_valid_worker_snapshot(self):
+        node = self.node(speed=0.0)
+        snapshot = deepcopy(node.estimation_output)
+        node.estimation_output["road"].update(valid=False, status="observed_history_conflict")
+        with self.assertRaisesRegex(ValueError, "observed_history_conflict"):
+            node._select_control_reference(snapshot)
+        self.assertIsNone(node.control_reference_manager.reference)
+
     def test_incremental_prediction_matches_total_motion_and_updates_actions(self):
         node = self.node(speed=0.2, yaw=0.1)
         original = deepcopy(node.control_reference_manager.endpoints)

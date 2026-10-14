@@ -1135,7 +1135,11 @@ class ContinuousRoadOutputChecks(unittest.TestCase):
             else:
                 road = self.step(pipeline, 10.05, stamp=10.1 if problem == "future" else 9.95)["road"]
             self.assertFalse(road["valid"], problem)
-            self.assertFalse(pipeline._road_cones, problem)
+            if problem == "conflict":
+                self.assertFalse(road["degraded"])
+                self.assertTrue(any(p[3] == 1 for p in pipeline._road_cones))
+            else:
+                self.assertFalse(pipeline._road_cones, problem)
 
     def test_cold_start_has_no_fabricated_near_field(self):
         pipeline = self.pipeline()
@@ -1334,7 +1338,11 @@ class RelaxedContinuityProfileChecks(unittest.TestCase):
                 road = self.step(pipeline, 10.1,
                                  left=[(x, 1.0) for x in RoadDropoutChecks.XS], right=[])
             self.assertFalse(road["valid"], fault)
-            self.assertFalse(pipeline._road_cones, fault)
+            if fault == "conflict":
+                self.assertFalse(road["degraded"])
+                self.assertTrue(any(p[3] == 1 for p in pipeline._road_cones))
+            else:
+                self.assertFalse(pipeline._road_cones, fault)
 
     def test_wider_hold_is_opt_in_and_still_has_upper_bound(self):
         for value in (1.01, -0.1, float("inf")):
@@ -1365,6 +1373,218 @@ class RelaxedContinuityProfileChecks(unittest.TestCase):
         road = self.step(pipeline, 11.5, stamp=10.0, speed=0.0)
         self.assertFalse(road["valid"])
         self.assertEqual(road["prediction_status"], "prediction_deadline_expired")
+
+
+class PersistentHistoryChecks(unittest.TestCase):
+    """Coverage, cache retention and downstream contracts in the active profile."""
+
+    def pipeline(self, cls=Pipeline):
+        import yaml
+        cfg = yaml.safe_load((SOURCE.parents[1]/"config/ai4r_policy.yaml").read_text(encoding="utf-8"))
+        return cls(Settings(**cfg["/**/ai4r_policy"]["ros__parameters"]["estimation"]))
+
+    def step(self, p, now, left=None, right=None, stamp=None):
+        xs = [-0.5+0.1*i for i in range(25)]
+        return RoadDropoutChecks.step(p, now,
+            [(x, .5) for x in xs] if left is None else left,
+            [(x, -.5) for x in xs] if right is None else right,
+            stamp=stamp, speed=0.0, yaw=0.0)["road"]
+
+    def test_failed_merged_fit_preserves_cache_and_prediction_provenance(self):
+        class FailMergedOnce(Pipeline):
+            fail_merge = False
+            def road(self, batch, stamp, age, *, piecewise=False):
+                result = super().road(batch, stamp, age, piecewise=piecewise)
+                if piecewise and self.fail_merge:
+                    self.fail_merge = False
+                    result.update(valid=False, status="insufficient_geometry")
+                return result
+        p = self.pipeline(FailMergedOnce)
+        self.assertTrue(self.step(p, 10.0)["valid"])
+        saved = list(p._road_cones)
+        p.fail_merge = True
+        front = [.6+.1*i for i in range(14)]
+        road = self.step(p, 10.1, [(x, .5) for x in front], [(x, -.5) for x in front])
+        self.assertEqual(p._road_cones, saved)
+        self.assertTrue(road["valid"])
+        self.assertTrue(road["degraded"])
+        self.assertEqual(road["measurement_timestamp_s"], 10.0)
+        self.assertAlmostEqual(road["source_age_s"], .1)
+        self.assertLess(road["near_field"]["coverage_x_m"][0], 0)
+        self.assertIn("merged_fit_failed", [e["reason"] for e in road["history_diagnostics"]["events"]])
+
+    def test_conflict_quarantines_only_overlapping_side_and_cannot_be_replayed(self):
+        p = self.pipeline()
+        self.step(p, 10.0)
+        front = [.6+.1*i for i in range(14)]
+        road = self.step(p, 10.1, [(x, .85) for x in front], [(x, -.5) for x in front])
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["status"], "observed_history_conflict")
+        self.assertTrue(any(q[3] == 1 and q[0] < 0 for q in p._road_cones))
+        self.assertTrue(any(q[3] == 2 and q[0] < 0 for q in p._road_cones))
+        repeated = self.step(p, 10.15, [(x, .85) for x in front], [(x, -.5) for x in front], stamp=10.1)
+        self.assertFalse(repeated["valid"])
+        self.assertEqual(repeated["status"], "observed_history_conflict")
+
+    def test_fresh_but_failed_merges_do_not_renew_prediction_deadline(self):
+        class FailMergedOnce(Pipeline):
+            fail_merge = False
+            def road(self, batch, stamp, age, *, piecewise=False):
+                result = super().road(batch, stamp, age, piecewise=piecewise)
+                if piecewise and self.fail_merge:
+                    self.fail_merge = False
+                    result.update(valid=False, status="insufficient_geometry")
+                return result
+        p = self.pipeline(FailMergedOnce)
+        self.step(p, 10.0)
+        front = [.6+.1*i for i in range(14)]
+        for tick in range(1, 11):
+            p.fail_merge = True
+            road = self.step(p, round(10+tick*.1, 9), [(x,.5) for x in front], [(x,-.5) for x in front])
+            if tick <= 8:
+                self.assertTrue(road["valid"], tick)
+                self.assertEqual(road["measurement_timestamp_s"], 10.0)
+                self.assertTrue(all(q[5] == 10.0 for q in p._road_cones))
+            else:
+                self.assertFalse(road["valid"], tick)
+        self.assertTrue(any(q[0] < 0 for q in p._road_cones))
+
+    def test_segmented_curve_keeps_rear_support_without_global_curve_refit(self):
+        p = self.pipeline()
+        xs = [-.5+.1*i for i in range(25)]
+        center = lambda x: .3*math.sin(4*x)
+        batch = cones([(x, center(x)+.5) for x in xs], [(x, center(x)-.5) for x in xs])
+        road = p.road(batch, 10_000_000_000, 0.0, piecewise=True)
+        self.assertTrue(road["valid"], road["status"])
+        self.assertAlmostEqual(road["x_range_m"][0], -.5)
+        self.assertEqual(road["reconstruction_method"], "segmented_observed_support")
+        self.assertLess(max(abs(y-center(x)) for x, y in road["centerline_xy"]), .08)
+
+    def test_successful_fit_does_not_permanently_delete_unselected_cache_points(self):
+        p = self.pipeline()
+        self.step(p, 10.0)
+        # One previously accepted point is inconsistent; removing it from this
+        # fit must not erase unrelated rear observations from either boundary.
+        p._road_cones = [(x, y+(.8 if c == 2 and x == -.5 else 0), z, c, cf, seen)
+                         for x, y, z, c, cf, seen in p._road_cones]
+        front = [.6+.1*i for i in range(14)]
+        self.step(p, 10.1, [(x, .5) for x in front], [(x, -.5) for x in front])
+        self.assertTrue(any(q[0] == -.5 and q[3] == 2 for q in p._road_cones))
+
+    def test_missing_motion_invalidates_history_instead_of_extending_it(self):
+        p = self.pipeline()
+        self.step(p, 10.0)
+        road = self.step(p, 10.35)
+        self.assertFalse(road.get("history_used", False))
+        self.assertIn("motion_history_gap", [e["reason"] for e in road["history_diagnostics"]["events"]])
+
+    def test_missing_one_side_history_does_not_fabricate_rear_coverage(self):
+        p = self.pipeline()
+        self.step(p, 10.0)
+        p._road_cones = [q for q in p._road_cones if q[3] == 2 or q[0] >= .6]
+        front = [.6+.1*i for i in range(14)]
+        road = self.step(p, 10.1, [(x, .5) for x in front], [(x, -.5) for x in front])
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["status"], "near_field_unobserved")
+        self.assertGreater(road["near_field"]["coverage_x_m"][0], 0)
+        self.assertLess(road["history_diagnostics"]["cache"]["left"]["x_range_m"][0], 0)
+
+    def test_segmented_estimator_output_reaches_real_v2_planner(self):
+        p = self.pipeline()
+        settings = dict(vars(p.settings), huber_delta_m=.02)
+        p = Pipeline(Settings(**settings))
+        xs = [-.5+.1*i for i in range(25)]
+        center = lambda x: .18*math.sin(2*x)
+        batch = cones([(x, center(x)+.5) for x in xs], [(x, center(x)-.5) for x in xs])
+        road = p._align_road(p.road(batch, 10_000_000_000, 0.0, piecewise=True), 10.0, True)
+        self.assertEqual(road["reconstruction_method"], "segmented_observed_support")
+        state = {"timestamp_s": 10.0, "frame_id": "base_link", "speed_valid": True,
+                 "yaw_rate_valid": True, "speed_mps": 0.0, "yaw_rate_rps": 0.0,
+                 "source_age_s": {"wheel_speed": 0.0, "imu_angular_velocity": 0.0}}
+        config = namespace["LatticeSettings"](budget_s=5.0, obstacle_check_enabled=False,
+            clear_start_assumed=True, recovery_enabled=True, direct_sample_output=True)
+        planner = namespace["FrenetLatticePlanner"](
+            namespace["PlanningSettings"](algorithm="lattice_v2", max_source_age_s=.4),
+            config, clock=lambda: 0.0)
+        ref, _ = planner.plan(road, state, {"available": False}, {}, 10.0, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertEqual(ref["frame_id"], road["frame_id"])
+        self.assertEqual(ref["timestamp_s"], road["timestamp_s"])
+        self.assertEqual(road["measurement_timestamp_s"], 10.0)
+        self.assertNotIn("_center_curvatures", road)
+
+    def test_segmented_road_and_diagnostics_cross_actual_worker_interface(self):
+        p = self.pipeline()
+        p = Pipeline(Settings(**dict(vars(p.settings), huber_delta_m=.02)))
+        xs = [-.5+.1*i for i in range(25)]
+        center = lambda x: .18*math.sin(2*x)
+        road = p._align_road(p.road(cones([(x, center(x)+.5) for x in xs],
+            [(x, center(x)-.5) for x in xs]), 10_000_000_000, 0.0, piecewise=True), 10.0, True)
+        road["history_diagnostics"] = p._history_diagnostics(10.0, road)
+        state = {"timestamp_s": 10.0, "frame_id": "base_link", "speed_valid": True,
+                 "yaw_rate_valid": True, "speed_mps": 0.0, "yaw_rate_rps": 0.0,
+                 "source_age_s": {"wheel_speed": 0.0, "imu_angular_velocity": 0.0}}
+        worker = namespace["AsyncLatticePlanner"]()
+        clock = namespace["time"]
+        try:
+            deadline = clock.monotonic()+5
+            while not worker.ready and clock.monotonic() < deadline:
+                clock.sleep(.01)
+            self.assertTrue(worker.ready)
+            job = {"generation": 1, "frame_id": "base_link",
+                   "planning": vars(namespace["PlanningSettings"](algorithm="lattice_v2", max_source_age_s=.4)),
+                   "lattice": vars(namespace["LatticeSettings"](budget_s=5.0, obstacle_check_enabled=False,
+                       recovery_enabled=True, direct_sample_output=True, centerline_first_enabled=False)),
+                   "control": vars(namespace["ControlSettings"](mode="mvp")),
+                   "args": [road, state, {"available": False}, {}, 10.0,
+                            {"road": .4, "wheel_speed": .25, "imu_angular_velocity": .25}]}
+            self.assertTrue(worker.submit(job, clock.monotonic()))
+            result = None
+            while result is None and clock.monotonic() < deadline:
+                result = worker.poll()
+                if result is None:
+                    clock.sleep(.01)
+            self.assertIsNotNone(result)
+            self.assertNotIn("error", result)
+            self.assertTrue(result["reference"]["valid"], result["reference"]["reason"])
+            self.assertEqual(result["road"]["history_diagnostics"], road["history_diagnostics"])
+            self.assertEqual(result["reference"]["frame_id"], road["frame_id"])
+            self.assertEqual(result["reference"]["timestamp_s"], road["timestamp_s"])
+        finally:
+            worker.close()
+
+    def test_curved_road_keeps_rear_coverage_over_multiple_camera_frames(self):
+        p = self.pipeline()
+        world = [.6+.1*i for i in range(80)]
+        usable = 0
+        for tick in range(201):
+            travelled, now = tick*.01, 10+tick*.05
+            points = [(x-travelled, .3*math.sin(2*x)) for x in world
+                      if .6-1e-8 <= x-travelled <= 1.9+1e-8]
+            road = RoadDropoutChecks.step(p, now,
+                [(x, y+.5) for x, y in points], [(x, y-.5) for x, y in points],
+                speed=.2, yaw=0.0)["road"]
+            if tick >= 150:
+                self.assertTrue(road["valid"], (tick, road["status"], road["history_diagnostics"]))
+                self.assertLessEqual(road["near_field"]["coverage_x_m"][0], -.5)
+                usable += 1
+        self.assertEqual(usable, 51)
+
+    def test_cache_alignment_failure_is_not_silently_used_as_empty_history(self):
+        class BadPlacement(Pipeline):
+            bad = False
+            def _history_at(self, source_s):
+                if self.bad:
+                    self.bad = False
+                    return None, "motion_history_gap"
+                return super()._history_at(source_s)
+        p = self.pipeline(BadPlacement)
+        self.step(p, 10.0)
+        p.bad = True
+        road = self.step(p, 10.1)
+        self.assertFalse(road["valid"])
+        self.assertFalse(p._road_cones)
+        self.assertIn("motion_history_gap", [e["reason"] for e in road["history_diagnostics"]["events"]])
 
 
 if __name__ == "__main__":

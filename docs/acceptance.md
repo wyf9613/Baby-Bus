@@ -1,5 +1,38 @@
 # AI4R policy acceptance
 
+## Persistent observed history and Planning interface, 2026-10-14
+
+Based on mvp2.0@f7cf825. The active continuous-output profile preserves accepted
+cone support across failed merged fits and separates fit inlier selection from
+cache deletion. Overlap conflicts quarantine only corresponding observed points,
+still reject the frame, end prediction trust, and cannot recover by replaying the
+same camera epoch. Motion gaps/resets still invalidate unlocatable support.
+Local overlapping boundary fits are tried when a single curve loses valid
+support; coverage, error, slope and width checks remain. No unseen road is added.
+
+Road/state coordinates, source timestamps, point arrays and prediction budgets
+retain their existing interface. History diagnostics distinguish stored support,
+fitted boundaries, common coverage and the current camera frame, including drop
+reasons. Worker/rejection diagnostics carry the same fields. Current hard road
+conflicts cannot be hidden by a generic soft planning failure, an old worker
+snapshot or a cached cruise reference. No speed, timeout or hardware setting
+was changed. Legacy camera-mode behavior remains available.
+
+226 portable checks passed: estimation 102, planning 18, lattice 60, control 46.
+Thirteen new regressions cover merged-fit failure/provenance/expiry, local
+conflict quarantine, persistent curved rear coverage, one-sided insufficiency,
+motion/alignment rejection, analytic segmented geometry, actual V2 and worker
+serialization, and hard-conflict handling across control/async snapshots.
+Existing conflict tests retain invalid/no-prediction assertions while checking
+that uncontested support survives in the active profile. Syntax, YAML parsing
+and git diff whitespace checks passed. See ESTIMATION_HISTORY_INTERFACE_CN.md.
+
+The required CONTRIBUTING command was attempted but Bash is unavailable; this
+host also has no configured WSL Linux/ROS Jazzy environment. The installed ROS
+gate, physical sensor replay and vehicle trial are not run. These portable
+results do not establish vehicle accuracy, stopping distance or 3 m completion.
+Changes are local and require the repository's human review before merging.
+
 ## Startup motion across rejected roads, 2026-10-14
 
 Handoff to perception/estimation: user reports about 2 m of physical travel on
