@@ -152,7 +152,7 @@ class PlanningChecks(unittest.TestCase):
 
     def test_history_aligned_estimator_output_is_not_compensated_twice(self):
         args = api["input_record"](speed=0.1, yaw=0.0)
-        xs = [0.2+0.1*i for i in range(27)]
+        xs = [-0.3+0.1*i for i in range(32)]
         args[0]["cone_detections"] = api["cones"](
             [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
         out = api["Pipeline"](api["Settings"]()).update(*args, 10.05)
@@ -178,6 +178,9 @@ class PlanningChecks(unittest.TestCase):
 
     def test_actual_entry_with_simulation_limits_exports_reference_and_zero_actions(self):
         obs, ages, stamps, receipts = api["input_record"](speed=0.1, yaw=0.0)
+        xs = [-0.3+0.1*i for i in range(34)]
+        obs["cone_detections"] = api["cones"](
+            [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
         for key in ("fiducial_detections", "lidar_scan", "imu_orientation", "imu_specific_force"):
             obs[key] = None
         node = SimpleNamespace(estimation_settings=api["Settings"](), policy_frame_id="base_link",
@@ -252,7 +255,7 @@ class PlanningChecks(unittest.TestCase):
                 normal_right = (cy-(0.1+0.08*cx-0.5))/math.hypot(1, 0.08)
                 self.assertGreaterEqual(min(normal_left, normal_right), cfg.simulation_safety_margin_m)
 
-    def test_planning_yaml_matches_declared_defaults(self):
+    def test_planning_yaml_selects_valid_simple_follower_settings(self):
         # Restricted scalar subtree, parsed without ROS/PyYAML provisioning.
         import re
         config = Path(__file__).resolve().parents[1]/"config"/"ai4r_policy.yaml"
@@ -270,7 +273,12 @@ class PlanningChecks(unittest.TestCase):
             value = match[2]
             scalars[match[1]] = (value == "true" if value in ("true", "false") else
                                  float(value) if value[0] in "-0123456789" else value)
-        self.assertEqual(scalars, vars(Settings()))
+        self.assertTrue(set(scalars).issubset(vars(Settings())))
+        settings = Settings(**scalars)
+        self.assertEqual(settings.algorithm, "road_centerline")
+        self.assertEqual(settings.cruise_speed_mps, 0.2)
+        self.assertTrue(settings.allow_forward_only)
+        self.assertEqual(settings.max_source_age_s, 1.5)
 
 
 if __name__ == "__main__":

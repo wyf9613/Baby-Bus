@@ -72,7 +72,9 @@ def make_node(simulated=True, mvp=False):
     node.sensor_timeout_s = {name: 0.5 for name in ns["SENSORS"]}
     node.timestamp_tolerance_s, node.cone_empty_timeout_s = 0.05, 1.0
     node.status_period_s = 0.5
-    node.estimation_settings = ns["EstimationSettings"]()
+    # These cases isolate legacy controller caching/stops. Estimator dropout
+    # prediction is covered by the imported perception and follower suites.
+    node.estimation_settings = ns["EstimationSettings"](road_hold_s=0.0)
     node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)
     node.planning_settings = ns["PlanningSettings"](vehicle_limits_source="course_simulation" if simulated else "upstream")
     node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp" if mvp else "calibrated",
@@ -100,7 +102,9 @@ def feed(node, center=0.1, speed=0.0, yaw=0.0, delay=0.0, empty=False):
     mono = node.test_clock.monotonic
     node._store("wheel_speed", speed, None, mono, now)
     node._store("imu_angular_velocity", (0, 0, yaw), now, mono, now)
-    xs = [0.1+0.3*i for i in range(9)]
+    # Legacy V1 fixtures require observed support at the vehicle origin under
+    # the new estimator; forward-only startup has its own follower checks.
+    xs = [-0.2+0.3*i for i in range(10)]
     batch = api["cones"]([(x, center+0.5) for x in xs], [(x, center-0.5) for x in xs])
     if empty:
         batch["detections"] = []

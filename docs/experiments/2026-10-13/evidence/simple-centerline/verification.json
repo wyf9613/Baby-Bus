@@ -1,0 +1,55 @@
+{
+  "branch": "fix/newcar-control",
+  "baseline_commit": "138f90db891811b612599f85fbe0201b04293274",
+  "perception_commit": "655203328ec06d0b59268c26fbe833ad8c203cc2",
+  "runtime_sha256": {
+    "scripts/policy_node.py": "e8a71a1253ed6c00ad5c15b1efb1402174ebd7cedbe4125e1468dd0ab37df6cc",
+    "config/ai4r_policy.yaml": "393ef848f7742efe164e6c78c99117a550950d336108e6153d6326c6d2e747dc"
+  },
+  "platform": "macOS-10.16-x86_64-i386-64bit",
+  "portable_suites": [
+    {
+      "suite": "estimation",
+      "passed": true,
+      "tests": 90,
+      "exit_code": 0
+    },
+    {
+      "suite": "planning",
+      "passed": true,
+      "tests": 17,
+      "exit_code": 0
+    },
+    {
+      "suite": "control",
+      "passed": true,
+      "tests": 32,
+      "exit_code": 0
+    },
+    {
+      "suite": "centerline_follow",
+      "passed": true,
+      "tests": 8,
+      "exit_code": 0
+    }
+  ],
+  "total_tests": 147,
+  "syntax_yaml": "passed",
+  "perception_definition_matches": {
+    "EstimationSettings": true,
+    "EstimationMotionHistory": true,
+    "EstimationPipeline": true,
+    "_estimation_fit_boundary": true
+  },
+  "installed_ros_gate": {
+    "status": "not run",
+    "reason": "Local macOS; /opt/ros/jazzy/setup.bash is absent",
+    "local_ros_setup_exists": false
+  },
+  "vehicle_test": "not run; operator home, vehicle unreachable; no connection attempted",
+  "deployed": false,
+  "speed_policy": "constant 0.2 m/s for all valid roads, including bounded predictions; speed advisory ignored by explicit user instruction",
+  "planning_algorithm": "road_centerline",
+  "policy_update_rate_hz": 20.0,
+  "control_reference_cache": false
+}

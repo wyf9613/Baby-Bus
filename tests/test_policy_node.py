@@ -158,7 +158,7 @@ def driving_policy(*args):
 def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.vehicle_params_source": "course_simulation",
-           "planning.vehicle_limits_source": "course_simulation"})
+           "planning.vehicle_limits_source": "course_simulation", "estimation.road_hold_s": 0.0})
 
     def feed_road(empty=False):
         node.wheel_speed_callback(Float32(data=0.0))
@@ -171,7 +171,7 @@ def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
             for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
                 for i in range(9):
                     cone = ConeDetection()
-                    cone.position.x, cone.position.y = 0.1+0.3*i, y
+                    cone.position.x, cone.position.y = -0.2+0.3*i, y
                     cone.color, cone.classification_confidence = colour, 0.95
                     batch.detections.append(cone)
         node.cone_detection_callback(batch)
@@ -203,6 +203,51 @@ def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
     assert node.action_publisher.messages[-1].drive == 0
 
 
+@pytest.mark.parametrize("bend", [-0.2, 0.0, 0.2])
+def test_simple_curved_centerline_real_callbacks_constant_speed_and_stop(make_node, bend):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.drive_max": 0.35,
+           "control.mvp_drive_feedforward": 0.30, "control.speed_kp": 0.35,
+           "control.speed_ki": 0.08, "planning.algorithm": "road_centerline",
+           "planning.allow_forward_only": True, "planning.max_source_age_s": 0.5,
+           "estimation.history_propagation": "continuous", "estimation.continuous_road_output": True})
+
+    def feed(empty=False):
+        node.wheel_speed_callback(Float32(data=0.0))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        if not empty:
+            for colour, side in ((ConeDetection.COLOR_BLUE, 0.5), (ConeDetection.COLOR_YELLOW, -0.5)):
+                for i in range(10):
+                    x = -0.3+0.3*i
+                    cone = ConeDetection()
+                    cone.position.x, cone.position.y = x, bend*x*x+side
+                    cone.color, cone.classification_confidence = colour, 0.95
+                    batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    feed()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3, node.state_reason
+    assert node.planning_output["path"]["type"] == "CARTESIAN_CENTERLINE"
+    assert node.planning_output["target_speed_mps"] == 0.2
+    assert node.action_publisher.messages[-1].drive == pytest.approx(0.35)
+    if bend:
+        assert node.action_publisher.messages[-1].steer*bend > 0
+    node.test_clock.advance(0.05)
+    feed(empty=True)
+    node.run_policy_step()
+    assert node.fsm_state == 3, node.state_reason
+    assert node.estimation_output["road"]["degraded"]
+    assert node.planning_output["target_speed_mps"] == 0.2
+    request(node, 2)
+    assert node.action_publisher.messages[-1].drive == 0
+    assert node.action_publisher.messages[-1].steer == 0
+
+
 def test_integrated_control_requires_feedback_and_matching_profiles(make_node):
     with pytest.raises(ValueError, match="requires cones"):
         make_node(required=("cone_detections",), **{"control.enabled": True})
@@ -214,7 +259,8 @@ def test_integrated_control_requires_feedback_and_matching_profiles(make_node):
 def test_mvp_robustness_real_ros_callbacks_degrade_recover_and_stop(make_node):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.mode": "mvp", "control.robustness_enabled": True,
-           "control.drive_max": 0.35, "control.mvp_drive_feedforward": 0.30})
+           "control.drive_max": 0.35, "control.mvp_drive_feedforward": 0.30,
+           "estimation.road_hold_s": 0.0})
 
     def feed_road(empty=False):
         node.wheel_speed_callback(Float32(data=0.2))
@@ -226,7 +272,7 @@ def test_mvp_robustness_real_ros_callbacks_degrade_recover_and_stop(make_node):
             for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
                 for i in range(9):
                     cone = ConeDetection()
-                    cone.position.x, cone.position.y = 0.1+0.3*i, y
+                    cone.position.x, cone.position.y = -0.2+0.3*i, y
                     cone.color, cone.classification_confidence = colour, 0.95
                     batch.detections.append(cone)
         node.cone_detection_callback(batch)
@@ -269,7 +315,7 @@ def test_mvp_real_ros_callbacks_distance_stop_and_restart(make_node):
         for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
             for i in range(9):
                 cone = ConeDetection()
-                cone.position.x, cone.position.y = 0.1+0.3*i, y
+                cone.position.x, cone.position.y = -0.2+0.3*i, y
                 cone.color, cone.classification_confidence = colour, 0.95
                 batch.detections.append(cone)
         node.cone_detection_callback(batch)
@@ -1035,7 +1081,17 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.required_sensors == ["cone_detections", "wheel_speed", "imu_angular_velocity"]
         assert node.control_settings.enabled is True
         assert node.control_settings.mode == "mvp"
-        assert node.control_settings.robustness_enabled is True
+        assert node.control_settings.robustness_enabled is False
+        assert node.planning_settings.algorithm == "road_centerline"
+        assert node.planning_settings.allow_forward_only is True
+        assert node.planning_settings.cruise_speed_mps == 0.2
+        assert node.planning_settings.max_source_age_s == 1.5
+        assert node.estimation_settings.continuous_road_output is True
+        assert node.estimation_settings.history_propagation == "continuous"
+        assert node.sensor_timeout_s["cone_detections"] == 1.5
+        assert node.control_settings.mvp_drive_feedforward == 0.30
+        assert node.control_settings.drive_max == 0.35
+        assert node.control_settings.mvp_steering_direction == -1.0
         assert node.control_settings.reference_hold_max_s == 1.0
         assert node.control_settings.reference_hold_max_distance_m == 0.25
         assert node.control_settings.max_distance_m == 3.0

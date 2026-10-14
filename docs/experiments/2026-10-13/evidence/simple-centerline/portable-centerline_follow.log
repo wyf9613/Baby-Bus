@@ -1,0 +1,13 @@
+test_closed_loop_straight_and_gentle_arcs_correct_initial_offset (__main__.CenterlineFollowChecks.test_closed_loop_straight_and_gentle_arcs_correct_initial_offset) ... ok
+test_forward_only_uses_observed_geometry_without_extending_or_mutating (__main__.CenterlineFollowChecks.test_forward_only_uses_observed_geometry_without_extending_or_mutating) ... ok
+test_large_offset_is_left_for_feedback_not_recovery_search (__main__.CenterlineFollowChecks.test_large_offset_is_left_for_feedback_not_recovery_search) ... ok
+test_malformed_frame_samples_and_non_mvp_are_rejected (__main__.CenterlineFollowChecks.test_malformed_frame_samples_and_non_mvp_are_rejected) ... ok
+test_prediction_retains_constant_speed_but_does_not_renew_lifetime (__main__.CenterlineFollowChecks.test_prediction_retains_constant_speed_but_does_not_renew_lifetime) ... ok
+test_real_policy_methods_start_without_three_frames_and_keep_controller (__main__.CenterlineFollowChecks.test_real_policy_methods_start_without_three_frames_and_keep_controller) ... ok
+test_source_deadlines_and_invalid_feedback_still_stop (__main__.CenterlineFollowChecks.test_source_deadlines_and_invalid_feedback_still_stop) ... ok
+test_straight_and_both_bends_preserve_estimated_samples_and_fixed_speed (__main__.CenterlineFollowChecks.test_straight_and_both_bends_preserve_estimated_samples_and_fixed_speed) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.274s
+
+OK

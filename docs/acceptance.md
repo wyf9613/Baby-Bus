@@ -1,9 +1,55 @@
 # AI4R policy acceptance
 
-Status: the 2026-10-06 car candidate passes the installed fast gate and has
-bounded, observed physical runs. A complete 3 m physical run remains unverified.
+Status: the local `fix/newcar-control` now contains the simple curved-centerline
+follower described below. Its 147 portable checks passed; the installed ROS gate
+and this candidate's physical runs are not run. The operator is home and the car
+is unreachable; no vehicle connection or deployment was attempted.
+The 2026-10-06 car candidate's gate and bounded physical runs are historical.
+A complete 3 m physical run remains unverified.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
+
+## Simple constant-speed road-centerline follower, 2026-10-13
+
+Imported only the estimation settings, motion history, pipeline and bounded
+robust fitter from `feature/road-estimation-v2@6552033`, with the matching
+perception profile/tests. The main control PID and framework are retained.
+The selected `planning.algorithm=road_centerline` passes observed curved samples
+directly to the controller; there is no straight fit, lattice search, worker,
+model-based recovery, offset/heading rejection or multi-frame startup gate.
+The estimator can expose validated forward-only geometry at startup; the
+follower uses those observed points without extending road boundaries.
+
+At the user's explicit follow-up, all usable references, including valid
+predictions, request exactly 0.2 m/s. Curve and prediction speed advisories do not
+reduce this target. Prediction expiry, input freshness, finite-output checks,
+operator stop and existing 3 m/30 s budgets remain. Constant target speed is not
+constant throttle or a guarantee of constant actual speed.
+
+The controller takes nearest-segment lateral error and a 0.35 m forward tangent,
+then uses the existing lateral PI/heading P and speed PI+feedforward. It retains
+its integrators between reference updates. Active gains/sign/effort use main's
+archived car profile; the independent straight reference cache is disabled.
+Camera age limits are aligned at 1.5 s for estimation/planning; wheel/gyro retain
+their separate 0.25 s limits, references at most 0.2 s, predictions at most 0.8 s
+and 0.5 m travel. Coordinates and original observation ages are preserved.
+
+Portable verification: estimation 90, legacy planning 17, control 32, new
+centerline follower 8: **147 passed**. The new suite checks direct curved sample
+delivery, both turn directions, offset correction, forward-only input, fixed
+speed in predictions, expiry/invalid feedback stops, first drive without three
+frames, controller continuity and ideal bicycle tracking. In the ideal model,
+straight and radius ±3 m arcs reduce a 0.3 m initial offset to less than 0.15 m
+after 2 m travel. This uses ideal observations and assumed bicycle dynamics,
+not physical sensing, calibrated steering, ESC response or actual stopping.
+
+Legacy control fixtures now provide observed origin support required by the
+new estimator; their estimator dropout bridge is disabled to isolate old
+controller stop/cache contracts. Matching imported estimator tests separately
+cover history and predictions. Installed configuration assertions and ROS
+callback tests were updated, but cannot run in the local macOS environment.
+The ROS Jazzy installed gate remains pending. Evidence and runtime hashes:
+[simple-follower report](experiments/2026-10-13/SIMPLE_CENTERLINE_REPORT.md).
 
 ## Control-only robustness candidate, 2026-10-08
 
