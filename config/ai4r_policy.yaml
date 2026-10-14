@@ -158,8 +158,9 @@
       # A degraded road advises a 0.5 speed scale; PLANNING must consume that
       # advisory and cap its reference lifetime by prediction_remaining_s.
       road_hold_s: 0.2
-      # Dimensionless confidence threshold in [0,1]. Colour convention for this
-      # prototype is BLUE left / YELLOW right, as in the supplied course road.
+      # Dimensionless confidence threshold in [0,1]. Colour convention defaults
+      # to BLUE left / YELLOW right; integer estimation.left_colour/right_colour
+      # (yellow=1, blue=2) select the side. Car overlays set them per road.
       min_cone_confidence: 0.5
       # Local y(x) support and sample spacing, metres. No extrapolation beyond
       # measured inlier coverage. Sampling is bounded to at most 201 points.

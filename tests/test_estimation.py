@@ -629,6 +629,33 @@ class CarRunHistoryChecks(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 Settings(**bad)
 
+    def test_cone_colour_settings_select_the_road_sides(self):
+        left, right = straight()
+        yellow_left = {"detections": [(x, y, 0.0, colour, 0.95)
+                                      for colour, points in ((1, left), (2, right)) for x, y in points],
+                       "acquisition_to_publish_latency_s": 0.05}
+        swapped = Pipeline(Settings()).road(yellow_left, 10_000_000_000, 0.05)
+        self.assertFalse(swapped["valid"])
+        self.assertEqual(swapped["status"], "invalid_width_or_order")
+        road = Pipeline(Settings(left_colour=1, right_colour=2)).road(yellow_left, 10_000_000_000, 0.05)
+        self.assertTrue(road["valid"])
+        self.assertAlmostEqual(road["lane_width_m"], 1.0, places=6)
+        # Explicit constructor colours still override the settings.
+        self.assertTrue(Pipeline(Settings(), left_colour=1, right_colour=2)
+                        .road(yellow_left, 10_000_000_000, 0.05)["valid"])
+        for bad in ({"left_colour": 1}, {"left_colour": 2, "right_colour": 2}, {"left_colour": 3},
+                    {"left_colour": True, "right_colour": 2}, {"left_colour": 1.0, "right_colour": 2}):
+            with self.assertRaises(ValueError, msg=bad):
+                Settings(**bad)
+
+    def test_motion_timing_cannot_exceed_the_source_age(self):
+        # 1b8c56c had left this check unreachable after history_lifetime_s's return.
+        for bad in ({"motion_max_interval_s": 0.6}, {"max_source_age_s": 0.3, "motion_max_interval_s": 0.3,
+                                                    "motion_max_gap_s": 0.35}):
+            with self.assertRaisesRegex(ValueError, "source-age", msg=bad):
+                Settings(**bad)
+        self.assertEqual(Settings(max_source_age_s=0.6, motion_max_interval_s=0.6).motion_max_interval_s, 0.6)
+
     def run_camera_gap(self, propagation):
         pipeline = Pipeline(Settings(history_propagation=propagation, motion_max_interval_s=0.3))
         now, travelled, world = self.drive_until_near_field(pipeline)
