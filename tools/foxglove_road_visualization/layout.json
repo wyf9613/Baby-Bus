@@ -215,6 +215,16 @@
           "showLine": true,
           "label": "Controller reference trajectory",
           "lineSize": 3
+        },
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/shadow_trajectory.poses[:].pose.position.y",
+          "xValuePath": "/car/shadow_trajectory.poses[:].pose.position.x",
+          "enabled": true,
+          "color": "#3b82f6",
+          "showLine": true,
+          "label": "Shadow planner trajectory",
+          "lineSize": 3
         }
       ],
       "minYValue": -1,

@@ -4,6 +4,7 @@ Run through tools/verify_fast.sh on Ubuntu/ROS Jazzy. No sensor driver, serial
 device, vehicle process, or physical actuator is started by these tests.
 """
 import importlib.util
+import json
 import math
 import os
 from pathlib import Path
@@ -1410,6 +1411,37 @@ def test_installed_launch_starts_executable_and_shuts_down(tmp_path, direct_node
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait(timeout=3.0)
+
+
+def test_shadow_worker_installed_source_publishes_paths_and_stop_clears(make_node):
+    """Real ROS messages / installed child source; synthetic road only."""
+    node = make_node(**{
+        "shadow.enabled": True, "shadow.sample_count": 8, "shadow.rate_hz": 2.0})
+    node.shadow_timer.cancel()
+    paths, diagnostics = Recorder(), Recorder()
+    node.shadow_path_publisher = paths
+    node.shadow_diagnostics_publisher = diagnostics
+    now = node.get_clock().now().nanoseconds/1e9
+    node.estimation_output = {"state": {"timestamp_s": now, "speed_mps": 0.2},
+        "road": {"centerline_xy": [(0.0, 0.0), (1.0, 0.0)],
+                 "left_boundary_xy": [(0.0, 0.5), (1.0, 0.5)],
+                 "right_boundary_xy": [(0.0, -0.5), (1.0, -0.5)],
+                 "boundary_source": {"left": "observed", "right": "observed"}}}
+    node.fsm_state = policy.FSM_STATE_PUBLISHING_POLICY_ACTION
+    node._shadow_offer()
+    deadline = time.monotonic()+10.0
+    while not paths.messages and time.monotonic() < deadline:
+        node._shadow_poll()
+        time.sleep(0.01)
+    assert paths.messages and len(paths.messages[-1].poses) >= 2
+    assert paths.messages[-1].header.frame_id == node.policy_frame_id
+    assert paths.messages[-1].header.stamp == Time(nanoseconds=round(now*1e9)).to_msg()
+    result = json.loads(diagnostics.messages[-1].data)
+    assert result["status"] == "VALID" and result["candidate_count"] == 8
+    generation = node.shadow_generation
+    node._change_state(policy.FSM_STATE_PUBLISHING_ZERO_ACTIONS, "synthetic Stop")
+    assert node.shadow_generation == generation+1
+    assert paths.messages[-1].poses == []
 
 
 @pytest.mark.parametrize("mode", ["lidar", "timer"])

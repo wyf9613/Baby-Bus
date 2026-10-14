@@ -1,0 +1,45 @@
+{
+  "base_ref": "local origin/main snapshot (not fetched during audit)",
+  "base_commit": "0c8593a087f8f26229f9aa7277459285ff1c3521",
+  "source_sha256": "b24828da5b457f0a36588a71a8973af7d3495339f06b2297eb63bf4f2ab268f0",
+  "baseline_classes_identical": {
+    "EstimationSettings": true,
+    "EstimationPipeline": true,
+    "EstimationMotionHistory": true,
+    "PlanningSettings": true,
+    "RoadCenterlinePlanner": true,
+    "ControlSettings": true,
+    "ControlPID": true,
+    "PolicyController": true,
+    "RunDistanceLimiter": true
+  },
+  "baseline_methods_identical": {
+    "calculate_policy_actions": true,
+    "_publish_actions": true,
+    "publish_zero_actions": true,
+    "supervision_callback": true,
+    "_control_health_problem": true,
+    "_control_problem": true,
+    "fsm_transition_request_callback": true
+  },
+  "yaml_unchanged_except_shadow": true,
+  "launch_unchanged": true,
+  "startup_selection": {
+    "policy_update_mode": "timer",
+    "policy_update_rate_hz": 20.0
+  },
+  "planner": "road_centerline",
+  "control": {
+    "enabled": true,
+    "mode": "mvp",
+    "robustness_enabled": false
+  },
+  "shadow": {
+    "enabled": true,
+    "rate_hz": 1.0
+  },
+  "shadow_actuator_calls": [],
+  "shadow_writes_to_baseline": [],
+  "ros_gate": "not run: user requested no ROS gate",
+  "vehicle_runtime": "not inspected; local source/config audit only"
+}

@@ -1,5 +1,59 @@
 # AI4R policy acceptance
 
+## MVP2.1 independent shadow lattice, 2026-10-15
+
+Fresh implementation from the stable ordered-XY road interface; no archived
+lattice source/settings were consulted or imported for this change. A separate
+low-priority pure-Python process generates Frenet-knot / Hermite candidates,
+with symmetric Halton coverage and explicit recenter/setup families. A latest-only
+transport thread offers road snapshots at a configurable rate (YAML default 1 Hz).
+It does not publish actuator requests or replace the baseline reference.
+
+Prefix checking uses measured wheel speed times the requested period plus a
+handoff allowance, enlarged by observed round-trip delays. Only existing observed
+boundary segments are hard collision inputs; no clearance padding or short/single-
+side road gate is added. Sampled full-body sweep is explicitly approximate. A run
+generation fences old results and clears displays on Stop. Source/frame/config
+and all candidates are present in shadow JSON; input frame timestamps are retained.
+
+210 portable checks passed, including real child protocol/transport, dynamic
+speed/delay coverage, partial roads, controller-independent ranking, contact between path samples,
+run isolation and faulting-shadow/baseline-action equality. Nine baseline estimator,
+planner/controller/limiter class ASTs and all existing YAML values are unchanged.
+The runtime isolation audit also confirms seven baseline control/state method ASTs
+and the launch file unchanged. Forty consecutive ticks using shipped YAML produce
+identical commands/references/controller state with and without shadow results.
+VALID, NO_ROAD, ALL_COLLIDE, worker errors and transport crashes do not control
+the vehicle. Stop now publishes baseline zero before clearing shadow displays;
+shutdown publishes zero before worker close. Tests cover operator/watchdog order.
+This is local decision-path isolation, not measured ROS scheduling or vehicle
+deployment evidence; diagnostics still consume shared executor time and CPU.
+See [audit evidence](experiments/2026-10-15/evidence/shadow/control-isolation-audit.json).
+Four available-road samples from the genuine Car 15 visualization4 cone log produced
+48 candidates each; its final empty-road sample returned NO_ROAD. This is static
+geometry inspection, not full timed replay or closed-loop acceptance. Local measured
+compute for the INITIAL four samples was 0.17–0.21 s, before removal of execution cost.
+
+The execution cost, per-candidate controller/vehicle rollout, model parameters and
+rollout display were subsequently removed at the user's request. Stage timers
+cover the complete algorithm, including result assembly, with JSON timing separate.
+The reproducible offline evaluator tests two continuous 24-frame Car 15 segments,
+1/10 Hz settings, colour masking before reconstruction, and 0.15 m single-side
+support. Only an earlier genuine two-sided frame seeds width; hidden-side geometry
+is absent. In segment 150–173, left/right and short-support cases all produce valid
+paths for 24/24 independent frames. Segment 60–83 has 21 right-only frames with
+no reconstructed geometry; the remaining 3 all plan successfully. Reports include
+conditional timings to avoid treating NO_ROAD early exits as fast planning.
+Before/after comparison uses only this new prototype's pre-removal snapshot, never
+archived MVP2 lattice. Full timing, per-frame results and steady/cold IPC evidence
+are in timing-single-side.json and segment150/timing-single-side.json.
+
+This Windows host has no ROS; at the user's explicit instruction the ROS gate
+was not run. The added installed-source ROS worker/Path/Stop test remains unrun.
+No deployment, vehicle Enable/Run, physical test or vehicle calibration occurred.
+See [field notes](SHADOW_LATTICE_CN.md) and
+[source/config hashes and evidence](experiments/2026-10-15/evidence/shadow/manifest.json).
+
 ## Main bend-version integration, 2026-10-14
 
 The operator explicitly selected aggressive-bend checkpoint 5e8d1b8 as main's

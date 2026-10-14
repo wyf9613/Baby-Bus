@@ -1,8 +1,16 @@
-# 一条控制参考轨迹
+# 控制参考与影子规划轨迹
 
 导入同目录 `layout.json`，在原来的 `Cone locations` 图里显示一条绿色轨迹。
 话题为 `/car/policy_trajectory`，类型是标准 `nav_msgs/msg/Path`。
 布局直接读取 `poses[:].pose.position.x/y`，无需 Foxglove 消息脚本。
+
+2026-10-15：同一个图已加入蓝色 `Shadow planner trajectory`，读取
+`/car/shadow_trajectory`（`nav_msgs/msg/Path`），颜色为 `#3b82f6`。
+在 Foxglove 的 Layouts 菜单选择 Import from file，重新导入本目录 `layout.json`。
+车端需要部署当前 mvp2.1 影子实现，并以 `shadow.enabled: true` 启动；规划频率
+由 `shadow.rate_hz` 决定。蓝线显示有效的影子选中轨迹，停止或无有效选中轨迹时清线。
+绿色仍表示稳定控制器采用的参考。此次仅添加布局显示，按用户要求未进行本机测试
+或车端部署；以下记录属于原基线绿色参考的实现与历史验证。
 
 车端只记录控制器已经采用的参考路径，以最多 10 Hz 发布；中心线使用原始点，
 其他路径调用该版本已有的路径求值函数。每条线最多 201 点，保留参考路径的
