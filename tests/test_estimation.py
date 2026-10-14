@@ -241,6 +241,7 @@ class EstimationChecks(unittest.TestCase):
                                   float(value) if value[0] in "-0123456789" else value)
         expected = vars(Settings())
         expected.update(history_propagation="continuous", road_history_mode="distance",
+                        history_conflict_check_enabled=False,
                         history_merge_single_side=True, history_merge_radius_m=0.08,
                         continuous_road_output=True, max_source_age_s=1.5,
                         motion_max_gap_s=0.25, motion_max_interval_s=0.5,
@@ -266,7 +267,7 @@ class EstimationChecks(unittest.TestCase):
                                get_clock=lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_050_000_000)))
         method = namespace["calculate_policy_actions"]
         node.get_logger = lambda: SimpleNamespace(info=lambda _: None)
-        node._log_planned_trajectory = lambda ref, source: namespace["_log_planned_trajectory"](node, ref, source)
+        node._log_planned_trajectory = lambda *args: namespace["_log_planned_trajectory"](node, *args)
         result = method(node, obs, ages, stamps, 0.0, 0.0, True)
         self.assertEqual(result, (0.0, 0.0, None, None, None))
         self.assertTrue(node.estimation_output["road"]["valid"])
@@ -1334,7 +1335,8 @@ class RelaxedContinuityProfileChecks(unittest.TestCase):
 
     def test_wider_profile_still_rejects_motion_gap_and_observation_conflict(self):
         for fault in ("motion_gap", "conflict"):
-            pipeline = Pipeline(self.settings)
+            # Conflict rejection remains available when explicitly enabled.
+            pipeline = Pipeline(Settings(**dict(vars(self.settings), history_conflict_check_enabled=True)))
             self.step(pipeline, 10.0)
             if fault == "motion_gap":
                 road = self.step(pipeline, 10.3, left=[], right=[])
@@ -1382,10 +1384,12 @@ class RelaxedContinuityProfileChecks(unittest.TestCase):
 class PersistentHistoryChecks(unittest.TestCase):
     """Coverage, cache retention and downstream contracts in the active profile."""
 
-    def pipeline(self, cls=Pipeline):
+    def pipeline(self, cls=Pipeline, check_conflicts=True):
         import yaml
         cfg = yaml.safe_load((SOURCE.parents[1]/"config/ai4r_policy.yaml").read_text(encoding="utf-8"))
-        return cls(Settings(**cfg["/**/ai4r_policy"]["ros__parameters"]["estimation"]))
+        values = cfg["/**/ai4r_policy"]["ros__parameters"]["estimation"]
+        values["history_conflict_check_enabled"] = check_conflicts
+        return cls(Settings(**values))
 
     def step(self, p, now, left=None, right=None, stamp=None):
         xs = [-0.5+0.1*i for i in range(25)]
@@ -1393,6 +1397,25 @@ class PersistentHistoryChecks(unittest.TestCase):
             [(x, .5) for x in xs] if left is None else left,
             [(x, -.5) for x in xs] if right is None else right,
             stamp=stamp, speed=0.0, yaw=0.0)["road"]
+
+    def test_disabled_conflict_check_does_not_quarantine_or_reject_overlap(self):
+        p = self.pipeline(check_conflicts=False)
+        self.step(p, 10.0)
+        front = [.6+.1*i for i in range(14)]
+        road = self.step(p, 10.1, [(x, .85) for x in front], [(x, -.5) for x in front])
+        self.assertNotEqual(road["status"], "observed_history_conflict")
+        self.assertIsNone(p._conflict_source_s)
+        self.assertFalse(road["history_diagnostics"]["conflict_check_enabled"])
+        self.assertNotIn("overlap_conflict", [e["reason"] for e in road["history_diagnostics"]["events"]])
+        self.assertTrue(any(q[3] == 2 and q[0] < 0 for q in p._road_cones))
+        self.assertTrue(any(q[3] == 1 and q[0] < 0 for q in p._road_cones))
+        # Cancellation does not allow unlocatable motion history to survive.
+        road = self.step(p, 10.5)
+        self.assertIn("motion_history_gap", [e["reason"] for e in road["history_diagnostics"]["events"]])
+
+    def test_conflict_switch_requires_a_boolean(self):
+        with self.assertRaises(ValueError):
+            Settings(history_conflict_check_enabled=1.0)
 
     def test_failed_merged_fit_preserves_cache_and_prediction_provenance(self):
         class FailMergedOnce(Pipeline):

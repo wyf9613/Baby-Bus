@@ -161,6 +161,9 @@
       # epoch, metres. Predictions also stop at 0.8 s hold / 1.5 s source age.
       road_prediction_max_distance_m: 0.5
       history_merge_single_side: true
+      # Requested trial: do not reject new/old overlap differences as
+      # observed_history_conflict. Width, support and motion checks still apply.
+      history_conflict_check_enabled: false
       # Separate association radius from the 2*Huber conflict threshold. 0.08 m
       # suits the recorded >=0.2 m cone spacing; revisit for another placement.
       history_merge_radius_m: 0.08
@@ -209,7 +212,8 @@
     planning:
       algorithm: lattice_v2
       cruise_speed_mps: 0.2
-      max_source_age_s: 0.4
+      # Requested road-age allowance; wheel/gyro remain capped at 0.25 s.
+      max_source_age_s: 0.6
       reference_lifetime_s: 0.2
       # Lattice execution window starts at trajectory completion. Input ages
       # are checked before search; timestamp_s retains the input body frame.
@@ -251,13 +255,16 @@
         worker_timeout_s: 0.3
         recovery_speed_mps: 0.12
         initial_heading_max_rad: 1.22
+        # Temporary requested trial: skip low-speed wheel/gyro inconsistency stop.
+        # Restore true to re-enable; freshness and finite-motion checks remain.
+        low_speed_yaw_check_enabled: false
         low_speed_yaw_tolerance_rps: 0.12
         # Explicit teacher approximation, not measured calibration. Simulation
         # selects course_simulation; upstream requires ALL supplied model limits.
         model_source: course_approximation
         # Lattice search: 2 lengths x (center + current offset) x (2 speeds + stop).
         # Keep the existing sampling set and the 16-candidate cap below.
-        transition_lengths_m: "0.6,1.5"
+        transition_lengths_m: "0.3,0.6"
         # If neither length fits, also check a transition over the supported
         # short horizon (minimum_output_m unchanged). Startup joins are sampled
         # independently within observed support / 0.9 m, with one grid step
@@ -279,6 +286,9 @@
         # fixed operator-cleared corridor, transported with wheel/gyro motion.
         # Observed boundary checks remain active; reconnect within 0.9 m.
         startup_connection_enabled: true
+        # Temporary requested trial: skip fixed unobserved startup-corridor
+        # clearance only. Restore true to re-enable; observed body checks remain.
+        startup_corridor_check_enabled: false
         max_near_gap_m: 0.9
         max_extension_m: 1.3
         extension_margin_growth: 0.08
@@ -307,7 +317,8 @@
         front_extent_m: 0.297
         rear_extent_m: 0.198
         width_m: 0.25
-        steering_limit_rad: 0.7853981633974483
+        # Requested planning-model ceiling (90 deg), not measured wheel travel.
+        steering_limit_rad: 1.5707963267948966
         steering_rate_limit_radps: 1.5707963267948966
         # Shared hard body-boundary margin for recovery and lattice, metres.
         # Trial setting: reduced from 0.05 to 0.02; body dimensions stay above.
@@ -348,6 +359,13 @@
     control:
       enabled: true
       mode: mvp
+      # Restore lattice controlled startup: wait neutral for usable motion /
+      # a feasible path, then follow its origin-anchored connection to the road.
+      straight_startup_enabled: false
+      # Inactive unless the optional straight-start experiment is re-enabled.
+      # Stop at whichever budget is reached first, including worker handoff.
+      straight_startup_max_time_s: 3.0
+      straight_startup_max_distance_m: 0.5
       # Motion-compensated line/curve prediction on transient road rejection.
       # Budgets start at the last DISTINCT trusted cone frame's acceptance;
       # unchanged frames never extend them. No automatic restart after state 2.
@@ -373,7 +391,9 @@
       # >=3 m the framework enters continuous-zero state 2; state 3 must be
       # requested explicitly to reset the budget and run again. Coasting/slip
       # and encoder scaling affect the physical final stopping position.
-      max_distance_m: 3.0
+      # 0 disables the cumulative-distance stop; debug2 still reports travel.
+      # Time limit and invalid/stale feedback stops remain active.
+      max_distance_m: 0.0
       # Backup cutoff if the wheel estimator reports fresh zero throughout.
       max_run_time_s: 30.0
       # Direct normalized/m and normalized/rad gains, no angle-to-servo mapping.

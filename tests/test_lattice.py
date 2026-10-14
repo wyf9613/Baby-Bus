@@ -31,6 +31,27 @@ def planner(**kwargs):
 
 
 class LatticeChecks(unittest.TestCase):
+    def test_low_speed_yaw_switch_allows_lattice_and_preserves_motion_rejection(self):
+        for recovery in (False, True):
+            with self.subTest(recovery=recovery):
+                args = fixture(speed=0.0)
+                args[1]["yaw_rate_rps"] = .12832
+                p = planner(obstacle_check_enabled=False, recovery_enabled=recovery)
+                self.assertEqual(p.plan(*args, mvp=True)[0]["reason"], "low_speed_yaw_inconsistent")
+                p.cfg.low_speed_yaw_check_enabled = False
+                ref, _ = p.plan(*args, mvp=True)
+                self.assertTrue(ref["valid"], ref["reason"])
+                args[1]["yaw_rate_rps"] = math.nan
+                self.assertEqual(p.plan(*args, mvp=True)[0]["reason"], "invalid_motion_state")
+        with self.assertRaises(ValueError):
+            Config(low_speed_yaw_check_enabled=0)
+
+    def test_approximate_model_accepts_ninety_degree_ceiling_but_not_more(self):
+        cfg = Config(steering_limit_rad=math.pi/2)
+        self.assertEqual(cfg.steering_limit_rad, math.pi/2)
+        with self.assertRaises(ValueError):
+            Config(steering_limit_rad=math.pi/2+.001)
+
     def short_road(self, near=0.2, far=0.85, offset=0.0):
         args = fixture(near=near, speed=0)
         xs = [near]+[i*0.1 for i in range(1, 31) if near+1e-8 < i*0.1 < far-1e-8]+[far]
@@ -130,9 +151,16 @@ class LatticeChecks(unittest.TestCase):
         for value in samples[0]:
             self.assertAlmostEqual(value, 0.0, places=8)
         self.assertLessEqual(diag["selected"]["startup_join_x_m"], 0.9)
+        join = diag["startup_connection"]["selected_join"]
+        self.assertEqual(join["x_m"], diag["selected"]["startup_join_x_m"])
+        self.assertEqual(diag["startup_connection"]["start"]["heading_rad"], 0.0)
         self.assertLessEqual(diag["longitudinal_candidates"], 16)
         self.assertEqual(args[0], before)
         original = ns["LatticeCurve"](args[0]["centerline_xy"], 0, 0.05)
+        y, slope, second, _ = original.at_x(join["x_m"])
+        self.assertAlmostEqual(join["y_m"], y)
+        self.assertAlmostEqual(join["heading_rad"], math.atan(slope))
+        self.assertAlmostEqual(join["curvature_1pm"], second/(1+slope*slope)**1.5)
         connected = ns["LatticeCurve"].startup_connection(original, 0.9, 0, 0.05)
         for a, b in zip(connected.at_x(0.9-1e-7)[:3], original.at_x(0.9)[:3]):
             self.assertAlmostEqual(a, b, places=5)
@@ -297,6 +325,26 @@ class LatticeChecks(unittest.TestCase):
         detail = {}
         self.assertLess(p._clearance(g, left, right, [], model, detail, corridor), 0)
         self.assertEqual(detail["constraint"], "controlled_start_corridor")
+
+    def test_disabled_start_corridor_preserves_observed_and_obstacle_checks(self):
+        p = self.startup_planner()
+        model = p._model({})
+        left = ns["LatticeCurve"]([(.6, .5), (1, .5), (2, .5)], 0, .05)
+        right = ns["LatticeCurve"]([(.6, -.5), (1, -.5), (2, -.5)], 0, .05)
+        corridor = {"half_width": .5, "far_x": .6, "pose": [0, .6, 0]}
+        geom = {"x": 0, "y": 0, "heading": 0, "curvature": 0, "q": 1}
+        self.assertLess(p._clearance(geom, left, right, [], model, startup=corridor), 0)
+        p.cfg.startup_corridor_check_enabled = False
+        clearance = p._clearance(geom, left, right, [], model, startup=corridor)
+        self.assertTrue(math.isfinite(clearance))
+        self.assertGreaterEqual(clearance, 0)
+        self.assertLess(p._clearance(geom, left, right, [(0, 0)], model, startup=corridor), 0)
+        detail = {}
+        observed = dict(geom, x=1, y=.6)
+        self.assertLess(p._clearance(observed, left, right, [], model, detail, corridor), 0)
+        self.assertEqual(detail["constraint"], "body_boundary_clearance")
+        with self.assertRaises(ValueError):
+            Config(startup_corridor_check_enabled=1.0)
 
     def test_observed_origin_exits_startup_connection_mode(self):
         p = self.startup_planner()
@@ -992,6 +1040,16 @@ class Mvp2Checks(unittest.TestCase):
         self.assertTrue(ns["_mvp_plan"](p, cfg, args)[0]["valid"])
         args[1]["yaw_rate_rps"] = 0.5
         self.assertFalse(ns["_mvp_plan"](p, cfg, args)[0]["valid"])
+
+    def test_recovery_low_speed_yaw_switch(self):
+        (_, _), args, control = self.plan()
+        args[1]["yaw_rate_rps"] = .12832
+        p = Planner(Settings(algorithm="lattice_v2"), self.config())
+        recovery = ns["MvpRecoveryPlanner"](p, control)
+        self.assertEqual(recovery.plan(*args)[0]["reason"], "low_speed_yaw_inconsistent")
+        p.cfg.low_speed_yaw_check_enabled = False
+        ref, _ = recovery.plan(*args)
+        self.assertTrue(ref["valid"], ref["reason"])
 
     def test_delayed_curve_transport_retains_absolute_expiry_and_heading(self):
         (ref, _), _, _ = self.plan(bend=0.05)

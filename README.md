@@ -1,5 +1,36 @@
 # Baby Bus · ai4r_policy
 
+成功的 `Planned trajectory:` JSON 现包含同一规划输入帧的 `planning_input`（中心线、
+左右边界和源时间）、`planning_details.startup_connection.selected_join`（实际选中
+连接点的位置/航向/曲率）及 `planning_state`（轮速/偏航角速度）。与轨迹 ID 同行，
+在异步结果运动补偿前记录；不代表该轨迹已执行。道路点每侧最多记录 128 个，
+超出时标明原始数量和抽样索引。建议测试后保存 `dream runtime logs ai4r_policy --tail 1000`。
+
+当前临时关闭低速轮速/偏航一致性检查：
+`planning.lattice.low_speed_yaw_check_enabled: false`，覆盖 lattice 和恢复规划。
+改回 true 恢复；轮速为零时仍采用原有低速曲率近似，不代表轮速问题已解决。
+
+当前恢复上一版 lattice 受控起步：`control.straight_startup_enabled: false`，
+保留 `planning.lattice.startup_connection_enabled: true` 和 `clear_start_assumed: true`。
+运动历史不足或尚无可行轨迹时保持零输出；规划器通过从车身原点连接前方观测道路的
+轨迹起步，控制器跟随该轨迹转向。近端空白仍依赖操作员确认可通行的起步假设。
+前瞻仍为 0.6 m、巡航目标 0.2 m/s；保留起步等待期限、30 s 总运行上限。
+可选直线模式及其 3 s / 0.5 m 限制留在代码中，当前配置不启用。
+
+当前临时测试关闭人工起步走廊净空检查：
+`planning.lattice.startup_corridor_check_enabled: false`。
+真实观测道路的车身边界、转向、运动与超时检查保留；改回 true 即恢复。
+
+当前本地测试：过渡候选为 0.3/0.6 m，近似规划模型转角上限为 90°。
+实车归一化转向输出上限仍为 0.5；这不代表测得车轮可以转到 90°。
+
+2026-10-14 当前配置已取消累计 3 m 停车上限：`control.max_distance_m: 0.0`。
+里程仍计算并发布；30 s 时间上限、传感器/运动和路径停车检查保留。尚未上车验证。
+
+2026-10-14 用户要求的当前测试配置：`estimation.history_conflict_check_enabled: false`，
+关闭新旧观测重叠差异的拒绝/隔离；其他道路几何、车身净空、运动和时间检查保留。
+该修改尚未上车，230 项离线检查通过。
+
 2026-10-14 当前本地 YAML 已按用户要求改为 0.6 m 路径弧长前瞻；
 最短输出 0.2 m、控制预瞄 0.2 m，纵向候选/评分时长同步为 1 s，规划频率仍为 10 Hz。车身边界检查保留，
 前端车身仍可能延伸到路径参考点之外。配置尚未上车，实车效果待验证。

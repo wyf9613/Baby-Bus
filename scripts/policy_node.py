@@ -214,6 +214,9 @@ class EstimationSettings:
     # Merge the visible side of a one-sided frame with the history of both
     # sides instead of returning the one-sided frame unfused.
     history_merge_single_side: bool = False
+    # Compare new boundary fits with previously observed overlap. The supplied
+    # test profile can disable this rejection without relaxing other geometry.
+    history_conflict_check_enabled: bool = True
     # A fresh cone replaces history cones within this radius (0 = the original
     # 2*huber_delta_m). It must stay below half the cone spacing, or a fresh
     # detection of cone k also deletes cone k-1 and leaves holes near the car.
@@ -230,13 +233,15 @@ class EstimationSettings:
             raise ValueError("estimation.road_history_mode must be time or distance")
         if not isinstance(self.history_merge_single_side, bool):
             raise ValueError("estimation.history_merge_single_side must be bool")
+        if not isinstance(self.history_conflict_check_enabled, bool):
+            raise ValueError("estimation.history_conflict_check_enabled must be bool")
         if not isinstance(self.continuous_road_output, bool):
             raise ValueError("estimation.continuous_road_output must be bool")
         if self.continuous_road_output and self.history_propagation != "continuous":
             raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
             if name in ("history_propagation", "road_history_mode", "history_merge_single_side",
-                        "continuous_road_output"):
+                        "continuous_road_output", "history_conflict_check_enabled"):
                 continue
             if not finite_number(value):
                 raise ValueError(f"estimation.{name} must be finite")
@@ -598,6 +603,7 @@ class EstimationPipeline:
             points = geometry.get(side+"_boundary_xy") or []
             fitted[side] = {"x_range_m": [points[0][0], points[-1][0]] if points else None}
         return {"frame_id": self.frame_id, "timestamp_s": now_s, "cache": cache, "fitted_boundaries": fitted,
+                "conflict_check_enabled": self.settings.history_conflict_check_enabled,
                 "alignment_problem": problem, "events": deepcopy(self._history_events),
                 "common_coverage_x_m": road.get("near_field", {}).get("coverage_x_m"),
                 "current_camera_boundaries": deepcopy(road.get("current_frame", {}).get("boundary_diagnostics", {}))}
@@ -608,6 +614,8 @@ class EstimationPipeline:
         This frame is still invalid, cannot drive/predict, and cannot become
         accepted by repeatedly presenting the same rejected camera epoch.
         """
+        if not self.settings.history_conflict_check_enabled:
+            return False
         radius = 2*self.settings.huber_delta_m
         conflicts = []
         for point in placed:
@@ -744,7 +752,8 @@ class EstimationPipeline:
             self._observation_road = self.road(batch, stamp_ns, age)
         current = deepcopy(self._observation_road)
         current["source_age_s"] = age
-        if self._conflict_source_s is not None and source_s <= self._conflict_source_s:
+        if (self.settings.history_conflict_check_enabled and self._conflict_source_s is not None
+                and source_s <= self._conflict_source_s):
             current.update(valid=False, status="observed_history_conflict", centerline_xy=[],
                            left_boundary_xy=None, right_boundary_xy=None)
             return current
@@ -786,7 +795,7 @@ class EstimationPipeline:
             return current
         for colour, fit in fits.items():
             a0, a1, a2 = fit["coeffs"]
-            if any(p[3] == colour and fit["range"][0] <= p[0] <= fit["range"][1]
+            if self.settings.history_conflict_check_enabled and any(p[3] == colour and fit["range"][0] <= p[0] <= fit["range"][1]
                    and abs(p[1]-(a0+a1*p[0]+a2*p[0]*p[0])) > radius for p in previous):
                 previous = []
                 break
@@ -1825,9 +1834,14 @@ class LatticeSettings:
     direct_sample_output: bool = False
     # Explicit controlled-start corridor, not an inferred rear road boundary.
     startup_connection_enabled: bool = False
+    # Temporary test switch: only fixed, unobserved startup-corridor clearance.
+    # Observed boundary and obstacle checks remain independent.
+    startup_corridor_check_enabled: bool = True
     worker_timeout_s: float = 0.3
     recovery_speed_mps: float = 0.12
     initial_heading_max_rad: float = 1.22
+    # Temporary trial switch for low-speed wheel/gyro consistency only.
+    low_speed_yaw_check_enabled: bool = True
     low_speed_yaw_tolerance_rps: float = 0.12
     update_rate_hz: float = 10.0
 
@@ -1844,15 +1858,17 @@ class LatticeSettings:
                 if name != "terminal_offsets_m" and any(v <= 0 for v in samples):
                     raise ValueError("lattice lengths, durations and speeds must be positive")
             elif isinstance(value, bool):
-                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled"):
+                if name not in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled", "startup_corridor_check_enabled", "low_speed_yaw_check_enabled"):
                     raise ValueError("invalid lattice boolean")
-            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled"):
+            elif name in ("obstacle_check_enabled", "clear_start_assumed", "async_enabled", "recovery_enabled", "centerline_first_enabled", "direct_sample_output", "startup_connection_enabled", "startup_corridor_check_enabled", "low_speed_yaw_check_enabled"):
                 raise ValueError("lattice flags must be booleans")
             elif not finite_number(value) or value <= 0:
                 raise ValueError("lattice numeric settings must be finite and positive: " + name)
         if not 0 <= self.blind_center_weight <= 1 or not 0 <= self.clearance_peak_ratio <= 1:
             raise ValueError("lattice proportions must be in [0,1]")
-        if not self.rear_axle_from_cg_m < self.wheelbase_m or self.steering_limit_rad >= math.pi/2:
+        # A 90-degree comparison ceiling is allowed for the requested approximate
+        # model trial; computed atan steering remains strictly below 90 degrees.
+        if not self.rear_axle_from_cg_m < self.wheelbase_m or self.steering_limit_rad > math.pi/2:
             raise ValueError("invalid lattice vehicle geometry")
         if self.rear_extent_m < self.rear_axle_from_cg_m or self.front_extent_m < self.wheelbase_m-self.rear_axle_from_cg_m:
             raise ValueError("lattice body must cover both axles")
@@ -2230,6 +2246,12 @@ class FrenetLatticePlanner:
             for by in (-model["width_m"]/2, model["width_m"]/2):
                 x, y = geom["x"]+c*bx-s*by, geom["y"]+s*bx+c*by
                 if startup is not None and x < left.points[0][0]:
+                    if not cfg.startup_corridor_check_enabled:
+                        # Neutral finite score for unchecked startup body points;
+                        # this is NOT a measured clearance. Still check obstacles
+                        # below and all other body points in observed support.
+                        clearance = min(clearance, cfg.clearance_soft_m)
+                        continue
                     # Only points outside observed support use the fixed,
                     # operator-cleared initial corridor. Never move it to
                     # follow the vehicle or move the observed boundaries.
@@ -2290,6 +2312,7 @@ class FrenetLatticePlanner:
         started, cfg = self.clock() if _started is None else _started, self.cfg
         self._consistency_cache = {}
         diag = {"candidates": [], "obstacle_response_enabled": cfg.obstacle_check_enabled,
+                "startup_corridor_check_enabled": cfg.startup_corridor_check_enabled,
                 "model_source": cfg.model_source, "near_support": None, "initialization": {},
                 "observed_origin_seen": self.observed_origin_seen}
         ref = {"schema_version": "planning_reference_v2", "planner_version": "frenet_lattice_v2",
@@ -2466,7 +2489,8 @@ class FrenetLatticePlanner:
             dprime = a*math.tan(heading_error)
             # Explicit low-speed forward approximation; no divide by near zero.
             initial_k = yaw/speed if speed >= 0.05 else 0.0
-            if speed < 0.05 and abs(yaw) > (cfg.low_speed_yaw_tolerance_rps if cfg.recovery_enabled else 0.05):
+            if (cfg.low_speed_yaw_check_enabled and speed < 0.05
+                    and abs(yaw) > (cfg.low_speed_yaw_tolerance_rps if cfg.recovery_enabled else 0.05)):
                 raise ValueError("low_speed_yaw_inconsistent")
             dsecond = (initial_k*(a*a+dprime*dprime)**1.5-k*(a*a+2*dprime*dprime)-dk*d0*dprime)/a
             sdot = speed/math.hypot(a, dprime)
@@ -2696,6 +2720,17 @@ class FrenetLatticePlanner:
                     choice["reason"] = ("sample_output_" if cfg.direct_sample_output else "compatibility_")+str(error)
                     continue
                 # Input ages are admission checks, not execution deadlines.
+                if use_startup:
+                    join_x = choice["startup_join_x_m"]
+                    join_y, join_slope, join_second, _ = observed_curve.at_x(join_x)
+                    diag["startup_connection"]["selected_join"] = {
+                        "x_m": join_x, "y_m": join_y,
+                        "heading_rad": math.atan(join_slope),
+                        "curvature_1pm": join_second/(1+join_slope**2)**1.5,
+                        "slope_dy_dx": join_slope, "second_derivative_d2y_dx2": join_second}
+                    diag["startup_connection"]["start"] = {
+                        "x_m": 0.0, "y_m": 0.0, "heading_rad": 0.0,
+                        "curvature_1pm": yaw/speed if speed >= 0.05 else 0.0}
                 # Keep the input-frame timestamp for motion compensation;
                 # the execution window starts when this trajectory is ready.
                 generated_at = now_s+self.clock()-started
@@ -3010,7 +3045,8 @@ class MvpRecoveryPlanner:
             model = self.planner._model(limits)
             if not finite_number(state.get("speed_mps")) or not 0 <= state["speed_mps"] <= model["speed_max_mps"]:
                 raise ValueError("invalid_recovery_speed")
-            if state["speed_mps"] < 0.05 and abs(state["yaw_rate_rps"]) > cfg.low_speed_yaw_tolerance_rps:
+            if (cfg.low_speed_yaw_check_enabled and state["speed_mps"] < 0.05
+                    and abs(state["yaw_rate_rps"]) > cfg.low_speed_yaw_tolerance_rps):
                 raise ValueError("low_speed_yaw_inconsistent")
             extension = max(0.0, near+model["rear_extent_m"]+0.15)
             if extension > cfg.max_extension_m or (near > 0 and not cfg.clear_start_assumed):
@@ -3162,7 +3198,8 @@ def _planner_worker_main():
                                valid_for_s=generated-ref["timestamp_s"]+planner.settings.reference_lifetime_s)
                     if planner.previous is not None:
                         planner.previous["valid_for_s"] = ref["valid_for_s"]
-            result = {"generation": generation, "reference": ref, "diagnostics": diag, "road": job["args"][0]}
+            result = {"generation": generation, "reference": ref, "diagnostics": diag,
+                      "road": job["args"][0], "state": job["args"][1]}
         except Exception as error:
             result = {"generation": job.get("generation"), "error": str(error)}
         sys.stdout.write(json.dumps(result, allow_nan=False)+"\n")
@@ -3292,8 +3329,13 @@ class ControlSettings:
     steering_max_normalized: float = 0.5
     max_dt_s: float = 0.2
     startup_grace_s: float = 0.5
+    # Explicit MVP trial: drive straight before the first usable observed road.
+    # This reference is operator-authorized, not a measured free-space corridor.
+    straight_startup_enabled: bool = False
+    straight_startup_max_time_s: float = 3.0
+    straight_startup_max_distance_m: float = 0.5
     # Per explicit policy run, wheel-speed odometry (metres), not road lookahead.
-    max_distance_m: float = 3.0
+    max_distance_m: float = 3.0  # 0 disables the cumulative-distance stop only.
     max_run_time_s: float = 30.0
     # Direct normalized steering for the first-run MVP, no wheel-angle model.
     mvp_lateral_kp: float = 1.0
@@ -3316,6 +3358,10 @@ class ControlSettings:
     gyro_bias_max_rps: float = 0.12
 
     def __post_init__(self):
+        if not isinstance(self.straight_startup_enabled, bool):
+            raise ValueError("control.straight_startup_enabled must be bool")
+        if self.straight_startup_enabled and self.mode != "mvp":
+            raise ValueError("straight startup requires MVP control")
         if not isinstance(self.enabled, bool):
             raise ValueError("control.enabled must be bool")
         if not isinstance(self.robustness_enabled, bool):
@@ -3331,10 +3377,13 @@ class ControlSettings:
             if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"control.{name} must be finite and nonnegative")
         for name in ("derivative_tau_s", "drive_max", "steering_max_normalized",
-                     "max_dt_s", "startup_grace_s", "max_distance_m", "max_run_time_s",
+                     "max_dt_s", "startup_grace_s", "max_run_time_s",
+                     "straight_startup_max_time_s", "straight_startup_max_distance_m",
                      "reference_hold_max_s", "reference_hold_max_distance_m", "gyro_bias_window_s", "gyro_bias_max_rps"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
+        if not finite_number(self.max_distance_m) or self.max_distance_m < 0:
+            raise ValueError("control.max_distance_m must be finite and nonnegative (0 disables distance stop)")
         if (not finite_number(self.degraded_speed_mps) or self.degraded_speed_mps <= 0
                 or not finite_number(self.speed_recovery_accel_mps2) or self.speed_recovery_accel_mps2 <= 0
                 or not isinstance(self.recovery_confirm_frames, int) or self.recovery_confirm_frames < 1):
@@ -3379,7 +3428,7 @@ class RunDistanceLimiter:
         self.previous_time_s, self.previous_speed_mps = now_s, speed_mps
         if not finite_number(self.distance_m):
             return "Wheel-speed distance estimate invalid"
-        if self.distance_m+1e-9 >= self.maximum_m:
+        if self.maximum_m > 0 and self.distance_m+1e-9 >= self.maximum_m:
             return f"Distance limit reached: {self.distance_m:.3f} m / {self.maximum_m:.3f} m; explicit resume required"
         return None
 
@@ -4923,6 +4972,14 @@ class PolicyNode(Node):
                                                        self.sensor_timeout_s["imu_angular_velocity"])}
         source_timeouts["obstacles"] = min(self.estimation_settings.max_source_age_s,
                                           self.sensor_timeout_s["lidar_cartesian"])
+        control = getattr(self, "control_settings", ControlSettings())
+        straight_start = control.enabled and control.straight_startup_enabled
+        if straight_start:
+            if self.planning_settings.algorithm != "lattice_v2":
+                raise PolicyStopRequest("Straight startup requires lattice_v2")
+            reference = self._straight_startup_reference(estimates, source_timeouts)
+            if reference is not None:
+                return self._drive_straight_startup(reference, estimates, dt)
         if getattr(self, "async_planner", None) is not None:
             estimates = self._async_planning_cycle(estimates, source_timeouts)
         else:
@@ -4934,7 +4991,17 @@ class PolicyNode(Node):
             else:
                 self.planning_output, self.planning_diagnostics = self.planner.plan(
                     *args, mvp=getattr(self, "control_settings", ControlSettings()).mode == "mvp")
-            self._log_planned_trajectory(self.planning_output, "synchronous_planner")
+            self._log_planned_trajectory(self.planning_output, "synchronous_planner",
+                estimates["road"], self.planning_diagnostics, estimates["state"])
+
+        if straight_start and not getattr(self, "straight_startup_complete", False):
+            if (self.planning_output.get("valid") and not self.planning_output.get("planned_stop")
+                    and not self.planning_output.get("stop_requested")):
+                self.straight_startup_complete = True
+                self.get_logger().info("Startup mode: LATTICE; first observed road accepted")
+            elif self.planning_output.get("reason") == "planning_pending":
+                reference = self._straight_startup_reference(estimates, source_timeouts, waiting=True)
+                return self._drive_straight_startup(reference, estimates, dt)
 
         control = getattr(self, "control_settings", ControlSettings())
         if control.enabled:
@@ -5049,7 +5116,8 @@ class PolicyNode(Node):
                 ref = result["reference"]
                 # Log the generated path in its ORIGINAL planning frame, before
                 # transport to the later control epoch or reference selection.
-                self._log_planned_trajectory(ref, "planner_worker")
+                self._log_planned_trajectory(ref, "planner_worker", result["road"],
+                    result["diagnostics"], result.get("state"))
                 self.last_async_diagnostics = {**result["diagnostics"],
                     "trajectory_id": ref.get("trajectory_id"),
                     "generated_at_s": ref.get("generated_at_s"),
@@ -5095,7 +5163,115 @@ class PolicyNode(Node):
             self.last_planning_submit_s = now
         return selected_estimates
 
-    def _log_planned_trajectory(self, reference, source):
+    def _startup_road_ready(self, estimates, source_timeouts):
+        """First fresh observed BOTH-side road, aligned and covering the origin."""
+        road, state = estimates["road"], estimates["state"]
+        age = road.get("source_age_s")
+        stamp = road.get("measurement_timestamp_s")
+        return (road.get("valid") is True and road.get("visibility") == "both"
+                and not road.get("degraded") and road.get("time_aligned") is True
+                and road.get("frame_id") == self.policy_frame_id
+                and finite_number(road.get("timestamp_s"))
+                and abs(road["timestamp_s"]-state["timestamp_s"]) <= 1e-6
+                and finite_number(stamp) and stamp <= state["timestamp_s"]
+                and finite_number(age) and 0 <= age < min(
+                    self.planning_settings.max_source_age_s, source_timeouts["road"]))
+
+    def _straight_startup_problem(self, monotonic_now):
+        """Bound unobserved driving, including the initial worker handoff."""
+        started = getattr(self, "straight_startup_started_at", None)
+        if (not self.control_settings.straight_startup_enabled or started is None
+                or getattr(self, "straight_startup_complete", False)):
+            return None
+        elapsed = monotonic_now-started
+        distance = self.distance_limiter.distance_m-self.straight_startup_start_distance_m
+        detail = getattr(self, "straight_startup_wait_reason", "usable road unavailable")
+        if elapsed >= self.control_settings.straight_startup_max_time_s:
+            return f"Straight startup time limit reached ({elapsed:.3f}s); {detail}; explicit resume required"
+        if distance >= self.control_settings.straight_startup_max_distance_m:
+            return f"Straight startup distance limit reached ({distance:.3f}m); {detail}; explicit resume required"
+        return None
+
+    def _straight_startup_reference(self, estimates, source_timeouts, waiting=False):
+        if getattr(self, "straight_startup_complete", False):
+            return None
+        ready = self._startup_road_ready(estimates, source_timeouts)
+        if not waiting:
+            if getattr(self, "straight_startup_road_seen", False):
+                return None  # Never return to blind straight driving after handoff.
+            if ready:
+                self.straight_startup_road_seen = True
+                self.straight_startup_handoff_at = self._monotonic()
+                self.get_logger().info("Startup mode: LATTICE_PENDING; first usable observed road")
+                return None
+        elif (not ready or self._monotonic()-self.straight_startup_handoff_at
+                >= self.control_settings.startup_grace_s):
+            raise PolicyStopRequest("Straight startup lattice handoff unavailable")
+        if getattr(self, "straight_startup_started_at", None) is None:
+            self.straight_startup_started_at = self._monotonic()
+            self.straight_startup_start_distance_m = self.distance_limiter.distance_m
+        road = estimates["road"]
+        self.straight_startup_wait_reason = ("lattice result pending" if waiting else
+            "waiting for usable observed road: " + str(road.get("status", "unavailable"))
+            + f"; valid={road.get('valid')}, visibility={road.get('visibility')}, "
+              f"degraded={road.get('degraded')}, time_aligned={road.get('time_aligned')}")
+        problem = self._straight_startup_problem(self._monotonic())
+        if problem:
+            raise PolicyStopRequest(problem)
+        now = self._monotonic()
+        if now-getattr(self, "straight_startup_last_wait_log_at", -math.inf) >= 1.0:
+            self.get_logger().info("Straight startup: " + self.straight_startup_wait_reason)
+            self.straight_startup_last_wait_log_at = now
+        state = estimates["state"]
+        if (not state.get("valid") or state.get("frame_id") != self.policy_frame_id
+                or not finite_number(state.get("timestamp_s"))
+                or not finite_number(state.get("speed_mps")) or state["speed_mps"] < 0
+                or not finite_number(state.get("yaw_rate_rps"))):
+            raise PolicyStopRequest("Straight startup motion unavailable")
+        ages = state.get("source_age_s") or {}
+        for name in ("wheel_speed", "imu_angular_velocity"):
+            age = ages.get(name)
+            if not finite_number(age) or not 0 <= age < source_timeouts[name]:
+                raise PolicyStopRequest("Straight startup stale " + name)
+        cfg = self.lattice_settings
+        length, stamp = cfg.horizon_m, state["timestamp_s"]
+        count = max(1, math.ceil(length/cfg.geometry_step_m))
+        self.straight_startup_sequence = getattr(self, "straight_startup_sequence", 0)+1
+        return {"valid": True, "schema_version": "planning_reference_v2",
+                "planner_version": "straight_startup", "trajectory_id": -self.straight_startup_sequence,
+                "timestamp_s": stamp, "generated_at_s": stamp,
+                "expires_at_s": stamp+self.planning_settings.reference_lifetime_s,
+                "valid_for_s": self.planning_settings.reference_lifetime_s,
+                "frame_id": self.policy_frame_id, "vehicle_reference_point": "cg_ground_projection",
+                "target_speed_mps": self.planning_settings.cruise_speed_mps,
+                "stop_requested": False, "planned_stop": False, "simulation_only": False,
+                "reason": "straight_startup", "control_preview_m": min(cfg.preview_m, length),
+                "path": {"type": "CARTESIAN_SAMPLES", "independent_variable": "x_m",
+                         "range": [0.0, length], "samples_xy_heading_curvature":
+                         [(length*i/count, 0.0, 0.0, 0.0) for i in range(count+1)]}}
+
+    def _drive_straight_startup(self, reference, estimates, dt):
+        self.planning_output = reference
+        self.planning_diagnostics = {"startup_mode": "straight",
+            "road_accepted": getattr(self, "straight_startup_road_seen", False),
+            "operator_authorized_unobserved_path": True}
+        self._log_planned_trajectory(reference, "straight_startup")
+        if not hasattr(self, "controller"):
+            self.controller = PolicyController(self.control_settings, self.policy_frame_id)
+        drive, _, info = self.controller.calculate(reference, estimates["state"],
+            estimates["vehicle_params"], self.get_clock().now().nanoseconds/1e9, dt)
+        self.control_diagnostics = {**info, "tracking_mode": "STRAIGHT_STARTUP"}
+        if not info.get("valid") or info.get("stop_requested"):
+            raise PolicyStopRequest("Straight startup control: " + str(info.get("reason")))
+        self.control_has_run = True
+        self.last_control_reference_deadline_s = reference["expires_at_s"]
+        if self.last_startup_status != "STRAIGHT_STARTUP":
+            self.last_startup_status = "STRAIGHT_STARTUP"
+            self.get_logger().info("Startup mode: STRAIGHT_STARTUP; zero steering until first usable road")
+        # Do not seed the road-trusted recovery cache with an unobserved line.
+        return drive, 0.0, None, 0.0, self.distance_limiter.distance_m
+
+    def _log_planned_trajectory(self, reference, source, road=None, diagnostics=None, state=None):
         """One bounded JSON record per valid generated path; no driving effect.
 
         Generated validity is not proof the controller accepted/executed it.
@@ -5129,6 +5305,32 @@ class PolicyNode(Node):
         if not points:
             # Preserve polynomial output for configurations without Cartesian samples.
             record["path"] = path
+        if road is not None:
+            # The worker's input road, not the newer camera frame at receipt.
+            # Near-field rejection clears outer geometry; retain the separately
+            # validated forward geometry actually available to controlled start.
+            geometry = road.get("forward_geometry") or road
+            inputs = {"geometry_source": "forward_geometry" if geometry is not road else "road",
+                "road_status": road.get("status"), "road_valid": road.get("valid"),
+                "geometry_status": geometry.get("status"), "geometry_valid": geometry.get("geometry_valid"),
+                **{name: geometry.get(name) for name in ("frame_id", "timestamp_s",
+                    "measurement_timestamp_s", "source_age_s", "time_aligned", "degraded",
+                    "visibility", "near_field", "boundary_source", "reconstruction_method")},
+                "point_fields": ["x_m", "y_m"]}
+            for name in ("centerline_xy", "left_boundary_xy", "right_boundary_xy"):
+                raw = geometry.get(name) or []
+                selected = (list(range(len(raw))) if len(raw) <= 128 else
+                            [round(i*(len(raw)-1)/127) for i in range(128)])
+                inputs[name] = {"point_count": len(raw), "logged_point_count": len(selected),
+                    "point_indices": selected,
+                    "points": [[round(float(v), 6) for v in raw[i]] for i in selected]}
+            record["planning_input"] = inputs
+        if diagnostics is not None:
+            record["planning_details"] = {name: diagnostics.get(name) for name in (
+                "startup_connection", "initialization", "near_support", "selected", "speed_target")}
+        if state is not None:
+            record["planning_state"] = {name: state.get(name) for name in (
+                "timestamp_s", "frame_id", "speed_mps", "yaw_rate_rps", "source_age_s")}
         self.get_logger().info("Planned trajectory: " + json.dumps(record, allow_nan=False, separators=(",", ":")))
         self.last_logged_trajectory_key = key
 
@@ -5310,6 +5512,14 @@ class PolicyNode(Node):
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
         self.last_startup_status = None
+        self.straight_startup_road_seen = False
+        self.straight_startup_complete = False
+        self.straight_startup_handoff_at = None
+        self.straight_startup_sequence = 0
+        self.straight_startup_started_at = None
+        self.straight_startup_start_distance_m = 0.0
+        self.straight_startup_wait_reason = "usable road unavailable"
+        self.straight_startup_last_wait_log_at = -math.inf
         if state == FSM_STATE_PUBLISHING_POLICY_ACTION:
             self.last_planning_rejection = None
             self.last_planning_rejection_key = None
@@ -5336,6 +5546,9 @@ class PolicyNode(Node):
         if (self.policy_started_at is not None and
                 monotonic_now-self.policy_started_at >= self.control_settings.max_run_time_s):
             return "Run time limit reached; explicit resume required"
+        problem = self._straight_startup_problem(monotonic_now)
+        if problem:
+            return problem
         deadline = self.last_control_reference_deadline_s
         manager = getattr(self, "control_reference_manager", None)
         if (self._robust_control_enabled() and manager is not None

@@ -26,6 +26,8 @@ method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn",
 method_names.add("_async_planning_cycle")
 method_names.add("_observe_stationary_gyro")
 method_names.update({"_log_planning_rejection", "_startup_lattice_wait", "_log_planned_trajectory"})
+method_names.update({"_startup_road_ready", "_straight_startup_reference", "_drive_straight_startup",
+                     "_straight_startup_problem"})
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
 constants = [item for item in tree.body if isinstance(item, ast.Assign) and
              any(isinstance(target, ast.Name) and (target.id.startswith("FSM_STATE") or
@@ -321,6 +323,179 @@ class RobustControlChecks(unittest.TestCase):
 
 
 class RobustLatticeIntegrationChecks(unittest.TestCase):
+    def straight_node(self):
+        node = make_node(simulated=False, mvp=True)
+        node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp", robustness_enabled=True,
+            straight_startup_enabled=True, mvp_drive_feedforward=.3, drive_max=.35,
+            max_distance_m=0, startup_grace_s=3.0)
+        node.controller = ns["PolicyController"](node.control_settings)
+        node.distance_limiter = ns["RunDistanceLimiter"](0, .2)
+        node.planning_settings = replace(node.planning_settings, algorithm="lattice_v2", max_source_age_s=.6)
+        node.lattice_settings = ns["LatticeSettings"](horizon_m=.6, preview_m=.2, minimum_output_m=.2,
+            durations_s="1.0", score_time_s=1.0, transition_lengths_m="0.3,0.6", budget_s=5,
+            obstacle_check_enabled=False, direct_sample_output=True, clear_start_assumed=True)
+        self.front_feed(node, speed=0.0)
+        start(node)
+        return node
+
+    def front_feed(self, node, speed=.2):
+        node._store("wheel_speed", speed, None, node.test_clock.monotonic, node.test_clock.ros_ns)
+        node._store("imu_angular_velocity", (0, 0, 0), node.test_clock.ros_ns,
+                    node.test_clock.monotonic, node.test_clock.ros_ns)
+        xs = [.7+i*.2 for i in range(14)]
+        batch = api["cones"]([(x, .5) for x in xs], [(x, -.5) for x in xs])
+        node._store("cone_detections", batch, node.test_clock.ros_ns,
+                    node.test_clock.monotonic, node.test_clock.ros_ns)
+        node.last_nonempty_cones = node.observations["cone_detections"]
+
+    def test_straight_start_switches_on_one_road_and_never_reenters(self):
+        node = self.straight_node()
+        for _ in range(10):
+            self.front_feed(node)
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+            self.assertEqual(node.planning_output["planner_version"], "straight_startup")
+            self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+            self.assertEqual(node.action_publisher.messages[-1].steer, 0)
+            self.assertTrue(all(point[1:] == (0.0, 0.0, 0.0)
+                for point in node.planning_output["path"]["samples_xy_heading_curvature"]))
+            self.assertFalse(getattr(node, "straight_startup_road_seen", False))
+            node.test_clock.advance(.05)
+        # One fully observed road switches immediately, without a frame gate.
+        feed(node, center=0, speed=.2)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertTrue(node.straight_startup_complete)
+        self.assertEqual(node.planning_output["planner_version"], "frenet_lattice_v2")
+        node.straight_startup_started_at -= 3.0
+        node.distance_limiter.distance_m = .6
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        estimates = deepcopy(node.estimation_output)
+        estimates["road"]["valid"] = False
+        self.assertIsNone(node._straight_startup_reference(estimates,
+            {"road": 1.5, "wheel_speed": .25, "imu_angular_velocity": .25}))
+
+    def test_straight_start_time_budget_stops_without_new_sensor_callback(self):
+        node = self.straight_node()
+        node.run_policy_step()
+        node.straight_startup_started_at -= 3.0
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("Straight startup time limit", node.state_reason)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        self.assertIsNone(node.straight_startup_started_at)
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+
+    def test_straight_start_distance_budget_even_with_total_distance_disabled(self):
+        node = self.straight_node()
+        node.run_policy_step()
+        node.distance_limiter.distance_m = .5
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("Straight startup distance limit", node.state_reason)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+    def test_straight_start_budget_checked_before_each_reference_and_during_handoff(self):
+        node = self.straight_node()
+        node.run_policy_step()
+        node.straight_startup_started_at -= 3.0
+        with self.assertRaisesRegex(ns["PolicyStopRequest"], "Straight startup time limit"):
+            node._straight_startup_reference(node.estimation_output,
+                {"road": 1.5, "wheel_speed": .25, "imu_angular_velocity": .25})
+        node = self.straight_node()
+        node.run_policy_step()
+        node.test_clock.advance(.05)
+        feed(node, center=0, speed=.2)
+        node.async_planner = object()
+        def pending(estimates, timeouts):
+            node.planning_output = {"valid": False, "reason": "planning_pending"}
+            return estimates
+        node._async_planning_cycle = pending
+        node.run_policy_step()
+        self.assertTrue(node.straight_startup_road_seen)
+        node.straight_startup_started_at -= 3.0
+        node.supervision_callback()
+        self.assertIn("Straight startup time limit", node.state_reason)
+
+    def test_straight_start_bounds_must_be_finite_positive(self):
+        for name in ("straight_startup_max_time_s", "straight_startup_max_distance_m"):
+            for value in (0, -1, math.inf, math.nan):
+                with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                    ns["ControlSettings"](**{name: value})
+
+    def test_straight_start_keeps_motion_failure_and_run_time_stop(self):
+        node = self.straight_node()
+        node.run_policy_step()
+        node.test_clock.advance(.3)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 2)
+        node = self.straight_node()
+        node.run_policy_step()
+        node.policy_started_at -= 30
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("Run time limit", node.state_reason)
+
+    def test_straight_start_bridges_only_initial_pending_handoff(self):
+        node = self.straight_node()
+        node.run_policy_step()
+        node.test_clock.advance(.05)
+        feed(node, center=0, speed=.2)
+        node.async_planner = object()
+        def pending(estimates, timeouts):
+            node.planning_output = {"valid": False, "reason": "planning_pending"}
+            return estimates
+        node._async_planning_cycle = pending
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertTrue(node.straight_startup_road_seen)
+        self.assertFalse(node.straight_startup_complete)
+        self.assertEqual(node.planning_output["planner_version"], "straight_startup")
+        node.async_planner = None
+        node.test_clock.advance(.05)
+        feed(node, center=0, speed=.2)
+        node.run_policy_step()
+        self.assertTrue(node.straight_startup_complete)
+
+    def test_predicted_first_road_and_stale_motion_cannot_start_handoff(self):
+        node = self.straight_node()
+        node.run_policy_step()
+        estimates = deepcopy(node.estimation_output)
+        stamp = estimates["state"]["timestamp_s"]
+        estimates["road"].update(valid=True, visibility="both", time_aligned=True,
+            frame_id="base_link", timestamp_s=stamp, measurement_timestamp_s=stamp,
+            source_age_s=0, degraded=True)
+        timeouts = {"road": 1.5, "wheel_speed": .25, "imu_angular_velocity": .25}
+        self.assertFalse(node._startup_road_ready(estimates, timeouts))
+        self.assertIsNotNone(node._straight_startup_reference(estimates, timeouts))
+        estimates["state"]["source_age_s"]["imu_angular_velocity"] = .251
+        with self.assertRaisesRegex(ns["PolicyStopRequest"], "stale imu"):
+            node._straight_startup_reference(estimates, timeouts)
+
+    def test_straight_start_hands_off_to_actual_worker(self):
+        import time
+        node = self.straight_node()
+        node.run_policy_step()
+        node.async_planner = ns["AsyncLatticePlanner"]()
+        node.planning_generation = getattr(node, "planning_generation", 0)+1
+        node.last_planning_submit_s = -math.inf
+        node.last_async_fault, node.last_async_diagnostics = None, {}
+        try:
+            deadline = time.monotonic()+5
+            while not node.straight_startup_complete and time.monotonic() < deadline:
+                node.test_clock.advance(.05)
+                feed(node, center=0, speed=.2)
+                node.run_policy_step()
+                self.assertEqual(node.fsm_state, 3, node.state_reason)
+                time.sleep(.01)
+            self.assertTrue(node.straight_startup_complete)
+            self.assertEqual(node.planning_output["planner_version"], "frenet_lattice_v2")
+        finally:
+            node.async_planner.close()
+
     def node(self, direct=False, recovery_frames=1, speed=0.2):
         node = make_node(simulated=False, mvp=True)
         node.estimation_settings = replace(node.estimation_settings, road_hold_s=0)
@@ -475,6 +650,39 @@ class RobustLatticeIntegrationChecks(unittest.TestCase):
 
 
 class ControlChecks(unittest.TestCase):
+    def test_trajectory_log_uses_forward_input_and_matching_startup_details(self):
+        import json
+        node = make_node()
+        lines = []
+        node.get_logger = lambda: SimpleNamespace(info=lines.append)
+        reference = {"valid": True, "trajectory_id": 3, "timestamp_s": 10.0,
+            "frame_id": "base_link", "path": {"type": "CARTESIAN_SAMPLES",
+            "samples_xy_heading_curvature": [[0, 0, 0, 0], [.6, .02, -.1, -.2]]}}
+        forward = {"timestamp_s": 10.0, "measurement_timestamp_s": 9.7,
+            "status": "near_field_unobserved", "geometry_valid": True,
+            "centerline_xy": [[.6+i*.01, .03] for i in range(201)],
+            "left_boundary_xy": [[.6, .5], [2.6, .5]],
+            "right_boundary_xy": [[.6, -.5], [2.6, -.5]]}
+        road = {"valid": False, "status": "near_field_unobserved", "centerline_xy": [],
+                "forward_geometry": forward}
+        diag = {"startup_connection": {"selected_join": {"x_m": .7, "y_m": .03}},
+                "selected": {"startup_join_x_m": .7}}
+        state = {"timestamp_s": 10.0, "speed_mps": 0.0, "yaw_rate_rps": .1}
+        before = deepcopy((reference, road, diag, state))
+        node._log_planned_trajectory(reference, "planner_worker", road, diag, state)
+        record = json.loads(lines[0].split("Planned trajectory: ", 1)[1])
+        self.assertEqual(record["trajectory_id"], 3)
+        self.assertEqual(record["planning_input"]["geometry_source"], "forward_geometry")
+        self.assertEqual(record["planning_input"]["measurement_timestamp_s"], 9.7)
+        center = record["planning_input"]["centerline_xy"]
+        self.assertEqual(center["point_count"], 201)
+        self.assertEqual(center["logged_point_count"], 128)
+        self.assertEqual(center["point_indices"][0], 0)
+        self.assertEqual(center["point_indices"][-1], 200)
+        self.assertEqual(record["planning_details"]["startup_connection"], diag["startup_connection"])
+        self.assertEqual(record["planning_state"]["yaw_rate_rps"], .1)
+        self.assertEqual((reference, road, diag, state), before)
+
     def test_generated_trajectory_logging_preserves_path_and_bounds_output(self):
         import json
         node = make_node()
@@ -829,7 +1037,7 @@ class ControlChecks(unittest.TestCase):
 
     def test_invalid_settings_and_incomplete_calibration_are_rejected(self):
         for values in ({"drive_max": 2.0}, {"enabled": 1}, {"max_dt_s": 0}, {"speed_ki": float("nan")},
-                       {"mode": "unknown"}, {"max_distance_m": 0}, {"max_run_time_s": float("inf")},
+                       {"mode": "unknown"}, {"max_distance_m": -1}, {"max_run_time_s": float("inf")},
                        {"mvp_steering_direction": 0}):
             with self.assertRaises(ValueError):
                 ns["ControlSettings"](**values)
@@ -878,6 +1086,17 @@ class ControlChecks(unittest.TestCase):
 
 
 class DistanceChecks(unittest.TestCase):
+    def test_disabled_distance_limit_counts_travel_and_keeps_gap_checks(self):
+        self.assertEqual(ns["ControlSettings"](max_distance_m=0).max_distance_m, 0)
+        limiter = ns["RunDistanceLimiter"](0.0, 0.2)
+        limiter.reset(0.0, 1.0)
+        limiter.distance_m = 3.1
+        self.assertIsNone(limiter.advance(1.0, .1))
+        self.assertAlmostEqual(limiter.distance_m, 3.2)
+        self.assertIsNone(limiter.advance(1.0, .2))
+        self.assertAlmostEqual(limiter.distance_m, 3.3)
+        self.assertIn("clock/gap", limiter.advance(1.0, .5))
+
     def test_variable_speed_cached_checks_and_exact_threshold(self):
         limiter = ns["RunDistanceLimiter"](3.0, 0.2)
         limiter.reset(0.0, 0.0)

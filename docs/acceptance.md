@@ -1,5 +1,185 @@
 # AI4R policy acceptance
 
+## Successful-path road and startup endpoint logging, 2026-10-14
+
+Extend the existing Planned trajectory JSON with planning_input (input-frame
+road centerline and both boundaries, source and alignment metadata),
+planning_details (selected candidate, initialization, startup connection with
+exact selected join position/heading/curvature and start conditions), and
+planning_state (same job's wheel speed/yaw and ages). The selected join is
+evaluated from the observed curve using the winning candidate's join x, rather
+than the last searched candidate. Inputs share the trajectory ID and timestamp.
+The worker returns its actual state snapshot along with its road; logging is
+before reference transport and control selection. No driving settings changed.
+Near-field invalid outer roads use their validated forward_geometry for input
+points, labelled explicitly; estimator validity is not promoted. Each geometry
+list logs up to 128 points with counts and indices including both endpoints.
+
+Verification: 245 portable tests passed (control 58, lattice 65, estimation 104,
+planning 18), including endpoint evaluation and non-mutating bounded log input
+capture. Full ROS fast gate unavailable on Windows; hardware not run. Changes
+are local, not deployed.
+
+## Temporarily disable low-speed yaw consistency stop, 2026-10-14
+
+At the user's explicit request add lattice.low_speed_yaw_check_enabled (code
+default true, active YAML false). Both lattice and centerline recovery planners
+skip only the low_speed_yaw_inconsistent rejection when false. The existing
+low-speed curvature approximation, motion validity/freshness, geometry and
+other stop checks remain in effect. This does not repair zero wheel feedback.
+Local changes only; no vehicle deployment or physical test performed.
+Verification: 244 portable checks passed (lattice 65, control 57, estimation
+104, planning 18), including switch enabled/disabled in both planner paths and
+nonfinite motion rejection. Diff whitespace check passed. Full ROS fast gate
+unavailable on this Windows host.
+
+## Restore lattice controlled startup, 2026-10-14 (local, not deployed)
+
+User explicitly requested returning to the prior controlled startup after log
+1c2fc502 confirmed straight-mode zero steering for about three seconds, followed
+by its time-limit stop. Set active control.straight_startup_enabled=false;
+retain lattice startup_connection_enabled=true and clear_start_assumed=true.
+The existing neutral startup wait and lattice origin connection now govern the
+first command, rather than waiting in a moving straight mode for origin coverage.
+The optional straight implementation and its budgets remain available but off.
+Other experiment settings, including 0.6 m horizon and the previously disabled
+startup corridor clearance, are preserved. No live vehicle commands issued.
+Verification: portable control 57 and lattice 63 checks passed (120 total),
+active YAML parsed and startup flags confirmed; diff whitespace check passed.
+Full ROS fast gate unavailable on this Windows host; hardware not run.
+
+## Bound straight startup after persistent forward driving, 2026-10-14
+
+The supplied car log a7c3db1f shows repeated straight_startup references and no
+lattice handoff, ending in a nonempty-cone watchdog stop. The previous straight
+phase had no independent time/distance limit; fresh unusable road frames could
+therefore sustain straight commands until another watchdog or total runtime.
+Target speed in these records is not evidence of measured vehicle speed.
+
+Add positive finite control.straight_startup_max_time_s=3.0 and
+straight_startup_max_distance_m=0.5 (code defaults and active YAML). From the
+first straight reference, either budget ends straight control and requests
+explicit resume, including during initial worker handoff. Both reference
+generation and independent supervision enforce the budgets. Cumulative run
+distance may stay disabled; the separate straight budget still applies. Once
+lattice handoff completes these limits no longer apply. Run transitions reset
+the phase. Log the waiting-road reason and flags at most once per second.
+
+Portable checks cover exact time/distance bounds, no callback supervision,
+per-reference enforcement, pending-worker enforcement, explicit restart, and
+normal handoff removal of the budgets. Full ROS fast gate unavailable on this
+Windows host; physical stopping and speed remain unverified. Not deployed.
+Portable suites passed: control 57, estimation 104, planning 18, lattice 63
+(242 total); diff whitespace check passed.
+
+## Straight drive before first usable road, 2026-10-14 (local, not deployed)
+
+User requested immediate straight startup until the first usable road, then
+lattice. Add control.straight_startup_enabled (default false; active YAML true,
+MVP/lattice_v2 only). Before a usable road the node emits fresh 0.6 m Cartesian
+straight references with y/heading/curvature=0, cruise target 0.2 m/s, speed PI
+and exactly zero steering. These are operator-authorized unobserved references,
+not collision-checked road geometry, and never seed the trusted-road cache.
+The estimator keeps receiving measurements/motion while lattice submission waits.
+
+A usable road is valid, both-sided, non-degraded, in the policy frame and aligned
+to state time with a real measurement timestamp and age below the planning cap.
+The FIRST such road latches handoff. Initial pending worker calculation may
+briefly retain straight output while that road stays usable, bounded by the
+existing 3 s startup_grace_s from the handoff time. A hard planner failure or road
+loss during handoff stops normally. The first accepted non-STOP lattice reference
+completes transition permanently for that run. Later road loss never re-enters
+straight mode. Explicit run transitions reset phase; vehicle Enable is separate.
+
+Fresh valid wheel/gyro and current reference expiry remain required. Original
+startup neutral deadline no longer stops the straight phase (it has active
+control); the existing 30 s total runtime and sensor/empty-cone watchdogs remain.
+No additional artificial wait for three startup road frames was introduced.
+
+238 portable checks passed: estimation 104, planning 18, lattice 63, control 53.
+New actual-method cases exercise straight/zero-steer output beyond 3 s, one-frame
+handoff, no re-entry, motion failure, total runtime stop, predicted-first-road
+exclusion, stale gyro rejection, pending handoff, and actual worker handoff.
+Actual YAML settings/straight output and syntax/whitespace checks pass. Full
+installed ROS gate and vehicle deployment/physical motion remain unverified.
+
+## Temporarily bypass fixed startup-corridor clearance, 2026-10-14 (local)
+
+User explicitly requested temporarily disabling the clearance check that rejected
+the left front corner in the fixed initial corridor. Add boolean lattice setting
+startup_corridor_check_enabled, default true; active YAML sets false. Only body
+points before observed support with an active startup corridor skip its fixed
+clearance test. Observed-support body checks, obstacle checks when enabled,
+motion/startup validity, initial width admission, steering and timing remain.
+Unchecked points receive a neutral finite score (clearance_soft_m), not a claim
+of measured free space; they cannot inject Infinity into worker JSON. Diagnostic
+records identify the switch. Restoring true reinstates the original check.
+
+233 portable checks passed (104 estimation, 18 planning, 63 lattice, 48 control).
+Regression verifies enabled rejection, disabled bypass with finite output, and
+retained obstacle and observed-boundary rejection. Actual YAML/settings and
+worker JSON checks pass. No car upload or physical validation/full ROS gate.
+
+## Requested transition samples and model angle, 2026-10-14 (local)
+
+User requested transition_lengths_m=0.3,0.6 and a 90-degree planning-model
+steering ceiling. Active YAML applies these values; lattice setting validation
+now permits exactly pi/2 but rejects greater angles. Computed atan steering
+remains below pi/2; this is a model comparison ceiling, not calibrated physical
+wheel travel. Physical normalized steering cap remains 0.5, steering-rate limit
+remains pi/2 rad/s, and all geometry/motion constraints remain. Startup join
+sampling still clamps these labels to observed support and the 0.9 m join cap;
+with first support at 0.84 m the two labels deduplicate to one 0.84 m join.
+Actual YAML startup and 0.2 m/s cruise checks pass with the 0.6 m horizon;
+ordinary cruise candidates contain only 0.3/0.6 m transitions. 232 portable
+checks pass (104 estimation, 18 planning, 62 lattice, 48 control), including
+90-degree setting admission and above-limit rejection. No vehicle deployment,
+physical steering capability test or installed ROS gate was performed.
+
+## 0.6 s road-age allowance, 2026-10-14 (local, not deployed)
+
+User requested relaxing the 0.4 s planning road-age ceiling to 0.6 s. Active
+planning.max_source_age_s is now 0.6. Estimator/cone timeout still caps road
+input at 1.5 s; wheel/gyro planning admission remains capped at 0.25 s.
+Reference lifetime remains 0.2 s and the 0.6 m spatial horizon is unchanged.
+Actual merged YAML checks admit road age 0.404/0.599 s, reject 0.600/0.601 s
+as stale_road (strict age < limit), and reject IMU age 0.251 s. 18 planning
+and 61 lattice checks pass; YAML/whitespace checks pass. No ROS gate or car
+deployment was performed. Other planner constraints may still reject a path.
+
+## Disable cumulative distance stop, 2026-10-14 (local, not deployed)
+
+After user-provided logs reached the 3.004 m / 3 m distance stop, the user
+explicitly requested removing that limit. control.max_distance_m now accepts
+zero as disabled; the active YAML sets 0.0. Positive values retain the original
+limit. Distance integration and debug2 remain active; invalid wheel input and
+clock gaps still stop. max_run_time_s=30 and all other stop rules are retained.
+231 portable checks passed (estimation 104, planning 18, lattice 61, control 48),
+including travel past 3 m with distance stop disabled and subsequent gap
+rejection; existing positive-limit/time-stop regressions pass. Syntax/YAML and
+whitespace checks passed. No installed ROS gate or deployment was performed.
+
+## Disable historical overlap rejection for requested trial, 2026-10-14 (local)
+
+User explicitly requested cancellation of the new/old road conflict check.
+Add estimation.history_conflict_check_enabled (boolean, default true) and set
+it false in the active YAML. Disabled mode bypasses overlap comparison/rejection,
+conflict quarantine/replay gating and the legacy conflict-driven cache deletion.
+The estimator no longer produces observed_history_conflict from these checks;
+therefore the associated control hard-stop is not triggered by them. Other
+hard road statuses, boundary/width/support checks, motion validity, source age,
+planning constraints and hold budgets remain enforced. The switch is exposed
+in history diagnostics as conflict_check_enabled. No ages/vehicle parameters
+were increased and the 0.6 m/1 s profile is retained.
+
+230 portable checks passed: estimation 104, planning 18, lattice 61, control 47.
+Enabled-mode regressions explicitly retain overlap-rejection behavior; disabled
+mode checks verify no conflict status/quarantine event, preserved rear cache
+and rejection of later motion gaps. Invalid non-boolean settings are rejected.
+No full ROS gate, upload or physical run was performed for this change. This
+trial does not establish that conflicting new/old boundaries are physically
+correct or that remaining geometry checks will admit every frame.
+
 ## Merged perception fix and 0.6 m test profile, 2026-10-14
 
 At the user's request, merge origin/mvp2.0@77b0244 into the local test profile
