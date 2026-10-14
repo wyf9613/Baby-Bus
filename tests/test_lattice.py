@@ -164,6 +164,66 @@ class LatticeChecks(unittest.TestCase):
         args[4] = 10.5
         self.assertEqual(p.plan(*args, mvp=True)[0]["reason"], "startup_motion_history_gap")
 
+    def test_startup_motion_continues_through_rejected_road(self):
+        for rejection in ("stale", "missing"):
+            with self.subTest(rejection=rejection):
+                p = self.startup_planner()
+                self.assertTrue(p.plan(*fixture(near=.6, speed=0), mvp=True)[0]["valid"])
+                for index in range(1, 5):
+                    args = fixture(near=.6, speed=.2)
+                    args[4] = 10+index*.1
+                    for item in args[:3]:
+                        item["timestamp_s"] = args[4]
+                    if index < 4:
+                        if rejection == "stale":
+                            args[0]["source_age_s"] = .405
+                        else:
+                            args[0].update(valid=False, status="missing_motion_history")
+                    ref, _ = p.plan(*args, mvp=True)
+                    if index < 4:
+                        self.assertFalse(ref["valid"])
+                        self.assertEqual(ref["target_speed_mps"], 0)
+                        self.assertTrue(ref["stop_requested"])
+                    else:
+                        self.assertTrue(ref["valid"], ref["reason"])
+                # The initial corridor stays fixed, while vehicle pose advances.
+                self.assertAlmostEqual(p.startup_corridor["pose"][0], .07)
+                self.assertAlmostEqual(p.startup_corridor["far_x"], .6)
+
+    def test_bad_motion_during_road_failure_cannot_refresh_startup_history(self):
+        for fault in ("stale_speed", "stale_yaw", "invalid", "frame", "time", "nonfinite"):
+            with self.subTest(fault=fault):
+                p = self.startup_planner()
+                self.assertTrue(p.plan(*fixture(near=.6, speed=0), mvp=True)[0]["valid"])
+                before = deepcopy(p.startup_corridor)
+                for index in range(1, 4):
+                    args = fixture(near=.6, speed=.2)
+                    args[4] = 10+index*.1
+                    for item in args[:3]:
+                        item["timestamp_s"] = args[4]
+                    args[0]["source_age_s"] = .405
+                    if fault.startswith("stale"):
+                        sensor = "wheel_speed" if fault == "stale_speed" else "imu_angular_velocity"
+                        args[1]["source_age_s"][sensor] = .25
+                    elif fault == "invalid":
+                        args[1]["yaw_rate_valid"] = False
+                    elif fault == "frame":
+                        args[1]["frame_id"] = "camera"
+                    elif fault == "time":
+                        args[1]["timestamp_s"] -= .1
+                    else:
+                        args[1]["yaw_rate_rps"] = float("nan")
+                    self.assertFalse(p.plan(*args, mvp=True,
+                        source_timeout_s={"road": 1.5, "wheel_speed": .25,
+                                          "imu_angular_velocity": .25})[0]["valid"])
+                    self.assertEqual(p.startup_corridor, before)
+                    self.assertEqual(p.startup_motion[0], 10)
+                args = fixture(near=.6, speed=.2)
+                args[4] = 10.4
+                for item in args[:3]:
+                    item["timestamp_s"] = args[4]
+                self.assertEqual(p.plan(*args, mvp=True)[0]["reason"], "startup_motion_history_gap")
+
     def test_archived_curved_fit_can_start_without_rear_extension_conflict(self):
         # Near-end values/derivatives from the 2026-10-13 archived diagnostic.
         args = fixture(near=0.6, speed=0)
@@ -815,6 +875,33 @@ class Mvp2Checks(unittest.TestCase):
             self.assertEqual(result["diagnostics"]["near_support"]["extension_m"], 0)
             self.assertEqual(result["reference"]["path"]["samples_xy_heading_curvature"][0], [0, 0, 0, 0])
             self.assertTrue(result["diagnostics"]["selected"]["adaptive_short_transition"])
+            # Same worker generation must carry motion through road failures.
+            job["generation"] = 44
+            job["lattice"]["geometry_step_m"] = .05
+            job["planning"]["max_source_age_s"] = .4
+            for index in range(5):
+                args = fixture(near=.6, speed=0 if index == 0 else .2)
+                args[4] = 10+index*.1
+                for item in args[:3]:
+                    item["timestamp_s"] = args[4]
+                if 0 < index < 4:
+                    args[0]["source_age_s"] = .405
+                args.append({"road": .4, "wheel_speed": .25, "imu_angular_velocity": .25})
+                job["args"] = args
+                self.assertTrue(worker.submit(job, time.monotonic()))
+                result = None
+                deadline = time.monotonic()+2.0
+                while result is None and time.monotonic() < deadline:
+                    result = worker.poll()
+                    time.sleep(.005)
+                self.assertIsNotNone(result)
+                self.assertNotIn("error", result)
+                if 0 < index < 4:
+                    self.assertEqual(result["reference"]["reason"], "stale_road")
+                    self.assertFalse(result["reference"]["valid"])
+                else:
+                    self.assertTrue(result["reference"]["valid"], result)
+            self.assertAlmostEqual(result["diagnostics"]["startup_connection"]["corridor"]["pose"][0], .07)
         finally:
             worker.close()
         self.assertIsNotNone(worker.process.poll())

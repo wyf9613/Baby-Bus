@@ -1,5 +1,59 @@
 # AI4R policy acceptance
 
+## Startup motion across rejected roads, 2026-10-14
+
+Handoff to perception/estimation: user reports about 2 m of physical travel on
+a straight road. PID 9018 logs show origin support had been seen, then coverage
+started about 0.60 m ahead; oldest support was only about 0.27--0.47 s old,
+against the 30 s distance-mode lifetime. The reference hold expired. In a later
+run with a right bend about 1.5 m ahead, TRACKING lasted about 3.9 s before all
+candidates failed the fixed initial corridor at s=0: far_x=0.773 m plus 0.15 m,
+body point x=0.965 m, violation about 0.042 m. Origin support had never been
+seen in that run. These observations do not establish a bend-curvature failure.
+
+Inspect _history_road: it ignores _history_at failure reasons, discards all old
+support on any overlapping fit conflict, replaces the cache with fresh points
+after a failed merged fit, and retains only fit inliers after success. These
+are possible loss paths, not a proven identification of the physical run's
+trigger. No timeout/corridor expansion was applied. Latest local diagnostics
+also correct boundary_source lookup (the estimator uses the singular key).
+User logs demonstrate the added coverage diagnostics ran on the car; exact
+installed hash/full ROS gate and 3 m acceptance remain unverified.
+
+Follow-up user-supplied run (PID 8346) reached TRACKING for about 7 s before
+near_field_unobserved caused DEGRADED and the 1 s reference-hold limit stopped
+the policy. No startup_motion_history_gap appeared in that run. The logs do
+not identify why origin support was lost or establish the loaded file hash.
+Local diagnostics now include current and worker road near_field coverage,
+history usage/boundary sources, and the planner's observed_origin_seen flag.
+This logging-only addition preserves behavior and limits; 60 lattice and 44
+control checks, syntax and whitespace checks passed. Subsequent user logs include
+these diagnostics; no assistant-controlled car deployment was performed.
+
+User-provided vehicle source hash matched the local pre-fix policy:
+`90e564d20e885363b4f44a077c0e76044717990a760f99b98baaf16511a39c57`.
+The supplied run reached TRACKING, reported wheel speed up to about 0.206 m/s,
+then DEGRADED on stale_road (0.405 s against 0.4 s), and zero output on
+startup_motion_history_gap. This is wheel feedback, not independent physical
+motion or stopping evidence. The dump matches the key shipped settings.
+
+Previously, road rejection skipped startup-corridor motion integration, so
+healthy later motion could encounter an artificial gap. An established fixed
+initial corridor now advances before road admission, using only finite,
+fresh, frame/time-aligned wheel/gyro state and the existing interval limits.
+Invalid roads still produce invalid references. Missing/stale/invalid motion
+cannot refresh the corridor; an actual excessive gap still rejects startup
+reuse. No timeout, speed, vehicle enable, or physical configuration changed.
+
+213 portable checks passed: estimation 91, planning 18, lattice 60, control 44.
+The new regression failed on both stale and missing roads before the fix;
+after it, recovery succeeds with the correctly advanced fixed corridor.
+Negative checks preserve rejection after bad motion. A real planner subprocess
+retains the same generation over three stale-road jobs and recovers on the
+fourth fresh job. Syntax and git diff whitespace checks passed. The required
+CONTRIBUTING fast gate is unavailable here (no Bash/WSL Linux/ROS Jazzy runtime);
+no car connection, upload, enable, or post-fix physical run was performed.
+
 ## First-reference startup, no confirmation counter (local, not deployed)
 
 The user requested removal of the FIRST-drive three-frame gate. The first

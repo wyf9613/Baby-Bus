@@ -1970,6 +1970,46 @@ class FrenetLatticePlanner:
         self.startup_corridor = None
         self.startup_motion = None
 
+    def _advance_startup_motion(self, state, now_s, source_timeout_s):
+        """Carry the fixed initial corridor even when this job rejects the road.
+
+        Only fresh, aligned motion can advance it. A missed motion interval is
+        never bridged or reset; observed road can still supersede the corridor.
+        """
+        if self.startup_motion is None or self.startup_corridor is None:
+            return False
+        if (not state.get("speed_valid") or not state.get("yaw_rate_valid")
+                or state.get("frame_id") != self.frame_id
+                or not finite_number(state.get("timestamp_s"))
+                or abs(state["timestamp_s"]-now_s) > 1e-6):
+            return False
+        speed, yaw = state.get("speed_mps"), state.get("yaw_rate_rps")
+        if not finite_number(speed) or speed < 0 or not finite_number(yaw):
+            return False
+        ages = state.get("source_age_s") or {}
+        limits = []
+        for name in ("wheel_speed", "imu_angular_velocity"):
+            timeout = (source_timeout_s or {}).get(name, 0.25)
+            if not finite_number(timeout) or timeout <= 0:
+                return False
+            age = ages.get(name)
+            if not finite_number(age) or not 0 <= age < min(self.settings.max_source_age_s, timeout):
+                return False
+            limits.append(timeout)
+        stamp, previous_speed, previous_yaw = self.startup_motion
+        dt = now_s-stamp
+        if not 0 <= dt <= min(limits):
+            return False
+        v, rate = (speed+previous_speed)/2, (yaw+previous_yaw)/2
+        turn = rate*dt
+        dx = v*dt if abs(rate) < 1e-8 else v*math.sin(turn)/rate
+        dy = 0.0 if abs(rate) < 1e-8 else v*(1-math.cos(turn))/rate
+        px, py, angle = self.startup_corridor["pose"]
+        self.startup_corridor["pose"] = [px+math.cos(angle)*dx-math.sin(angle)*dy,
+            py+math.sin(angle)*dx+math.cos(angle)*dy, wrap_angle(angle+turn)]
+        self.startup_motion = (now_s, speed, yaw)
+        return True
+
     def _model(self, limits):
         cfg = self.cfg
         names = ("wheelbase_m", "rear_axle_from_cg_m", "front_extent_m", "rear_extent_m", "width_m",
@@ -2063,7 +2103,8 @@ class FrenetLatticePlanner:
         started, cfg = self.clock() if _started is None else _started, self.cfg
         self._consistency_cache = {}
         diag = {"candidates": [], "obstacle_response_enabled": cfg.obstacle_check_enabled,
-                "model_source": cfg.model_source, "near_support": None, "initialization": {}}
+                "model_source": cfg.model_source, "near_support": None, "initialization": {},
+                "observed_origin_seen": self.observed_origin_seen}
         ref = {"schema_version": "planning_reference_v2", "planner_version": "frenet_lattice_v2",
                "trajectory_id": self.sequence, "timestamp_s": now_s, "generated_at_s": now_s,
                "frame_id": self.frame_id, "vehicle_reference_point": "cg_ground_projection",
@@ -2092,6 +2133,10 @@ class FrenetLatticePlanner:
         try:
             if not finite_number(now_s) or not isinstance(road, dict) or not isinstance(state, dict):
                 raise ValueError("invalid_lattice_input")
+            # Road/source rejection must not discard healthy motion updates.
+            # This never admits a path or changes the road's validity/lifetime.
+            startup_motion_updated = (self._advance_startup_motion(state, now_s, source_timeout_s)
+                                      if not self.observed_origin_seen else False)
             if (not road.get("valid") and road.get("status") == "near_field_unobserved"
                     and cfg.clear_start_assumed and not self.observed_origin_seen):
                 forward = road.get("forward_geometry")
@@ -2201,20 +2246,9 @@ class FrenetLatticePlanner:
                         raise ValueError("startup_corridor_too_narrow")
                     self.startup_corridor = {"half_width": width/2, "far_x": near,
                                              "pose": [0.0, 0.0, 0.0]}
-                if self.startup_motion is not None:
-                    stamp, previous_speed, previous_yaw = self.startup_motion
-                    dt = now_s-stamp
-                    if not 0 <= dt <= min((source_timeout_s or {}).get("wheel_speed", 0.25),
-                                         (source_timeout_s or {}).get("imu_angular_velocity", 0.25)):
-                        raise ValueError("startup_motion_history_gap")
-                    v, rate = (speed+previous_speed)/2, (yaw+previous_yaw)/2
-                    turn = rate*dt
-                    dx = v*dt if abs(rate) < 1e-8 else v*math.sin(turn)/rate
-                    dy = 0.0 if abs(rate) < 1e-8 else v*(1-math.cos(turn))/rate
-                    px, py, angle = self.startup_corridor["pose"]
-                    self.startup_corridor["pose"] = [px+math.cos(angle)*dx-math.sin(angle)*dy,
-                        py+math.sin(angle)*dx+math.cos(angle)*dy, wrap_angle(angle+turn)]
-                self.startup_motion = (now_s, speed, yaw)
+                    self.startup_motion = (now_s, speed, yaw)
+                elif not startup_motion_updated:
+                    raise ValueError("startup_motion_history_gap")
                 startup = self.startup_corridor
             extension = 0.0 if use_startup else max(0.0, near+model["rear_extent_m"]+0.15)
             if extension < 1e-9:
@@ -4827,7 +4861,8 @@ class PolicyNode(Node):
                     "source_measurement_timestamp_s": result["road"].get("measurement_timestamp_s"),
                     "result_timestamp_s": ref.get("timestamp_s"),
                     "worker_road": {key: result["road"].get(key) for key in (
-                        "status", "valid", "visibility", "source_age_s", "degraded", "frame_id")}}
+                        "status", "valid", "visibility", "source_age_s", "degraded", "frame_id",
+                        "near_field", "history_used", "boundary_source", "geometry_valid")}}
                 self.planning_diagnostics = dict(self.last_async_diagnostics)
                 self.last_planner_elapsed_s = result["diagnostics"].get("elapsed_s")
                 if ref.get("valid"):
@@ -4877,6 +4912,8 @@ class PolicyNode(Node):
             "reason": reference.get("reason"), "control_has_run": self.control_has_run,
             "road_status": road.get("status"), "road_valid": road.get("valid"),
             "road_visibility": road.get("visibility"), "road_source_age_s": road.get("source_age_s"),
+            "road_near_field": road.get("near_field"), "road_history_used": road.get("history_used"),
+            "road_boundary_sources": road.get("boundary_source"),
             "state_valid": state.get("valid"), "speed_mps": state.get("speed_mps"),
             "speed_valid": state.get("speed_valid"), "yaw_rate_valid": state.get("yaw_rate_valid"),
             "planning_diagnostics": diagnostics})
