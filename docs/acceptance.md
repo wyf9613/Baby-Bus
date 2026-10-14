@@ -1,6 +1,85 @@
 # AI4R policy acceptance
 
-Current terminal setting: automatic 0.80 m terminal straight on tracked-road
+## Car 05 corner-entry feedback candidate, 2026-10-14
+
+The operator requested sharper turns after selecting a single-side full-width
+offset fraction of 0.6. Live readback confirmed that fraction and vehicle
+steering_max_normalized=1.0. Recent logs showed alternating endpoint/interior
+feedback conventions and output lag under the 2.0/s policy slew limiter.
+
+With control.mvp_ordered_cornering_enabled=true, ordered-XY MVP feedback blends
+local normal error with observed preview-point y, and preview tangent with
+target bearing. The local/tangent weight is preview/(preview+entry_distance),
+where entry_distance is the nonnegative tangential distance to the observed
+first point, zero for an interior projection. The formula is continuous as
+support reaches the vehicle projection; far support has less tangent weight.
+PI + heading P remains active, with no physical-angle map or curvature law.
+Heading Kp is 1.5 and policy steering slew is 4.0/s. The 0.10 s error filter,
+0.35 m preview, 0.2 m/s target and 0.6 boundary offset are retained.
+
+Five static new controller checks, 33 existing control/lifecycle checks and
+the real-ROS installed/namespaced configuration check passed (39 checks total).
+The vehicle-dynamics simulation and full gate containing it were not run at
+the user's request. This is a candidate for operator-controlled hardware tests;
+corner clearance and physical tracking improvement remain unverified.
+Uploaded policy_node.py and ai4r_policy.yaml to Car 05 (10.43.254.18); student
+build and policy restart succeeded. Runtime readback confirmed cornering=true,
+heading Kp=1.5, slew=4.0/s, single-side offset=0.6, policy state 2 and vehicle
+Disabled. No Run/Enable was sent; the operator performs the physical trial.
+
+## Car 05 autonomous steering range, 2026-10-14
+
+The operator reported successful gentle-bend repeats and a passed right-angle
+turn with insufficient steering margin. Read-only logs showed sustained -1.0
+policy requests while the vehicle interface still scaled steering into +/-0.5.
+At the user's explicit request the local and Car 05 student vehicle YAML now
+select steering_min_normalized=-1.0 and steering_max_normalized=1.0. Only those
+two live YAML values changed; policy gains, 0.2 m/s target and actuator PWM/RC
+calibration settings were preserved. Student build and vehicle-interface restart
+succeeded; parameter readback confirmed -1.0/+1.0, trim 0.0, policy 2, Disarmed,
+wheel 0 and applied drive 0. Manual neutral steer reported 0.004 (1502 us).
+The final pinned ROS gate passed 272 checks, zero errors/failures/skips. No
+physical run was initiated after this range change; the user tests through UI.
+Readback: project diagnostics/car05-20261014/steering-full/readback.json.
+Gate: .verification/car05-steering-full-fast-gate.log. Follow-up changes remain
+local and deployed; no additional push was performed after the user's correction.
+
+## Ordered XY / PID bend candidate, 2026-10-14
+
+The local `fix/newcar-control` candidate selects `estimation.road_geometry=ordered_xy`:
+bounded directional cone chains, local normal boundary pairing, ordered
+arc-length centreline samples, and 0.35 m arc-length PID preview with atan2
+headings. The previous y(x) implementation remains selectable. Current-frame
+lateral/heading errors use a 0.10 s low-pass filter; immediate faults and Stop
+clear it. Speed remains 0.2 m/s with the existing PI/feedforward settings.
+Single-boundary width inference is preserved, including disjoint far-side
+return. Its actually observed visible chain can now bridge a short subsequent
+blind gap under the original source/hold/travel deadlines. Predictions do not
+refresh acquisition ages or relearn lane width. The complex-track YAML disables
+automatic terminal straight (`end_straight_distance_m=0.0`); the optional old
+patch remains available.
+
+Pinned Jazzy fast gate passed 270 checks, zero errors/failures/skips:
+181 portable, 84 ROS policy cases and 5 colcon entries. Coverage includes left/
+right U turns, vertical right-angle segments, avoiding a nearer rear-facing
+exit, wheel/gyro alignment, single-side dropout/restoration, recorded Car 15
+dropouts, blind-gap expiry, PID smoothing and immediate zero/Path clear.
+An explicitly labelled ideal bicycle fixture completes both 1 m radius
+hairpins with maximum internal cross-track error about 0.0484 m. This uses an
+assumed 0.33 m wheelbase and +/- pi/4 steering map; neither is physical car
+calibration. Two extra source probes reject unknown-width cold starts and
+swapped overlapping boundaries. The initial ROS cases correctly stopped when
+their 0.11 s fixture update exceeded the default 0.1 s reference; setting the
+fixture to the production 0.2 s lifetime fixed the test setup.
+
+Gate and provenance: `experiments/2026-10-14/evidence/ordered-road/`.
+Candidate deployment, actual corner clearance and physical turn trials: **not run**.
+The pushed gentle-bend baseline is `271bfb9`; the evidence below describes that
+and earlier physical trials, not physical acceptance of the new candidate.
+
+## Archived terminal profile
+
+Archived terminal setting: automatic 0.80 m terminal straight on tracked-road
 `invalid_road_insufficient_geometry`, requested and clarified by the user.
 0.30 m and 1.0 m settings were deployed and physically exercised; both stopped
 on the terminal distance condition with zero/Disabled telemetry confirmed.

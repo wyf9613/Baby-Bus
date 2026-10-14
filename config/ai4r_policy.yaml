@@ -182,7 +182,8 @@
       road_hold_s: 0.8
       # Dimensionless confidence threshold in [0,1].
       min_cone_confidence: 0.25
-      # Local y(x) support and sample spacing, metres. No extrapolation beyond
+      # Local support and sample spacing, metres; ordered_xy uses arc length,
+      # y_of_x uses x coverage. No extrapolation beyond
       # measured inlier coverage. Sampling is bounded to at most 201 points.
       # Retain the requested 4 m observation window; the relaxed estimated
       # width bound below admits the recorded curve-start geometry.
@@ -190,18 +191,19 @@
       road_min_coverage_m: 0.3
       road_sample_spacing_m: 0.1
       road_max_gap_m: 2.0
-      # Huber residual transition, metres; fitting work is bounded, with up to
+      # Legacy y_of_x Huber residual transition, metres; fitting work is bounded, with up to
       # 64 cones per side and 8 iterations. All values are prototype tuning.
       # History conflict tolerance is twice this value: 0.40 m. The modest
       # relaxation bridges the recorded view change in Car 15's relaxed2 replay.
       huber_delta_m: 0.20
-      # Estimated width plausibility, metres, NOT vehicle clearance. The
-      # same-x/slope approximation shrinks in bends. Car 15 replay: 0.3 m
+      # Estimated width plausibility, metres, NOT vehicle clearance. ordered_xy
+      # intersects local normals with an agreeing opposite boundary tangent.
+      # The legacy same-x/slope approximation shrinks in bends. Car 15 replay: 0.3 m
       # rejects 8/21 stationary frames, 0.2 m rejects 2/21, 0.15 m accepts 21/21.
       # Positive width/order, finite geometry and source deadlines still apply.
       road_width_min_m: 0.15
       road_width_max_m: 2.5
-      # Maximum abs(dy/dx), dimensionless. Car 15's next curve-start replay
+      # Legacy y_of_x maximum abs(dy/dx), dimensionless. Car 15's next curve-start replay
       # rejected a visible yellow boundary at 2; 3 admits all 9 recorded frames.
       # This is a boundary-fit limit, not a steering-angle calibration.
       road_max_abs_slope: 3.0
@@ -210,10 +212,17 @@
       known_lane_width_m: 0.0
       # Learn width from the last valid raw yellow+blue observation in THIS run.
       # If one side loses its fit, offset the fresh visible boundary inward by
-      # half that width; restore the two-sided centreline when both return.
+      # the configured fraction of that FULL width. Restore the geometric
+      # two-sided centreline when both return.
       # Width stays fixed during dropout; no guessed 25 cm offset or old-path
       # replay. A run reset clears it, so single-side cold starts remain invalid.
       single_side_from_learned_width: true
+      # User-selected reference: three fifths of the full width inward.
+      # 0.5 restores the previous midpoint; width learning stays unchanged.
+      single_side_offset_fraction: 0.6
+      # Follow ordered XY chains by arc length, including vertical/returning
+      # segments. y_of_x restores the archived gentle-bend geometry mode.
+      road_geometry: ordered_xy
 
     # Simplest follower: pass the estimator's CURVED centerline to the PID.
     # Synchronous at 20 Hz; no lattice, candidate search, worker or return path.
@@ -257,15 +266,13 @@
       # retain continuous-zero state 2 and require an explicit restart.
       max_distance_m: 0.0
       max_run_time_s: 0.0
-      # After this run has tracked a valid road, insufficient boundary geometry
-      # switches ONCE to fixed forward effort / zero steering for 0.8 m of
-      # wheel odometry, then latches state 2. Cones returning do not resume it.
-      # This trigger also applies to geometry loss in a bend, not just a finish.
-      # Fresh empty camera frames are allowed in this terminal mode; missing /
-      # stale camera, wheel or gyro and operator Stop still immediately stop.
-      # The 8 s backup stops a stalled car with fresh zero wheel telemetry.
-      # Set distance to 0.0 to restore the previous immediate geometry stop.
-      end_straight_distance_m: 0.8
+      # Complex-track profile: missing cones in a bend are not a finish signal.
+      # Disable automatic straight fallback. Optional legacy terminal patch:
+      # a positive distance switches once to fixed forward effort / zero steer
+      # on insufficient geometry after prior tracking; returning cones do not
+      # resume following. It still requires fresh camera/wheel/gyro messages,
+      # and the time cap/operator Stop can stop it early. Baseline used 0.8 m.
+      end_straight_distance_m: 0.0
       end_straight_drive_normalized: 0.30
       end_straight_max_time_s: 8.0
       # Car 15 correction candidate: stronger lateral feedback relative to
@@ -273,12 +280,19 @@
       # Still direct normalized feedback; no measured wheel-angle map.
       mvp_lateral_kp: 2.5
       mvp_lateral_ki: 0.0
-      mvp_heading_kp: 1.0
+      mvp_heading_kp: 1.5
+      # Ordered corner entry uses both the observed preview tangent and target
+      # bearing, with continuous distance weighting instead of an endpoint
+      # mode switch. The existing PI + heading P remains the controller.
+      mvp_ordered_cornering_enabled: true
       # Archived main car sign: positive actuator command turned right.
       mvp_steering_direction: -1.0
       # Smooth ordinary corrections: at 20 Hz the request changes by at most
-      # 0.10 per cycle. Fault/operator stops still immediately publish zero.
-      mvp_steering_slew_rate_per_s: 2.0
+      # 0.20 per cycle. Fault/operator stops still immediately publish zero.
+      mvp_steering_slew_rate_per_s: 4.0
+      # Smooth current-frame lateral/heading errors when boundary sources
+      # change. Faults and operator stops still immediately publish zero.
+      mvp_error_filter_tau_s: 0.10
       # Optional measured low-speed sustaining effort, normalized [0, drive_max].
       # Zero preserves the original feedback-only behavior. A stop still sends zero.
       mvp_drive_feedforward: 0.30
@@ -294,9 +308,8 @@
       # Forward-only effort. Stop/invalid/expired reference transitions to
       # continuous zero actions; the simulated negative-drive hold is NOT used.
       drive_max: 0.35
-      # Use the vehicle interface's complete student input interval. Its own
-      # +/-0.8 output interval remains active; the old +/-0.5 at both levels
-      # restricted firmware-reported output to +/-0.25.
+      # Use the complete student input interval. Car 05's deployed vehicle
+      # interval is also +/-1.0; these are normalized commands, not angles.
       steering_max_normalized: 1.0
       max_dt_s: 0.2
       # Before FIRST control only: neutral priming of delayed camera history.

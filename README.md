@@ -1,12 +1,22 @@
 # Baby Bus · ai4r_policy
 
+当前 5 号车版本标注为 **弯道激进版**：航向 Kp=1.5、转向变化率 4/s、
+连续混合急弯反馈，策略和车辆转向范围均为 ±1.0，单侧偏移为完整宽度的 0.6 倍。
+用户已反馈急弯改进正常，U 弯仍待改进。配置及验证范围见
+[弯道激进版实测基线](docs/experiments/2026-10-14/AGGRESSIVE_BEND_BASELINE_CN.md)。
+
 已加入最小 Foxglove 轨迹显示：`/car/policy_trajectory`（标准 ROS Path），
 表示控制器实际采用的参考路径，停止时清线。
 导入 [布局](tools/foxglove_road_visualization/layout.json)，见[使用说明](tools/foxglove_road_visualization/README.md)。
 
-`fix/newcar-control` 当前使用最简中心线跟踪：road-estimation-v2 感知输出
-曲线中心线，planning 原样传给控制器，目标恒定 0.2 m/s；弯道和有效短时预测
+`fix/newcar-control` 当前工作区加入急弯候选：`estimation.road_geometry=ordered_xy`，
+边界按相邻锥桶和行驶方向构成二维有序链，双侧沿局部法线匹配，单侧继续偏移记忆半宽。
+中线按弧长采样，支持竖直及向后折返的局部路段；PID 沿道路预瞄 0.35 m，
+用 `atan2` 计算航向，增加 0.10 s 当前误差平滑。沿用横向 PI、航向 P、速度 PI，
+目标恒定 0.2 m/s；弯道和有效短时预测
 均不自动降速。偏离中心线时由横向 PI 与航向 P 纠正，不搜索回正轨迹。
+急弯候选通过 pinned Jazzy 270 项软件检查，零失败/错误/跳过；尚未部署或实车验证。
+设计、证据与回退设置见 [急弯候选说明](docs/experiments/2026-10-14/ORDERED_ROAD_PID_CN.md)。
 单一 20 Hz timer 同步执行，无 lattice、规划子进程、候选搜索或三帧起步确认；
 控制侧的旧直线路径缓存关闭，连续道路历史只由感知负责。支持已观测前方中线
 起步；双侧观测学习宽度后，缺一侧或共同范围不足时，
@@ -18,9 +28,11 @@
 原 V1 直线规划仍可选，本文后面的 V1 描述属于历史版本。
 每次显式启动累计原始轮速里程。当前 `control.max_distance_m` 与
 `max_run_time_s` 均为 0，按用户要求关闭 3 m / 30 s 测试上限；设回正数可恢复。
-新增末段补丁：本轮已有有效跟踪后，`invalid_road_insufficient_geometry` 自动转入
+复杂赛道候选将 `control.end_straight_distance_m` 设为 0，关闭几何不足后的自动直行，
+避免急弯缺桶被当成终点。短时预测仍受原时间、源年龄和里程预算约束。
+已 push 的缓弯基线为 `271bfb9`，其末段补丁在本轮已有有效跟踪后，`invalid_road_insufficient_geometry` 自动转入
 固定油门 0.30、转向 0 的直行，额外轮速积分达到 0.80 m 后锁存停止；每次起跑只触发一次。
-该原因也可能出现在弯道，不自动判定终点；用户已选择按几何不足触发。
+该原因也可能出现在弯道，不自动判定终点。
 直行仍要求新鲜相机消息（允许空帧）、轮速和 gyro，8 s 未完成则停车；手动停止立即生效。
 其他无效/过期路径或反馈断流锁存停止，重新请求状态 3 才重置里程并恢复。
 `control.end_straight_distance_m=0.0` 可关闭补丁。0.30 m 和 1.0 m 配置均通过
