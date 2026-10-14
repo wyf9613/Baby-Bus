@@ -8,7 +8,8 @@ Reads /car/mpc_debug (std_msgs/String, the JSON published once per policy step).
 Bags need the ROS environment (rosbag2_py); JSONL needs nothing. Prints, per input:
 branch and reject-reason shares, median e_y / e_psi / candidate angle over valid
 shadow samples, the sign check (candidate angle opposite to the error), the
-candidate drive while pushed near 0.2 m/s, timing and the safety check that
+candidate drive while pushed near 0.2 m/s, timing, the share of async-Planning timing
+rejects (TIMING_REASONS) and the safety check that
 nothing was applied. It reports; the scenario's tape and angle record decide.
 """
 import argparse
@@ -19,6 +20,9 @@ import statistics
 import sys
 
 TOPIC = "/car/mpc_debug"
+# Async Planning V2 timing: the reference expired before the MPC used it, or its inputs
+# expired during the search. Gym and bag replay plan synchronously and never show these.
+TIMING_REASONS = ("ref_expired_or_future", "source_deadline_during_planning", "lattice_time_budget_exceeded")
 
 
 STORAGE_BY_SUFFIX = {".mcap": "mcap", ".db3": "sqlite3"}
@@ -101,6 +105,7 @@ def summarise(name, rows):
         solve_p95=p95(values(rows, "solve_s")), dt_median=median(values(rows, "dt")), dt_max=max(values(rows, "dt"), default=None),
         ref_age_max=max(values(rows, "ref_age_s"), default=None), applied_nonzero=applied,
         held_share=sum(1 for r in rows if r.get("reference_held"))/n,
+        timing_share=sum(1 for r in rows if r.get("reject_reason") in TIMING_REASONS)/n,
         held_age_max=max(values(rows, "reference_held_age_s"), default=None),
         phases=dict(Counter(r.get("phase") for r in rows)),
         sources={k: sorted({str(r.get(k)) for r in rows}) for k in
@@ -127,6 +132,8 @@ def report(results):
         if not r["steps"]:
             continue
         print(f"\n{r['name']}: branches {r['branches']}; reject reasons {r['reasons'] or 'none'}; phases {r['phases']}")
+        print(f"  timing rejects {100*r['timing_share']:.0f}% of steps ({', '.join(TIMING_REASONS)}; "
+              f"Thursday limit 10%)")
         print(f"  sources {r['sources']}; ref_age max {fmt(r['ref_age_max'])} s; dt median "
               f"{fmt(r['dt_median'], 1e3, 0)} ms; solve p95 {fmt(r['solve_p95'], 1e3, 1)} ms; "
               f"push samples {r['push_n']}; sign samples {r['corrective_n']}")

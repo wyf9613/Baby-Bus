@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """Build the single policy YAML that DREAM reads on car .27 (babysitter guide 5.2).
 
-    python tools/make_deploy_yaml.py --mode mpc-shadow [--distance 3.0] [--out DIR]
+    python tools/make_deploy_yaml.py --mode mpc-shadow --cones yellow-left [--distance 3.0]
+        [--road-age-s 0.6] [--out DIR]
 
 Layers, merged recursively in order (the repository files stay unchanged):
   steer-arc:  ai4r_policy.yaml + ai4r_policy_newcar27.yaml, controllers off, id_test arc sequence
   mvp:        ai4r_policy.yaml + ai4r_policy_newcar27.yaml
   mpc-shadow: ... + ai4r_policy_mpc_newcar27.yaml
   mpc-exec:   ... + the same, with shadow off and v_exec_max_mps <= 0.2 (needs vehicle.valid: true)
+--cones (required except steer-arc) writes estimation.left_colour/right_colour. Check the
+road on site first: the G2 field (2026-10-08) was blue-left, the course road on 10-13/14
+yellow-left. A swapped pair makes every road invalid_width_or_order.
+--road-age-s raises the camera age budget Planning may use (planning.max_source_age_s,
+estimation.max_source_age_s and sensor_timeout_s.cone_detections together; the smallest
+of the three applies). Default: unchanged, 0.4 s.
 Writes DIR/ai4r_policy.yaml (copy it to the car as config/ai4r_policy.yaml), DIR/mode.txt
 and DIR/policy_node.py, and prints both SHA-256 values to compare on the car.
 Needs PyYAML only.
@@ -47,7 +54,11 @@ def arc_test(drive):
             "settle_s": 2.0, "max_dt_s": 0.15, "max_run_s": 30.0}
 
 
-def build(mode, distance, arc_drive=0.32, v_exec_max=0.2):
+# ROS ConeDetection colour IDs (yellow=1, blue=2) as (left_colour, right_colour).
+CONE_LAYOUTS = {"blue-left": (2, 1), "yellow-left": (1, 2)}
+
+
+def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", road_age_s=None):
     layers = ["ai4r_policy.yaml", "ai4r_policy_newcar27.yaml"]
     if mode not in ("mvp", "steer-arc"):
         layers.append("ai4r_policy_mpc_newcar27.yaml")
@@ -56,6 +67,11 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2):
         merge(base, yaml.safe_load((ROOT / "config" / layer).read_text(encoding="utf-8")))
     p = base[KEY]["ros__parameters"]
     p["control"]["max_distance_m"] = distance
+    p["estimation"]["left_colour"], p["estimation"]["right_colour"] = CONE_LAYOUTS[cones]
+    if road_age_s is not None:
+        p["planning"]["max_source_age_s"] = road_age_s
+        p["estimation"]["max_source_age_s"] = max(p["estimation"]["max_source_age_s"], road_age_s)
+        p["sensor_timeout_s"]["cone_detections"] = max(p["sensor_timeout_s"]["cone_detections"], road_age_s)
     if mode == "mpc-exec":
         p["mpc"].update(shadow=False, v_exec_max_mps=min(p["mpc"]["v_exec_max_mps"], v_exec_max))
     if mode == "steer-arc":
@@ -102,8 +118,18 @@ def main():
                         help="steer-arc: constant drive request, just above the 0.289 deadband / 0.30 breakaway")
     parser.add_argument("--v-exec-max", type=float, default=0.2,
                         help="mpc-exec: mpc.v_exec_max_mps cap, in (0, 0.2]; 0.15 for a first curve run")
+    parser.add_argument("--cones", choices=sorted(CONE_LAYOUTS),
+                        help="which colour is on the LEFT of the road; required except for steer-arc")
+    parser.add_argument("--road-age-s", type=float,
+                        help="camera age budget for Planning, in (0.4, 0.6]; default unchanged (0.4)")
     parser.add_argument("--out", type=Path, default=ROOT / ".verification" / "car-deploy")
     args = parser.parse_args()
+    if args.cones is None:
+        if args.mode != "steer-arc":
+            parser.error("--cones blue-left|yellow-left is required: look at the road first")
+        args.cones = "blue-left"   # steer-arc runs no estimator-dependent controller
+    if args.road_age_s is not None and not 0.4 < args.road_age_s <= 0.6:
+        parser.error("--road-age-s must be in (0.4, 0.6]")
     if not 0 < args.distance <= 5.0:
         parser.error("--distance must be in (0, 5]")
     if args.distance > 3.0:
@@ -112,14 +138,21 @@ def main():
         parser.error("--arc-drive must be in [0.29, 0.35]")
     if not 0 < args.v_exec_max <= 0.2:
         parser.error("--v-exec-max must be in (0, 0.2]")
-    params, layers = build(args.mode, args.distance, args.arc_drive, args.v_exec_max)
+    params, layers = build(args.mode, args.distance, args.arc_drive, args.v_exec_max,
+                           args.cones, args.road_age_s)
     args.out.mkdir(parents=True, exist_ok=True)
     yaml_path, node_path = args.out / "ai4r_policy.yaml", args.out / "policy_node.py"
     yaml_path.write_bytes(yaml.safe_dump(params, sort_keys=False).encode("utf-8"))
     shutil.copyfile(ROOT / "scripts" / "policy_node.py", node_path)
-    (args.out / "mode.txt").write_text(f"{args.mode} {args.distance} layers={'+'.join(layers)}\n", encoding="utf-8")
     p = params[KEY]["ros__parameters"]
+    road_age = min(p["planning"]["max_source_age_s"], p["estimation"]["max_source_age_s"],
+                   p["sensor_timeout_s"]["cone_detections"])
+    (args.out / "mode.txt").write_text(
+        f"{args.mode} {args.distance} cones={args.cones} road_age_s={road_age} layers={'+'.join(layers)}\n",
+        encoding="utf-8")
     print(f"mode {args.mode}, layers {' + '.join(layers)}, max_distance_m {args.distance}")
+    print(f"cones {args.cones} (left_colour {p['estimation']['left_colour']}, right_colour "
+          f"{p['estimation']['right_colour']}; yellow=1 blue=2) | planning road age budget {road_age} s")
     if args.mode == "steer-arc":
         print("id_test", {k: p["id_test"][k] for k in ("mode", "steering_values", "drive_values", "durations_s")})
     print("control.enabled", p["control"]["enabled"], "| mpc",
