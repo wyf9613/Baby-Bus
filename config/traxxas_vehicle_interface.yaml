@@ -60,8 +60,10 @@
     # Student [-1,1] steering is scaled into this interval. These are normalized
     # commands, not wheel angles. Manual RC is not limited by these ROS endpoints.
     # Set related limits and trim together; DREAM validates the merged values.
-    steering_min_normalized: -0.5
-    steering_max_normalized: 0.5
+    # Car 15 candidate: widen autonomous steering from +/-0.5 to +/-0.8;
+    # keep the existing PWM/output boundaries above unchanged.
+    steering_min_normalized: -0.8
+    steering_max_normalized: 0.8
     # Initial centre correction, normalized, within the configured interval.
     # Runtime trim uses explicit steering-trim topics, not live parameter edits.
     steering_trim_normalized: 0.0

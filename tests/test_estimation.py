@@ -79,6 +79,123 @@ def input_record(speed=0.0, yaw=0.0, lidar=None):
 
 
 class EstimationChecks(unittest.TestCase):
+    def test_recorded_disjoint_return_keeps_near_side_and_learned_width(self):
+        record = json.loads((Path(__file__).parent / "fixtures" / "car15_disjoint_boundary_return.json").read_text())
+        first, returning = record["frames"]
+        pipeline = Pipeline(Settings(**record["estimation_parameters_at_capture"]))
+        batch = {"detections": returning["detections"]}
+        self.assertEqual(pipeline.road(batch, round(returning["timestamp_s"]*1e9), 0.0)["status"],
+                         "insufficient_common_range")  # No cold-start width guess.
+        pipeline._history_road({"detections": first["detections"]},
+                               round(first["timestamp_s"]*1e9), 0.0, first["timestamp_s"])
+        learned, seen = pipeline._learned_lane_width_m, pipeline._learned_lane_width_stamp_s
+        road = pipeline._history_road(batch, round(returning["timestamp_s"]*1e9),
+                                      0.0, returning["timestamp_s"])
+        self.assertTrue(road["valid"], road["status"])
+        self.assertEqual(road["single_side_fallback_reason"], "insufficient_common_range")
+        self.assertEqual(road["visibility"], "left_only")
+        self.assertTrue(all(x < 3.42 for x, _ in road["centerline_xy"]))
+        self.assertEqual(pipeline._learned_lane_width_m, learned)
+        self.assertEqual(pipeline._learned_lane_width_stamp_s, seen)
+
+    def test_disjoint_support_chooses_near_boundary_for_either_colour(self):
+        near = [0.5+0.2*i for i in range(7)]
+        far = [2.8+0.2*i for i in range(7)]
+        for near_side in ("left", "right"):
+            pipeline = Pipeline(Settings(road_forward_max_m=4.0,
+                                          single_side_from_learned_width=True))
+            pipeline._history_road(cones([(x, 0.5) for x in near], [(x, -0.5) for x in near]),
+                                   10_000_000_000, 0.0, 10.0)
+            road = pipeline._history_road(cones([(x, 0.5) for x in (near if near_side == "left" else far)],
+                                                [(x, -0.5) for x in (near if near_side == "right" else far)]),
+                                           10_100_000_000, 0.0, 10.1)
+            self.assertTrue(road["valid"], road["status"])
+            self.assertEqual(road["visibility"], near_side+"_only")
+            for x, y in road["centerline_xy"]:
+                self.assertLessEqual(x, near[-1])
+                self.assertAlmostEqual(y, 0.0)
+
+    def test_recorded_dropout_uses_width_learned_from_raw_both_sides(self):
+        record = json.loads((Path(__file__).parent / "fixtures" / "car15_single_side_dropout.json").read_text())
+        pipeline = Pipeline(Settings(**dict(record["estimation_parameters_at_capture"],
+                                            single_side_from_learned_width=True)))
+        first, missing = record["frames"]
+        both = pipeline._history_road({"detections": first["detections"]},
+                                      round(first["timestamp_s"]*1e9), 0.0, first["timestamp_s"])
+        self.assertTrue(both["valid"])
+        learned = pipeline._learned_lane_width_m
+        stamp = pipeline._learned_lane_width_stamp_s
+        inferred = pipeline._history_road({"detections": missing["detections"]},
+                                          round(missing["timestamp_s"]*1e9), 0.0, missing["timestamp_s"])
+        self.assertTrue(inferred["valid"], inferred["status"])
+        self.assertEqual(inferred["visibility"], "left_only")
+        self.assertEqual(inferred["centerline_source"], "left_boundary_inward_offset")
+        self.assertAlmostEqual(inferred["inward_offset_m"], learned/2)
+        self.assertEqual(inferred["lane_width_observed_at_s"], stamp)
+        self.assertIsNone(inferred["right_boundary_xy"])
+        self.assertEqual(pipeline._road_cones, [])
+        self.assertEqual(pipeline._learned_lane_width_m, learned)
+
+    def test_learned_offset_is_normal_to_either_sloping_boundary(self):
+        for missing_side in ("left", "right"):
+            pipeline = Pipeline(Settings(single_side_from_learned_width=True))
+            left, right = straight(slope=0.4, center=0.2)
+            pipeline._history_road(cones(left, right), 10_000_000_000, 0.0, 10.0)
+            road = pipeline._history_road(cones([] if missing_side == "left" else left,
+                                                [] if missing_side == "right" else right),
+                                           10_100_000_000, 0.0, 10.1)
+            self.assertTrue(road["valid"], road["status"])
+            self.assertAlmostEqual(road["inward_offset_m"], 0.5)
+            for x, y in road["centerline_xy"]:
+                self.assertAlmostEqual(y, 0.2+0.4*x, places=6)
+
+    def test_width_updates_only_on_both_sides_and_resets_with_history(self):
+        pipeline = Pipeline(Settings(single_side_from_learned_width=True))
+        left, right = straight(width=1.0)
+        pipeline._history_road(cones(left, right), 10_000_000_000, 0.0, 10.0)
+        pipeline._history_road(cones([(x, y+0.2) for x, y in left], []),
+                               10_100_000_000, 0.0, 10.1)
+        self.assertAlmostEqual(pipeline._learned_lane_width_m, 1.0)
+        self.assertEqual(pipeline._learned_lane_width_stamp_s, 10.0)
+        left, right = straight(width=1.4)
+        restored = pipeline._history_road(cones(left, right), 10_200_000_000, 0.0, 10.2)
+        self.assertEqual(restored["visibility"], "both")
+        self.assertFalse(restored.get("single_side_inferred_from_learned_width", False))
+        self.assertAlmostEqual(pipeline._learned_lane_width_m, 1.4)
+        self.assertEqual(pipeline._learned_lane_width_stamp_s, 10.2)
+        pipeline._clear_road_history()
+        self.assertIsNone(pipeline._learned_lane_width_m)
+        self.assertFalse(pipeline.road(cones(left, []), 10_300_000_000, 0.0)["valid"])
+
+    def test_recorded_tight_bend_admits_both_observed_sides_with_relaxed_slope(self):
+        record = json.loads((Path(__file__).parent / "fixtures" / "car15_slope_start.json").read_text())
+        for slope, status in ((2.0, "single_side_width_unknown"), (3.0, "observed")):
+            settings = Settings(**dict(record["estimation_parameters_at_capture"],
+                                       road_max_abs_slope=slope))
+            road = Pipeline(settings).road({"detections": record["detections"]},
+                                            round(record["timestamp_s"]*1e9), 0.0)
+            self.assertEqual(road["status"], status)
+            self.assertEqual(road["valid"], slope == 3.0)
+            self.assertEqual(road["boundary_diagnostics"]["left"]["fit_valid"], slope == 3.0)
+            self.assertTrue(road["boundary_diagnostics"]["right"]["fit_valid"])
+            if road["valid"]:
+                self.assertEqual(road["visibility"], "both")
+                self.assertTrue(0.8 < road["lane_width_m"] < 1.0)
+
+    def test_history_conflict_uses_measured_support_instead_of_global_fit_bias(self):
+        fit = namespace["_estimation_fit_boundary"](
+            [(0.0, 0.5, 0.95), (1.0, 0.5, 0.95), (2.0, 0.75, 0.95),
+             (3.0, 0.5, 0.95), (4.0, 0.5, 0.95)], Settings(huber_delta_m=0.15,
+                 road_forward_max_m=4.0, road_max_gap_m=2.0))
+        self.assertIsNotNone(fit)
+        a, b, c = fit["coeffs"]
+        old_y = a+2*b+4*c+0.31
+        self.assertLess(abs(old_y-0.75), 0.3)
+        self.assertFalse(Pipeline._observed_support_conflicts(2.0, old_y, fit, 0.3))
+        self.assertTrue(Pipeline._observed_support_conflicts(2.0, 1.2, fit, 0.3))
+        self.assertTrue(Pipeline._observed_support_conflicts(1.5, 1.2, fit, 0.3))
+        self.assertFalse(Pipeline._observed_support_conflicts(-0.1, 1.2, fit, 0.3))
+
     def test_cached_sample_is_not_reassimilated(self):
         f = Filter(0.15, 0.5)
         f.update(0.0, 1, 0.0)
@@ -206,13 +323,13 @@ class EstimationChecks(unittest.TestCase):
     def test_settings_reject_invalid_ranges_and_unbounded_work(self):
         for kwargs in ({"speed_tau_s": 0.0}, {"road_sample_spacing_m": 1e-6},
                        {"known_lane_width_m": -1.0}, {"road_width_min_m": 3.0},
-                       {"min_cone_confidence": float("nan")}):
+                       {"min_cone_confidence": float("nan")},
+                       {"single_side_from_learned_width": 1}):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 Settings(**kwargs)
 
     def test_shipped_estimation_profile_enables_imported_history_fixes(self):
         # Parse this restricted scalar subtree without a YAML dependency.
-        # Only the history profile differs from the legacy class defaults.
         import re
         config = Path(__file__).resolve().parents[1] / "config" / "ai4r_policy.yaml"
         scalars = {}
@@ -230,17 +347,20 @@ class EstimationChecks(unittest.TestCase):
             self.assertNotIn(match[1], scalars)
             value = match[2]
             scalars[match[1]] = (value == "true" if value in ("true", "false") else
+                                  int(value) if match[1] in ("left_colour", "right_colour") else
                                   float(value) if value[0] in "-0123456789" else value)
         expected = vars(Settings())
-        expected.update(history_propagation="continuous", road_history_mode="distance",
+        expected.update(left_colour=1, right_colour=2,
+                        single_side_from_learned_width=True,
+                        history_propagation="continuous", road_history_mode="distance",
                         history_merge_single_side=True, history_merge_radius_m=0.08,
                         continuous_road_output=True, max_source_age_s=1.5,
                         motion_max_gap_s=0.25, motion_max_interval_s=0.5,
                         road_prediction_max_distance_m=0.5, road_history_max_s=30.0,
                         road_rear_support_m=1.0, road_hold_s=0.8, min_cone_confidence=0.25,
                         road_forward_max_m=4.0, road_min_coverage_m=0.3,
-                        road_max_gap_m=2.0, huber_delta_m=0.15,
-                        road_width_min_m=0.3, road_width_max_m=2.5, road_max_abs_slope=2.0)
+                        road_max_gap_m=2.0, huber_delta_m=0.20,
+                        road_width_min_m=0.15, road_width_max_m=2.5, road_max_abs_slope=3.0)
         self.assertEqual(scalars, expected)
         self.assertEqual(vars(Settings(**scalars)), scalars)
 
@@ -1216,7 +1336,11 @@ class RelaxedContinuityProfileChecks(unittest.TestCase):
             self.assertIsNotNone(match, line)
             value = match[2]
             values[match[1]] = (value == "true" if value in ("true", "false") else
+                                int(value) if match[1] in ("left_colour", "right_colour") else
                                 float(value) if value[0] in "-0123456789" else value)
+        # These cases compare timing/fit tuning with the shared blue-left fixture.
+        # The actual yellow-left policy path is covered in test_centerline_follow.
+        values.update(left_colour=2, right_colour=1)
         self.settings = Settings(**values)
 
     def step(self, pipeline, now, **kwargs):
@@ -1278,7 +1402,7 @@ class RelaxedContinuityProfileChecks(unittest.TestCase):
         self.assertGreater(relaxed["x_range_m"][1], legacy["x_range_m"][1])
         self.assertLessEqual(relaxed["x_range_m"][1], max(xs))
 
-    def test_expanded_window_is_bounded_and_width_order_still_checked(self):
+    def test_local_window_is_bounded_and_width_order_still_checked(self):
         pipeline = Pipeline(self.settings)
         xs = [-1.0, -0.5, 0.0, 1.0, 2.0, 3.0, 4.0]
         road = self.step(pipeline, 10.0, left=[(x, 0.5) for x in xs],

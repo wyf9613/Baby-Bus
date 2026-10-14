@@ -46,6 +46,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 import math
 from numbers import Real
+import signal
 import time
 import traceback
 
@@ -55,9 +56,12 @@ from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.signals import SignalHandlerOptions
 from rclpy.time import Time
 from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
 from sensor_msgs.msg import Imu, LaserScan
+from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Path
 from std_msgs.msg import Float32, Int8, String, UInt16
 from dream_interfaces.msg import (ConeDetection, ConeDetections, DriveAndSteer,
                                   FiducialDetections)
@@ -178,6 +182,9 @@ class EstimationSettings:
     # Brief quality-drop bridge, not the lifetime of near-field observations.
     # Zero disables prediction; source and motion deadlines still apply.
     road_hold_s: float = 0.2
+    # ROS cone colour IDs: yellow=1, blue=2. YAML selects the course layout.
+    left_colour: int = 2
+    right_colour: int = 1
     min_cone_confidence: float = 0.5
     road_forward_max_m: float = 3.0
     road_min_coverage_m: float = 0.5
@@ -190,6 +197,10 @@ class EstimationSettings:
     # 0 means unknown: single-sided geometry stays invalid until measured or
     # explicitly supplied for a known simulated road. Never guess a lane width.
     known_lane_width_m: float = 0.0
+    # Remember the last valid TWO-SIDED observed width for this policy run.
+    # A fresh single boundary then defines an inward normal-offset centreline.
+    # This is a constant-track-width assumption, not a hold of an old path.
+    single_side_from_learned_width: bool = False
     # Imported mpc-car-run switches (docs/ESTIMATION_V1_CN.md); defaults keep
     # the original behaviour. "continuous" moves the cone history to every
     # policy step with short wheel/gyro intervals, so a camera gap no longer
@@ -213,6 +224,9 @@ class EstimationSettings:
     road_prediction_max_distance_m: float = 0.2
 
     def __post_init__(self):
+        if (type(self.left_colour) is not int or type(self.right_colour) is not int
+                or {self.left_colour, self.right_colour} != {1, 2}):
+            raise ValueError("estimation left/right colours must be distinct yellow=1 and blue=2")
         if self.history_propagation not in ("camera", "continuous"):
             raise ValueError("estimation.history_propagation must be camera or continuous")
         if self.road_history_mode not in ("time", "distance"):
@@ -221,11 +235,13 @@ class EstimationSettings:
             raise ValueError("estimation.history_merge_single_side must be bool")
         if not isinstance(self.continuous_road_output, bool):
             raise ValueError("estimation.continuous_road_output must be bool")
+        if not isinstance(self.single_side_from_learned_width, bool):
+            raise ValueError("estimation.single_side_from_learned_width must be bool")
         if self.continuous_road_output and self.history_propagation != "continuous":
             raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
             if name in ("history_propagation", "road_history_mode", "history_merge_single_side",
-                        "continuous_road_output"):
+                        "continuous_road_output", "single_side_from_learned_width"):
                 continue
             if not finite_number(value):
                 raise ValueError(f"estimation.{name} must be finite")
@@ -540,14 +556,18 @@ class EstimationPipeline:
     # history_propagation=continuous these end the output, not the history.
     CAMERA_GAP_FAILURES = ("unavailable", "motion_interval_too_long")
 
-    def __init__(self, settings, frame_id="base_link", left_colour=2, right_colour=1,
+    def __init__(self, settings, frame_id="base_link", left_colour=None, right_colour=None,
                  motion_history=None):
         self.settings, self.frame_id = settings, frame_id
-        self.left_colour, self.right_colour = left_colour, right_colour
+        self.left_colour = settings.left_colour if left_colour is None else left_colour
+        self.right_colour = settings.right_colour if right_colour is None else right_colour
         self.motion = motion_history or EstimationMotionHistory(settings)
         self._clear_road_history()
 
-    def _clear_road_history(self):
+    def _clear_road_history(self, *, keep_learned_width=False):
+        if not keep_learned_width:
+            self._learned_lane_width_m = None
+            self._learned_lane_width_stamp_s = None
         self._road_cones = []  # (x, y, z, colour, confidence, original_seen_s)
         self._road_stamp = None
         self._fused_source_s = None  # camera time of the last fused frame
@@ -627,6 +647,27 @@ class EstimationPipeline:
             return None, problem
         return [(*move(p[:2], pose), *p[2:]) for p in self._road_cones], None
 
+    @staticmethod
+    def _observed_support_conflicts(x, y, fit, tolerance):
+        """Check real inlier support, not a global quadratic's model residual.
+
+        A changing view of a bend changes its best quadratic even when the
+        observed cones agree. That must not discard all unseen near history.
+        Actual contradictions within overlapping measured support still clear
+        history; no comparison or extension is made outside the observed span.
+        """
+        if not fit["range"][0] <= x <= fit["range"][1]:
+            return False
+        points = fit["support_points"]
+        at_x = [p for p in points if abs(p[0]-x) <= 1e-9]
+        if at_x:
+            return min(abs(y-p[1]) for p in at_x) > tolerance
+        for a, b in zip(points, points[1:]):
+            if a[0] < x < b[0]:
+                observed_y = a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0])
+                return abs(y-observed_y) > tolerance
+        return False
+
     def _history_road(self, batch, stamp_ns, age, now_s):
         """Merge bounded, validated observations; never extrapolate a blind start.
 
@@ -662,8 +703,23 @@ class EstimationPipeline:
         if source_s != self._observation_stamp or self._observation_road is None:
             self._observation_stamp = source_s
             self._observation_road = self.road(batch, stamp_ns, age)
+            # Learn ONLY from a fresh raw frame that independently fits BOTH
+            # sides. Merged history and inferred/predicted roads never teach
+            # a width or refresh its acquisition timestamp.
+            if (self.settings.single_side_from_learned_width
+                    and self._observation_road["valid"]
+                    and self._observation_road["visibility"] == "both"):
+                self._learned_lane_width_m = self._observation_road["lane_width_m"]
+                self._learned_lane_width_stamp_s = source_s
         current = deepcopy(self._observation_road)
         current["source_age_s"] = age
+        if current.get("single_side_inferred_from_learned_width"):
+            # Use today's visible boundary with the remembered HALF width.
+            # Old opposite-side cones must not veto or distort that trajectory.
+            # Width remains fixed until both boundaries are observed again;
+            # current camera and wheel/gyro deadlines still govern every step.
+            self._clear_road_history(keep_learned_width=True)
+            return current
         if not current["valid"] or current["visibility"] != "both":
             if current["status"] not in self.QUALITY_FAILURES:
                 self._clear_road_history()
@@ -675,9 +731,7 @@ class EstimationPipeline:
                 fit = current.get("_boundary_fits", {}).get(colour)
                 if fit is None:
                     continue
-                a0, a1, a2 = fit["coeffs"]
-                if (fit["range"][0] <= x <= fit["range"][1]
-                        and abs(y-(a0+a1*x+a2*x*x)) > 2*self.settings.huber_delta_m):
+                if self._observed_support_conflicts(x, y, fit, 2*self.settings.huber_delta_m):
                     self._clear_road_history()
                     current.update(valid=False, status="observed_history_conflict")
                     return current
@@ -698,9 +752,8 @@ class EstimationPipeline:
         # An observed change in the overlapping corridor invalidates old support.
         radius = 2*self.settings.huber_delta_m
         for colour, fit in fits.items():
-            a0, a1, a2 = fit["coeffs"]
-            if any(p[3] == colour and fit["range"][0] <= p[0] <= fit["range"][1]
-                   and abs(p[1]-(a0+a1*p[0]+a2*p[0]*p[0])) > radius for p in previous):
+            if any(p[3] == colour and self._observed_support_conflicts(p[0], p[1], fit, radius)
+                   for p in previous):
                 previous = []
                 break
         fresh = [(x, y, 0.0, colour, confidence, source_s)
@@ -878,16 +931,37 @@ class EstimationPipeline:
         output["status"] = "insufficient_geometry"
         if left is None and right is None:
             return output
+        lane_width = self.settings.known_lane_width_m
+        learned_single_side = False
         if left is None or right is None:
             output["visibility"] = "left_only" if left is not None else "right_only"
-            if self.settings.known_lane_width_m == 0:
+            if (self.settings.single_side_from_learned_width
+                    and self._learned_lane_width_m is not None):
+                lane_width = self._learned_lane_width_m
+                learned_single_side = True
+            if lane_width == 0:
                 output["status"] = "single_side_width_unknown"
                 return output
         fits = [fit for fit in (left, right) if fit is not None]
         lo, hi = max(f["range"][0] for f in fits), min(f["range"][1] for f in fits)
         if hi-lo < self.settings.road_min_coverage_m:
-            output["status"] = "insufficient_common_range"
-            return output
+            if (len(fits) == 2 and self.settings.single_side_from_learned_width
+                    and self._learned_lane_width_m is not None):
+                # A few returning FAR cones do not yet define a two-sided
+                # corridor beside the visible near boundary. Keep the near
+                # side with the last learned width until common support returns.
+                chosen = min(fits, key=lambda f: (f["range"][0],
+                                                  -(f["range"][1]-f["range"][0])))
+                left, right = (chosen, None) if chosen is left else (None, chosen)
+                output["visibility"] = "left_only" if left is not None else "right_only"
+                output["single_side_fallback_reason"] = "insufficient_common_range"
+                lane_width = self._learned_lane_width_m
+                learned_single_side = True
+                fits = [chosen]
+                lo, hi = chosen["range"]
+            else:
+                output["status"] = "insufficient_common_range"
+                return output
         count = min(200, math.ceil((hi-lo)/self.settings.road_sample_spacing_m))
         center, widths, samples = [], [], {"left": [], "right": []}
         for i in range(count+1):
@@ -908,7 +982,7 @@ class EstimationPipeline:
                 center.append((x, (yl+yr)/2))
             else:
                 y, slope = next(v for v in evaluated if v is not None)
-                width = self.settings.known_lane_width_m
+                width = lane_width
                 # Offset along the local normal, not simply along body y.
                 direction = -1 if left is not None else 1
                 half = direction*width/2/math.hypot(1, slope)
@@ -926,6 +1000,13 @@ class EstimationPipeline:
                       visibility="both" if len(fits) == 2 else output["visibility"],
                       status="observed" if len(fits) == 2 else "single_side_inferred",
                       fit_rms_m=max(f["rms_m"] for f in fits))
+        if learned_single_side:
+            output.update(single_side_inferred_from_learned_width=True,
+                          lane_width_source="last_two_sided_observation",
+                          lane_width_observed_at_s=self._learned_lane_width_stamp_s,
+                          inward_offset_m=lane_width/2,
+                          centerline_source="left_boundary_inward_offset" if left is not None
+                          else "right_boundary_inward_offset")
         for side, fit in (("left", left), ("right", right)):
             output[f"{side}_boundary_xy"] = samples[side] if fit is not None else None
             output["boundary_source"][side] = "observed" if fit is not None else "absent"
@@ -1012,7 +1093,9 @@ class EstimationPipeline:
                     else:
                         road["near_field"].update(valid=True, status="observed_support")
         if problem is not None:
-            if problem == "near_field_unobserved" and road["geometry_valid"]:
+            if (road["geometry_valid"] and (problem == "near_field_unobserved"
+                    or (problem == "near_field_requires_both_boundaries"
+                        and road.get("single_side_inferred_from_learned_width")))):
                 # Retain validated, aligned FORWARD observations separately.
                 # Estimator validity stays false; only an explicitly configured
                 # planning extension may consume this incomplete support.
@@ -1116,6 +1199,11 @@ class EstimationPipeline:
                 self._prediction_expired_source_s = None
             self._trusted_road = trusted_candidate
             self._failure_since_s = None
+        elif (road.get("forward_geometry") or {}).get("single_side_inferred_from_learned_width"):
+            # Fresh one-sided geometry is a new observation each frame, not
+            # a dead-reckoned hold. Preserve its width memory without starting
+            # or extending a trusted two-boundary prediction.
+            road["prediction_status"] = "fresh_single_side_geometry"
         elif state["valid"] and (failure in self.QUALITY_FAILURES or
                 (self.settings.continuous_road_output and road["status"] in
                  self.CAMERA_GAP_FAILURES + ("camera_frame_not_advanced",))):
@@ -1589,14 +1677,27 @@ class RoadCenterlinePlanner:
             return fail("invalid_centerline_input")
         if not road.get("valid"):
             forward = road.get("forward_geometry")
-            if (cfg.allow_forward_only and road.get("status") == "near_field_unobserved"
+            if (cfg.allow_forward_only
+                    and (road.get("status") == "near_field_unobserved"
+                         or (road.get("status") == "near_field_requires_both_boundaries"
+                             and isinstance(forward, dict)
+                             and forward.get("single_side_inferred_from_learned_width") is True))
                     and isinstance(forward, dict) and forward.get("geometry_valid") is True
                     and forward.get("time_aligned") is True):
                 road = forward  # Keep the estimator output intact; no extension.
                 diag["forward_only"] = True
             else:
                 return fail("invalid_road_"+str(road.get("status")))
-        if (road.get("visibility") != "both" or road.get("time_aligned") is not True
+        inferred_single_side = (cfg.allow_forward_only
+                                and road.get("single_side_inferred_from_learned_width") is True
+                                and road.get("visibility") in ("left_only", "right_only")
+                                and road.get("lane_width_source") == "last_two_sided_observation"
+                                and finite_number(road.get("lane_width_m"))
+                                and road["lane_width_m"] > 0
+                                and finite_number(road.get("lane_width_observed_at_s"))
+                                and road["lane_width_observed_at_s"] <= now_s)
+        if ((road.get("visibility") != "both" and not inferred_single_side)
+                or road.get("time_aligned") is not True
                 or state.get("speed_valid") is not True or state.get("yaw_rate_valid") is not True):
             return fail("centerline_or_motion_unavailable")
         if any(obj.get("frame_id") != self.frame_id or not finite_number(obj.get("timestamp_s"))
@@ -1641,6 +1742,12 @@ class RoadCenterlinePlanner:
                    valid_for_s=min(deadlines), path=path, target_speed_mps=cfg.cruise_speed_mps,
                    stop_requested=False, stop_reason=None, operating_profile="mvp_centerline_follow")
         diag.update(reason=ref["reason"], point_count=len(points), x_range_m=list(path["range"]),
+                    inferred_single_side=inferred_single_side,
+                    boundary_visibility=road.get("visibility"),
+                    centerline_source=road.get("centerline_source", "two_boundaries"),
+                    lane_width_m=road.get("lane_width_m"),
+                    inward_offset_m=road.get("inward_offset_m"),
+                    lane_width_observed_at_s=road.get("lane_width_observed_at_s"),
                     road_degraded=bool(road.get("degraded")), speed_policy="constant",
                     target_speed_mps=cfg.cruise_speed_mps,
                     reference_timestamp_s=ref["timestamp_s"], reference_valid_for_s=ref["valid_for_s"],
@@ -1672,7 +1779,7 @@ class ControlSettings:
     steering_max_normalized: float = 0.5
     max_dt_s: float = 0.2
     startup_grace_s: float = 0.5
-    # Per explicit policy run, wheel-speed odometry (metres), not road lookahead.
+    # Per explicit run. Zero disables that test budget; odometry still updates.
     max_distance_m: float = 3.0
     max_run_time_s: float = 30.0
     # Direct normalized steering for the first-run MVP, no wheel-angle model.
@@ -1680,6 +1787,9 @@ class ControlSettings:
     mvp_lateral_ki: float = 0.0
     mvp_heading_kp: float = 0.5
     mvp_steering_direction: float = 1.0
+    # Normalized policy units per second; zero preserves unrestricted legacy
+    # response. Operator/fault/planner stops always bypass this motion limiter.
+    mvp_steering_slew_rate_per_s: float = 0.0
     # Measured normalized effort needed to sustain the selected crawl speed.
     # Optional and zero by default; stop/invalid paths bypass this compensation.
     mvp_drive_feedforward: float = 0.0
@@ -1703,10 +1813,16 @@ class ControlSettings:
             if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"control.{name} must be finite and nonnegative")
         for name in ("derivative_tau_s", "drive_max", "steering_max_normalized",
-                     "max_dt_s", "startup_grace_s", "max_distance_m", "max_run_time_s",
+                     "max_dt_s", "startup_grace_s",
                      "reference_hold_max_s", "reference_hold_max_distance_m"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
+        for name in ("max_distance_m", "max_run_time_s"):
+            if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
+                raise ValueError(f"control.{name} must be finite and nonnegative (0 disables)")
+        if (not finite_number(self.mvp_steering_slew_rate_per_s)
+                or self.mvp_steering_slew_rate_per_s < 0):
+            raise ValueError("control.mvp_steering_slew_rate_per_s must be finite and nonnegative")
         if self.drive_max > 1 or self.steering_max_normalized > 1:
             raise ValueError("control action limits must not exceed 1")
         if not finite_number(self.mvp_steering_direction) or self.mvp_steering_direction not in (-1.0, 1.0):
@@ -1747,7 +1863,7 @@ class RunDistanceLimiter:
         self.previous_time_s, self.previous_speed_mps = now_s, speed_mps
         if not finite_number(self.distance_m):
             return "Wheel-speed distance estimate invalid"
-        if self.distance_m+1e-9 >= self.maximum_m:
+        if self.maximum_m > 0 and self.distance_m+1e-9 >= self.maximum_m:
             return f"Distance limit reached: {self.distance_m:.3f} m / {self.maximum_m:.3f} m; explicit resume required"
         return None
 
@@ -2124,6 +2240,7 @@ class PolicyController:
         self.speed = ControlPID(cfg.speed_kp, cfg.speed_ki, cfg.speed_kd, cfg.derivative_tau_s)
         self.lateral = ControlPID(cfg.lateral_kp, cfg.lateral_ki, cfg.lateral_kd, cfg.derivative_tau_s)
         self.mvp_lateral = ControlPID(cfg.mvp_lateral_kp, cfg.mvp_lateral_ki, 0.0, cfg.derivative_tau_s)
+        self._mvp_previous_steer = 0.0
 
     def calculate(self, reference, state, vehicle_params, now_s, dt):
         try:
@@ -2157,15 +2274,37 @@ class PolicyController:
                 geometry = control_path_geometry(reference.get("path"))
                 cfg = self.settings
                 heading = geometry["path_heading_rad"]
+                lateral_error = geometry["path_error_m"]
+                error_basis = "nearest_segment_normal"
+                if (geometry.get("path_encoding") == "CARTESIAN_CENTERLINE"
+                        and reference["path"]["range"][0] > 1e-9):
+                    # The curve does not observe the vehicle origin. Projecting
+                    # a distant bend's tangent back to the car manufactures a
+                    # local cross-track error (seen as a 0.41 m jump on car 15).
+                    # Aim at the existing observed preview point instead; no
+                    # road extension, stale-reference hold or guessed near lane.
+                    lateral_error = geometry["preview_y_m"]
+                    heading = math.atan2(geometry["preview_y_m"], geometry["preview_x_m"])
+                    error_basis = "observed_forward_target"
                 # Direct normalized PI + heading P, no degree-to-servo map or
                 # curvature feedforward borrowed from the bicycle simulation.
-                steer = self.mvp_lateral.update(geometry["path_error_m"], -geometry["path_error_m"], dt,
+                steer = self.mvp_lateral.update(lateral_error, -lateral_error, dt,
                     -cfg.steering_max_normalized, cfg.steering_max_normalized,
                     cfg.mvp_heading_kp*heading)
                 drive = self.speed.update(target-speed, speed, dt, 0.0, cfg.drive_max,
                                           feedforward=cfg.mvp_drive_feedforward)
-                return drive, cfg.mvp_steering_direction*steer, {
+                requested_steer = cfg.mvp_steering_direction*steer
+                output_steer = requested_steer
+                if cfg.mvp_steering_slew_rate_per_s > 0:
+                    step = cfg.mvp_steering_slew_rate_per_s*dt
+                    output_steer = max(self._mvp_previous_steer-step,
+                                       min(self._mvp_previous_steer+step, requested_steer))
+                self._mvp_previous_steer = output_steer
+                return drive, output_steer, {
                     **geometry, "valid": True, "stop_requested": False, "reason": "mvp_tracking",
+                    "control_lateral_error_m": lateral_error, "error_basis": error_basis,
+                    "steer_before_slew": requested_steer,
+                    "steer_slew_limited": output_steer != requested_steer,
                     "heading_error_rad": heading, "speed_error_mps": target-speed,
                     "operating_profile": "mvp_low_speed", "simulation_only": False}
             params = vehicle_params
@@ -2334,6 +2473,12 @@ class PolicyNode(Node):
         self.heading_publisher = self.create_publisher(Float32, "imu_heading_angle", 10)
         self.debug1_publisher = self.create_publisher(Float32, "debug1", 10)
         self.debug2_publisher = self.create_publisher(Float32, "debug2", 10)
+        self.declare_parameter("visualization.enabled", True, ParameterDescriptor(read_only=True))
+        self.trajectory_enabled = self.get_parameter("visualization.enabled").value
+        self.trajectory_publisher = self.create_publisher(Path, "policy_trajectory", 1)
+        self._trajectory_reference = None
+        self._trajectory_last_publish_s = -math.inf
+        self._publish_trajectory(self.get_clock().now().nanoseconds, force=True)
 
         self.create_subscription(ConeDetections, "cone_detections",
                                  self.cone_detection_callback, reliable_one)
@@ -2791,6 +2936,8 @@ class PolicyNode(Node):
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
         self._publish_actions(drive, steer, pan)
+        if hasattr(self, "trajectory_publisher"):
+            self._publish_trajectory(ros_now)
         if debug1 is not None:
             self.debug1_publisher.publish(Float32(data=float(debug1)))
         if debug2 is not None:
@@ -3077,7 +3224,7 @@ class PolicyNode(Node):
         if is_first_policy_step or not hasattr(self, "estimator"):
             self.estimator = EstimationPipeline(
                 self.estimation_settings, self.policy_frame_id,
-                ConeDetection.COLOR_BLUE, ConeDetection.COLOR_YELLOW, self.motion_history)
+                motion_history=self.motion_history)
         sample_receipts = {name: None if obs is None else obs.received_at
                            for name, obs in self.observations.items()}
         receipt_ros_ns = {name: None if obs is None else obs.received_ros_ns
@@ -3154,6 +3301,7 @@ class PolicyNode(Node):
                 reason = "Control: " + self.control_diagnostics["reason"]
                 raise PolicyStopRequest(reason)
             self.control_has_run = True
+            self._trajectory_reference = selected_reference
             self.last_control_reference_deadline_s = (
                 selected_reference["timestamp_s"]+selected_reference["valid_for_s"])
             if self._robust_control_enabled():
@@ -3162,6 +3310,33 @@ class PolicyNode(Node):
             # The existing state string reports planning/control stop reasons.
             debug1 = self.control_diagnostics["path_error_m"]
             debug2 = self.distance_limiter.distance_m
+            # Bounded diagnostic logging: expose the actual controller inputs,
+            # including forward-only targeting, instead of inferring them from
+            # separately delivered debug/action topics. No extra ROS interface.
+            log_now = self._monotonic()
+            if log_now-getattr(self, "_last_tracking_log_at", -math.inf) >= 0.5:
+                self._last_tracking_log_at = log_now
+                info = self.control_diagnostics
+                self.get_logger().info("Tracking: " + str({
+                    "timestamp_s": selected_reference["timestamp_s"],
+                    "path_error_m": info["path_error_m"],
+                    "control_lateral_error_m": info.get("control_lateral_error_m", info["path_error_m"]),
+                    "heading_error_rad": info["heading_error_rad"],
+                    "error_basis": info.get("error_basis", "calibrated"),
+                    "preview_xy_m": [info.get("preview_x_m"), info.get("preview_y_m")],
+                    "steer_requested": steering_action,
+                    "steer_before_slew": info.get("steer_before_slew", steering_action),
+                    "steer_slew_limited": info.get("steer_slew_limited", False),
+                    "curvature_1pm": info["curvature_1pm"],
+                    "speed_mps": estimates["state"]["speed_mps"],
+                    "yaw_rate_rps": estimates["state"]["yaw_rate_rps"],
+                    "road_status": estimates["road"].get("status"),
+                    "centerline_source": self.planning_diagnostics.get("centerline_source"),
+                    "inferred_single_side": self.planning_diagnostics.get("inferred_single_side"),
+                    "inward_offset_m": self.planning_diagnostics.get("inward_offset_m"),
+                    "lane_width_observed_at_s": self.planning_diagnostics.get("lane_width_observed_at_s"),
+                    "reference_valid_for_s": selected_reference["valid_for_s"],
+                }))
 
         # =====================================
         # END OF: INSERT POLICY CODE ABOVE HERE
@@ -3267,6 +3442,56 @@ class PolicyNode(Node):
             self.publish_zero_actions()
         self.get_logger().info(f"{STATE_NAMES[state]}: {reason}")
         self.publish_state()
+        self._trajectory_reference = None
+        if hasattr(self, "trajectory_publisher"):
+            self._publish_trajectory(self.get_clock().now().nanoseconds, force=True)
+            self._trajectory_last_publish_s = -math.inf
+
+    def _publish_trajectory(self, ros_now_ns, force=False):
+        """Display the accepted reference at 10 Hz; existing stops clear it."""
+        if not self.trajectory_enabled:
+            return
+        now = self._monotonic()
+        if not force and now-self._trajectory_last_publish_s < 0.1:
+            return
+        message = Path()
+        message.header.frame_id = self.policy_frame_id
+        message.header.stamp = Time(nanoseconds=ros_now_ns).to_msg()
+        try:
+            ref = self._trajectory_reference
+            if (self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION and ref
+                    and ref.get("valid") is True and ref.get("frame_id") == self.policy_frame_id
+                    and ref["timestamp_s"] <= ros_now_ns/1e9 < ref["timestamp_s"]+ref["valid_for_s"]):
+                path = ref["path"]
+                if path.get("type") == "CARTESIAN_CENTERLINE":
+                    points = path["samples_xy"]
+                else:
+                    cached = ref.get("control_cached_path_samples")
+                    lo, hi = (cached[0][0], cached[-1][0]) if cached else path["range"]
+                    points = []
+                    for i in range(81):
+                        x = lo if i == 0 else hi if i == 80 else lo+(hi-lo)*i/80
+                        sample = evaluate_planning_path(ref, x, ros_now_ns/1e9)
+                        if sample is None:
+                            points = []
+                            break
+                        points.append(sample["position_xy_m"])
+                if (2 <= len(points) <= 201
+                        and all(len(p) == 2 and all(finite_number(v) for v in p) for p in points)):
+                    message.header.stamp = Time(nanoseconds=round(ref["timestamp_s"]*1e9)).to_msg()
+                    for x, y in points:
+                        pose = PoseStamped(header=message.header)
+                        pose.pose.position.x, pose.pose.position.y = float(x), float(y)
+                        pose.pose.orientation.w = 1.0
+                        message.poses.append(pose)
+        except Exception as error:
+            message.poses = []
+            self._warn("trajectory_display", f"Trajectory display unavailable: {error}")
+        try:
+            self.trajectory_publisher.publish(message)
+            self._trajectory_last_publish_s = now
+        except Exception as error:
+            self._warn("trajectory_display", f"Trajectory display publication unavailable: {error}")
 
     def _control_problem(self, monotonic_now, ros_now_ns):
         """Distance/time budgets and reference expiry need no sensor callback."""
@@ -3278,7 +3503,7 @@ class PolicyNode(Node):
         problem = self.distance_limiter.advance(wheel.value, monotonic_now)
         if problem:
             return problem
-        if (self.policy_started_at is not None and
+        if (self.control_settings.max_run_time_s > 0 and self.policy_started_at is not None and
                 monotonic_now-self.policy_started_at >= self.control_settings.max_run_time_s):
             return "Run time limit reached; explicit resume required"
         deadline = self.last_control_reference_deadline_s
@@ -3330,7 +3555,15 @@ class PolicyNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    # Keep the context valid until the final zero command has been published.
+    # ROS's asynchronous signal handler can otherwise invalidate it mid-publish.
+    rclpy.init(args=args, signal_handler_options=SignalHandlerOptions.NO)
+
+    def request_stop(signum, frame):
+        raise KeyboardInterrupt
+
+    previous_handlers = {sig: signal.signal(sig, request_stop)
+                         for sig in (signal.SIGINT, signal.SIGTERM)}
     node = None
     executor = SingleThreadedExecutor()
     try:
@@ -3347,6 +3580,8 @@ def main(args=None):
         executor.shutdown()
         if rclpy.ok():
             rclpy.shutdown()
+        for sig, handler in previous_handlers.items():
+            signal.signal(sig, handler)
 
 
 if __name__ == "__main__":

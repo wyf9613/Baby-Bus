@@ -132,6 +132,10 @@
       # Internal records are self.estimation_output; the integrated controller
       # below consumes the planner reference only after all validity checks.
     estimation:
+      # Track boundaries: yellow left / blue right (ROS colour IDs 1 / 2).
+      # These must be distinct; changing them requires a policy restart.
+      left_colour: 1
+      right_colour: 2
       # One-pole filter time constants, seconds. Larger is smoother but slower.
       # New accepted samples update once; repeated cached samples do not.
       speed_tau_s: 0.15
@@ -176,26 +180,40 @@
       # follower records but ignores that advisory; prediction_remaining_s still
       # caps the reference lifetime. No automatic bend/dropout slowdown.
       road_hold_s: 0.8
-      # Dimensionless confidence threshold in [0,1]. Colour convention for this
-      # prototype is BLUE left / YELLOW right, as in the supplied course road.
+      # Dimensionless confidence threshold in [0,1].
       min_cone_confidence: 0.25
       # Local y(x) support and sample spacing, metres. No extrapolation beyond
       # measured inlier coverage. Sampling is bounded to at most 201 points.
+      # Retain the requested 4 m observation window; the relaxed estimated
+      # width bound below admits the recorded curve-start geometry.
       road_forward_max_m: 4.0
       road_min_coverage_m: 0.3
       road_sample_spacing_m: 0.1
       road_max_gap_m: 2.0
       # Huber residual transition, metres; fitting work is bounded, with up to
       # 64 cones per side and 8 iterations. All values are prototype tuning.
-      huber_delta_m: 0.15
-      # Plausibility limits for local road width, metres, NOT vehicle dimensions.
-      road_width_min_m: 0.3
+      # History conflict tolerance is twice this value: 0.40 m. The modest
+      # relaxation bridges the recorded view change in Car 15's relaxed2 replay.
+      huber_delta_m: 0.20
+      # Estimated width plausibility, metres, NOT vehicle clearance. The
+      # same-x/slope approximation shrinks in bends. Car 15 replay: 0.3 m
+      # rejects 8/21 stationary frames, 0.2 m rejects 2/21, 0.15 m accepts 21/21.
+      # Positive width/order, finite geometry and source deadlines still apply.
+      road_width_min_m: 0.15
       road_width_max_m: 2.5
-      # Maximum abs(dy/dx), dimensionless. Steep/non-function geometry is rejected.
-      road_max_abs_slope: 2.0
+      # Maximum abs(dy/dx), dimensionless. Car 15's next curve-start replay
+      # rejected a visible yellow boundary at 2; 3 admits all 9 recorded frames.
+      # This is a boundary-fit limit, not a steering-angle calibration.
+      road_max_abs_slope: 3.0
       # 0.0 means unknown: single-sided road is invalid. Set a measured road
       # width (m), or a known simulation width, before using single-side inference.
       known_lane_width_m: 0.0
+      # Learn width from the last valid raw yellow+blue observation in THIS run.
+      # If one side loses its fit, offset the fresh visible boundary inward by
+      # half that width; restore the two-sided centreline when both return.
+      # Width stays fixed during dropout; no guessed 25 cm offset or old-path
+      # replay. A run reset clears it, so single-side cold starts remain invalid.
+      single_side_from_learned_width: true
 
     # Simplest follower: pass the estimator's CURVED centerline to the PID.
     # Synchronous at 20 Hz; no lattice, candidate search, worker or return path.
@@ -233,20 +251,23 @@
       # Optional calibrated mode only: must match planning's simulation profile.
       # MVP uses direct normalized steering and ignores this geometry selector.
       vehicle_params_source: upstream
-      # Distance is raw-wheel-speed integration per explicit policy run. At
-      # >=3 m the framework enters continuous-zero state 2; state 3 must be
-      # requested explicitly to reset the budget and run again. Coasting/slip
-      # and encoder scaling affect the physical final stopping position.
-      max_distance_m: 3.0
-      # Backup cutoff if the wheel estimator reports fresh zero throughout.
-      max_run_time_s: 30.0
-      # Main archived car gains/sign/effort, retained as an unverified candidate
-      # for the current car. Direct normalized feedback, no wheel-angle map.
-      mvp_lateral_kp: 1.5
+      # Zero disables the workshop distance/time cutoff for continuous driving.
+      # Positive values restore a per-run test budget (metres / seconds).
+      # Wheel odometry still updates; sensor/path faults and operator Stop
+      # retain continuous-zero state 2 and require an explicit restart.
+      max_distance_m: 0.0
+      max_run_time_s: 0.0
+      # Car 15 correction candidate: stronger lateral feedback relative to
+      # heading, checked against recorded geometry and synthetic dynamics.
+      # Still direct normalized feedback; no measured wheel-angle map.
+      mvp_lateral_kp: 2.5
       mvp_lateral_ki: 0.0
       mvp_heading_kp: 1.0
       # Archived main car sign: positive actuator command turned right.
       mvp_steering_direction: -1.0
+      # Smooth ordinary corrections: at 20 Hz the request changes by at most
+      # 0.10 per cycle. Fault/operator stops still immediately publish zero.
+      mvp_steering_slew_rate_per_s: 2.0
       # Optional measured low-speed sustaining effort, normalized [0, drive_max].
       # Zero preserves the original feedback-only behavior. A stop still sends zero.
       mvp_drive_feedforward: 0.30
@@ -262,7 +283,10 @@
       # Forward-only effort. Stop/invalid/expired reference transitions to
       # continuous zero actions; the simulated negative-drive hold is NOT used.
       drive_max: 0.35
-      steering_max_normalized: 0.5
+      # Use the vehicle interface's complete student input interval. Its own
+      # +/-0.8 output interval remains active; the old +/-0.5 at both levels
+      # restricted firmware-reported output to +/-0.25.
+      steering_max_normalized: 1.0
       max_dt_s: 0.2
       # Before FIRST control only: neutral priming of delayed camera history.
       # Once tracking, use estimator output only; no controller cache or

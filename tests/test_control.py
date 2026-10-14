@@ -295,6 +295,26 @@ class RobustControlChecks(unittest.TestCase):
 
 
 class ControlChecks(unittest.TestCase):
+    def test_continuous_run_keeps_odometry_and_stops_on_missing_feedback(self):
+        node = make_node(simulated=False, mvp=True)
+        node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp",
+            max_distance_m=0.0, max_run_time_s=0.0)
+        node.controller = ns["PolicyController"](node.control_settings)
+        node.distance_limiter = ns["RunDistanceLimiter"](0.0, 0.2)
+        feed(node, speed=0.2)
+        start(node)
+        for _ in range(620):
+            node.test_clock.advance(0.05)
+            feed(node, speed=0.2)
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+        self.assertGreater(node.distance_limiter.distance_m, 6.0)
+        node.observations["imu_angular_velocity"] = None
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        self.assertEqual(node.action_publisher.messages[-1].steer, 0)
+
     def test_mvp_sustaining_effort_keeps_fault_and_operator_stops_neutral(self):
         node = make_node(simulated=False, mvp=True)
         node.control_settings = ns["ControlSettings"](
@@ -618,7 +638,7 @@ class ControlChecks(unittest.TestCase):
 
     def test_invalid_settings_and_incomplete_calibration_are_rejected(self):
         for values in ({"drive_max": 2.0}, {"enabled": 1}, {"max_dt_s": 0}, {"speed_ki": float("nan")},
-                       {"mode": "unknown"}, {"max_distance_m": 0}, {"max_run_time_s": float("inf")},
+                       {"mode": "unknown"}, {"max_distance_m": -0.1}, {"max_run_time_s": float("inf")},
                        {"mvp_steering_direction": 0}):
             with self.assertRaises(ValueError):
                 ns["ControlSettings"](**values)
