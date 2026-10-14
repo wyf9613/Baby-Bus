@@ -79,7 +79,7 @@ def make_node(monkeypatch):
         node._monotonic = lambda: clock.monotonic
         monkeypatch.setattr(node, "get_clock", lambda: clock)
         node._last_status_at = -math.inf
-        for name in ("action", "pan", "state", "state_text", "heading", "debug1", "debug2"):
+        for name in ("action", "pan", "state", "state_text", "heading", "debug1", "debug2", "trajectory"):
             setattr(node, name + "_publisher", Recorder())
         node.test_clock = clock
         return node
@@ -158,7 +158,7 @@ def driving_policy(*args):
 def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.vehicle_params_source": "course_simulation",
-           "planning.vehicle_limits_source": "course_simulation"})
+           "planning.vehicle_limits_source": "course_simulation", "estimation.road_hold_s": 0.0})
 
     def feed_road(empty=False):
         node.wheel_speed_callback(Float32(data=0.0))
@@ -171,7 +171,7 @@ def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
             for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
                 for i in range(9):
                     cone = ConeDetection()
-                    cone.position.x, cone.position.y = 0.1+0.3*i, y
+                    cone.position.x, cone.position.y = -0.2+0.3*i, y
                     cone.color, cone.classification_confidence = colour, 0.95
                     batch.detections.append(cone)
         node.cone_detection_callback(batch)
@@ -203,12 +203,274 @@ def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
     assert node.action_publisher.messages[-1].drive == 0
 
 
+@pytest.mark.parametrize("bend", [-0.2, 0.0, 0.2])
+@pytest.mark.parametrize("visualization", [True, False])
+def test_simple_curved_centerline_real_callbacks_constant_speed_and_stop(make_node, bend, visualization):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.drive_max": 0.35,
+           "control.mvp_drive_feedforward": 0.30, "control.speed_kp": 0.35,
+           "control.speed_ki": 0.08, "planning.algorithm": "road_centerline",
+           "planning.allow_forward_only": True, "planning.max_source_age_s": 0.5,
+           "estimation.history_propagation": "continuous", "estimation.continuous_road_output": True,
+           "visualization.enabled": visualization})
+
+    def feed(empty=False):
+        node.wheel_speed_callback(Float32(data=0.0))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        if not empty:
+            for colour, side in ((ConeDetection.COLOR_BLUE, 0.5), (ConeDetection.COLOR_YELLOW, -0.5)):
+                for i in range(10):
+                    x = -0.3+0.3*i
+                    cone = ConeDetection()
+                    cone.position.x, cone.position.y = x, bend*x*x+side
+                    cone.color, cone.classification_confidence = colour, 0.95
+                    batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    feed()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3, node.state_reason
+    assert node.planning_output["path"]["type"] == "CARTESIAN_CENTERLINE"
+    assert node.planning_output["target_speed_mps"] == 0.2
+    assert node.action_publisher.messages[-1].drive == pytest.approx(0.35)
+    if bend:
+        assert node.action_publisher.messages[-1].steer*bend > 0
+    if visualization:
+        output = node.trajectory_publisher.messages[-1]
+        assert output.header.frame_id == "base_link"
+        assert [(p.pose.position.x, p.pose.position.y) for p in output.poses] == node.planning_output["path"]["samples_xy"]
+    else:
+        assert not node.trajectory_publisher.messages
+    node.test_clock.advance(0.05)
+    feed(empty=True)
+    node.run_policy_step()
+    assert node.fsm_state == 3, node.state_reason
+    assert node.estimation_output["road"]["degraded"]
+    assert node.planning_output["target_speed_mps"] == 0.2
+    request(node, 2)
+    assert node.action_publisher.messages[-1].drive == 0
+    assert node.action_publisher.messages[-1].steer == 0
+    if visualization:
+        assert node.trajectory_publisher.messages[-1].poses == []
+
+
+def test_trajectory_uses_existing_expiry_stop_without_another_preview_loop(make_node):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp"})
+    node.calculate_policy_actions = driving_policy
+    node.wheel_speed_callback(Float32(data=0.0))
+    gyro = imu(node, orientation=False)
+    gyro.angular_velocity_covariance[0] = 0.0
+    node.imu_callback(gyro)
+    node.cone_detection_callback(cones(node))
+    request(node, 3)
+    node._trajectory_reference = {"valid": True, "frame_id": "base_link", "timestamp_s": 100.0,
+        "valid_for_s": 0.1, "path": {"type": "CARTESIAN_Y_OF_X", "independent_variable": "x_m",
+        "origin": 0.0, "scale": 1.0, "coeffs_low_to_high": [0.1, 0.2], "range": [0.0, 2.0]}}
+    node.control_has_run = True
+    node.last_control_reference_deadline_s = 100.1
+    node.run_policy_step()
+    output = node.trajectory_publisher.messages[-1]
+    assert len(output.poses) == 81
+    assert output.poses[-1].pose.position.y == pytest.approx(0.5)
+    node.test_clock.advance(0.11)
+    node.supervision_callback()
+    assert node.fsm_state == 2 and "expired" in node.state_reason
+    assert node.trajectory_publisher.messages[-1].poses == []
+    count = len(node.trajectory_publisher.messages)
+    node.run_policy_step()
+    assert len(node.trajectory_publisher.messages) == count
+
+
+def test_trajectory_publication_failure_does_not_change_actions(make_node):
+    node = make_node()
+    node.calculate_policy_actions = driving_policy
+    node.trajectory_publisher = type("BrokenDisplay", (), {
+        "publish": lambda self, msg: (_ for _ in ()).throw(RuntimeError("display disconnected"))})()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    assert (node.action_publisher.messages[-1].drive, node.action_publisher.messages[-1].steer) == (0.4, -0.2)
+
+
+@pytest.mark.parametrize("visible_colour", [ConeDetection.COLOR_YELLOW, ConeDetection.COLOR_BLUE])
+def test_learned_single_boundary_trajectory_reaches_real_ros_subscriber(make_node, visible_colour):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.drive_max": 0.35,
+           "control.mvp_drive_feedforward": 0.30, "planning.algorithm": "road_centerline",
+           "planning.allow_forward_only": True, "planning.reference_lifetime_s": 0.2,
+           "estimation.single_side_from_learned_width": True,
+           "estimation.left_colour": 1, "estimation.right_colour": 2})
+    node.trajectory_publisher = node.create_publisher(policy.Path, "policy_trajectory", 1)
+    peer = Node("learned_trajectory_review_peer", context=node.context)
+    received = []
+    subscription = peer.create_subscription(policy.Path, node.get_namespace()+"/policy_trajectory",
+                                            received.append, 10)
+    executor = SingleThreadedExecutor(context=node.context)
+    executor.add_node(node)
+    executor.add_node(peer)
+
+    def wait_for(predicate):
+        deadline = time.monotonic()+3.0
+        while not predicate() and time.monotonic() < deadline:
+            executor.spin_once(timeout_sec=0.02)
+        assert predicate(), "Path did not reach the isolated ROS subscriber"
+
+    def feed(only=None):
+        node.wheel_speed_callback(Float32(data=0.0))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        for colour, y in ((ConeDetection.COLOR_YELLOW, 0.6), (ConeDetection.COLOR_BLUE, -0.4)):
+            if only is not None and colour != only:
+                continue
+            for i in range(10):
+                cone = ConeDetection()
+                cone.position.x, cone.position.y = -0.2+0.3*i, y
+                cone.color, cone.classification_confidence = colour, 0.95
+                batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    try:
+        wait_for(lambda: node.trajectory_publisher.get_subscription_count() > 0)
+        feed()
+        request(node, 3)
+        node.run_policy_step()
+        assert node.fsm_state == 3, node.state_reason
+        wait_for(lambda: received and bool(received[-1].poses))
+        node.test_clock.advance(0.11)
+        feed(only=visible_colour)
+        node.run_policy_step()
+        assert node.fsm_state == 3, node.state_reason
+        assert node.planning_diagnostics["inferred_single_side"]
+        wait_for(lambda: received and received[-1].header.stamp.nanosec == 110_000_000
+                 and bool(received[-1].poses))
+        output = received[-1]
+        assert output.header.frame_id == "base_link"
+        assert [(p.pose.position.x, p.pose.position.y) for p in output.poses] == node.planning_output["path"]["samples_xy"]
+        assert all(p.pose.position.y == pytest.approx(0.1) for p in output.poses)
+        request(node, 2)
+        wait_for(lambda: received and received[-1].poses == [])
+        assert (node.action_publisher.messages[-1].drive, node.action_publisher.messages[-1].steer) == (0.0, 0.0)
+    finally:
+        executor.remove_node(peer)
+        executor.remove_node(node)
+        executor.shutdown()
+        peer.destroy_subscription(subscription)
+        peer.destroy_node()
+
+
+def test_end_straight_uses_live_odometry_and_clears_trajectory(make_node):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.drive_max": 0.35,
+           "control.mvp_drive_feedforward": 0.30, "control.max_distance_m": 0.0,
+           "control.max_run_time_s": 0.0, "control.end_straight_distance_m": 0.30,
+           "control.end_straight_drive_normalized": 0.30,
+           "planning.algorithm": "road_centerline", "planning.allow_forward_only": True,
+           "planning.reference_lifetime_s": 0.2, "estimation.road_hold_s": 0.0})
+
+    def feed(empty=False):
+        node.wheel_speed_callback(Float32(data=0.2))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        if not empty:
+            for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
+                for i in range(10):
+                    cone = ConeDetection()
+                    cone.position.x, cone.position.y = -0.2+0.3*i, y
+                    cone.color, cone.classification_confidence = colour, 0.95
+                    batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    feed()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3 and node.control_has_run
+    assert node.trajectory_publisher.messages[-1].poses
+    node.test_clock.advance(0.11)
+    feed(empty=True)
+    node.run_policy_step()
+    start_distance = node._end_straight_start_distance_m
+    assert start_distance is not None and node.fsm_state == 3
+    assert (node.action_publisher.messages[-1].drive,
+            node.action_publisher.messages[-1].steer) == pytest.approx((0.3, 0.0))
+    assert node.trajectory_publisher.messages[-1].poses == []
+    for _ in range(29):
+        node.test_clock.advance(0.05)
+        feed(empty=True)
+        node.supervision_callback()
+        node.run_policy_step()
+        assert node.fsm_state == 3
+    node.test_clock.advance(0.05)
+    feed(empty=True)
+    node.supervision_callback()  # Completion does not need a policy callback.
+    assert node.distance_limiter.distance_m-start_distance == pytest.approx(0.3)
+    assert node.fsm_state == 2
+    assert (node.action_publisher.messages[-1].drive, node.action_publisher.messages[-1].steer) == (0.0, 0.0)
+
+
 def test_integrated_control_requires_feedback_and_matching_profiles(make_node):
     with pytest.raises(ValueError, match="requires cones"):
         make_node(required=("cone_detections",), **{"control.enabled": True})
     with pytest.raises(ValueError, match="profiles must be selected together"):
         make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
                   **{"control.enabled": True, "planning.vehicle_limits_source": "course_simulation"})
+
+
+def test_mvp_robustness_real_ros_callbacks_degrade_recover_and_stop(make_node):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.robustness_enabled": True,
+           "control.drive_max": 0.35, "control.mvp_drive_feedforward": 0.30,
+           "estimation.road_hold_s": 0.0})
+
+    def feed_road(empty=False):
+        node.wheel_speed_callback(Float32(data=0.2))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        if not empty:
+            for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
+                for i in range(9):
+                    cone = ConeDetection()
+                    cone.position.x, cone.position.y = -0.2+0.3*i, y
+                    cone.color, cone.classification_confidence = colour, 0.95
+                    batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    feed_road()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    node.controller.speed.integral = 0.4
+    node.test_clock.advance(0.05)
+    feed_road(empty=True)
+    node.run_policy_step()
+    assert node.fsm_state == 3
+    assert node.control_diagnostics["tracking_mode"] == "DEGRADED"
+    assert node.controller.speed.integral == 0.4
+    assert node.action_publisher.messages[-1].drive > 0
+    assert not node.planning_output["valid"]
+    node._publish_trajectory(node.test_clock.ros_ns, force=True)
+    assert node.trajectory_publisher.messages[-1].poses
+    assert node._trajectory_reference["valid"]
+    node.test_clock.advance(0.05)
+    feed_road()
+    node.run_policy_step()
+    assert node.control_diagnostics["tracking_mode"] == "TRACKING"
+    assert node.distance_limiter.distance_m > 0
+    request(node, 2)
+    assert node.control_reference_manager.reference is None
+    assert node.action_publisher.messages[-1].drive == 0
+    node.supervision_callback()
+    assert node.action_publisher.messages[-1].steer == 0
 
 
 def test_mvp_real_ros_callbacks_distance_stop_and_restart(make_node):
@@ -224,7 +486,7 @@ def test_mvp_real_ros_callbacks_distance_stop_and_restart(make_node):
         for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
             for i in range(9):
                 cone = ConeDetection()
-                cone.position.x, cone.position.y = 0.1+0.3*i, y
+                cone.position.x, cone.position.y = -0.2+0.3*i, y
                 cone.color, cone.classification_confidence = colour, 0.95
                 batch.detections.append(cone)
         node.cone_detection_callback(batch)
@@ -915,7 +1177,9 @@ def test_student_geometry_aligns_to_state_only_with_motion_history(make_node, bu
     batch = stamp(node, ConeDetections(), offset=-0.1)
     batch.acquisition_to_publish_latency_s = 0.08
     for colour, lateral in ((ConeDetection.COLOR_BLUE, 0.5), (ConeDetection.COLOR_YELLOW, -0.5)):
-        for x in (0.5, 0.8, 1.1, 1.4, 1.7):
+        # Observe across the origin so the estimator can admit near-field road;
+        # forward-only startup is exercised separately by the centerline tests.
+        for x in (-0.3, 0.0, 0.5, 0.8, 1.1, 1.4, 1.7):
             cone = ConeDetection()
             cone.position.x, cone.position.y = x, lateral
             cone.color, cone.classification_confidence = colour, 0.95
@@ -928,7 +1192,7 @@ def test_student_geometry_aligns_to_state_only_with_motion_history(make_node, bu
     assert out["alignment"]["valid"] == buffer_history
     if buffer_history:
         assert out["road"]["timestamp_s"] == out["state"]["timestamp_s"]
-        assert out["road"]["centerline_xy"][0][0] == pytest.approx(0.45)
+        assert out["road"]["centerline_xy"][0][0] == pytest.approx(-0.35)
     else:
         assert not out["road"]["valid"]
         assert out["road"]["timestamp_s"] is None
@@ -990,8 +1254,34 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.required_sensors == ["cone_detections", "wheel_speed", "imu_angular_velocity"]
         assert node.control_settings.enabled is True
         assert node.control_settings.mode == "mvp"
-        assert node.control_settings.max_distance_m == 3.0
-        assert node.control_settings.max_run_time_s == 30.0
+        assert node.control_settings.robustness_enabled is False
+        assert node.planning_settings.algorithm == "road_centerline"
+        assert node.planning_settings.allow_forward_only is True
+        assert node.planning_settings.cruise_speed_mps == 0.2
+        assert node.planning_settings.max_source_age_s == 1.5
+        assert node.estimation_settings.continuous_road_output is True
+        assert node.estimation_settings.left_colour == ConeDetection.COLOR_YELLOW
+        assert node.estimation_settings.right_colour == ConeDetection.COLOR_BLUE
+        assert node.estimation_settings.road_forward_max_m == 4.0
+        assert node.estimation_settings.road_width_min_m == 0.15
+        assert node.estimation_settings.road_max_abs_slope == 3.0
+        assert node.estimation_settings.huber_delta_m == 0.20
+        assert node.estimation_settings.single_side_from_learned_width is True
+        assert node.estimation_settings.history_propagation == "continuous"
+        assert node.sensor_timeout_s["cone_detections"] == 1.5
+        assert node.control_settings.mvp_drive_feedforward == 0.30
+        assert node.control_settings.drive_max == 0.35
+        assert node.control_settings.mvp_steering_direction == -1.0
+        assert node.control_settings.mvp_lateral_kp == 2.5
+        assert node.control_settings.steering_max_normalized == 1.0
+        assert node.control_settings.mvp_steering_slew_rate_per_s == 2.0
+        assert node.control_settings.reference_hold_max_s == 1.0
+        assert node.control_settings.reference_hold_max_distance_m == 0.25
+        assert node.control_settings.max_distance_m == 0.0
+        assert node.control_settings.max_run_time_s == 0.0
+        assert node.control_settings.end_straight_distance_m == 0.8
+        assert node.control_settings.end_straight_drive_normalized == 0.30
+        assert node.control_settings.end_straight_max_time_s == 8.0
         assert node.vehicle_settings.valid is False
         assert node.fsm_state == 2
     finally:
@@ -1015,13 +1305,17 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         context.shutdown()
 
 
-def test_installed_launch_starts_executable_and_shuts_down(tmp_path):
+@pytest.mark.parametrize("direct_node", [False, True])
+def test_installed_launch_starts_executable_and_shuts_down(tmp_path, direct_node):
     assert os.access(SCRIPT, os.X_OK), "Installed policy script is not executable"
     environment = dict(os.environ, ROS_LOG_DIR=str(tmp_path / "ros_logs"))
     output_path = tmp_path / "launch-output.log"
     with output_path.open("w", encoding="utf-8") as output_file:
+        command = ([str(SCRIPT), "--ros-args", "-r", "__ns:=/launch_check",
+                    "-p", "policy_update_mode:=timer"] if direct_node
+                   else ["ros2", "launch", "ai4r_policy", "ai4r_policy.launch.py", "namespace:=launch_check"])
         process = subprocess.Popen(
-            ["ros2", "launch", "ai4r_policy", "ai4r_policy.launch.py", "namespace:=launch_check"],
+            command,
             cwd=tmp_path, env=environment, stdout=output_file, stderr=subprocess.STDOUT,
             text=True, start_new_session=True)
         try:
@@ -1040,7 +1334,7 @@ def test_installed_launch_starts_executable_and_shuts_down(tmp_path):
                 pytest.fail("Policy launch did not become ready within 10 seconds:\n" + output)
 
             assert process.poll() is None, output
-            process.send_signal(signal.SIGINT)
+            process.send_signal(signal.SIGTERM if direct_node else signal.SIGINT)
             process.wait(timeout=5.0)
             output_file.flush()
             output = output_path.read_text(encoding="utf-8", errors="replace")

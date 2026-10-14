@@ -1,9 +1,587 @@
 # AI4R policy acceptance
 
-Status: the 2026-10-06 car candidate passes the installed fast gate and has
-bounded, observed physical runs. A complete 3 m physical run remains unverified.
+Current terminal setting: automatic 0.80 m terminal straight on tracked-road
+`invalid_road_insufficient_geometry`, requested and clarified by the user.
+0.30 m and 1.0 m settings were deployed and physically exercised; both stopped
+on the terminal distance condition with zero/Disabled telemetry confirmed.
+The user selected 0.80 m and requested no additional tests. That final setting
+is deployed and statically read back, without another gate or physical run.
+
+Status: `fix/newcar-control` contains the simple curved-centerline follower,
+configured yellow left / blue right. Car 15 (10.43.254.28) completed the initial
+3.002 m wheel-integral trial. Continuous baseline and first correction ran
+4.543 m and 5.042 m, stopping on reference expiry; tracking remains unaccepted.
+The wider-steering/smooth candidate passed the installed ROS gate (232 checks)
+and was deployed, but its only physical attempt stopped on invalid estimated
+road width before moving. Offline replay reproduces that curve-start fault.
+The car was subsequently reconnected. Current deployed profile keeps the 4 m
+fit window, width minimum 0.15 m, slope limit 3 and Huber delta 0.20 m, and
+enables learned-width single-boundary tracking. Its first run lasted
+20.195 s / 3.932 m wheel integral; the operator reported improved bend tracking
+and a generally normal trajectory. Both-to-single-to-both transitions are
+logged, with a reference jump on two-sided recovery still unresolved.
+Final stop was insufficient geometry, with state 2 / vehicle Disabled and zero
+wheel/applied drive confirmed. Repeated-lap and external-position acceptance
+remain outstanding. Visualization was later deployed and observed in Foxglove.
+The latest common-range fallback candidate passed 250 software checks but its
+physical trial had an operator-reported early blue-cone collision. Live steering
+trim 0.5 was confirmed, despite startup parameter 0.0, and restored to 0.0 while
+policy 2 / Disarmed. The unchanged candidate was then retested with live trim
+guarding: 19.746 s / 3.817 m, operator feedback "完美完美" and explicit push
+authorization. Trim stayed 0.0; median applied/requested residual returned near
+zero. Final stop was insufficient geometry, with zero/Disabled feedback confirmed.
+This run did not confirm Path clear; repeated-lap acceptance remains outstanding.
+Car 09's IMU and car 13's RC faults are below.
+The 2026-10-06 car candidate's gate and bounded physical runs are historical.
+Wheel-integral distance is not an independent physical distance measurement.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
+
+## Geometry-loss terminal straight patch, 2026-10-14
+
+The user requested fixed-command forward travel of 0.30 m before stopping when
+end-of-track cones leave the camera FOV, and explicitly selected automatic
+activation on geometry insufficiency rather than a manual endpoint command.
+That trigger cannot distinguish a finish from geometry loss within a bend.
+After trials at 0.30 m and 1.0 m, the shipped YAML now enables
+0.80 m / drive 0.30 / maximum 8.0 s; code default
+distance 0 disables the fallback. It requires prior successful control in the
+same explicit run and exactly `invalid_road_insufficient_geometry` with valid
+motion state in the MVP road-centerline planner. Other faults do not activate it.
+
+It stays in policy state 3, clears the old road-reference deadline and display,
+publishes fixed drive and zero steering using the existing selected trigger,
+and consumes no stale road/reference or speed-PID output. Returning cones do
+not restart following or reset the manoeuvre. Independent supervision uses
+the existing raw wheel integral relative to activation to latch zero state 2
+at the configured distance. Fresh camera messages are still required; empty frames are allowed
+only during the terminal mode. Wheel/gyro keep their original motion freshness
+limits. Operator Stop, sensor faults, clock/integration gaps, positive overall
+run budgets and the configured stalled-motion time fallback can stop it sooner. Stop/restart
+clear the terminal state; no additional ROS trigger or vehicle Enable is added.
+Zero requested steering assumes the vehicle's independently verified live
+trim zero. Physical travel/coasting is not established by encoder integration.
+
+Focused checks cover distance completion, no double integration, returning
+cones, explicit restart, Stop/stop-publishing semantics, independent source
+loss/freshness, stalled-motion time cap, execution gaps, cold start, other
+faults, and parameter bounds. A real PolicyNode/ROS-type controlled-clock test
+also exercises trajectory clear and independent-supervisor completion.
+The initial full gate exposed a test-fixture timestamp mistake: its empty
+frame reused the previous stamp and was correctly rejected. Advancing the
+controlled clock fixes that setup; the portable focused suite then passed 24
+checks, with legacy control 33 passing. Final pinned Jazzy gate passed 258
+checks, zero errors/failures/skips; portable 171 (97 estimation, 17 planning,
+33 control, 24 follower), ROS policy 82 plus 5 colcon test entries. Log:
+`.verification/car15-end-straight-fast-gate.log`; runtime/source hashes:
+`.verification/car15-end-straight-manifest.json`.
+The 1.0 m / 8.0 s update then passed the same pinned gate: 258 checks, zero
+errors/failures/skips, including the installed YAML and completion at both
+0.30 m and 1.0 m. Log/manifest: `.verification/car15-end-straight-1m-fast-gate.log`
+and `.verification/car15-end-straight-1m-manifest.json`.
+
+`end-straight1` ran 21.669613 s / 4.246473 m total wheel integral. Terminal
+receipt duration was 1.4963 s, observed extra integral about 0.290–0.319 m;
+11 interior command samples were drive 0.30 / steer 0, and 13 empty Paths were
+recorded in terminal mode. The operator found 0.30 m's effect too small and
+requested 1.0 m. `end-straight2-1m` ran 24.594377 s / 4.862829 m total, terminal
+receipt duration 4.6394 s, observed extra integral about 1.003–1.034 m;
+35 interior samples were drive 0.30 / steer 0 and 36 empty Paths were recorded.
+Both ended with `End straight distance reached`, live trim 0.0, policy 2 /
+Disabled and zero wheel/applied drive confirmed. Neighboring asynchronous
+debug2/phase receipts bound the observer estimates; they are not independent
+physical travel measurements. Fresh post-stop Path clear was not confirmed
+by the runner, despite receiving empty Paths during each terminal mode.
+
+The operator requested final 0.80 m and no more tests, with a more complex
+track planned later. Only distance was reduced; fixed effort 0.30 and timeout
+8.0 s remain. The car was observed stationary, then YAML copied, student ROS
+built and only policy restarted. Static parameter readback confirmed
+0.80 / 0.30 / 8.0 and policy 2 / Disabled, trim 0.0, wheel/applied commands zero.
+No Enable or policy-3 command was issued for this final settings change, and
+no additional tests were run. Final configuration SHA:
+`b5c475e29955ee05cd2d9e49129f972041b3eb3f481e6bdaf919b093c665c92f`;
+runtime source stayed `79505042755c81f0434370ccd7f7275887125d5dd09d6eec9b82da71fb454d2f`.
+Report and raw evidence: `docs/experiments/2026-10-14/CAR15_END_STRAIGHT_REPORT_CN.md`
+and `evidence/car15/end-straight{1,2-1m}/`. The final 0.80 m tuning has static
+deployment confirmation, not its own physical trial or exact-config gate.
+
+## Visualization deployment, returning far boundary and live trim fault, 2026-10-14
+
+The zero-trim retest (`visualization4`) ran 19.746045 s / 3.816904 m without a
+distance/time cutoff, with peak wheel speed 0.309682 m/s. Before motion the
+runner verified the unchanged tested profile, vehicle endpoints and fresh live
+trim zero. Trim remained zero and no set/increment command was recorded.
+178 matched active-run actuation samples had median
+`applied_steer - 0.8*last_requested_steer` = 0.000036343. The operator reported
+"完美完美，直接push这版本" in response to the first-bend tracking question.
+37 Tracking samples contained 27 two-boundary, 8 yellow inward-offset and
+2 blue inward-offset references. 147 nonempty Paths were recorded, at most
+34 points in base_link; the recorder did not confirm the stop empty Path.
+The final fault was `invalid_road_insufficient_geometry`, with state/motion
+valid. The last recorder frame before that fault had yellow/blue x spans
+0.209420 / 0.202841 m, both below 0.30 m fit coverage; recorder/policy frame
+identity is not proven. Final policy 2 / Disabled, zero applied drive and zero
+wheel speed were confirmed. The requested push preserves the tested runtime
+source and parameters. Self-contained report, current raw recorder, policy log,
+guarded runner, result and software gate are archived under
+`docs/experiments/2026-10-14/CAR15_NEW_CONTROL_REPORT.md` and `evidence/car15/`.
+
+Authorized deployment copied policy source/package, built student ROS and
+restarted only policy. First readback (`visualization1`) caught default settings
+instead of the tested profile and aborted before motion. The verified local
+YAML was copied, built and restarted; its SHA stayed unchanged through build.
+The source of the earlier remote YAML change is unknown. Subsequent runner
+readback verified timer 20 Hz, cones/wheel/gyro required, all current controller
+settings, learned-width enable, visualization enable, and vehicle endpoints.
+
+`visualization2` ran 8.492393 s / 1.590816 m, recorded 63 nonempty Paths (up to
+34 points, base_link), and the operator confirmed a visible green Foxglove line.
+Stop was `invalid_road_insufficient_common_range`; Path clear and zero/Disabled
+feedback were confirmed. Last recorder frame had yellow fit x=0.598–2.823 m,
+blue fit x=3.419–3.816 m: both individual fits passed but shared range was absent.
+The fix retains the nearest independently valid side using learned half-width
+until shared support is sufficient. Raw both-side frames alone still teach
+width; unknown-width cold start remains rejected. Recorded-frame and symmetric
+left/right checks plus the actual policy-method regression passed. Final pinned
+Jazzy gate: 250 checks, zero errors/failures/skips; portable 164 (97 estimation,
+17 planning, 33 control, 17 follower). Logs and manifest:
+`.verification/car15-disjoint-return-fast-gate.log`,
+`.verification/car15-disjoint-return-manifest.json`.
+
+The fix was deployed with source SHA
+`39b39c55e7d3786a60ab342dbb61b57029b7a21fb0c7b60951388d5fc5ae2bb8`;
+YAML `8a41cab3dcdf041d21109b0689fd1e710a64cf56f7ee8f44c2d15ca8f2ace49a`
+and package `d8b3ae10c4dfc938b94c9704866ab288a36670846285dbfb77d16dc58fb367f9`
+matched the uploaded profile. `visualization3` recorded 18.229736 s / 3.465967 m,
+139 nonempty Paths, and ended Disabled. The operator reported a blue-cone
+collision in the first five seconds, so this is not tracking acceptance or
+validated physical distance. This run's recorder did not confirm Path clear.
+
+Actuation review found a persistent 0.5 residual in
+`applied_steer - 0.8*last_requested_steer`; medians in successful learned1 and
+visualization2 were -0.000047 and -0.000387. All logged control parameters
+matched. Around 2 s, request -0.592 produced applied +0.026 instead of -0.474;
+around 4 s, request -0.820 produced -0.156 instead of -0.656. This large positive
+offset opposes the intended negative correction. Live trim topic and diagnostics
+confirmed 0.5; startup `steering_trim_normalized` still returned 0.0. Set/increment
+commands and sender were not recorded, so attribution to a particular operator
+or GUI action is unavailable. Provided layout defaults for both trim buttons
+are zero. The live trim admission check was absent from the earlier runner.
+
+After stop confirmation, the car was observed Disarmed / policy 2. Two early
+observation attempts failed their state/discovery guards and did not write trim.
+The final attempt set live trim to 0.0 through the public topic while Disarmed;
+topic and diagnostics both confirmed zero, and manual source/state were preserved.
+No Enable or drive was requested during that restoration. The runner now logs live trim and
+set/increment commands, checks the tested zero baseline before Enable, and ends
+a run if trim changes. That updated runner was used for the authorized
+`visualization4` retest described above; its final state was policy 2 / Disabled.
+
+Parent evidence: `diagnostics/car15-20261014/evidence/visualization{1,2,3}/`,
+`correction/visualization{2,3}-policy.log`, `steering-trim-restore-final.log`,
+`COLLISION_TRIM_REVIEW_CN.md`, and `collision-trim-comparison.json`.
+
+## Local control-reference visualization review, 2026-10-14
+
+The user supplied a local visualization addition after the completed driving
+trial. It publishes `/car/policy_trajectory` as `nav_msgs/msg/Path` from the
+reference actually accepted by control, at most 10 Hz; expiry/state changes
+publish an empty path. The supplied Foxglove layout uses independent x/y
+message fields for that line. No secondary policy trigger or driving publisher
+was added. Comparison with the deployed car file confirms 61 runtime lines
+added, none removed; ASTs of estimation settings/pipeline, road planner and
+controller are unchanged. Runtime dependencies `nav_msgs`/`geometry_msgs`
+were verified by read-only imports on car 15. Source hash before visualization:
+`c4714c53ac80d62647329e4147c826418f5f196efc067f94354795f526298be0`.
+
+The supplied gate reports 246 checks. Added two real DDS subscriber cases
+covering each missing colour after learning width: Path geometry equals the
+accepted single-boundary reference, and stop delivers an empty Path. The first
+added test advanced past the default 0.1 s reference deadline; corrected test
+timing to 0.11 s with the deployed 0.2 s reference lifetime. Both focused cases
+then passed, followed by the final required installed Jazzy gate: 248 checks,
+zero errors/failures/skips. Existing trajectory disable, reference expiry,
+display-publication failure and cached-reference checks passed. Evidence:
+`.verification/car15-trajectory-dds-focused.log`,
+`.verification/car15-trajectory-review-fast-gate.log`, and source/layout hashes
+in `.verification/car15-trajectory-review-manifest.json`.
+
+At that initial review the visualization increment was local only; no car
+build/restart or driving request occurred. Later deployment and operator GUI
+confirmation are recorded above. Latest raw cones and current compensated reference can refer
+to different body epochs; overlay is not external tracking ground truth.
+Usage: `tools/foxglove_road_visualization/README.md` and `layout.json`.
+
+## Car 15 learned-width single-boundary trial and review, 2026-10-14
+
+After reconnection, width relaxation alone stopped before motion because the
+yellow boundary exceeded slope limit 2 (`relaxed1`). Increasing slope to 3
+admitted all nine recorded frames in raw replay. The subsequent `relaxed2` ran
+4.813 s / 0.905 m and stopped on `observed_history_conflict` as blue support
+dropped. Increasing Huber delta 0.15→0.20 m (`relaxed3`) ran 5.122 s / 0.941 m
+and stopped for the same reason. Approximate replay with decimated motion
+telemetry had suggested improvement; the physical test did not resolve it.
+
+The user explicitly requested remembering the centre-to-boundary distance
+from both observed sides and following the visible boundary with that offset
+when the other side is missing. `single_side_from_learned_width` defaults false
+and is true in the shipped profile. Only independently valid, fresh RAW
+two-sided frames teach width and its acquisition timestamp. A valid single
+boundary is offset inward along its local normal by half that remembered width.
+Old opposite-side cones are removed from this branch; inferred or predicted
+geometry cannot relearn width. A fresh single-side frame provides fresh
+geometry, subject to existing camera/motion/reference deadlines, rather than
+extending the old 0.8 s path hold. Width is fixed during a one-sided segment,
+under the explicitly requested constant local-width assumption. Stop/restart
+and motion reset clear it; a single-side cold start remains unavailable.
+Two-sided return updates width and restores the ordinary centreline. Missing
+boundaries remain marked absent; MVP explicitly admits the learned-offset
+reference without claiming near-body clearance. Other planning profiles retain
+their previous rejection behavior.
+
+Required installed Jazzy gate against interfaces pin
+`5f50902ccee44e8370d6e2be85607b3054ffbf98`: 241 checks, zero failures/errors/skips;
+log `.verification/car15-learned-width-fast-gate.log`. Portable checks total
+162: estimation 95, planning 17, control 33, follower 17. New checks cover both
+missing colours, normal offset on sloped boundaries, fixed width/timestamp in
+single-side operation, two-sided recovery, reset/cold-start behavior, complete
+geometry loss and wheel/gyro expiry, and the recorded physical dropout sample.
+The first focused follower run exposed width being cleared by the generic
+prediction branch; the final source preserves fresh single-side width memory
+without starting a two-boundary prediction. All final checks passed before
+deployment. Student build, policy restart and runtime parameter readback
+succeeded; camera, IMU and vehicle continued running. Controller gains, slew,
+vehicle endpoints and speed target match `relaxed3`.
+
+`learned1`: 20.195086 s, 3.932476 m wheel integral, peak wheel speed 0.340523 m/s.
+~2 Hz Tracking logs show both sides until about 4.98 s, yellow-only offset
+0.446989 m until about 9.23 s, both again until about 17.73 s, then blue-only
+offset 0.438285 m. Logged sample counts are 25 both / 8 left-offset / 5
+right-offset; these are sampled modes, not exact-duration statistics.
+The operator reported "能继续走，轨迹基本正常" and later confirmed better bend
+performance. This establishes the requested mode switching in one physical
+run, not independent tracking accuracy or completed repeated-lap qualification.
+
+At two-sided recovery around 9.23 s, preview x changed from 0.742 to 2.263 m
+between Tracking samples; actual lateral input changed -0.123→-0.943 m.
+Pre-slew steer reached 1.0 while that published sample was 0.376. This is a
+reference/support transition, not evidence of a physical 0.94 m position jump.
+Recovery continuity is the next quality issue; increasing lateral Kp is not
+supported by this event. Raw debug1 and actual controller lateral input have
+different geometry and must not be treated as a common ground-truth metric.
+
+Final stop: `Planning: invalid_road_insufficient_geometry`; policy logged
+camera age 0.212 s with valid wheel/gyro. The last recorder frame before fault
+contains one yellow and two blue cones, with blue x span 0.198 m < current
+0.30 m minimum. Raw replay reports insufficient yellow points and insufficient
+blue x coverage. Recorder identity with the exact consumed fault frame is not
+independently proven. Stop feedback confirms policy 2, Disabled, zero wheel and
+applied drive. Driving distance/time budgets remain zero/disabled. No further
+motion was requested during the user's post-run review.
+
+Parent-workspace evidence: `diagnostics/car15-20261014/evidence/{relaxed1,relaxed2,relaxed3,learned1}/`,
+`correction/learned1-policy.log`, `learned1-analysis.json`,
+`LEARNED_WIDTH_REVIEW_CN.md`, `learned-width-review.json`, and
+`learned-width-review.png`; regenerate the latter with `analyse_learned_width.py`.
+
+## Minimal trajectory patch on fix/newcar-control, 2026-10-14
+
+Per the owner's request, the tested 61-line visualization patch is now applied
+directly to the local `fix/newcar-control` working tree, together with standard
+`nav_msgs`/`geometry_msgs` runtime dependency declarations, focused ROS
+regressions and the one-line Foxglove layout. Existing uncommitted algorithms,
+configuration and test edits were preserved; AST comparison confirms unchanged
+estimation/planning/control definitions and only one read-only reference record
+in the control calculation. There are no preview threads or extra planner runs.
+The topic is `policy_trajectory` (`nav_msgs/msg/Path`); the original cone plot
+adds its position array as a green line. Existing stop/expiry transitions clear it.
+
+The CONTRIBUTING fast gate passed for this exact working-tree source with
+exact-clean dream_interfaces `5f50902ccee44e8370d6e2be85607b3054ffbf98`, in
+network-disabled local Docker with ROS Jazzy/Python 3.12.3 and localhost domain
+218: 241 pytest cases / 246 colcon checks, zero errors, failures or skips;
+installed launch arguments passed. Source hashes were unchanged during the gate.
+Evidence and pre-patch backups are in the parent system project's
+`diagnostics/fix-newcar-trajectory-20261014`. No vehicle deployment, restart,
+Enable or driving request was performed.
+
+## Car 15 curve-start rejection and local correction, 2026-10-14
+
+The first correction increased lateral Kp to 2.5, policy steering limit to 1.0
+and used the actual forward target instead of a far endpoint's normal distance
+when near-field support is missing. It ran 25.693 s / 5.0423 m wheel integral,
+peak measured speed 0.3162 m/s, then stopped on `Control reference expired`.
+The operator still reported large centre deviation and unsmooth correction.
+One steering request changed by 0.438 within 37 ms while raw path error was
+nearly unchanged; missing near support and reference changes remain relevant.
+The final frame contained only two blue cones, no yellow: prediction exhausted.
+
+The second candidate changes history conflict checking to compare actual
+observed support, adds ordinary steering slew limit 2/s (stop still immediate),
+and widens only the car's existing autonomous normalized endpoints from ±0.5
+to ±0.8. Existing PWM/output bounds, drive and wheel settings were preserved
+by preparing the deployment YAML from the actual car profile. Student build
+and policy/vehicle restarts succeeded. The preflight parameter readback
+confirmed the new controller and vehicle endpoint values. Supervisor wrappers
+were given process nice=10 after observing high CPU load; ROS child priorities
+were preserved. This temporary mitigation does not establish the cause of
+earlier prediction expiry. No firmware or other repository was edited.
+
+The required Docker Jazzy gate against clean interfaces pin
+`5f50902ccee44e8370d6e2be85607b3054ffbf98` passed with 232 checks and zero
+errors/failures/skips (`.verification/car15-smooth-fast-gate.log`). It includes
+shutdown via launch SIGINT and direct SIGTERM: main now retains a valid ROS
+context until final zero publication, avoiding the shutdown race exposed by
+the gate. Portable checks then comprised 91 estimation, 17 planning, 33 control
+and 12 follower cases. Synthetic steering-angle mapping is not a car calibration.
+
+The single `smooth1` physical attempt became active for 0.189 s, commanded
+no nonzero drive, registered zero wheel speed/distance, and stopped with
+`Planning: invalid_road_invalid_width_or_order`. Stop feedback confirmed state 2,
+Disabled, zero wheel speed and applied drive. The user then disconnected the
+car and requested offline analysis; connections resumed only at the user's later
+reconnection request, recorded above.
+
+Offline geometry replay of all 21 recorded stationary frames found 8 width
+rejections with the deployed 4 m fit window, versus none with a 3 m window.
+The last camera message before the fault was received at recorder time 1.8209 s;
+fault status arrived at 1.8690 s. Its estimated width fell to 0.259 m at the far
+end of the 4 m fit, while the 3 m fit retained 0.811–0.922 m over measured common
+support x=0.592–2.148 m. These are estimator widths, not surveyed track widths.
+The same-x/slope approximation and global quadratic fit are limited in tight
+bends. One invalid far sample rejects the whole road, explaining the cold start.
+
+The first local alternative selected `estimation.road_forward_max_m=3.0`, retaining width
+0.3–2.5 m, slope, confidence and timing protections. The actual policy-method
+regression uses the recorded fault frame: 4 m rejects and zeros; 3 m obtains
+valid forward geometry and a positive drive request. Replaying earlier raw
+frames introduced no extra rejection: correction1 gains one valid frame;
+continuous2 has identical counts. This is geometry evidence, not a closed-loop
+driving replay. The newly prepared 3 m profile remains undeployed. Distance and
+time driving budgets remain disabled; the fit range is a separate parameter.
+
+Final local verification: 91 estimation, 17 planning, 33 control and 13 follower
+portable cases (154 total); installed Docker Jazzy fast gate reports 233 checks,
+zero errors/failures/skips, with installed launch arguments also checked.
+Log: `.verification/car15-curve-fast-gate.log`. The first range-change gate
+identified two old 4 m profile expectations; these were updated to the new
+3 m bounds and the affected estimation suite passed before the final gate.
+That undeployed profile was subsequently replaced by the user's requested
+width relaxation, as recorded below.
+
+### User-requested width relaxation, offline
+
+After the user requested fewer geometry rejections, compared minimum estimated
+width 0.3 / 0.2 / 0.15 m with the original 4 m fit range and all other capture
+settings unchanged. The 21 stationary frames produced 8 / 2 / 0 width rejections.
+Continuous2 and correction1 geometry status counts were unchanged by this
+width-only adjustment. Current local YAML therefore selects 4 m and a 0.15 m
+minimum, replacing the undeployed 3 m alternative. The existing 2.5 m maximum,
+positive ordering, sensor/motion freshness, finite-output, reference deadlines
+and explicit restart controls remain. This is an estimator plausibility bound,
+not a claim of measured vehicle clearance or guaranteed perception recovery.
+
+The recorded cold-start policy regression now checks all three profiles:
+4 m / 0.3 m stops at zero, 3 m / 0.3 m and 4 m / 0.15 m produce valid forward
+references and positive drive requests. Existing reversed-boundary and extreme
+width rejection checks still pass with the relaxed shipped profile. Geometry
+replay is saved in parent workspace `correction/width-threshold-comparison.json`
+and is reproducible using `replay_width_threshold.py` in that directory.
+At that offline stage the car remained disconnected and this configuration was
+undeployed. Subsequent deployment and physical trials are recorded above.
+
+Verification of the final relaxed profile: 154 portable cases and the required
+installed Jazzy gate passed; 233 checks, zero errors/failures/skips, plus launch
+argument validation. Log: `.verification/car15-relaxed-fast-gate.log`.
+
+Detailed evidence in the parent workspace:
+`diagnostics/car15-20261014/correction/CURVE_START_ANALYSIS_CN.md`,
+`curve-start-analysis.json`, `curve-start-analysis.png`, `deploy-smooth.log`,
+and `diagnostics/car15-20261014/evidence/smooth1/`.
+
+## Car 15 runs and continuous mode, 2026-10-14
+
+Deployed the verified yellow-left / blue-right policy to 10.43.254.28, with
+source/settings backups, successful student build and matching installed hashes.
+Initial trial: 15.576 s, 3.0024 m wheel integral, peak measured wheel speed
+0.3148 m/s, stopped on the 3 m limit, then Disabled with fresh zero feedback.
+The initial source/settings hashes were the same as the earlier car 09 candidate.
+
+The user then requested removal of the 3 m limit and continuous driving. Zero
+now disables `control.max_distance_m` and `max_run_time_s` individually;
+defaults retain 3 m / 30 s for bare-node compatibility, while shipped YAML
+selects zero for both. Raw wheel odometry, clock/gap validity, sensor/path
+deadlines, operator stop and explicit recovery remain active. A new actual-
+method test continues beyond 6 m and 30 s, then confirms missing-gyro stop.
+149 portable checks and the required local Docker Jazzy installed gate passed;
+colcon reports 227 checks with zero failures/errors/skips. Log:
+`.verification/car15-continuous-fast-gate.log`.
+
+After restoring a stalled vehicle telemetry stream by restarting its unit,
+the continuous trial ran 23.240 s and 4.5431 m wheel integral, peak wheel speed
+0.3138 m/s, then stopped with `Control reference expired`. Subsequent independent
+observation confirmed policy state 2, vehicle Disabled and zero wheel/applied
+drive. No automatic restart followed. The operator reported hitting a blue cone
+on the right after the bend; the exact collision time was not recorded.
+
+The control log shows policy left request saturated at -0.5 from 20.878 to
+23.183 s, with firmware output -0.25 while estimated right offset grew from
+0.071 to 0.188 m. The vehicle interface's 0.5 scale combines with the policy's
+0.5 limit; these are normalized outputs, not measured wheel angles. At about
+10 s, a +0.330 m estimated error produces only -0.091 policy request because
+the heading term opposes the lateral term. At 7.33 s, estimated error jumps
+0.414 m in 43 ms although adjacent raw cone positions remain smooth. This is
+consistent with a change in historical/forward-only geometry, but the exact
+internal transition was not logged. No control gain or steering limit was
+changed based on this analysis. Detailed evidence and plot: parent workspace
+`diagnostics/car15-20261014/continuous/CONTROL_LOG_ANALYSIS_CN.md`.
+
+## Replacement car 13, 2026-10-14
+
+The same verified source/settings were backed up, copied and built successfully
+on 10.43.254.26. Source/installed hashes matched. Cones, wheel feedback and valid
+gyro messages were present; the IMU reports CALIBRATING/accuracy_below_low while
+host publication is ready. Yellow-left / blue-right layout was observed.
+
+Both RC statuses remained BAD=0, with raw receiver PWM values 0/0. The operator
+reported no response after turning on the transmitter. The trial remained at
+preflight, before Enable or state 3. After an explicit manual handover using
+policy state 2 and Disarm request 4, Disarmed was confirmed; the operator still
+reported no steering response. Subsequent telemetry confirmed zero wheel speed
+and applied drive, with RC still 0/0. The vehicle was left Disarmed and the
+policy in state 2. No autonomous motion was requested. Receiver/power/pairing
+or other vehicle-side diagnosis and a physical run remain pending. Evidence:
+parent project workspace `diagnostics/car13-20261014/`.
+
+## Car 09 deployment and colour layout, 2026-10-14
+
+Added startup-only `estimation.left_colour` / `right_colour` parameters. Defaults
+preserve the historical blue-left layout; the supplied YAML selects yellow=1
+left and blue=2 right. Both must be distinct supported integer IDs. The policy
+now constructs its estimator from these settings. Live camera samples confirmed
+the requested layout: within 2.5 m, the final idle sample contained seven yellow
+cones (median y +0.465 m) and five blue cones (median y -0.357 m).
+
+Verification: 90 estimation, 17 planning, 32 control and 9 follower portable
+tests passed. The required `AI4R_INTERFACES_SOURCE=... bash tools/verify_fast.sh`
+passed in a local Docker ROS Jazzy snapshot against exact clean interfaces pin
+`5f50902ccee44e8370d6e2be85607b3054ffbf98`: colcon reports 226 checks with zero
+errors/failures/skips, including installed configuration and launch checks.
+The first gate exposed the new integer settings in a float-only test parser
+and an existing motion-alignment fixture missing observed origin support. The
+fixtures were corrected; runtime geometry/health checks were not relaxed.
+Logs: `.verification/car09-fast-gate-retry.log`.
+
+On the authorized car, Foxglove, vehicle, OAK-D, IMU and the updated policy were
+started using DREAM. Old policy source/settings were backed up under
+`~/car09-test-20261014/before/`. `dream build ros student` passed; source and
+installed policy/settings SHA-256 hashes matched. Other students' package
+modules, launch files and component configuration were preserved.
+
+The wheel and camera streams were healthy, but no IMU messages arrived during
+the eight-second read-only observation after `dream runtime restart
+bno08x_imu_interface`. The IMU MCU continued to report
+`sensor_initialization_failed`, `FAULT_LATCHED`, and publication not ready.
+The requested driving trial aborted at sensor preflight. No vehicle Enable or
+nonzero driving action was requested. The final check confirmed policy state 2,
+vehicle Disabled, fresh zero wheel speed and zero applied drive. Hardware
+power-cycle recovery and actual motion remain pending. Detailed probe/build/gate evidence
+is in the parent project workspace `diagnostics/car09-20261014/` and on the car
+under `~/car09-test-20261014/`.
+
+## Simple constant-speed road-centerline follower, 2026-10-13
+
+Imported only the estimation settings, motion history, pipeline and bounded
+robust fitter from `feature/road-estimation-v2@6552033`, with the matching
+perception profile/tests. The main control PID and framework are retained.
+The selected `planning.algorithm=road_centerline` passes observed curved samples
+directly to the controller; there is no straight fit, lattice search, worker,
+model-based recovery, offset/heading rejection or multi-frame startup gate.
+The estimator can expose validated forward-only geometry at startup; the
+follower uses those observed points without extending road boundaries.
+
+At the user's explicit follow-up, all usable references, including valid
+predictions, request exactly 0.2 m/s. Curve and prediction speed advisories do not
+reduce this target. Prediction expiry, input freshness, finite-output checks,
+operator stop and existing 3 m/30 s budgets remain. Constant target speed is not
+constant throttle or a guarantee of constant actual speed.
+
+The controller takes nearest-segment lateral error and a 0.35 m forward tangent,
+then uses the existing lateral PI/heading P and speed PI+feedforward. It retains
+its integrators between reference updates. Active gains/sign/effort use main's
+archived car profile; the independent straight reference cache is disabled.
+Camera age limits are aligned at 1.5 s for estimation/planning; wheel/gyro retain
+their separate 0.25 s limits, references at most 0.2 s, predictions at most 0.8 s
+and 0.5 m travel. Coordinates and original observation ages are preserved.
+
+Portable verification: estimation 90, legacy planning 17, control 32, new
+centerline follower 8: **147 passed**. The new suite checks direct curved sample
+delivery, both turn directions, offset correction, forward-only input, fixed
+speed in predictions, expiry/invalid feedback stops, first drive without three
+frames, controller continuity and ideal bicycle tracking. In the ideal model,
+straight and radius ±3 m arcs reduce a 0.3 m initial offset to less than 0.15 m
+after 2 m travel. This uses ideal observations and assumed bicycle dynamics,
+not physical sensing, calibrated steering, ESC response or actual stopping.
+
+Legacy control fixtures now provide observed origin support required by the
+new estimator; their estimator dropout bridge is disabled to isolate old
+controller stop/cache contracts. Matching imported estimator tests separately
+cover history and predictions. Installed configuration assertions and ROS
+callback tests were updated, but cannot run in the local macOS environment.
+The ROS Jazzy installed gate remains pending. Evidence and runtime hashes:
+[simple-follower report](experiments/2026-10-13/SIMPLE_CENTERLINE_REPORT.md).
+
+## Control-only robustness candidate, 2026-10-08
+
+Implemented on `fix/newcar-control`; not deployed or merged into main. The
+estimation/planning algorithms, their thresholds, lateral feedback, speed PI
+and sustaining drive feedforward are unchanged. The control boundary handles
+temporary road rejection using a cached, previously trusted straight reference.
+
+`control.robustness_enabled` defaults to false in code and is enabled in the
+supplied MVP YAML. The cache has a 1.0 s / 0.25 m budget from acceptance of the
+last **distinct** trusted cone frame; repeated references from the same sample
+cannot renew either budget. Predictions use incremental wheel/gyro motion,
+retain the original measurement timestamp, and end earlier if motion history
+or observed forward path support is unavailable. New valid road references
+restore tracking without clearing controller integrals or resetting run budgets.
+Other polynomial paths retain the original controller and expiry behavior.
+
+The internal `TRACKING` / `DEGRADED` states preserve the external FSM interface.
+Motion-feedback loss, malformed references, clock anomalies, invalid actions,
+operator stop, execution timeout and run distance/time limits still latch zero
+outputs with explicit restart. Cone missing/empty deadlines may be bridged only
+while the cache is usable and all other required fields remain fresh. Before
+the first trusted path, the original startup checks and neutral-history priming
+apply. Control execution leases are at most 0.2 s and bounded by wheel/gyro
+freshness; upstream road deadlines are not rewritten. Transition diagnostics
+include the rejection cause, source/cache ages, prediction distance and remaining
+path range; periodic status retains the last transition snapshot. To restore
+legacy behavior set `control.robustness_enabled: false` and restart policy.
+
+Verification of the runtime/configuration/test sources:
+
+- Portable tests: estimation 28, planning 17, control 32; all 77 passed.
+- Required installed fast gate passed in an isolated Docker ROS Jazzy environment
+  against clean pinned `dream_interfaces` commit
+  `5f50902ccee44e8370d6e2be85607b3054ffbf98`: 151 checks, zero errors/failures/skips,
+  installed launch arguments checked. Log: `.verification/control-robustness-fast-gate.log`.
+- The new cases exercise dropout/recovery, exact cache budgets, stale cones,
+  unchanged-frame non-renewal, reference leases, independent supervision,
+  incremental translation/rotation, exhausted support/history, callback behavior,
+  operator stop and explicit restart. Legacy disabled-mode cases remain passing.
+- `tools/replay_control_robustness.py` replays 27 full-confidence recorded cone
+  frames with **synthetic stationary motion and deterministic 20 Hz timing**,
+  applying the final Tuesday thresholds. Legacy first rejection is at 1.0 s
+  (`unsupported_road_curvature`); the robustness candidate processes 40 tracking
+  and 30 degraded cycles, stopping at 3.5 s when the hold-time budget expires.
+  Output: `.verification/control-robustness-replay.json`. Run with PyYAML:
+  `python -B tools/replay_control_robustness.py --output /tmp/control-replay.json`.
+- This partial replay does not reconstruct actual driving: the main driving
+  JSONL records omit per-cone confidence and height. Exact B11/B12/B14 trajectories,
+  physical lateral error and improved physical run length remain unverified;
+  no missing measurements were replaced with guessed confidence values.
 
 ## New-car MVP control trial, 2026-10-06
 
