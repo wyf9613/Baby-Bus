@@ -1,5 +1,22 @@
 # Baby Bus · ai4r_policy
 
+当前启用单双侧中心线平滑交接：`estimation.centerline_transition_enabled: true`。
+上一条中心线先通过轮速/IMU补偿到当前车身坐标系；双侧、左单侧、右单侧间切换
+使用 0.5 s 五次时间权重过渡，中途反复切换从当前输出继续衔接。
+横向参考变化率上限为 0.3 m/s；目标仍变化时交接可能超过 0.5 s。
+路宽仍可随双侧观测更新。真实观测边界不做混合，规划器仍检查车身和运动约束。
+日志同时输出 `raw_centerline_xy`、平滑后的 `centerline_xy` 及 `centerline_transition`。
+无共同支持或运动补偿失败时不会凭空连接不相交的道路。轮速数值错误仍会影响补偿。
+
+当前启用 `estimation.single_side_width_memory_enabled: true`：双侧相机拟合通过时，
+从共同观测起点前方 1 m 内估计垂直道路宽度，取最近 5 个不同相机帧的中位数。
+单侧缺失后，用当前可见边界沿局部法向偏移半宽重建中心线、偏移全宽重建缺失边界；
+可见侧已经观测过的近端支持仍保留。推算侧标记 `width_inferred`，可见性仍为
+`left_only/right_only`，不会把推算点写入真实锥桶缓存。双侧恢复后更新宽度。
+宽度记忆有效期 30 s，运动历史重置时清除；尚未学到宽度时不凭空推算。
+轨迹日志的 `width_memory` 记录宽度、左右半宽及双侧学习时间，
+`single_side_reconstructed` 标记单侧重建。当前仍使用 lattice 受控起步。
+
 成功的 `Planned trajectory:` JSON 现包含同一规划输入帧的 `planning_input`（中心线、
 左右边界和源时间）、`planning_details.startup_connection.selected_join`（实际选中
 连接点的位置/航向/曲率）及 `planning_state`（轮速/偏航角速度）。与轨迹 ID 同行，

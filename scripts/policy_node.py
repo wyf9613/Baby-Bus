@@ -201,6 +201,13 @@ class EstimationSettings:
     # 0 means unknown: single-sided geometry stays invalid until measured or
     # explicitly supplied for a known simulated road. Never guess a lane width.
     known_lane_width_m: float = 0.0
+    # Learn local perpendicular width from fresh dual-side camera fits; use
+    # current single-side observations, not a replay of the missing boundary.
+    single_side_width_memory_enabled: bool = False
+    width_memory_max_age_s: float = 30.0
+    centerline_transition_enabled: bool = False
+    centerline_transition_s: float = 0.5
+    centerline_transition_rate_mps: float = 0.3
     # Imported mpc-car-run switches (docs/ESTIMATION_V1_CN.md); defaults keep
     # the original behaviour. "continuous" moves the cone history to every
     # policy step with short wheel/gyro intervals, so a camera gap no longer
@@ -233,6 +240,10 @@ class EstimationSettings:
             raise ValueError("estimation.road_history_mode must be time or distance")
         if not isinstance(self.history_merge_single_side, bool):
             raise ValueError("estimation.history_merge_single_side must be bool")
+        if not isinstance(self.single_side_width_memory_enabled, bool):
+            raise ValueError("estimation.single_side_width_memory_enabled must be bool")
+        if not isinstance(self.centerline_transition_enabled, bool):
+            raise ValueError("estimation.centerline_transition_enabled must be bool")
         if not isinstance(self.history_conflict_check_enabled, bool):
             raise ValueError("estimation.history_conflict_check_enabled must be bool")
         if not isinstance(self.continuous_road_output, bool):
@@ -241,7 +252,8 @@ class EstimationSettings:
             raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
             if name in ("history_propagation", "road_history_mode", "history_merge_single_side",
-                        "continuous_road_output", "history_conflict_check_enabled"):
+                        "continuous_road_output", "history_conflict_check_enabled", "single_side_width_memory_enabled",
+                        "centerline_transition_enabled"):
                 continue
             if not finite_number(value):
                 raise ValueError(f"estimation.{name} must be finite")
@@ -561,7 +573,26 @@ class EstimationPipeline:
         self.settings, self.frame_id = settings, frame_id
         self.left_colour, self.right_colour = left_colour, right_colour
         self.motion = motion_history or EstimationMotionHistory(settings)
+        self._lane_width_samples = []  # (real dual-side camera timestamp, width)
+        self._lane_width_reset_id = self.motion.reset_id
+        self._centerline_handoff = None
         self._clear_road_history()
+
+    def _lane_width_memory(self, timestamp, age=0.0):
+        if self._lane_width_reset_id != self.motion.reset_id:
+            self._lane_width_samples = []
+            self._lane_width_reset_id = self.motion.reset_id
+        if not self._lane_width_samples:
+            return None
+        source = self._lane_width_samples[-1][0]
+        elapsed = timestamp+age-source
+        if elapsed < 0 or elapsed >= self.settings.width_memory_max_age_s:
+            return None
+        width = _estimation_median([p[1] for p in self._lane_width_samples])
+        return {"lane_width_m": width, "left_distance_m": width/2,
+                "right_distance_m": width/2, "measurement_timestamp_s": source,
+                "age_s": elapsed, "sample_count": len(self._lane_width_samples),
+                "source": "observed_both_sides"}
 
     def _clear_road_history(self, reason="reset"):
         previous = len(getattr(self, "_road_cones", []))
@@ -583,6 +614,108 @@ class EstimationPipeline:
         self._prediction_expired_source_s = None
         self._conflict_source_s = None
         self._road_reset_id = self.motion.reset_id
+
+    def _smooth_centerline_mode(self, road, now_s, state_valid):
+        """Blend only the reference; measured boundaries and source ages stay raw.
+
+        All prior output/anchor points move incrementally to the current body
+        frame. A constant-weight blend of C2 splines stays spatially C2. The
+        quintic time weight starts/ends with zero first/second derivatives;
+        an additional displacement-rate bound handles a moving/noisy target.
+        """
+        cfg = self.settings
+        if not cfg.centerline_transition_enabled:
+            return road
+        cache = self._centerline_handoff
+        if not state_valid or (cache and cache["reset_id"] != self.motion.reset_id):
+            self._centerline_handoff = cache = None
+        if cache:
+            pose, problem = self.motion.pose_between(cache["timestamp_s"], now_s)
+            if problem or now_s-cache["measurement_timestamp_s"] >= cfg.max_source_age_s:
+                self._centerline_handoff = cache = None
+            else:
+                for key in ("points", "anchor"):
+                    cache[key] = [self.motion.transform_xy(p, pose) for p in cache[key]]
+                cache["dt_s"] = now_s-cache["timestamp_s"]
+                cache["timestamp_s"] = now_s
+        geometry = road.get("forward_geometry") if road.get("status") == "near_field_unobserved" else road
+        if (not state_valid or not geometry or not geometry.get("time_aligned")
+                or not geometry.get("geometry_valid") or road.get("degraded")
+                or not geometry.get("centerline_xy")):
+            return road  # Invalid input never becomes usable through smoothing.
+        mode = geometry.get("visibility")
+        target = geometry["centerline_xy"]
+        source = geometry.get("measurement_timestamp_s")
+        if not cache:
+            self._centerline_handoff = {"points": deepcopy(target), "anchor": deepcopy(target),
+                "mode": mode, "from_mode": mode, "started_at_s": None,
+                "timestamp_s": now_s, "measurement_timestamp_s": source,
+                "reset_id": self.motion.reset_id}
+            geometry["centerline_transition"] = {"active": False, "to_mode": mode}
+            return road
+
+        def reject(reason):
+            geometry.update(valid=False, geometry_valid=False, status=reason,
+                            centerline_transition={"active": True, "reason": reason})
+            road.update(valid=False, status=reason)
+            return road
+
+        if mode != cache["mode"]:
+            cache["anchor"] = deepcopy(cache["points"])
+            cache["from_mode"], cache["mode"] = cache["mode"], mode
+            cache["started_at_s"] = now_s
+        try:
+            curves = [LatticeCurve(p, 0.0, cfg.road_sample_spacing_m)
+                      for p in (cache["points"], cache["anchor"], target)]
+            lo, hi = max(c.xmin for c in curves), min(c.xmax for c in curves)
+            if hi-lo < cfg.road_min_coverage_m:
+                return reject("centerline_transition_insufficient_overlap")
+            count = min(200, math.ceil((hi-lo)/cfg.road_sample_spacing_m))
+            xs = [lo+(hi-lo)*i/count for i in range(count+1)]
+            previous, anchor, desired = [[c.at_x(x)[0] for x in xs] for c in curves]
+            active = cache["started_at_s"] is not None
+            elapsed = 0.0 if not active else now_s-cache["started_at_s"]
+            u = min(1.0, max(0.0, elapsed/cfg.centerline_transition_s)) if active else 1.0
+            weight = u*u*u*(10+u*(-15+6*u))
+            wanted = [a+(b-a)*weight for a, b in zip(anchor, desired)]
+            change = max(abs(b-a) for a, b in zip(previous, wanted))
+            step = cfg.centerline_transition_rate_mps*max(0.0, cache.get("dt_s", 0.0))
+            fraction = min(1.0, step/change) if change > 1e-9 else 1.0
+            # Also bound ordinary within-mode fit/width updates. Width remains
+            # free to vary; it is the output reference that cannot jump.
+            values = [a+(b-a)*fraction for a, b in zip(previous, wanted)]
+            output = list(zip(xs, values))
+            curve = LatticeCurve(output, 0.0, cfg.road_sample_spacing_m)
+            _, slope, second, _ = curve.at_x(lo)
+            if any(abs(curve.at_x(x)[1]) > cfg.road_max_abs_slope for x in xs):
+                return reject("centerline_transition_invalid_slope")
+            geometry["raw_centerline_xy"] = deepcopy(target)
+            geometry["centerline_xy"] = output
+            geometry["x_range_m"] = [lo, hi]
+            geometry["local_curvature_1pm"] = second/(1+slope*slope)**1.5
+            remaining = max(abs(a-b) for a, b in zip(values, desired))
+            complete = u >= 1.0 and remaining <= 1e-6
+            geometry["centerline_transition"] = {"active": (active and not complete) or fraction < 1.0,
+                "from_mode": cache["from_mode"], "to_mode": mode,
+                "elapsed_s": elapsed, "time_weight": weight,
+                "rate_limited": fraction < 1.0, "maximum_step_m": step,
+                "actual_step_m": change*fraction, "remaining_shift_m": remaining,
+                "common_x_range_m": [lo, hi]}
+            cache["points"] = deepcopy(output)
+            cache["measurement_timestamp_s"] = source
+            if complete:
+                cache["started_at_s"] = None
+                # Once overlap matches, admit the target's newly observed far
+                # support; do not let repeated intersections shrink forever.
+                geometry["centerline_xy"] = deepcopy(target)
+                geometry["x_range_m"] = [target[0][0], target[-1][0]]
+                _, slope, second, _ = curves[-1].at_x(target[0][0])
+                geometry["local_curvature_1pm"] = second/(1+slope*slope)**1.5
+                cache["points"] = deepcopy(target)
+                cache["anchor"] = deepcopy(target)
+        except (ValueError, TypeError, ArithmeticError):
+            return reject("centerline_transition_invalid_geometry")
+        return road
 
     def _drop_road_prediction(self):
         """A rejected road ends driving trust, not unrelated measured support."""
@@ -736,7 +869,8 @@ class EstimationPipeline:
             if not (self.settings.history_propagation == "continuous" and not out_of_order
                     and (source_s is None or source_s <= now_s)):
                 self._clear_road_history()
-            result = self.road(batch, stamp_ns, age)
+            result = self.road(batch, stamp_ns, age,
+                               learn_width=not out_of_order and source_s is not None and source_s <= now_s)
             if out_of_order:
                 result.update(valid=False, status="out_of_order_camera", centerline_xy=[],
                               left_boundary_xy=None, right_boundary_xy=None)
@@ -762,6 +896,39 @@ class EstimationPipeline:
             self._clear_road_history(placement_problem)
             current.update(valid=False, status=placement_problem, history_used=False, centerline_xy=[],
                            left_boundary_xy=None, right_boundary_xy=None)
+            return current
+        if current.get("single_side_reconstructed"):
+            # Fresh visible-side geometry takes priority over the missing
+            # side's old fit. Keep only REAL visible detections in history.
+            fits = current.get("_boundary_fits", {})
+            if self._reject_history_conflict(current, placed or [], fits, source_s):
+                return current
+            previous = [p for p in placed or []
+                        if 0 <= now_s-p[5] <= self.settings.history_lifetime_s
+                        and -self.settings.road_rear_support_m <= p[0] <= self.settings.road_forward_max_m]
+            fresh = [(x, y, 0.0, colour, confidence, source_s)
+                     for colour, fit in fits.items() for x, y, confidence in fit["support_points"]]
+            radius = self.settings.history_merge_radius_m or 2*self.settings.huber_delta_m
+            for point in fresh:
+                previous = [p for p in previous if p[3] != point[3]
+                            or math.hypot(p[0]-point[0], p[1]-point[1]) > radius]
+            self._road_cones = []
+            for colour in (self.left_colour, self.right_colour):
+                side = sorted([p for p in previous+fresh if p[3] == colour], key=lambda p: p[0])
+                self._road_cones.extend(side if len(side) <= 64 else
+                    [side[round(i*(len(side)-1)/63)] for i in range(64)])
+            # Retain real near/rear support on the VISIBLE side, so losing
+            # camera sight of near cones does not erase already seen coverage.
+            # The missing side's history never determines this fitted curve.
+            visible = [p for p in self._road_cones if p[3] in fits]
+            merged = self.road({"detections": [p[:5] for p in visible]}, stamp_ns, age,
+                               piecewise=self.settings.continuous_road_output, learn_width=False)
+            if merged.get("valid") and merged.get("single_side_reconstructed"):
+                current = merged
+                current["history_used"] = any(p[5] < source_s for p in visible)
+                current["oldest_observation_timestamp_s"] = min(p[5] for p in visible)
+            self._road_stamp, self._fused_source_s = source_s, source_s
+            self._road_frame = deepcopy(current)
             return current
         if not current["valid"] or current["visibility"] != "both":
             if current["status"] not in self.QUALITY_FAILURES:
@@ -814,7 +981,7 @@ class EstimationPipeline:
             bounded.extend(side)
         supported = [p[:5] for p in fresh]
         result = self.road({"detections": [p[:5] for p in bounded]}, stamp_ns, age,
-                           piecewise=self.settings.continuous_road_output)
+                           piecewise=self.settings.continuous_road_output, learn_width=False)
         if not result["valid"] or (partial and result["visibility"] != "both"):
             if self.settings.continuous_road_output:
                 # Keep the already advanced cache. Never replace its rear
@@ -841,18 +1008,18 @@ class EstimationPipeline:
         used = [p for p in bounded if p[:5] in supported] if result["valid"] else bounded
         result["history_used"] = any(p[5] < source_s for p in used)
         if result["history_used"]:
-            result["status"] = "observed_with_history"
-            result["boundary_source"] = {"left": "observed_with_history", "right": "observed_with_history"}
+            result["status"] = "single_side_inferred" if result.get("single_side_reconstructed") else "observed_with_history"
             if self.settings.continuous_road_output:
-                result["boundary_source"] = {}
                 for side, colour in (("left", self.left_colour), ("right", self.right_colour)):
+                    if result["boundary_source"].get(side) == "width_inferred":
+                        continue
                     old = any(p[3] == colour and p[5] < source_s for p in used)
                     fresh_side = any(p[3] == colour and p[5] == source_s for p in used)
                     result["boundary_source"][side] = ("observed_with_history" if old and fresh_side
                                                         else "history" if old else "observed")
             if partial:
                 # The side without fresh support in this frame is history only.
-                if not self.settings.continuous_road_output:
+                if not self.settings.continuous_road_output and not result.get("single_side_reconstructed"):
                     result["boundary_source"] = {
                         side: "observed_with_history" if colour in fits else "history"
                         for side, colour in (("left", self.left_colour), ("right", self.right_colour))}
@@ -928,7 +1095,8 @@ class EstimationPipeline:
         remaining = min(remaining, self.settings.history_lifetime_s-(now_s-oldest))
         if remaining <= 1e-9:
             return None, "near_field_history_expired"
-        predicted = self.road({"detections": [p[:5] for p in placed]}, round(now_s*1e9), 0.0, piecewise=True)
+        predicted = self.road({"detections": [p[:5] for p in placed]}, round(now_s*1e9), 0.0,
+                              piecewise=True, learn_width=False)
         predicted.update(timestamp_s=now_s, history_used=True, oldest_observation_timestamp_s=oldest)
         predicted = self._align_road(predicted, now_s, True)
         if not predicted["valid"]:
@@ -1023,7 +1191,7 @@ class EstimationPipeline:
                     return segmented
         return fit
 
-    def road(self, batch, stamp_ns, age, *, piecewise=False):
+    def road(self, batch, stamp_ns, age, *, piecewise=False, learn_width=True):
         timestamp = stamp_ns/1e9 if stamp_ns is not None and stamp_ns > 0 else None
         output = {"timestamp_s": timestamp, "frame_id": self.frame_id, "valid": False,
                   "centerline_xy": [], "left_boundary_xy": None, "right_boundary_xy": None,
@@ -1038,6 +1206,11 @@ class EstimationPipeline:
             for side in ("left", "right")}
         if not self._fresh(batch, age) or timestamp is None:
             return output
+        memory = (self._lane_width_memory(timestamp, age)
+                  if self.settings.single_side_width_memory_enabled else None)
+        if memory is not None:
+            output["width_memory"] = deepcopy(memory)
+        width_m = memory["lane_width_m"] if memory else self.settings.known_lane_width_m
         sides = {self.left_colour: [], self.right_colour: []}
         for x, y, z, colour, confidence in batch["detections"]:
             if colour in sides:
@@ -1068,7 +1241,7 @@ class EstimationPipeline:
             return output
         if left is None or right is None:
             output["visibility"] = "left_only" if left is not None else "right_only"
-            if self.settings.known_lane_width_m == 0:
+            if width_m == 0:
                 output["status"] = "single_side_width_unknown"
                 return output
         fits = [fit for fit in (left, right) if fit is not None]
@@ -1099,11 +1272,20 @@ class EstimationPipeline:
                 curvatures.append((ql+qr)/2/(1+slope*slope)**1.5)
             else:
                 y, slope, _ = next(v for v in evaluated if v is not None)
-                width = self.settings.known_lane_width_m
+                width = width_m
                 # Offset along the local normal, not simply along body y.
                 direction = -1 if left is not None else 1
                 half = direction*width/2/math.hypot(1, slope)
                 center.append((x-half*slope, y+half))
+                if memory is not None:
+                    # Offset the missing boundary by the FULL learned width.
+                    # Reject inward offset cusps, never fold/reverse a corridor.
+                    curvature = evaluated[0 if left is not None else 1][2]/(1+slope*slope)**1.5
+                    if 1-direction*width*curvature <= 0.2:
+                        output["status"] = "invalid_width_or_order"
+                        return output
+                    samples["right" if left is not None else "left"].append(
+                        (x-2*half*slope, y+2*half))
             widths.append(width)
         if (any(not self.settings.road_width_min_m <= w <= self.settings.road_width_max_m for w in widths)
                 or any(b[0] <= a[0] for a, b in zip(center, center[1:]))
@@ -1122,6 +1304,26 @@ class EstimationPipeline:
         for side, fit in (("left", left), ("right", right)):
             output[f"{side}_boundary_xy"] = samples[side] if fit is not None else None
             output["boundary_source"][side] = "observed" if fit is not None else "absent"
+        if len(fits) == 1 and memory is not None:
+            missing = "right" if left is not None else "left"
+            boundary = samples[missing]
+            if (any(b[0] <= a[0] for a, b in zip(boundary, boundary[1:]))
+                    or boundary[-1][0]-boundary[0][0] < self.settings.road_min_coverage_m):
+                output.update(valid=False, status="invalid_width_or_order")
+                return output
+            output[missing+"_boundary_xy"] = boundary
+            output["boundary_source"][missing] = "width_inferred"
+            output.update(single_side_reconstructed=True, width_memory=deepcopy(memory),
+                          reconstruction_method="single_side_normal_offset")
+        elif len(fits) == 2 and self.settings.single_side_width_memory_enabled and learn_width:
+            # Learn only from this camera's dual fits, not merged/history fits.
+            if not self._lane_width_samples or timestamp > self._lane_width_samples[-1][0]:
+                near = [w for (x, _), w in zip(center, widths) if x <= lo+1.0]
+                measured = _estimation_median(near)
+                self._lane_width_samples = [p for p in self._lane_width_samples
+                    if 0 <= timestamp-p[0] < self.settings.width_memory_max_age_s][-4:]
+                self._lane_width_samples.append((timestamp, measured))
+            output["width_memory"] = self._lane_width_memory(timestamp, age)
         output["_boundary_fits"] = {colour: fit for colour, fit in
                                     ((self.left_colour, left), (self.right_colour, right)) if fit is not None}
         output["_support_cones"] = [(x, y, 0.0, colour, confidence)
@@ -1283,6 +1485,7 @@ class EstimationPipeline:
                          "source_age_s": ages.get("cone_detections"),
                          "fit_valid": observed["valid"] and observed["visibility"] == "both",
                          "status": observed["status"], "visibility": observed["visibility"],
+                         "single_side_reconstructed": bool(observed.get("single_side_reconstructed")),
                          "boundary_diagnostics": deepcopy(observed["boundary_diagnostics"])}
         failure = road["status"]
         if (self.settings.continuous_road_output and self._failure_since_s is not None
@@ -1301,7 +1504,8 @@ class EstimationPipeline:
                         left_boundary_xy=None, right_boundary_xy=None, lane_width_m=None,
                         x_range_m=None, local_curvature_1pm=None, confidence=0.0)
             failure = road["status"]
-        trusted_candidate = (deepcopy(road) if road["valid"] and road["visibility"] == "both" else None)
+        trusted_candidate = (deepcopy(road) if road["valid"] and
+            (road["visibility"] == "both" or road.get("single_side_reconstructed")) else None)
         road = self._align_road(road, now_s, state["valid"])
         road.update(current_frame=current_frame, degraded=False, prediction_status="not_used",
                     prediction_elapsed_s=None, prediction_age_s=None,
@@ -1355,6 +1559,7 @@ class EstimationPipeline:
                 self._history_events.append({"reason": "road_rejected", "status": road["status"]})
             else:
                 self._clear_road_history("road_rejected")
+        road = self._smooth_centerline_mode(road, now_s, state["valid"])
         road["history_diagnostics"] = self._history_diagnostics(now_s, road)
         if "forward_geometry" in road:
             road["forward_geometry"]["history_diagnostics"] = deepcopy(road["history_diagnostics"])
@@ -2357,7 +2562,9 @@ class FrenetLatticePlanner:
                     # Explicit planner assumption, never estimator acceptance.
                     road["valid"] = True
                     diag["controlled_near_extension"] = True
-            if not road.get("valid") or road.get("visibility") != "both" or not state.get("speed_valid") or not state.get("yaw_rate_valid"):
+            if (not road.get("valid") or
+                    (road.get("visibility") != "both" and not road.get("single_side_reconstructed"))
+                    or not state.get("speed_valid") or not state.get("yaw_rate_valid")):
                 raise ValueError("invalid_estimates_or_boundaries")
             if any(obj.get("frame_id") != self.frame_id or not finite_number(obj.get("timestamp_s")) or
                    abs(obj["timestamp_s"]-now_s) > 1e-6 for obj in (road, state)):
@@ -5128,7 +5335,8 @@ class PolicyNode(Node):
                     "worker_road": {key: result["road"].get(key) for key in (
                         "status", "valid", "visibility", "source_age_s", "degraded", "frame_id",
                         "near_field", "history_used", "boundary_source", "geometry_valid",
-                        "history_diagnostics", "reconstruction_method")}}
+                        "history_diagnostics", "reconstruction_method",
+                        "single_side_reconstructed", "width_memory")}}
                 self.planning_diagnostics = dict(self.last_async_diagnostics)
                 self.last_planner_elapsed_s = result["diagnostics"].get("elapsed_s")
                 if ref.get("valid"):
@@ -5315,9 +5523,10 @@ class PolicyNode(Node):
                 "geometry_status": geometry.get("status"), "geometry_valid": geometry.get("geometry_valid"),
                 **{name: geometry.get(name) for name in ("frame_id", "timestamp_s",
                     "measurement_timestamp_s", "source_age_s", "time_aligned", "degraded",
-                    "visibility", "near_field", "boundary_source", "reconstruction_method")},
+                    "visibility", "near_field", "boundary_source", "reconstruction_method",
+                    "single_side_reconstructed", "width_memory", "centerline_transition")},
                 "point_fields": ["x_m", "y_m"]}
-            for name in ("centerline_xy", "left_boundary_xy", "right_boundary_xy"):
+            for name in ("centerline_xy", "raw_centerline_xy", "left_boundary_xy", "right_boundary_xy"):
                 raw = geometry.get(name) or []
                 selected = (list(range(len(raw))) if len(raw) <= 128 else
                             [round(i*(len(raw)-1)/127) for i in range(128)])
@@ -5351,6 +5560,8 @@ class PolicyNode(Node):
             "road_visibility": road.get("visibility"), "road_source_age_s": road.get("source_age_s"),
             "road_near_field": road.get("near_field"), "road_history_used": road.get("history_used"),
             "road_boundary_sources": road.get("boundary_source"),
+            "road_width_memory": road.get("width_memory"),
+            "single_side_reconstructed": road.get("single_side_reconstructed", False),
             "road_history_diagnostics": road.get("history_diagnostics"),
             "road_reconstruction_method": road.get("reconstruction_method"),
             "state_valid": state.get("valid"), "speed_mps": state.get("speed_mps"),

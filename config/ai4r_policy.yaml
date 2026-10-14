@@ -200,15 +200,24 @@
       road_width_max_m: 2.5
       # Maximum abs(dy/dx), dimensionless. Steep/non-function geometry is rejected.
       road_max_abs_slope: 2.0
-      # 0.0 means unknown: single-sided road is invalid. Set a measured road
-      # width (m), or a known simulation width, before using single-side inference.
+      # Learn near-field perpendicular width from the latest 5 distinct
+      # dual-side camera frames; current single-side fits may use that width.
+      single_side_width_memory_enabled: true
+      width_memory_max_age_s: 30.0
+      # Smooth both->single, single->both and left->right transitions in the
+      # current body frame. Real boundaries stay unchanged for collision checks.
+      centerline_transition_enabled: true
+      centerline_transition_s: 0.5
+      centerline_transition_rate_mps: 0.3
+      # Optional fixed fallback; 0 requires a learned dual-side width first.
       known_lane_width_m: 0.0
 
     # V2 Frenet lattice. Set algorithm: centerline to select the legacy V1.
     # self.planning_output / planning_diagnostics are internal records, no topic.
     # V2 checks the full approximate body and motion; static obstacle checking
     # is optional and disabled below for the controlled cone-only trial.
-    # control.mode=mvp does NOT disable those checks. Both boundaries required.
+    # control.mode=mvp does NOT disable those checks. Inferred boundaries are
+    # labelled separately when the learned-width single-side mode is active.
     planning:
       algorithm: lattice_v2
       cruise_speed_mps: 0.2

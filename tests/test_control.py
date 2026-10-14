@@ -323,6 +323,34 @@ class RobustControlChecks(unittest.TestCase):
 
 
 class RobustLatticeIntegrationChecks(unittest.TestCase):
+    def test_learned_single_side_keeps_tracking_beyond_control_hold_then_stops_when_empty(self):
+        node = self.node(direct=True, speed=0.0)
+        node.estimation_settings = replace(node.estimation_settings,
+            single_side_width_memory_enabled=True, history_conflict_check_enabled=False)
+        node.estimator.settings = node.estimation_settings
+        node.test_clock.advance(.05)
+        feed(node, center=.1, speed=0)
+        node.run_policy_step()
+        for _ in range(30):
+            node.test_clock.advance(.05)
+            feed(node, center=.1, speed=0)
+            batch = node.observations["cone_detections"].value
+            batch["detections"] = [p for p in batch["detections"] if p[3] == 1]
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 3, node.state_reason)
+            self.assertEqual(node.estimation_output["road"]["visibility"], "right_only")
+            self.assertTrue(node.estimation_output["road"]["single_side_reconstructed"])
+            self.assertEqual(node.control_reference_manager.mode, "TRACKING")
+            self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+        for _ in range(25):
+            node.test_clock.advance(.05)
+            feed(node, speed=0, empty=True)
+            node.run_policy_step()
+            if node.fsm_state == 2:
+                break
+        self.assertEqual(node.fsm_state, 2)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
     def straight_node(self):
         node = make_node(simulated=False, mvp=True)
         node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp", robustness_enabled=True,

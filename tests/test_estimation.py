@@ -241,6 +241,9 @@ class EstimationChecks(unittest.TestCase):
                                   float(value) if value[0] in "-0123456789" else value)
         expected = vars(Settings())
         expected.update(history_propagation="continuous", road_history_mode="distance",
+                        single_side_width_memory_enabled=True, width_memory_max_age_s=30.0,
+                        centerline_transition_enabled=True, centerline_transition_s=.5,
+                        centerline_transition_rate_mps=.3,
                         history_conflict_check_enabled=False,
                         history_merge_single_side=True, history_merge_radius_m=0.08,
                         continuous_road_output=True, max_source_age_s=1.5,
@@ -1420,8 +1423,8 @@ class PersistentHistoryChecks(unittest.TestCase):
     def test_failed_merged_fit_preserves_cache_and_prediction_provenance(self):
         class FailMergedOnce(Pipeline):
             fail_merge = False
-            def road(self, batch, stamp, age, *, piecewise=False):
-                result = super().road(batch, stamp, age, piecewise=piecewise)
+            def road(self, batch, stamp, age, *, piecewise=False, learn_width=True):
+                result = super().road(batch, stamp, age, piecewise=piecewise, learn_width=learn_width)
                 if piecewise and self.fail_merge:
                     self.fail_merge = False
                     result.update(valid=False, status="insufficient_geometry")
@@ -1456,8 +1459,8 @@ class PersistentHistoryChecks(unittest.TestCase):
     def test_fresh_but_failed_merges_do_not_renew_prediction_deadline(self):
         class FailMergedOnce(Pipeline):
             fail_merge = False
-            def road(self, batch, stamp, age, *, piecewise=False):
-                result = super().road(batch, stamp, age, piecewise=piecewise)
+            def road(self, batch, stamp, age, *, piecewise=False, learn_width=True):
+                result = super().road(batch, stamp, age, piecewise=piecewise, learn_width=learn_width)
                 if piecewise and self.fail_merge:
                     self.fail_merge = False
                     result.update(valid=False, status="insufficient_geometry")
@@ -1612,6 +1615,195 @@ class PersistentHistoryChecks(unittest.TestCase):
         self.assertFalse(road["valid"])
         self.assertFalse(p._road_cones)
         self.assertIn("motion_history_gap", [e["reason"] for e in road["history_diagnostics"]["events"]])
+
+
+class CenterlineTransitionChecks(unittest.TestCase):
+    def pipeline(self):
+        return Pipeline(Settings(centerline_transition_enabled=True))
+
+    def geometry(self, now, mode="both", y=0.0, xs=None):
+        xs = xs or [-.3+i*.1 for i in range(31)]
+        return {"valid": True, "geometry_valid": True, "time_aligned": True,
+            "timestamp_s": now, "measurement_timestamp_s": now, "source_age_s": 0.0,
+            "status": "observed", "visibility": mode,
+            "single_side_reconstructed": mode != "both",
+            "centerline_xy": [(x, y) for x in xs],
+            "left_boundary_xy": [(x, .5) for x in xs],
+            "right_boundary_xy": [(x, -.5) for x in xs]}
+
+    def step(self, p, now, mode="both", y=0.0, speed=0, yaw=0):
+        for name, value in (("wheel_speed", speed), ("imu_angular_velocity", yaw)):
+            p.motion.observe(name, value, now, now, now)
+        road = self.geometry(now, mode, y)
+        return p._smooth_centerline_mode(road, now, True)
+
+    def test_both_single_and_recovery_blend_without_moving_boundaries(self):
+        p = self.pipeline()
+        self.step(p, 10.0)
+        first = self.step(p, 10.05, "right_only", .12)
+        self.assertTrue(first["centerline_transition"]["active"])
+        self.assertAlmostEqual(first["centerline_xy"][0][1], 0)
+        previous = first["centerline_xy"][0][1]
+        for i in range(1, 16):
+            road = self.step(p, 10.05+.05*i, "right_only", .12)
+            value = road["centerline_xy"][0][1]
+            self.assertLessEqual(abs(value-previous), .015+1e-8)
+            self.assertTrue(all(abs(y-.5) < 1e-9 for _, y in road["left_boundary_xy"]))
+            self.assertEqual(road["measurement_timestamp_s"], 10.05+.05*i)
+            previous = value
+        self.assertAlmostEqual(previous, .12)
+        self.assertFalse(road["centerline_transition"]["active"])
+        recovered = self.step(p, 10.85, "both", -.03)
+        self.assertAlmostEqual(recovered["centerline_xy"][0][1], .12)
+        for i in range(1, 20):
+            recovered = self.step(p, 10.85+.05*i, "both", -.03)
+        self.assertAlmostEqual(recovered["centerline_xy"][0][1], -.03)
+        self.assertFalse(recovered["centerline_transition"]["active"])
+
+    def test_mid_transition_flip_starts_from_current_output(self):
+        p = self.pipeline()
+        self.step(p, 10)
+        for i in range(1, 5):
+            road = self.step(p, 10+i*.05, "left_only", .25)
+        before = deepcopy(road["centerline_xy"])
+        switched = self.step(p, 10.25, "right_only", -.25)
+        for a, b in zip(before, switched["centerline_xy"]):
+            self.assertAlmostEqual(a[1], b[1])
+        self.assertEqual(switched["centerline_transition"]["to_mode"], "right_only")
+
+    def test_previous_curve_is_transported_before_blending(self):
+        p = self.pipeline()
+        first = self.step(p, 10.0, speed=.2, yaw=.2)
+        second = self.step(p, 10.05, "right_only", .1, speed=.2, yaw=.2)
+        pose, problem = p.motion.pose_between(10, 10.05)
+        self.assertIsNone(problem)
+        moved = [p.motion.transform_xy(q, pose) for q in first["centerline_xy"]]
+        curve = namespace["LatticeCurve"](moved, 0, .1)
+        for x, y in second["centerline_xy"]:
+            self.assertAlmostEqual(y, curve.at_x(x)[0])
+        self.assertNotAlmostEqual(second["centerline_xy"][0][1], 0)
+
+    def test_insufficient_overlap_rejects_instead_of_jumping(self):
+        p = self.pipeline()
+        self.step(p, 10)
+        p.motion.observe("wheel_speed", 0, 10.05, 10.05, 10.05)
+        p.motion.observe("imu_angular_velocity", 0, 10.05, 10.05, 10.05)
+        candidate = self.geometry(10.05, "right_only", .1, [2.6+i*.1 for i in range(10)])
+        result = p._smooth_centerline_mode(candidate, 10.05, True)
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["status"], "centerline_transition_insufficient_overlap")
+
+    def test_clock_reset_clears_transition_and_invalid_input_stays_invalid(self):
+        p = self.pipeline()
+        self.step(p, 10)
+        self.step(p, 10.05, "left_only", .2)
+        p.motion.clear()
+        reset = self.step(p, 10.1, "right_only", -.1)
+        self.assertFalse(reset["centerline_transition"]["active"])
+        self.assertAlmostEqual(reset["centerline_xy"][0][1], -.1)
+        bad = self.geometry(10.15)
+        bad.update(valid=False, geometry_valid=False, status="history_fit_failed")
+        self.assertFalse(p._smooth_centerline_mode(bad, 10.15, True)["valid"])
+
+
+class LearnedWidthChecks(unittest.TestCase):
+    def pipeline(self, **kwargs):
+        return Pipeline(Settings(single_side_width_memory_enabled=True, **kwargs))
+
+    def test_unknown_width_still_rejects_single_side(self):
+        p = self.pipeline()
+        left, right = straight()
+        for l, r in ((left, []), ([], right)):
+            self.assertEqual(p.road(cones(l, r), 10_000_000_000, 0)["status"],
+                             "single_side_width_unknown")
+
+    def test_both_sides_learn_width_and_either_curved_side_offsets_normally(self):
+        for visible in ("left", "right"):
+            p = self.pipeline()
+            left, right = straight(slope=.4)
+            dual = p.road(cones(left, right), 10_000_000_000, 0)
+            self.assertAlmostEqual(dual["width_memory"]["lane_width_m"], 1.0)
+            sign = 1 if visible == "left" else -1
+            pts = [(x, sign*.5+.06*x*x) for x, _ in left]
+            road = p.road(cones(pts if visible == "left" else [],
+                                pts if visible == "right" else []), 10_100_000_000, 0)
+            self.assertTrue(road["valid"], road["status"])
+            self.assertEqual(road["visibility"], visible+"_only")
+            self.assertTrue(road["single_side_reconstructed"])
+            missing = "right" if visible == "left" else "left"
+            self.assertEqual(road["boundary_source"][missing], "width_inferred")
+            for source, center, opposite in zip(road[visible+"_boundary_xy"], road["centerline_xy"], road[missing+"_boundary_xy"]):
+                dx, dy = center[0]-source[0], center[1]-source[1]
+                self.assertAlmostEqual(math.hypot(dx, dy), .5)
+                self.assertAlmostEqual(dx+.12*source[0]*dy, 0)
+                self.assertAlmostEqual(math.dist(source, opposite), 1.0)
+            self.assertEqual(set(q[3] for q in road["_support_cones"]), {2 if visible == "left" else 1})
+
+    def test_only_new_dual_frames_learn_and_memory_expires_or_resets(self):
+        p = self.pipeline(width_memory_max_age_s=1.0)
+        left, right = straight()
+        p.road(cones(left, right), 10_000_000_000, 0)
+        p.road(cones(left, right), 10_000_000_000, .1)
+        self.assertEqual(len(p._lane_width_samples), 1)
+        p.road(cones(left, right), 10_500_000_000, 0, learn_width=False)
+        single = p.road(cones([], right), 10_900_000_000, 0)
+        self.assertEqual(single["width_memory"]["measurement_timestamp_s"], 10)
+        self.assertEqual(p.road(cones([], right), 11_000_000_000, 0)["status"], "single_side_width_unknown")
+        p.motion.clear()
+        self.assertEqual(p.road(cones([], right), 10_950_000_000, 0)["status"], "single_side_width_unknown")
+
+    def test_bad_width_does_not_seed_memory_and_recovery_updates_it(self):
+        p = self.pipeline()
+        l, r = straight(width=3)
+        self.assertFalse(p.road(cones(l, r), 10_000_000_000, 0)["valid"])
+        self.assertFalse(p._lane_width_samples)
+        for i, width in enumerate((.8, 1.0, 1.2, 1.2, 1.2, 1.2)):
+            l, r = straight(width=width)
+            dual = p.road(cones(l, r), 10_100_000_000+i*100_000_000, 0)
+        self.assertEqual(len(p._lane_width_samples), 5)
+        self.assertAlmostEqual(dual["width_memory"]["lane_width_m"], 1.2)
+
+    def test_continuous_single_side_uses_fresh_curve_and_real_history_only(self):
+        p = self.pipeline(history_propagation="continuous", continuous_road_output=True,
+            history_merge_single_side=True, history_conflict_check_enabled=False)
+        good = RoadDropoutChecks.step(p, 10.0, speed=0, yaw=0)["road"]
+        self.assertTrue(good["valid"])
+        xs = RoadDropoutChecks.XS
+        right = [(x, -.5+.025*x*x) for x in xs]
+        out = RoadDropoutChecks.step(p, 10.1, left=[], right=right, speed=0, yaw=0)
+        road = out["road"]
+        self.assertTrue(road["valid"], road["status"])
+        self.assertFalse(road["degraded"])
+        self.assertFalse(road["current_frame"]["fit_valid"])
+        self.assertEqual(road["visibility"], "right_only")
+        self.assertEqual(road["measurement_timestamp_s"], 10.1)
+        self.assertEqual(road["boundary_source"]["left"], "width_inferred")
+        self.assertTrue(all(q[5] == 10 for q in p._road_cones if q[3] == 2))
+        self.assertTrue(all(q[5] == 10.1 for q in p._road_cones if q[3] == 1))
+        cfg = namespace["LatticeSettings"](clear_start_assumed=True, obstacle_check_enabled=False,
+            direct_sample_output=True, budget_s=5.0)
+        planner = namespace["FrenetLatticePlanner"](namespace["PlanningSettings"](algorithm="lattice_v2"), cfg)
+        ref, _ = planner.plan(road, out["state"], out["obstacles"], out["vehicle_limits"], 10.1,
+            {"road": .4, "wheel_speed": .25, "imu_angular_velocity": .25}, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        # Camera loses sight of near cones as well. Previously observed near
+        # support on the remaining side must survive, without using old left.
+        front = [(x, y) for x, y in right if x >= .6]
+        near = RoadDropoutChecks.step(p, 10.2, left=[], right=front, speed=0, yaw=0)["road"]
+        self.assertTrue(near["valid"], near["status"])
+        self.assertTrue(near["history_used"])
+        self.assertTrue(near["single_side_reconstructed"])
+        self.assertEqual(near["width_memory"]["measurement_timestamp_s"], 10)
+        recovered = RoadDropoutChecks.step(p, 10.3, speed=0, yaw=0)["road"]
+        self.assertTrue(recovered["valid"])
+        self.assertEqual(recovered["visibility"], "both")
+        self.assertFalse(recovered.get("single_side_reconstructed", False))
+
+    def test_configuration_flags_and_memory_deadline_are_validated(self):
+        for args in ({"single_side_width_memory_enabled": 1}, {"width_memory_max_age_s": 0},
+                     {"width_memory_max_age_s": math.nan}):
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                Settings(**args)
 
 
 if __name__ == "__main__":

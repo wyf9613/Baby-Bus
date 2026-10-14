@@ -1,5 +1,64 @@
 # AI4R policy acceptance
 
+## Smooth dual/single centerline handoff, 2026-10-14 (local)
+
+Active YAML enables centerline_transition_enabled (code default false), with
+centerline_transition_s=0.5 and centerline_transition_rate_mps=0.3. Width remains
+variable. Incrementally transport previous output and handoff anchor using real
+wheel/gyro history; blend C2 centerline splines on common x support with a
+quintic time weight. A per-cycle lateral displacement bound also constrains
+noisy targets within one mode. Completion may take longer than 0.5 s when
+rate-limited. Mid-transition mode changes start from the latest output.
+
+Observed boundaries, camera timestamps and source ages remain unchanged;
+inferred boundary provenance is preserved through history fusion. Do not
+promote invalid roads, extrapolate beyond common transition support, or reuse
+geometry across motion resets. The planner retains footprint and motion checks;
+this spatial/temporal reference blend is not a physical steering guarantee.
+When the overlap matches the target, admit its newly observed far support.
+Log raw_centerline_xy alongside centerline_xy and transition diagnostics.
+
+Portable tests cover both/single recovery, mode flapping, motion transport,
+insufficient overlap and motion reset. Replay of the latest recorded geometry
+(using logged state snapshots, not full sensor history) changed x=0.6 m output
+from raw -0.420/-0.792 m in frames 24/25 to approximately -0.137/-0.173 m,
+preserving camera geometry/boundaries. This is offline diagnostic evidence,
+not confirmation that the vehicle followed these paths. ROS/hardware not run.
+
+## Learn dual-side width for fresh single-side reconstruction, 2026-10-14
+
+User requested remembering observed width before a bend and reconstructing
+the centerline from the remaining blue-left or yellow-right boundary. Add
+estimation.single_side_width_memory_enabled (default false, active YAML true)
+and width_memory_max_age_s=30.0. Learn perpendicular width over the first
+1 m of common dual camera support, using a median over up to 5 distinct
+camera epochs. Failed/out-of-order/stale fits, history-only fits, and inferred
+geometry do not learn or renew width. Motion resets invalidate memory; source
+age bounds it. Fixed known_lane_width_m retains its existing legacy behavior.
+
+Single-side fits offset by the learned half width along the local normal for
+the centerline and by full width for the absent boundary. Visible-side real
+history may preserve near/rear coverage, but missing-side historical shape
+does not control the single-side fit. No inferred cones enter the real cache.
+Observed visibility remains left_only/right_only; single_side_reconstructed
+and boundary_source=width_inferred distinguish the assumption. The lattice
+admits this explicit corridor while retaining geometry/body/motion checks.
+Offset folding/nonmonotonicity is rejected. Fresh single-side camera epochs
+can establish/renew a control reference; total absence follows existing hold
+and sensor watchdogs. Dual recovery returns to observed geometry and updates
+width. No changes to controlled startup, 0.6 m horizon or wheel feedback.
+
+Successful trajectory and rejection logs include width_memory provenance and
+the reconstruction flag. Local verification: 252 portable tests passed
+(estimation 110, control 59, lattice 65, planning 18). Tests cover both offset
+directions on a curved boundary, normal distances, unknown/expired/reset
+memory, dual recovery, distinct-frame smoothing, real-cache provenance,
+retained near support, actual lattice acceptance and control tracking beyond
+its hold window, followed by stopping with no cones. An additional active-YAML
+check with the actual async worker passed dual-side startup followed by 2 s
+of yellow-only tracking. Full ROS fast gate unavailable on Windows; physical
+behavior not tested. Changes local, not deployed or pushed.
+
 ## Successful-path road and startup endpoint logging, 2026-10-14
 
 Extend the existing Planned trajectory JSON with planning_input (input-frame
