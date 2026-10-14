@@ -241,6 +241,33 @@
       # Legacy V1 remains selectable with algorithm: centerline. Its straight
       # fit/body/model tuning is unused by road_centerline.
 
+    # Experimental state-machine profile: the initial version ran on Car 05.
+    # Final PREPARE/branch fixes are local only; physical U-turn acceptance pending.
+    turn_maneuver:
+      enabled: true
+      detection_range_m: 2.5
+      sharp_heading_rad: 0.9
+      uturn_heading_rad: 2.62
+      direction_agreement: 0.8
+      confirmation_frames: 3
+      branch_heading_limit_rad: 0.8
+      branch_position_limit_m: 0.25
+      commit_entry_distance_m: 0.45
+      outward_fraction: 0.15
+      setup_distance_m: 0.30
+      # Operator-selected initial radius and reported total width 0.30 m.
+      # Zero in either calibration field disables outward SETUP only.
+      minimum_turn_radius_m: 0.75
+      body_half_width_m: 0.15
+      boundary_margin_m: 0.05
+      # Bounded retention of a confirmed branch; original camera acquisition
+      # age is preserved. Motion/camera health and explicit Stop still apply.
+      hold_max_s: 0.8
+      hold_max_distance_m: 0.25
+      hold_min_reference_s: 0.05
+      exit_heading_rad: 0.35
+      exit_confirmation_frames: 2
+
     # Single-file control integration. Bare node defaults remain the teaching
     # starter (disabled); this supplied configuration selects closed-loop code.
     # Startup is still state 2, with separate vehicle Enable and policy state 3.

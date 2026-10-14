@@ -34,6 +34,7 @@ names = {
     'planning_vehicle_limits', 'wrap_angle',
     '_path_points', '_path_lengths', '_path_sample', '_path_tangent', '_path_project',
     '_estimation_order_boundary', '_control_ordered_geometry',
+    'TurnManeuverSettings', 'TurnManeuverPlanner',
 }
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
                and item.name in names]

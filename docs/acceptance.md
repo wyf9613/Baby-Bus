@@ -1,5 +1,60 @@
 # AI4R policy acceptance
 
+## Session archive / main selection, 2026-10-14
+
+The operator selected aggressive-bend checkpoint 5e8d1b8 for main and a separate
+feature/newcar-turn-fsm-experiment branch for the state machine and final local
+repairs. The last deployed FSM stopped during two driving trials: boundary
+pairing at about 7.4 s while FOLLOW, and reference expiry/control gap at about
+9.3 s while PREPARE/UNKNOWN; no SETUP was observed. An intervening in-place start
+was rejected because one-side width was unknown after reset.
+
+Final local repairs compare common support across FOV clipping and make UNKNOWN
+preparation advisory, keeping strict retained-branch intervention for confirmed
+UTURN or outward placement. Cache tail references require one control tick of
+remaining lifetime; richer stop diagnostics capture timing and cone input.
+Nineteen static/state/lifecycle cases passed. These last repairs were not
+uploaded or tested on hardware; the raw perception cause of the first pairing
+stop remains unresolved. See TURN_MANEUVER_CANDIDATE_CN.md for experiment details.
+Archive source gate passed 296 checks, zero errors/failures/skips, with the same
+three vehicle-dynamics tests deliberately deselected. Log:
+.verification/car05-turn-fsm-archive-no-simulation.log.
+
+## Local turn-manoeuvre candidate, 2026-10-14
+
+The operator requested development while repeating hardware tests on the current
+car version. The aggressive-bend checkpoint was committed and pushed to origin
+fix/newcar-control as 5e8d1b8. Subsequent turn-manoeuvre changes are local only;
+no vehicle upload, runtime restart, Enable or Run occurred during development.
+
+The candidate confirms same-direction curved geometry using distinct camera
+sources, preserves UNKNOWN for incomplete turns, recognises UTURN from a
+reverse-facing exit in the original entry frame, and tracks phase/progress using
+incremental wheel/gyro history. Position/tangent continuity rejects sudden branch
+switches; finite retained references preserve original camera source age. Optional
+outward entrance positioning is implemented. The operator subsequently selected
+a 0.75 m minimum-radius trial setting and reported a total body width of 0.30 m;
+the local body half-width is now 0.15 m. No outward-placement calibration field
+remains zero; actual setup still requires the geometric/visibility conditions.
+The minimum-radius measured provenance remains unconfirmed. The approximately
+0.85 m visualised road width is recorded as an estimate, not vehicle calibration.
+
+Sixteen new static/controller-lifecycle checks passed. The pinned Jazzy gate
+passed 293 checks with zero errors/failures/skips, explicitly deselecting the three
+existing vehicle-dynamics model tests using PYTEST_ADDOPTS at the user's request.
+Build, installed config, real ROS callbacks, path publication and stop/reset checks
+passed. Log: .verification/car05-turn-maneuver-no-simulation.log. New physical
+U-turn feasibility, clearance, classification stability and turn completion are
+not tested. See experiments/2026-10-14/TURN_MANEUVER_CANDIDATE_CN.md.
+
+Subsequent operator-requested deployment: after reconnecting to Car 05 following
+power loss, the existing bridge/vehicle/IMU/camera/policy services were restored.
+Uploaded candidate policy_node.py and ai4r_policy.yaml, built student workspace
+and restarted policy only. Readback confirmed turn_maneuver enabled=true,
+minimum_turn_radius_m=0.75, body_half_width_m=0.15, policy 2, vehicle Disabled.
+The latest dimensional settings also passed the installed ROS configuration
+loading check. No assistant Enable/Run or hardware driving trial was performed.
+
 ## Car 05 corner-entry feedback candidate, 2026-10-14
 
 The operator requested sharper turns after selecting a single-side full-width

@@ -366,7 +366,8 @@ def test_learned_single_boundary_trajectory_reaches_real_ros_subscriber(make_nod
 
 
 @pytest.mark.parametrize("turn", [-1, 1])
-def test_ordered_hairpin_pid_and_single_boundary_publish_real_path(make_node, turn):
+@pytest.mark.parametrize("maneuver", [False, True])
+def test_ordered_hairpin_pid_and_single_boundary_publish_real_path(make_node, turn, maneuver):
     node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
         **{"control.enabled": True, "control.mode": "mvp", "control.drive_max": 0.35,
            "control.mvp_drive_feedforward": 0.30, "control.mvp_lateral_kp": 2.5,
@@ -378,6 +379,7 @@ def test_ordered_hairpin_pid_and_single_boundary_publish_real_path(make_node, tu
            "estimation.road_forward_max_m": 4.0, "estimation.road_rear_support_m": 1.0,
            "estimation.left_colour": 1, "estimation.right_colour": 2,
            "estimation.single_side_from_learned_width": True,
+           "turn_maneuver.enabled": maneuver,
            "estimation.road_hold_s": 0.0})
 
     def feed(only=None, empty=False):
@@ -407,6 +409,9 @@ def test_ordered_hairpin_pid_and_single_boundary_publish_real_path(make_node, tu
     assert node.fsm_state == 3, node.state_reason
     assert node.planning_output["path"]["type"] == "ORDERED_CENTERLINE"
     assert node.planning_output["target_speed_mps"] == 0.2
+    if maneuver:
+        assert node.planning_diagnostics["turn_phase"] == "FOLLOW"
+        assert node.planning_diagnostics["turn_candidate_frames"] == 1
     assert turn*node.action_publisher.messages[-1].steer < 0
     points = node.trajectory_publisher.messages[-1].poses
     assert points and any(b.pose.position.x < a.pose.position.x for a, b in zip(points, points[1:]))
@@ -1315,6 +1320,10 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.control_settings.enabled is True
         assert node.control_settings.mode == "mvp"
         assert node.control_settings.robustness_enabled is False
+        assert node.turn_maneuver_settings.enabled is True
+        assert node.turn_maneuver_settings.minimum_turn_radius_m == 0.75
+        assert node.turn_maneuver_settings.body_half_width_m == 0.15
+        assert node.turn_maneuver_planner.phase == "FOLLOW"
         assert node.planning_settings.algorithm == "road_centerline"
         assert node.planning_settings.allow_forward_only is True
         assert node.planning_settings.cruise_speed_mps == 0.2

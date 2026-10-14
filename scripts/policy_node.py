@@ -2149,6 +2149,340 @@ class RoadCenterlinePlanner:
 
 
 @dataclass
+class TurnManeuverSettings:
+    """Experimental turn planner; sensor/FSM stops remain framework-owned.
+
+    Radius and body width are measured facts supplied by the operator. Zero
+    means unknown and disables outward positioning, not ordinary tracking.
+    """
+    enabled: bool = False
+    detection_range_m: float = 2.5
+    sharp_heading_rad: float = 0.9
+    uturn_heading_rad: float = 2.62
+    direction_agreement: float = 0.8
+    confirmation_frames: int = 3
+    branch_heading_limit_rad: float = 0.8
+    branch_position_limit_m: float = 0.25
+    commit_entry_distance_m: float = 0.45
+    outward_fraction: float = 0.15
+    setup_distance_m: float = 0.30
+    minimum_turn_radius_m: float = 0.0
+    body_half_width_m: float = 0.0
+    boundary_margin_m: float = 0.05
+    hold_max_s: float = 0.8
+    hold_max_distance_m: float = 0.25
+    # Avoid emitting a retained reference that expires within one 20 Hz tick.
+    hold_min_reference_s: float = 0.05
+    exit_heading_rad: float = 0.35
+    exit_confirmation_frames: int = 2
+
+    def __post_init__(self):
+        if not isinstance(self.enabled, bool):
+            raise ValueError("turn_maneuver.enabled must be bool")
+        for name, value in vars(self).items():
+            if name == "enabled":
+                continue
+            if name in ("confirmation_frames", "exit_confirmation_frames"):
+                if type(value) is not int or not 2 <= value <= 10:
+                    raise ValueError(f"turn_maneuver.{name} must be an integer in [2,10]")
+            elif not finite_number(value) or value < 0 or (value == 0 and name not in (
+                    "minimum_turn_radius_m", "body_half_width_m")):
+                raise ValueError(f"turn_maneuver.{name} must be finite and positive (calibration may be 0)")
+        if not self.sharp_heading_rad < self.uturn_heading_rad <= math.pi:
+            raise ValueError("turn heading thresholds must be ordered below pi")
+        if not 0.5 <= self.direction_agreement <= 1 or self.outward_fraction > 0.25:
+            raise ValueError("invalid turn agreement/outward fraction")
+
+
+class TurnManeuverPlanner:
+    """FOLLOW -> PREPARE -> optional SETUP -> TURN -> EXIT -> FOLLOW.
+
+    Ordered geometry supplies intent, incremental wheel/gyro motion supplies
+    progress. Missing colours do not classify a turn. A reference retained
+    through dropout keeps its original measurement identity and finite budget.
+    No actuator commands, vehicle enable, auto-resume or timed full-lock script.
+    """
+    def __init__(self, settings, planning_settings):
+        self.settings, self.planning_settings = settings, planning_settings
+        self.clear()
+
+    def clear(self):
+        self.phase, self.turn_type, self.direction = "FOLLOW", "UNKNOWN", 0
+        self.candidate_direction, self.candidate_count = 0, 0
+        self.exit_count = 0
+        self.last_source = self.last_time = None
+        self.yaw_progress = self.travel_progress = self.setup_start_distance = 0.0
+        self.cached = None
+        self.cached_source = self.accepted_time = self.accepted_distance = None
+        self.outward_offset = 0.0
+        self.entry_heading_rad = 0.0
+        self.diagnostics = {}
+
+    def shape(self, points):
+        """Unwrap SAME-branch headings; a signed net turn rejects S/zigzags.
+
+        UNKNOWN includes a visible 90-degree prefix that may later become a
+        U turn. Only a measured reverse-facing exit supports the UTURN label.
+        """
+        points = _path_points(points)
+        if points is None:
+            return None
+        lengths = _path_lengths(points)
+        nearest = _path_project(points, lengths)
+        if nearest is None:
+            return None
+        start = nearest[1]
+        end = min(lengths[-1], start+self.settings.detection_range_m)
+        if end-start < 0.3:
+            return None
+        count = min(80, max(3, math.ceil((end-start)/0.1)))
+        distances = [start+(end-start)*i/count for i in range(count+1)]
+        tangents = [_path_tangent(points, lengths, s) for s in distances]
+        headings = [math.atan2(y, x) for x, y in tangents]
+        changes = [wrap_angle(b-a) for a, b in zip(headings, headings[1:])]
+        if max(abs(a) for a in changes) > self.settings.branch_heading_limit_rad:
+            return None  # A point-order jump is not evidence of a hairpin.
+        total, absolute = sum(changes), sum(abs(a) for a in changes)
+        agreement = abs(total)/absolute if absolute > 1e-6 else 1.0
+        direction = 1 if total > 0 else -1
+        cumulative, entry = 0.0, end-start
+        for distance, change in zip(distances[1:], changes):
+            cumulative += change
+            if abs(cumulative) >= self.settings.exit_heading_rad:
+                entry = distance-start
+                break
+        projection = nearest[2]
+        tx, ty = tangents[0]
+        entry += max(0.0, projection[0]*tx+projection[1]*ty)
+        sharp = abs(total) >= self.settings.sharp_heading_rad and agreement >= self.settings.direction_agreement
+        kind = "UTURN" if sharp and abs(total) >= self.settings.uturn_heading_rad else "UNKNOWN"
+        return {"sharp": sharp, "direction": direction, "turn_type": kind,
+                "net_heading_rad": total, "direction_agreement": agreement,
+                "entry_distance_m": entry, "start_s_m": start,
+                "radius_estimate_m": (end-start)/abs(total) if abs(total) > 1e-6 else math.inf,
+                "entry_heading_rad": headings[0]}
+
+    @staticmethod
+    def _effective_road(road):
+        if not isinstance(road, dict):
+            return {}
+        forward = road.get("forward_geometry")
+        return forward if road.get("valid") is not True and isinstance(forward, dict) else road
+
+    def _continuity_problem(self, current, previous):
+        a, b = _path_points(current), _path_points(previous)
+        if a is None or b is None:
+            return "invalid_turn_branch"
+        la, lb = _path_lengths(a), _path_lengths(b)
+        pa, pb = _path_project(a, la), _path_project(b, lb)
+        if pa is None or pb is None:
+            return "turn_branch_unavailable"
+        # Compare shared support, not each camera window's nearest endpoint.
+        # FOV clipping can move that endpoint far along the SAME boundary.
+        matches = []
+        for point, sa, other, lengths, reverse in (
+                (pa[2], pa[1], b, lb, False), (pb[2], pb[1], a, la, True)):
+            projection = _path_project(other, lengths, query=point, forward=False)
+            if projection is not None:
+                match = (projection[0], projection[1], sa) if reverse else (projection[0], sa, projection[1])
+                matches.append(match)
+        if not matches:
+            return "turn_branch_unavailable"
+        cost, sa, sb = min(matches)
+        if math.sqrt(cost) > self.settings.branch_position_limit_m:
+            return "turn_branch_position_jump"
+        for lookahead in (0.0, self.planning_settings.preview_m):
+            # Limit to the common observed length; an additional/newly visible
+            # corner beyond the old window is not a reversed old branch.
+            distance = min(lookahead, la[-1]-sa, lb[-1]-sb)
+            ta = _path_tangent(a, la, sa+distance)
+            tb = _path_tangent(b, lb, sb+distance)
+            if abs(wrap_angle(math.atan2(ta[1], ta[0])-math.atan2(tb[1], tb[0]))) > self.settings.branch_heading_limit_rad:
+                return "turn_branch_direction_jump"
+        return None
+
+    def _setup_reference(self, reference, shape, width):
+        """Offset only the observed entrance; subsequent TURN uses its curve.
+
+        Requires explicit measured radius/body size and fresh paired boundaries.
+        This checks pointwise corridor room, not a certified swept-body model.
+        """
+        cfg = self.settings
+        if cfg.minimum_turn_radius_m <= 0 or cfg.body_half_width_m <= 0:
+            self.diagnostics["setup_unavailable"] = "radius_or_body_width_unknown"
+            return None
+        if not finite_number(width) or width <= 2*(cfg.body_half_width_m+cfg.boundary_margin_m):
+            return None
+        if shape["radius_estimate_m"] >= cfg.minimum_turn_radius_m:
+            return None  # No evidence that normal tracking needs outside room.
+        if shape["entry_distance_m"] <= cfg.setup_distance_m+cfg.commit_entry_distance_m:
+            return None  # Outward positioning belongs BEFORE corner entry.
+        room = width/2-cfg.body_half_width_m-cfg.boundary_margin_m
+        self.outward_offset = -self.direction*min(cfg.outward_fraction*width, room)
+        return self._offset_entrance(reference, shape)
+
+    def _offset_entrance(self, reference, shape):
+        selected = deepcopy(reference)
+        points = _path_points(reference["path"]["samples_xy"])
+        lengths = _path_lengths(points)
+        end = min(lengths[-1], shape["start_s_m"]+max(0.3, shape["entry_distance_m"]-self.settings.commit_entry_distance_m))
+        samples = [_path_sample(points, lengths, end*i/20) for i in range(21)]
+        shifted = []
+        for i, p in enumerate(samples):
+            tx, ty = _path_tangent(points, lengths, end*i/20)
+            shifted.append((p[0]-ty*self.outward_offset, p[1]+tx*self.outward_offset))
+        selected["path"].update(samples_xy=shifted, range=[0.0, _path_lengths(shifted)[-1]])
+        selected["planner_version"] = "turn_maneuver"
+        return selected
+
+    def update(self, reference, diagnostics, road, state, motion, timeouts):
+        cfg = self.settings
+        if not cfg.enabled:
+            return reference, diagnostics
+        now = state.get("timestamp_s")
+        if (not finite_number(now) or state.get("valid") is not True
+                or state.get("speed_valid") is not True or state.get("yaw_rate_valid") is not True):
+            self.clear()
+            return reference, diagnostics
+        pose = None
+        if self.last_time is not None:
+            pose, problem = motion.pose_between(self.last_time, now)
+            if problem:
+                self.clear()
+                return self._failure(reference, diagnostics, "turn_motion_"+problem)
+            if self.phase != "FOLLOW":
+                self.yaw_progress += pose["yaw_rad"]
+                self.travel_progress += pose["travelled_distance_m"]
+            if self.cached is not None:
+                self.cached["path"]["samples_xy"] = [motion.transform_xy(p, pose)
+                    for p in self.cached["path"]["samples_xy"]]
+        self.last_time = now
+        selected = deepcopy(reference)
+        diag = dict(diagnostics)
+        self.diagnostics = {}
+        effective = self._effective_road(road)
+        valid = (reference.get("valid") is True and reference.get("path", {}).get("type") == "ORDERED_CENTERLINE")
+        source = effective.get("measurement_timestamp_s")
+        observed = (valid and not effective.get("degraded", False) and finite_number(source)
+                    and source <= now and now-source < timeouts.get("road", 1.5))
+        distinct = observed and (self.last_source is None or source > self.last_source)
+        problem = None
+        continuity_issue = None
+        strict_branch = (self.phase != "FOLLOW" and
+                         (self.turn_type == "UTURN" or self.outward_offset != 0.0))
+        if (self.phase != "FOLLOW" or self.candidate_count) and valid and self.cached is not None:
+            continuity_issue = self._continuity_problem(reference["path"]["samples_xy"], self.cached["path"]["samples_xy"])
+            if continuity_issue:
+                if strict_branch:
+                    problem = continuity_issue
+                    valid = observed = distinct = False
+                    self.diagnostics["rejected_branch"] = problem
+                else:
+                    # UNKNOWN/PREPARE is advisory: retain baseline tracking.
+                    # New support or single-side reacquisition must not turn
+                    # an unconfirmed ordinary corner into cached blind driving.
+                    self.diagnostics["observed_reference_change"] = continuity_issue
+                    if self.phase == "FOLLOW":
+                        self.candidate_direction = self.candidate_count = 0
+        if self.phase == "FOLLOW" and not observed:
+            self.candidate_direction = self.candidate_count = 0
+        feature = self.shape(reference["path"]["samples_xy"]) if valid else None
+        if distinct:
+            self.last_source = source
+            if self.phase == "FOLLOW":
+                sharp = feature is not None and feature["sharp"]
+                direction = feature["direction"] if sharp else 0
+                self.candidate_count = self.candidate_count+1 if direction and direction == self.candidate_direction else int(bool(direction))
+                self.candidate_direction = direction
+                if self.candidate_count >= cfg.confirmation_frames:
+                    self.phase, self.direction, self.turn_type = "PREPARE", direction, feature["turn_type"]
+                    self.entry_heading_rad = feature["entry_heading_rad"]
+                    self.yaw_progress = self.travel_progress = 0.0
+            elif feature is not None and feature["sharp"] and feature["direction"] == self.direction:
+                # Compare the visible exit in the ORIGINAL entrance frame;
+                # do not lose accumulated rotation as the camera turns with us.
+                exit_rotation = self.yaw_progress+feature["entry_heading_rad"]-self.entry_heading_rad+feature["net_heading_rad"]
+                if continuity_issue is None and (feature["turn_type"] == "UTURN" or self.direction*exit_rotation >= cfg.uturn_heading_rad):
+                    self.turn_type = "UTURN"
+            if self.phase == "TURN":
+                minimum_yaw = cfg.uturn_heading_rad-0.3 if self.turn_type == "UTURN" else cfg.sharp_heading_rad/2
+                aligned = (feature is not None and abs(feature["net_heading_rad"]) < cfg.exit_heading_rad
+                           and abs(feature["entry_heading_rad"]) < cfg.exit_heading_rad
+                           and effective.get("visibility") == "both"
+                           and self.direction*self.yaw_progress >= minimum_yaw)
+                self.exit_count = self.exit_count+1 if aligned else 0
+                if self.exit_count >= cfg.exit_confirmation_frames:
+                    self.phase = "EXIT"
+            elif self.phase == "EXIT":
+                self.phase, self.turn_type, self.direction = "FOLLOW", "UNKNOWN", 0
+                self.candidate_count = self.exit_count = 0
+
+        if self.phase == "PREPARE" and valid and feature is not None:
+            paired = observed and effective.get("visibility") == "both"
+            setup = self._setup_reference(reference, feature, effective.get("lane_width_m")) if paired else None
+            if setup is not None:
+                self.phase, self.setup_start_distance = "SETUP", self.travel_progress
+                selected = setup
+            elif feature["entry_distance_m"] <= cfg.commit_entry_distance_m or self.direction*self.yaw_progress >= cfg.exit_heading_rad:
+                self.phase = "TURN"
+        elif self.phase == "SETUP" and valid and feature is not None:
+            if (self.travel_progress-self.setup_start_distance >= cfg.setup_distance_m
+                    or feature["entry_distance_m"] <= cfg.commit_entry_distance_m):
+                self.phase = "TURN"
+            else:
+                selected = self._offset_entrance(reference, feature)
+
+        if valid and observed:
+            # Cache the observed unshifted branch, not a generated setup path.
+            self.cached = deepcopy(reference)
+            self.cached_source, self.accepted_time = source, now
+            self.accepted_distance = self.travel_progress
+        elif not valid and self.phase in ("PREPARE", "SETUP", "TURN", "EXIT"):
+            soft = problem is not None or reference.get("reason") in (
+                "invalid_road_insufficient_geometry", "invalid_road_insufficient_common_range")
+            if not soft or self.cached is None:
+                self.clear()
+                return reference, diagnostics
+            source_limit = timeouts.get("road", 1.5)
+            remaining = min(cfg.hold_max_s-(now-self.accepted_time),
+                            source_limit-(now-self.cached_source))
+            if remaining <= cfg.hold_min_reference_s or self.travel_progress-self.accepted_distance >= cfg.hold_max_distance_m:
+                self.clear()
+                return self._failure(reference, diag, "turn_reference_hold_exhausted")
+            selected = deepcopy(self.cached)
+            points = _path_points(selected["path"]["samples_xy"])
+            if points is None or _path_project(points, _path_lengths(points)) is None:
+                self.clear()
+                return self._failure(reference, diag, "turn_retained_branch_unavailable")
+            selected.update(timestamp_s=now, valid_for_s=min(self.planning_settings.reference_lifetime_s, remaining),
+                            planner_version="turn_maneuver", reason="bounded_turn_reference")
+            for name in ("wheel_speed", "imu_angular_velocity"):
+                age = (state.get("source_age_s") or {}).get(name, math.inf)
+                selected["valid_for_s"] = min(selected["valid_for_s"], timeouts[name]-age)
+            if selected["valid_for_s"] <= cfg.hold_min_reference_s:
+                self.clear()
+                return self._failure(reference, diag, "turn_motion_stale")
+            self.diagnostics.update(retained_source_s=self.cached_source, retained_source_age_s=now-self.cached_source,
+                                    hold_remaining_s=remaining)
+        diag.update(self.diagnostics, turn_phase=self.phase, turn_type=self.turn_type,
+                    turn_direction=self.direction, turn_yaw_progress_rad=self.yaw_progress,
+                    turn_distance_m=self.travel_progress, turn_candidate_frames=self.candidate_count,
+                    turn_shape=feature)
+        selected["turn_maneuver"] = {k: diag[k] for k in (
+            "turn_phase", "turn_type", "turn_direction", "turn_yaw_progress_rad")}
+        self.diagnostics = diag
+        return selected, diag
+
+    @staticmethod
+    def _failure(reference, diagnostics, reason):
+        ref, diag = deepcopy(reference), dict(diagnostics)
+        ref.update(valid=False, stop_requested=True, reason=reason, stop_reason=reason,
+                   valid_for_s=0.0, target_speed_mps=0.0, path=None)
+        diag.update(reason=reason, turn_phase="FOLLOW")
+        return ref, diag
+
+
+@dataclass
 class ControlSettings:
     """Forward-only candidate with direct MVP and optional calibrated profiles.
 
@@ -2908,7 +3242,8 @@ class PolicyNode(Node):
         self.planning_output = None
         self.planning_diagnostics = None
 
-        for prefix, settings_type in (("control", ControlSettings), ("vehicle", VehicleCalibrationSettings)):
+        for prefix, settings_type in (("control", ControlSettings), ("vehicle", VehicleCalibrationSettings),
+                                      ("turn_maneuver", TurnManeuverSettings)):
             values = {}
             for name, default in vars(settings_type()).items():
                 parameter_name = f"{prefix}.{name}"
@@ -2919,6 +3254,11 @@ class PolicyNode(Node):
             if (self.estimation_settings.road_geometry == "ordered_xy"
                     and self.planning_settings.algorithm != "road_centerline"):
                 raise ValueError("Ordered XY geometry requires planning.algorithm=road_centerline")
+            if self.turn_maneuver_settings.enabled and (
+                    self.estimation_settings.road_geometry != "ordered_xy"
+                    or self.planning_settings.algorithm != "road_centerline"
+                    or self.control_settings.mode != "mvp"):
+                raise ValueError("Turn manoeuvres require ordered_xy / road_centerline / mvp")
             if (self.control_settings.end_straight_distance_m > 0
                     and self.planning_settings.algorithm != "road_centerline"):
                 raise ValueError("End straight requires planning.algorithm=road_centerline")
@@ -2935,6 +3275,7 @@ class PolicyNode(Node):
                     1.0/self.policy_update_rate_hz >= self.planning_settings.reference_lifetime_s):
                 raise ValueError("Integrated control timer period must be shorter than the planning reference lifetime")
         self.controller = PolicyController(self.control_settings, self.policy_frame_id)
+        self.turn_maneuver_planner = TurnManeuverPlanner(self.turn_maneuver_settings, self.planning_settings)
         self.control_reference_manager = ControlReferenceManager(self.control_settings)
         self.last_control_tracking_mode = None
         self.distance_limiter = RunDistanceLimiter(self.control_settings.max_distance_m, self.control_settings.max_dt_s)
@@ -3759,6 +4100,14 @@ class PolicyNode(Node):
             estimates["vehicle_limits"], estimates["state"]["timestamp_s"], source_timeouts,
             mvp=getattr(self, "control_settings", ControlSettings()).mode == "mvp")
 
+        turn_settings = getattr(self, "turn_maneuver_settings", TurnManeuverSettings())
+        if turn_settings.enabled:
+            if is_first_policy_step or not hasattr(self, "turn_maneuver_planner"):
+                self.turn_maneuver_planner = TurnManeuverPlanner(turn_settings, self.planning_settings)
+            self.planning_output, self.planning_diagnostics = self.turn_maneuver_planner.update(
+                self.planning_output, self.planning_diagnostics, estimates["road"],
+                estimates["state"], self.motion_history, source_timeouts)
+
         control = getattr(self, "control_settings", ControlSettings())
         if control.enabled:
             if is_first_policy_step or not hasattr(self, "controller"):
@@ -3810,6 +4159,9 @@ class PolicyNode(Node):
                     "speed_valid": estimates["state"].get("speed_valid"),
                     "yaw_rate_valid": estimates["state"].get("yaw_rate_valid"),
                     "planning_diagnostics": self.planning_diagnostics,
+                    "learned_lane_width_m": getattr(self.estimator, "_learned_lane_width_m", None),
+                    "cone_frame_stamp_ns": sensor_stamp_ns.get("cone_detections"),
+                    "cone_detection_snapshot": (observations.get("cone_detections") or {}).get("detections", [])[:128],
                 }))
                 raise PolicyStopRequest(reason)
             drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
@@ -3817,6 +4169,13 @@ class PolicyNode(Node):
                 self.get_clock().now().nanoseconds/1e9, dt)
             if not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]:
                 reason = "Control: " + self.control_diagnostics["reason"]
+                self.get_logger().warning("Control rejection details: " + str({
+                    "reason": self.control_diagnostics["reason"], "control_dt_s": dt,
+                    "control_now_s": self.get_clock().now().nanoseconds/1e9,
+                    "reference_stamp_s": selected_reference.get("timestamp_s"),
+                    "reference_valid_for_s": selected_reference.get("valid_for_s"),
+                    "planning_diagnostics": self.planning_diagnostics,
+                }))
                 raise PolicyStopRequest(reason)
             self.control_has_run = True
             self._trajectory_reference = selected_reference
@@ -3860,6 +4219,12 @@ class PolicyNode(Node):
                     "inferred_single_side": self.planning_diagnostics.get("inferred_single_side"),
                     "inward_offset_m": self.planning_diagnostics.get("inward_offset_m"),
                     "lane_width_observed_at_s": self.planning_diagnostics.get("lane_width_observed_at_s"),
+                    "turn_phase": self.planning_diagnostics.get("turn_phase"),
+                    "turn_type": self.planning_diagnostics.get("turn_type"),
+                    "turn_direction": self.planning_diagnostics.get("turn_direction"),
+                    "turn_yaw_progress_rad": self.planning_diagnostics.get("turn_yaw_progress_rad"),
+                    "turn_rejected_branch": self.planning_diagnostics.get("rejected_branch"),
+                    "turn_reference_change": self.planning_diagnostics.get("observed_reference_change"),
                     "reference_valid_for_s": selected_reference["valid_for_s"],
                 }))
 
@@ -3956,6 +4321,8 @@ class PolicyNode(Node):
         self.planning_output = None
         self.planning_diagnostics = None
         self.controller.clear()
+        if hasattr(self, "turn_maneuver_planner"):
+            self.turn_maneuver_planner.clear()
         if hasattr(self, "control_reference_manager"):
             self.control_reference_manager.clear()
         self.last_control_tracking_mode = None

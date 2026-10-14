@@ -1,9 +1,19 @@
 # Baby Bus · ai4r_policy
 
-当前 5 号车版本标注为 **弯道激进版**：航向 Kp=1.5、转向变化率 4/s、
+本分支 `feature/newcar-turn-fsm-experiment` 保存状态机实验及末次未上车修复。
+`main` 按用户选择采用弯道激进版 `5e8d1b8`；此实验分支不合入 main。
+状态机初版实测有直角停车问题，最后的本地修复尚未实车验证。
+
+已 push 的回退基线标注为 **弯道激进版**：航向 Kp=1.5、转向变化率 4/s、
 连续混合急弯反馈，策略和车辆转向范围均为 ±1.0，单侧偏移为完整宽度的 0.6 倍。
 用户已反馈急弯改进正常，U 弯仍待改进。配置及验证范围见
 [弯道激进版实测基线](docs/experiments/2026-10-14/AGGRESSIVE_BEND_BASELINE_CN.md)。
+
+[急弯识别与入弯状态机候选](docs/experiments/2026-10-14/TURN_MANEUVER_CANDIDATE_CN.md)
+已按用户要求部署到 5 号车，尚待实测：
+连续新观测确认方向，区分 UNKNOWN/UTURN，保持行驶分支并按轮速/gyro 跟踪出弯。
+试测最小半径设为 0.75 m，用户报告车宽 0.30 m，外侧预定位参数已填齐。
+代码仍在本地工作区，尚未 push；原弯道激进版可回退。
 
 已加入最小 Foxglove 轨迹显示：`/car/policy_trajectory`（标准 ROS Path），
 表示控制器实际采用的参考路径，停止时清线。
