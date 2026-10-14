@@ -1,0 +1,19 @@
+{
+  "gate": "car15-disjoint-return-fast-gate.log",
+  "checks": 250,
+  "errors": 0,
+  "failures": 0,
+  "skipped": 0,
+  "deployed": true,
+  "files": {
+    "scripts/policy_node.py": "39b39c55e7d3786a60ab342dbb61b57029b7a21fb0c7b60951388d5fc5ae2bb8",
+    "config/ai4r_policy.yaml": "8a41cab3dcdf041d21109b0689fd1e710a64cf56f7ee8f44c2d15ca8f2ace49a",
+    "package.xml": "d8b3ae10c4dfc938b94c9704866ab288a36670846285dbfb77d16dc58fb367f9"
+  },
+  "hardware_result": "visualization4 zero-trim retest: 19.746045 s / 3.816904 m wheel integral; operator feedback 完美完美 and explicit push authorization; live trim remained 0.0; final insufficient geometry, policy2/Disabled and zero telemetry confirmed; Path clear not confirmed",
+  "archived_gate_log": {
+    "normalization": "Trailing whitespace removed from lines; test output content unchanged.",
+    "original_sha256": "8c9e0d3a9365cc7217c9a4befba860626068748cf03e38d5c787489848bb6cb7",
+    "archived_sha256": "deae2a31db939179b58dbfe5459cf941ed08f0e5c8fee15bb26ed2c157c95e86"
+  }
+}
