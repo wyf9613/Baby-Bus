@@ -1782,6 +1782,12 @@ class ControlSettings:
     # Per explicit run. Zero disables that test budget; odometry still updates.
     max_distance_m: float = 3.0
     max_run_time_s: float = 30.0
+    # Optional terminal manoeuvre after tracking loses usable boundary geometry.
+    # Fixed effort and zero steering; raw wheel odometry bounds the extra travel.
+    # Zero distance disables it. This does not identify a physical finish line.
+    end_straight_distance_m: float = 0.0
+    end_straight_drive_normalized: float = 0.1
+    end_straight_max_time_s: float = 3.0
     # Direct normalized steering for the first-run MVP, no wheel-angle model.
     mvp_lateral_kp: float = 1.0
     mvp_lateral_ki: float = 0.0
@@ -1814,10 +1820,11 @@ class ControlSettings:
                 raise ValueError(f"control.{name} must be finite and nonnegative")
         for name in ("derivative_tau_s", "drive_max", "steering_max_normalized",
                      "max_dt_s", "startup_grace_s",
-                     "reference_hold_max_s", "reference_hold_max_distance_m"):
+                     "reference_hold_max_s", "reference_hold_max_distance_m",
+                     "end_straight_max_time_s"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
-        for name in ("max_distance_m", "max_run_time_s"):
+        for name in ("max_distance_m", "max_run_time_s", "end_straight_distance_m"):
             if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"control.{name} must be finite and nonnegative (0 disables)")
         if (not finite_number(self.mvp_steering_slew_rate_per_s)
@@ -1830,6 +1837,14 @@ class ControlSettings:
         if (not finite_number(self.mvp_drive_feedforward)
                 or not 0 <= self.mvp_drive_feedforward <= self.drive_max):
             raise ValueError("control.mvp_drive_feedforward must be within [0, drive_max]")
+        if (not finite_number(self.end_straight_drive_normalized)
+                or not 0 < self.end_straight_drive_normalized <= 1.0):
+            raise ValueError("control.end_straight_drive_normalized must be within (0, 1]")
+        if self.end_straight_distance_m > 0:
+            if self.mode != "mvp":
+                raise ValueError("End straight requires control.mode=mvp")
+            if self.end_straight_drive_normalized > self.drive_max:
+                raise ValueError("End straight effort exceeds control.drive_max")
 
 
 class PolicyStopRequest(Exception):
@@ -2430,6 +2445,9 @@ class PolicyNode(Node):
                 values[name] = self.get_parameter(parameter_name).value
             setattr(self, f"{prefix}_settings", settings_type(**values))
         if self.control_settings.enabled:
+            if (self.control_settings.end_straight_distance_m > 0
+                    and self.planning_settings.algorithm != "road_centerline"):
+                raise ValueError("End straight requires planning.algorithm=road_centerline")
             if (self.planning_settings.algorithm == "road_centerline"
                     and self.control_settings.mode != "mvp"):
                 raise ValueError("Road centerline following requires control.mode=mvp")
@@ -2449,6 +2467,8 @@ class PolicyNode(Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        self._end_straight_start_distance_m = None
+        self._end_straight_started_at_s = None
 
         self.fsm_state = FSM_STATE_PUBLISHING_ZERO_ACTIONS
         self.state_reason = "Startup: waiting for an explicit policy request"
@@ -2901,7 +2921,13 @@ class PolicyNode(Node):
         self.previous_policy_step_at = now
 
         try:
-            result = self.calculate_policy_actions(values, ages, stamps, dt, elapsed, first)
+            if self._end_straight_start_distance_m is not None:
+                # Terminal mode never resumes cone following, even if cones
+                # return. The independent supervisor stops it at its budget.
+                result = (self.control_settings.end_straight_drive_normalized,
+                          0.0, None, None, self.distance_limiter.distance_m)
+            else:
+                result = self.calculate_policy_actions(values, ages, stamps, dt, elapsed, first)
             drive, steer, pan, debug1, debug2 = result
             # Validate ALL outputs before publishing ANY of them.
             outputs = [drive, steer] + [v for v in (pan, debug1, debug2) if v is not None]
@@ -3281,6 +3307,24 @@ class PolicyNode(Node):
                 except (ValueError, TypeError, ArithmeticError) as error:
                     raise PolicyStopRequest("Control reference: " + str(error)) from error
             if not selected_reference["valid"]:
+                if (control.end_straight_distance_m > 0 and self.control_has_run
+                        and control.mode == "mvp"
+                        and self.planning_settings.algorithm == "road_centerline"
+                        and self.planning_output["reason"] == "invalid_road_insufficient_geometry"
+                        and estimates["state"]["valid"]
+                        and estimates["state"]["speed_valid"]
+                        and estimates["state"]["yaw_rate_valid"]):
+                    # Authorized geometry-loss fallback: once per explicit
+                    # run, finish straight instead of restarting on new cones.
+                    self._end_straight_start_distance_m = self.distance_limiter.distance_m
+                    self._end_straight_started_at_s = self._monotonic()
+                    self.last_control_reference_deadline_s = None
+                    self._trajectory_reference = None
+                    self.state_reason = (f"End straight: {control.end_straight_distance_m:.3f} m "
+                                         "after insufficient boundary geometry")
+                    self.get_logger().info(self.state_reason)
+                    self.publish_state()
+                    return control.end_straight_drive_normalized, 0.0, None, None, self.distance_limiter.distance_m
                 reason = "Planning: " + str(self.planning_output["reason"])
                 self.get_logger().warning("Planning rejection details: " + str({
                     "reason": self.planning_output["reason"],
@@ -3350,6 +3394,11 @@ class PolicyNode(Node):
 
     def _control_health_problem(self, monotonic_now, ros_now_ns):
         problem = self.health_problem(monotonic_now, ros_now_ns)
+        if (getattr(self, "_end_straight_start_distance_m", None) is not None
+                and problem == "No recent nonempty cone detections"):
+            # Fresh empty camera frames are expected outside the cone FOV.
+            # health_problem already checked EVERY required source's freshness.
+            return None
         if not problem or not self._robust_control_enabled():
             return problem
         # Only cone availability may be bridged. Never exempt wheel/gyro or any
@@ -3432,6 +3481,8 @@ class PolicyNode(Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        self._end_straight_start_distance_m = None
+        self._end_straight_started_at_s = None
         if state == FSM_STATE_PUBLISHING_POLICY_ACTION:
             wheel = self.observations.get("wheel_speed")
             speed = wheel.value if wheel is not None else None
@@ -3506,6 +3557,20 @@ class PolicyNode(Node):
         if (self.control_settings.max_run_time_s > 0 and self.policy_started_at is not None and
                 monotonic_now-self.policy_started_at >= self.control_settings.max_run_time_s):
             return "Run time limit reached; explicit resume required"
+        start_distance = getattr(self, "_end_straight_start_distance_m", None)
+        if start_distance is not None:
+            for name in ("wheel_speed", "imu_angular_velocity"):
+                observation = self.observations.get(name)
+                timeout = min(self.sensor_timeout_s[name], self.estimation_settings.max_source_age_s,
+                              self.estimation_settings.motion_max_gap_s)
+                if (observation is None
+                        or self._age(observation, monotonic_now, ros_now_ns) >= timeout):
+                    return f"End straight required sensor {name} is missing or stale"
+            if self.distance_limiter.distance_m-start_distance+1e-9 >= self.control_settings.end_straight_distance_m:
+                return "End straight distance reached; explicit resume required"
+            if monotonic_now-self._end_straight_started_at_s >= self.control_settings.end_straight_max_time_s:
+                return "End straight time limit reached; explicit resume required"
+            return None  # No road reference is consumed in fixed-command mode.
         deadline = self.last_control_reference_deadline_s
         manager = getattr(self, "control_reference_manager", None)
         if (self._robust_control_enabled() and manager is not None

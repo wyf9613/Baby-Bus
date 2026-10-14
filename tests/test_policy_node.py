@@ -365,6 +365,57 @@ def test_learned_single_boundary_trajectory_reaches_real_ros_subscriber(make_nod
         peer.destroy_node()
 
 
+def test_end_straight_uses_live_odometry_and_clears_trajectory(make_node):
+    node = make_node(required=("cone_detections", "wheel_speed", "imu_angular_velocity"),
+        **{"control.enabled": True, "control.mode": "mvp", "control.drive_max": 0.35,
+           "control.mvp_drive_feedforward": 0.30, "control.max_distance_m": 0.0,
+           "control.max_run_time_s": 0.0, "control.end_straight_distance_m": 0.30,
+           "control.end_straight_drive_normalized": 0.30,
+           "planning.algorithm": "road_centerline", "planning.allow_forward_only": True,
+           "planning.reference_lifetime_s": 0.2, "estimation.road_hold_s": 0.0})
+
+    def feed(empty=False):
+        node.wheel_speed_callback(Float32(data=0.2))
+        gyro = imu(node, orientation=False)
+        gyro.angular_velocity_covariance[0] = 0.0
+        node.imu_callback(gyro)
+        batch = stamp(node, ConeDetections())
+        if not empty:
+            for colour, y in ((ConeDetection.COLOR_BLUE, 0.6), (ConeDetection.COLOR_YELLOW, -0.4)):
+                for i in range(10):
+                    cone = ConeDetection()
+                    cone.position.x, cone.position.y = -0.2+0.3*i, y
+                    cone.color, cone.classification_confidence = colour, 0.95
+                    batch.detections.append(cone)
+        node.cone_detection_callback(batch)
+
+    feed()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.fsm_state == 3 and node.control_has_run
+    assert node.trajectory_publisher.messages[-1].poses
+    node.test_clock.advance(0.11)
+    feed(empty=True)
+    node.run_policy_step()
+    start_distance = node._end_straight_start_distance_m
+    assert start_distance is not None and node.fsm_state == 3
+    assert (node.action_publisher.messages[-1].drive,
+            node.action_publisher.messages[-1].steer) == pytest.approx((0.3, 0.0))
+    assert node.trajectory_publisher.messages[-1].poses == []
+    for _ in range(29):
+        node.test_clock.advance(0.05)
+        feed(empty=True)
+        node.supervision_callback()
+        node.run_policy_step()
+        assert node.fsm_state == 3
+    node.test_clock.advance(0.05)
+    feed(empty=True)
+    node.supervision_callback()  # Completion does not need a policy callback.
+    assert node.distance_limiter.distance_m-start_distance == pytest.approx(0.3)
+    assert node.fsm_state == 2
+    assert (node.action_publisher.messages[-1].drive, node.action_publisher.messages[-1].steer) == (0.0, 0.0)
+
+
 def test_integrated_control_requires_feedback_and_matching_profiles(make_node):
     with pytest.raises(ValueError, match="requires cones"):
         make_node(required=("cone_detections",), **{"control.enabled": True})
@@ -1228,6 +1279,9 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.control_settings.reference_hold_max_distance_m == 0.25
         assert node.control_settings.max_distance_m == 0.0
         assert node.control_settings.max_run_time_s == 0.0
+        assert node.control_settings.end_straight_distance_m == 0.8
+        assert node.control_settings.end_straight_drive_normalized == 0.30
+        assert node.control_settings.end_straight_max_time_s == 8.0
         assert node.vehicle_settings.valid is False
         assert node.fsm_state == 2
     finally:

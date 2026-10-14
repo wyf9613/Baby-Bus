@@ -1,0 +1,1 @@
+{"parameters": {"control.end_straight_distance_m": 0.8, "control.end_straight_drive_normalized": 0.3, "control.end_straight_max_time_s": 8.0}, "telemetry": {"vehicle": "Disabled", "wheel": 0.0, "trim": 0.0, "applied": [0.0, 0.0], "policy": 2}, "driving_requested": false}

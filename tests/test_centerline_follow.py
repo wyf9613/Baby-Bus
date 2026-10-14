@@ -32,6 +32,160 @@ def planner(**values):
 
 
 class CenterlineFollowChecks(unittest.TestCase):
+    def end_straight_node(self, active=True, distance=0.30):
+        node = self.learned_width_node(active=False)
+        node.control_settings = ns["ControlSettings"](
+            enabled=True, mode="mvp", drive_max=0.35, mvp_drive_feedforward=0.30,
+            max_distance_m=0.0, max_run_time_s=0.0,
+            end_straight_distance_m=distance, end_straight_drive_normalized=0.30,
+            end_straight_max_time_s=8.0 if distance == 1.0 else 3.0)
+        node.controller = ns["PolicyController"](node.control_settings)
+        node.distance_limiter = ns["RunDistanceLimiter"](0.0, 0.2)
+        if active:
+            api["feed"](node, center=0.15, speed=0.2)
+            api["start"](node)
+            node.run_policy_step()
+            self.assertNotEqual(node.action_publisher.messages[-1].steer, 0.0)
+        return node
+
+    def end_straight_tick(self, node, speed=0.2, empty=True, seconds=0.05):
+        node.test_clock.advance(seconds)
+        api["feed"](node, center=0.15, speed=speed, empty=empty)
+        node.supervision_callback()
+        node.run_policy_step()
+
+    def test_geometry_loss_finishes_configured_straight_distance_then_latches_stop(self):
+        for distance in (0.30, 1.0):
+            with self.subTest(distance=distance):
+                node = self.end_straight_node(distance=distance)
+                self.end_straight_tick(node)
+                self.assertEqual(node.fsm_state, 3)
+                self.assertEqual((node.action_publisher.messages[-1].drive,
+                                  node.action_publisher.messages[-1].steer), (0.3, 0.0))
+                start_distance = node._end_straight_start_distance_m
+                for _ in range(round(distance/0.01)-1):
+                    self.end_straight_tick(node)
+                    self.assertEqual(node.fsm_state, 3, node.state_reason)
+                self.assertAlmostEqual(node.distance_limiter.distance_m-start_distance, distance-0.01)
+                self.end_straight_tick(node)
+                self.assertEqual(node.fsm_state, 2)
+                self.assertIn("End straight distance reached", node.state_reason)
+                self.assertAlmostEqual(node.distance_limiter.distance_m-start_distance, distance)
+                self.assertEqual((node.action_publisher.messages[-1].drive,
+                                  node.action_publisher.messages[-1].steer), (0.0, 0.0))
+                self.end_straight_tick(node, empty=False)
+                self.assertEqual(node.fsm_state, 2)  # Fresh cones never resume a stop.
+
+    def test_end_straight_does_not_follow_returning_cones_or_reset_its_distance(self):
+        node = self.end_straight_node()
+        self.end_straight_tick(node)
+        start_distance = node._end_straight_start_distance_m
+        started_at = node._end_straight_started_at_s
+        self.end_straight_tick(node, empty=False)
+        self.assertEqual((node.action_publisher.messages[-1].drive,
+                          node.action_publisher.messages[-1].steer), (0.3, 0.0))
+        self.assertEqual(node._end_straight_start_distance_m, start_distance)
+        self.assertEqual(node._end_straight_started_at_s, started_at)
+        node.supervision_callback()
+        self.assertAlmostEqual(node.distance_limiter.distance_m-start_distance, 0.01)
+
+    def test_end_straight_operator_stop_and_stop_publishing_remain_immediate(self):
+        for requested in (1, 2):
+            node = self.end_straight_node()
+            self.end_straight_tick(node)
+            node.fsm_transition_request_callback(api["SimpleNamespace"](data=requested))
+            count = len(node.action_publisher.messages)
+            self.end_straight_tick(node, empty=False)
+            self.assertEqual(node.fsm_state, requested)
+            self.assertIsNone(node._end_straight_start_distance_m)
+            if requested == 1:
+                self.assertEqual(len(node.action_publisher.messages), count)
+            else:
+                self.assertEqual(node.action_publisher.messages[-1].drive, 0.0)
+            api["start"](node)
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 3)
+            self.assertIsNone(node._end_straight_start_distance_m)
+            self.assertNotEqual(node.action_publisher.messages[-1].steer, 0.0)
+
+    def test_end_straight_stops_independently_on_motion_or_camera_loss(self):
+        for missing in ("wheel_speed", "imu_angular_velocity", "cone_detections"):
+            node = self.end_straight_node()
+            self.end_straight_tick(node)
+            node.test_clock.advance(0.05)
+            api["feed"](node, speed=0.2, empty=True)
+            node.observations[missing] = None
+            node.supervision_callback()  # No selected policy callback required.
+            self.assertEqual(node.fsm_state, 2, missing)
+            self.assertEqual(node.action_publisher.messages[-1].drive, 0.0)
+        for stale in ("wheel_speed", "imu_angular_velocity"):
+            node = self.end_straight_node()
+            self.end_straight_tick(node)
+            previous = node.observations[stale]
+            for _ in range(4):
+                node.test_clock.advance(0.05)
+                api["feed"](node, empty=True)
+                node.observations[stale] = previous
+                node.supervision_callback()
+            self.assertEqual(node.fsm_state, 2, stale)
+            self.assertIn(stale, node.state_reason)
+            self.assertEqual(node.action_publisher.messages[-1].drive, 0.0)
+
+    def test_end_straight_stalled_wheel_timeout_and_execution_gap_stop(self):
+        node = self.end_straight_node()
+        self.end_straight_tick(node, speed=0.0)
+        for _ in range(61):
+            self.end_straight_tick(node, speed=0.0)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("End straight time limit reached", node.state_reason)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0.0)
+        node = self.end_straight_node()
+        self.end_straight_tick(node)
+        self.end_straight_tick(node, seconds=0.21)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("clock/gap invalid", node.state_reason)
+
+    def test_end_straight_cannot_start_without_prior_tracking_or_on_other_faults(self):
+        node = self.end_straight_node(active=False)
+        node.test_clock.advance(0.05)
+        api["feed"](node, empty=True)
+        api["start"](node)
+        node.run_policy_step()
+        self.assertIsNone(node._end_straight_start_distance_m)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0.0)
+        self.end_straight_tick(node)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIsNone(node._end_straight_start_distance_m)
+        for fault in ("wheel_speed", "imu_angular_velocity", "reference_expiry", "unknown_width"):
+            node = self.end_straight_node()
+            node.test_clock.advance(0.05)
+            api["feed"](node, empty=True)
+            if fault in ("wheel_speed", "imu_angular_velocity"):
+                node.observations[fault] = None
+            elif fault == "reference_expiry":
+                node.last_control_reference_deadline_s = node.test_clock.ros_ns/1e9
+            else:
+                node.estimator._clear_road_history()
+                node.observations["cone_detections"].value["detections"] = [
+                    (0.5, 0.5, 0.0, 2, 0.95), (1.0, 0.5, 0.0, 2, 0.95)]
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 2, fault)
+            self.assertIsNone(node._end_straight_start_distance_m)
+            self.assertEqual(node.action_publisher.messages[-1].drive, 0.0)
+
+    def test_end_straight_parameters_reject_invalid_effort_distance_and_time(self):
+        baseline = dict(mode="mvp", drive_max=0.35, end_straight_distance_m=0.3,
+                        end_straight_drive_normalized=0.3)
+        for changes in ({"end_straight_distance_m": -0.1},
+                        {"end_straight_distance_m": math.nan},
+                        {"end_straight_drive_normalized": 0.0},
+                        {"end_straight_drive_normalized": 0.36},
+                        {"end_straight_max_time_s": 0.0},
+                        {"end_straight_max_time_s": math.inf}, {"mode": "calibrated"}):
+            with self.assertRaises(ValueError):
+                ns["ControlSettings"](**{**baseline, **changes})
+        ns["ControlSettings"](drive_max=0.05)  # Disabled fallback preserves old profiles.
+
     def learned_width_node(self, active=True):
         node = api["make_node"](simulated=False, mvp=True)
         node.estimation_settings = ns["EstimationSettings"](

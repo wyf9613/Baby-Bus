@@ -1,5 +1,12 @@
 # AI4R policy acceptance
 
+Current terminal setting: automatic 0.80 m terminal straight on tracked-road
+`invalid_road_insufficient_geometry`, requested and clarified by the user.
+0.30 m and 1.0 m settings were deployed and physically exercised; both stopped
+on the terminal distance condition with zero/Disabled telemetry confirmed.
+The user selected 0.80 m and requested no additional tests. That final setting
+is deployed and statically read back, without another gate or physical run.
+
 Status: `fix/newcar-control` contains the simple curved-centerline follower,
 configured yellow left / blue right. Car 15 (10.43.254.28) completed the initial
 3.002 m wheel-integral trial. Continuous baseline and first correction ran
@@ -29,6 +36,75 @@ The 2026-10-06 car candidate's gate and bounded physical runs are historical.
 Wheel-integral distance is not an independent physical distance measurement.
 Upstream gates on `jah` and the earlier entries below are historical evidence.
 Release identity requires a published annotated tag and successful release CI.
+
+## Geometry-loss terminal straight patch, 2026-10-14
+
+The user requested fixed-command forward travel of 0.30 m before stopping when
+end-of-track cones leave the camera FOV, and explicitly selected automatic
+activation on geometry insufficiency rather than a manual endpoint command.
+That trigger cannot distinguish a finish from geometry loss within a bend.
+After trials at 0.30 m and 1.0 m, the shipped YAML now enables
+0.80 m / drive 0.30 / maximum 8.0 s; code default
+distance 0 disables the fallback. It requires prior successful control in the
+same explicit run and exactly `invalid_road_insufficient_geometry` with valid
+motion state in the MVP road-centerline planner. Other faults do not activate it.
+
+It stays in policy state 3, clears the old road-reference deadline and display,
+publishes fixed drive and zero steering using the existing selected trigger,
+and consumes no stale road/reference or speed-PID output. Returning cones do
+not restart following or reset the manoeuvre. Independent supervision uses
+the existing raw wheel integral relative to activation to latch zero state 2
+at the configured distance. Fresh camera messages are still required; empty frames are allowed
+only during the terminal mode. Wheel/gyro keep their original motion freshness
+limits. Operator Stop, sensor faults, clock/integration gaps, positive overall
+run budgets and the configured stalled-motion time fallback can stop it sooner. Stop/restart
+clear the terminal state; no additional ROS trigger or vehicle Enable is added.
+Zero requested steering assumes the vehicle's independently verified live
+trim zero. Physical travel/coasting is not established by encoder integration.
+
+Focused checks cover distance completion, no double integration, returning
+cones, explicit restart, Stop/stop-publishing semantics, independent source
+loss/freshness, stalled-motion time cap, execution gaps, cold start, other
+faults, and parameter bounds. A real PolicyNode/ROS-type controlled-clock test
+also exercises trajectory clear and independent-supervisor completion.
+The initial full gate exposed a test-fixture timestamp mistake: its empty
+frame reused the previous stamp and was correctly rejected. Advancing the
+controlled clock fixes that setup; the portable focused suite then passed 24
+checks, with legacy control 33 passing. Final pinned Jazzy gate passed 258
+checks, zero errors/failures/skips; portable 171 (97 estimation, 17 planning,
+33 control, 24 follower), ROS policy 82 plus 5 colcon test entries. Log:
+`.verification/car15-end-straight-fast-gate.log`; runtime/source hashes:
+`.verification/car15-end-straight-manifest.json`.
+The 1.0 m / 8.0 s update then passed the same pinned gate: 258 checks, zero
+errors/failures/skips, including the installed YAML and completion at both
+0.30 m and 1.0 m. Log/manifest: `.verification/car15-end-straight-1m-fast-gate.log`
+and `.verification/car15-end-straight-1m-manifest.json`.
+
+`end-straight1` ran 21.669613 s / 4.246473 m total wheel integral. Terminal
+receipt duration was 1.4963 s, observed extra integral about 0.290–0.319 m;
+11 interior command samples were drive 0.30 / steer 0, and 13 empty Paths were
+recorded in terminal mode. The operator found 0.30 m's effect too small and
+requested 1.0 m. `end-straight2-1m` ran 24.594377 s / 4.862829 m total, terminal
+receipt duration 4.6394 s, observed extra integral about 1.003–1.034 m;
+35 interior samples were drive 0.30 / steer 0 and 36 empty Paths were recorded.
+Both ended with `End straight distance reached`, live trim 0.0, policy 2 /
+Disabled and zero wheel/applied drive confirmed. Neighboring asynchronous
+debug2/phase receipts bound the observer estimates; they are not independent
+physical travel measurements. Fresh post-stop Path clear was not confirmed
+by the runner, despite receiving empty Paths during each terminal mode.
+
+The operator requested final 0.80 m and no more tests, with a more complex
+track planned later. Only distance was reduced; fixed effort 0.30 and timeout
+8.0 s remain. The car was observed stationary, then YAML copied, student ROS
+built and only policy restarted. Static parameter readback confirmed
+0.80 / 0.30 / 8.0 and policy 2 / Disabled, trim 0.0, wheel/applied commands zero.
+No Enable or policy-3 command was issued for this final settings change, and
+no additional tests were run. Final configuration SHA:
+`b5c475e29955ee05cd2d9e49129f972041b3eb3f481e6bdaf919b093c665c92f`;
+runtime source stayed `79505042755c81f0434370ccd7f7275887125d5dd09d6eec9b82da71fb454d2f`.
+Report and raw evidence: `docs/experiments/2026-10-14/CAR15_END_STRAIGHT_REPORT_CN.md`
+and `evidence/car15/end-straight{1,2-1m}/`. The final 0.80 m tuning has static
+deployment confirmation, not its own physical trial or exact-config gate.
 
 ## Visualization deployment, returning far boundary and live trim fault, 2026-10-14
 

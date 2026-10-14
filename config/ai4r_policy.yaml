@@ -257,6 +257,17 @@
       # retain continuous-zero state 2 and require an explicit restart.
       max_distance_m: 0.0
       max_run_time_s: 0.0
+      # After this run has tracked a valid road, insufficient boundary geometry
+      # switches ONCE to fixed forward effort / zero steering for 0.8 m of
+      # wheel odometry, then latches state 2. Cones returning do not resume it.
+      # This trigger also applies to geometry loss in a bend, not just a finish.
+      # Fresh empty camera frames are allowed in this terminal mode; missing /
+      # stale camera, wheel or gyro and operator Stop still immediately stop.
+      # The 8 s backup stops a stalled car with fresh zero wheel telemetry.
+      # Set distance to 0.0 to restore the previous immediate geometry stop.
+      end_straight_distance_m: 0.8
+      end_straight_drive_normalized: 0.30
+      end_straight_max_time_s: 8.0
       # Car 15 correction candidate: stronger lateral feedback relative to
       # heading, checked against recorded geometry and synthetic dynamics.
       # Still direct normalized feedback; no measured wheel-angle map.

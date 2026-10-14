@@ -1,0 +1,60 @@
+{
+  "base_commit": "a38a4d79a0574cf1c70b38b132aca11ff963e154",
+  "gate": "car15-end-straight-fast-gate.log",
+  "checks": 258,
+  "errors": 0,
+  "failures": 0,
+  "skipped": 0,
+  "portable": 171,
+  "interfaces_commit": "5f50902ccee44e8370d6e2be85607b3054ffbf98",
+  "deployed": true,
+  "physical_test": {
+    "trial": "end-straight1",
+    "run_seconds": 21.669613481999477,
+    "total_wheel_integral_m": 4.2464728355407715,
+    "stop_reason": "Publishing zero actions: End straight distance reached; explicit resume required",
+    "terminal_duration_receipt_s": 1.4962999820709229,
+    "terminal_started_run_seconds": 20.17327857017517,
+    "first_distance_after_terminal_marker_m": 3.956559896469116,
+    "last_distance_before_terminal_marker_m": 3.927485704421997,
+    "observer_terminal_distance_range_m": [
+      0.2899129390716553,
+      0.3189871311187744
+    ],
+    "terminal_command_samples": 11,
+    "terminal_drive_values": [
+      0.30000001192092896
+    ],
+    "terminal_steer_values": [
+      0.0
+    ],
+    "terminal_empty_path_messages": 13,
+    "tracking_source_counts": {
+      "two_boundaries": 26,
+      "left_boundary_inward_offset": 10,
+      "right_boundary_inward_offset": 2
+    },
+    "live_trim_values": [
+      0.0
+    ],
+    "stop_telemetry_confirmed": true,
+    "final_vehicle_state": "Disabled",
+    "final_policy_state": 2,
+    "fresh_post_stop_path_clear_confirmed": false,
+    "operator_feedback": "0.3 m effect not obvious; requested 1 m",
+    "limitations": "Wheel integral is not independent physical position. Terminal marker and debug2 receipts are asynchronous; distance range brackets neighboring samples and is an observer estimate, not a precise policy activation odometer. Command samples exclude transition boundaries."
+  },
+  "files": {
+    "scripts/policy_node.py": "79505042755c81f0434370ccd7f7275887125d5dd09d6eec9b82da71fb454d2f",
+    "config/ai4r_policy.yaml": "093a54dca49739eac8b40ce31226ea89401044e489529a319917f149e9b723df",
+    "package.xml": "d8b3ae10c4dfc938b94c9704866ab288a36670846285dbfb77d16dc58fb367f9",
+    "tests/test_centerline_follow.py": "d1027f2347a4340763a54fb4316229576bb35f28156cba0f9a3cdc9aedc36d27",
+    "tests/test_policy_node.py": "4529658767e00f243c42486573b40ffc825917c3f5a19c791b068d6d4536ae21"
+  },
+  "current_live_setting": "superseded by final 0.80 m / drive 0.30 / max 8.0 s",
+  "archived_gate_log": {
+    "normalization": "Trailing whitespace removed; test output content unchanged.",
+    "original_sha256": "3950c654c5766940138cf6a818aaa64cdcd75f5a6db8cf8b66351df4c229c060",
+    "archived_sha256": "d1b0b7afddc0d0775468215534bc255f8d7471c51d876f0c6a2c7c90df2a31c7"
+  }
+}
