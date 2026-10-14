@@ -353,7 +353,7 @@ class EstimationChecks(unittest.TestCase):
                                   float(value) if value[0] in "-0123456789" else value)
         expected = vars(Settings())
         expected.update(left_colour=1, right_colour=2, road_geometry="ordered_xy",
-                        single_side_from_learned_width=True,
+                        single_side_from_learned_width=True, single_side_offset_fraction=0.6,
                         history_propagation="continuous", road_history_mode="distance",
                         history_merge_single_side=True, history_merge_radius_m=0.08,
                         continuous_road_output=True, max_source_age_s=1.5,

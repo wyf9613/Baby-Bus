@@ -1,5 +1,10 @@
 # Baby Bus · ai4r_policy
 
+当前 5 号车版本标注为 **弯道激进版**：航向 Kp=1.5、转向变化率 4/s、
+连续混合急弯反馈，策略和车辆转向范围均为 ±1.0，单侧偏移为完整宽度的 0.6 倍。
+用户已反馈急弯改进正常，U 弯仍待改进。配置及验证范围见
+[弯道激进版实测基线](docs/experiments/2026-10-14/AGGRESSIVE_BEND_BASELINE_CN.md)。
+
 已加入最小 Foxglove 轨迹显示：`/car/policy_trajectory`（标准 ROS Path），
 表示控制器实际采用的参考路径，停止时清线。
 导入 [布局](tools/foxglove_road_visualization/layout.json)，见[使用说明](tools/foxglove_road_visualization/README.md)。

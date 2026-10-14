@@ -201,6 +201,10 @@ class EstimationSettings:
     # A fresh single boundary then defines an inward normal-offset centreline.
     # This is a constant-track-width assumption, not a hold of an old path.
     single_side_from_learned_width: bool = False
+    # Fraction of the FULL learned/known lane width to offset inward from a
+    # single observed boundary. 0.5 is geometric centre; smaller hugs that side.
+    # This does not change width learning or the two-boundary centreline.
+    single_side_offset_fraction: float = 0.5
     # Ordered XY curves support vertical and returning road segments. The
     # legacy y(x) estimator remains selectable for the archived workshop run.
     road_geometry: str = "y_of_x"
@@ -256,6 +260,9 @@ class EstimationSettings:
             elif name == "known_lane_width_m":
                 if value != 0.0 and not self.road_width_min_m <= value <= self.road_width_max_m:
                     raise ValueError("known width must be 0 (unknown) or inside width bounds")
+            elif name == "single_side_offset_fraction":
+                if not 0.0 < value < 1.0:
+                    raise ValueError("single-side offset fraction must be in (0, 1)")
             elif name == "history_merge_radius_m":
                 if value < 0.0:
                     raise ValueError("estimation.history_merge_radius_m must be >= 0")
@@ -628,10 +635,8 @@ def _estimation_order_boundary(points, settings):
     # bound, with a local spacing bound for densely populated tracks.
     chain_gap = min(settings.road_max_gap_m,
                     max(3*settings.road_sample_spacing_m, 3*_estimation_median(nearest_spacings)))
-    used = {0}
-
-    def grow(direction):
-        chain, current = [], unique[0]
+    def grow(direction, seed, used):
+        chain, current = [], unique[seed]
         while len(used) < len(unique):
             choices = []
             for i, p in enumerate(unique):
@@ -651,14 +656,27 @@ def _estimation_order_boundary(points, settings):
             direction = (dx/distance, dy/distance)
         return chain
 
-    ahead = grow((1.0, 0.0))
-    behind = grow((-1.0, 0.0))
-    chain = list(reversed(behind))+[unique[0]]+ahead
-    if len(chain) < 2:
+    # The nearest same-colour point can be a misclassification on the OTHER
+    # boundary. Compare at most six near seeds and retain the best supported
+    # contiguous chain, rather than letting an isolated short cluster win.
+    # Near-seed bounds keep a long but distant branch from replacing entry.
+    choices = []
+    nearest_range = math.hypot(*unique[0][:2])
+    for seed in range(min(6, len(unique))):
+        if math.hypot(*unique[seed][:2]) > nearest_range+chain_gap:
+            continue
+        used = {seed}
+        ahead = grow((1.0, 0.0), seed, used)
+        behind = grow((-1.0, 0.0), seed, used)
+        chain = list(reversed(behind))+[unique[seed]]+ahead
+        lengths = _path_lengths(chain)
+        if len(chain) >= 2 and lengths[-1] >= settings.road_min_coverage_m:
+            near = min(math.hypot(*p[:2]) for p in chain)
+            support = sum(p[2] for p in chain)/(1+max(0.0, near-nearest_range)/chain_gap)
+            choices.append((support, lengths[-1], -near, -seed, chain, lengths))
+    if not choices:
         return None
-    lengths = _path_lengths(chain)
-    if lengths[-1] < settings.road_min_coverage_m:
-        return None
+    _, _, _, _, chain, lengths = max(choices, key=lambda c: c[:4])
     return {"support_points": chain, "range": (0.0, lengths[-1]),
             "lengths": lengths, "rms_m": None,
             "inlier_fraction": len(chain)/len(unique), "encoding": "ordered_xy"}
@@ -1131,8 +1149,8 @@ class EstimationPipeline:
                 width = lane_width
                 # Offset along the local normal, not simply along body y.
                 direction = -1 if left is not None else 1
-                half = direction*width/2/math.hypot(1, slope)
-                center.append((x-half*slope, y+half))
+                offset = direction*width*self.settings.single_side_offset_fraction/math.hypot(1, slope)
+                center.append((x-offset*slope, y+offset))
             widths.append(width)
         if (any(not self.settings.road_width_min_m <= w <= self.settings.road_width_max_m for w in widths)
                 or any(b[0] <= a[0] for a, b in zip(center, center[1:]))
@@ -1150,7 +1168,7 @@ class EstimationPipeline:
             output.update(single_side_inferred_from_learned_width=True,
                           lane_width_source="last_two_sided_observation",
                           lane_width_observed_at_s=self._learned_lane_width_stamp_s,
-                          inward_offset_m=lane_width/2,
+                          inward_offset_m=lane_width*self.settings.single_side_offset_fraction,
                           centerline_source="left_boundary_inward_offset" if left is not None
                           else "right_boundary_inward_offset")
         for side, fit in (("left", left), ("right", right)):
@@ -1172,7 +1190,7 @@ class EstimationPipeline:
         # centreline's curvature. None is honest until that derivation is added.
         return output
 
-    def _ordered_road(self, output, sides):
+    def _ordered_road(self, output, sides, reference_side=None):
         """Normal-paired, ordered local boundary chains and single-side offsets.
 
         Pairing follows the opposite chain's travel order and requires agreeing
@@ -1197,7 +1215,7 @@ class EstimationPipeline:
         if not any(fits.values()):
             return output
         near = lambda name: min(p[0]**2+p[1]**2 for p in fits[name]["support_points"])
-        side = min((name for name in fits if fits[name]), key=near)
+        side = reference_side or min((name for name in fits if fits[name]), key=near)
         fit, other = fits[side], fits["right" if side == "left" else "left"]
         boundary = [p[:2] for p in fit["support_points"]]
         total = min(fit["lengths"][-1], cfg.road_forward_max_m+cfg.road_rear_support_m)
@@ -1244,6 +1262,13 @@ class EstimationPipeline:
         runs = [run for run in runs if len(run) >= 2
                 and _path_lengths([p for p, _ in run])[-1] >= cfg.road_min_coverage_m]
         inferred = not runs
+        if (inferred and reference_side is None and other is not None
+                and other["lengths"][-1] > fit["lengths"][-1]):
+            # Common support has disappeared: the nearest boundary may now
+            # be only a short noisy fragment. Prefer the longer actually
+            # observed chain for remembered-width inference, once per frame.
+            return self._ordered_road(output, sides,
+                                      reference_side="right" if side == "left" else "left")
         if not inferred:
             # Prefer the nearest usable contiguous corridor over a longer far
             # branch; discarded gaps never become implicit connecting lines.
@@ -1264,7 +1289,8 @@ class EstimationPipeline:
                 return output
             if other is not None:
                 output["single_side_fallback_reason"] = "insufficient_common_range"
-            center = [(p[0]+nx*width/2, p[1]+ny*width/2) for p, nx, ny in candidates]
+            offset = width*cfg.single_side_offset_fraction
+            center = [(p[0]+nx*offset, p[1]+ny*offset) for p, nx, ny in candidates]
         # One corner-cutting pass removes polyline heading steps. Bound each
         # displacement by the local half-width, retaining measured endpoints.
         # This is geometric smoothing, not a calibrated turning-radius planner.
@@ -1299,7 +1325,8 @@ class EstimationPipeline:
         if inferred and self._learned_lane_width_m is not None:
             output.update(single_side_inferred_from_learned_width=True,
                           lane_width_source="last_two_sided_observation",
-                          inward_offset_m=width/2, lane_width_observed_at_s=self._learned_lane_width_stamp_s)
+                          inward_offset_m=width*cfg.single_side_offset_fraction,
+                          lane_width_observed_at_s=self._learned_lane_width_stamp_s)
         return output
 
     def _align_road(self, road, now_s, state_valid):
@@ -2167,6 +2194,9 @@ class ControlSettings:
     # Low-pass only current-frame PID errors at boundary-source transitions.
     # Zero keeps legacy feedback; invalid input/operator stop bypasses it.
     mvp_error_filter_tau_s: float = 0.0
+    # Ordered-XY corner entry: continuous local/forward-target feedback plus
+    # preview-tangent anticipation. False retains the archived MVP calculation.
+    mvp_ordered_cornering_enabled: bool = False
     # Control-only recovery from transient road failures; legacy code defaults
     # stay off. Shipped MVP YAML enables it. These are experiment budgets.
     robustness_enabled: bool = False
@@ -2178,6 +2208,8 @@ class ControlSettings:
             raise ValueError("control.enabled must be bool")
         if not isinstance(self.robustness_enabled, bool):
             raise ValueError("control.robustness_enabled must be bool")
+        if not isinstance(self.mvp_ordered_cornering_enabled, bool):
+            raise ValueError("control.mvp_ordered_cornering_enabled must be bool")
         if self.mode not in ("mvp", "calibrated"):
             raise ValueError("control.mode must be mvp or calibrated")
         if self.vehicle_params_source not in ("upstream", "course_simulation"):
@@ -2467,6 +2499,9 @@ def _control_ordered_geometry(path):
             "curvature_1pm": curvature, "closest_x_m": x, "closest_y_m": y,
             "closest_s_m": distance, "preview_s_m": target_s,
             "preview_x_m": target[0], "preview_y_m": target[1],
+            # Zero on an interior projection; continuous as the observed
+            # first segment reaches/passes the vehicle's normal projection.
+            "unobserved_entry_distance_m": max(0.0, x*tx+y*ty) if index == 0 and u == 0 else 0.0,
             "closest_at_range_end": index == 0 and u == 0 or index == len(points)-2 and u == 1,
             "forward_target_only": index == 0 and u == 0 and x*tx+y*ty > 1e-6,
             "path_encoding": "ORDERED_CENTERLINE"}
@@ -2697,7 +2732,24 @@ class PolicyController:
                 heading = geometry["path_heading_rad"]
                 lateral_error = geometry["path_error_m"]
                 error_basis = "nearest_segment_normal"
-                if ((geometry.get("path_encoding") == "CARTESIAN_CENTERLINE"
+                local_weight = None
+                target_bearing = None
+                if cfg.mvp_ordered_cornering_enabled and geometry.get("path_encoding") == "ORDERED_CENTERLINE":
+                    # Far-only cones cannot establish a local cross-track
+                    # error, but their measured preview tangent still tells
+                    # us about an approaching corner. Blend rather than
+                    # swapping error conventions at the first-point boundary.
+                    # Weight approaches zero for distant support and one as
+                    # the observed entry reaches the car. No extrapolated
+                    # road or assumed wheel-angle/curvature feedforward.
+                    preview = reference["path"]["preview_m"]
+                    target_bearing = math.atan2(geometry["preview_y_m"], geometry["preview_x_m"])
+                    local_weight = preview/(preview+geometry["unobserved_entry_distance_m"])
+                    lateral_error = ((1-local_weight)*geometry["preview_y_m"]
+                                     + local_weight*lateral_error)
+                    heading = wrap_angle(target_bearing+local_weight*wrap_angle(heading-target_bearing))
+                    error_basis = "blended_ordered_corner"
+                elif ((geometry.get("path_encoding") == "CARTESIAN_CENTERLINE"
                         and reference["path"]["range"][0] > 1e-9)
                         or geometry.get("forward_target_only")):
                     # The curve does not observe the vehicle origin. Projecting
@@ -2706,7 +2758,8 @@ class PolicyController:
                     # Aim at the existing observed preview point instead; no
                     # road extension, stale-reference hold or guessed near lane.
                     lateral_error = geometry["preview_y_m"]
-                    heading = math.atan2(geometry["preview_y_m"], geometry["preview_x_m"])
+                    target_bearing = math.atan2(geometry["preview_y_m"], geometry["preview_x_m"])
+                    heading = target_bearing
                     error_basis = "observed_forward_target"
                 raw_errors = (lateral_error, heading)
                 if cfg.mvp_error_filter_tau_s > 0 and self._mvp_filtered_errors is not None:
@@ -2733,6 +2786,9 @@ class PolicyController:
                     **geometry, "valid": True, "stop_requested": False, "reason": "mvp_tracking",
                     "control_lateral_error_m": lateral_error, "error_basis": error_basis,
                     "raw_lateral_error_m": raw_errors[0], "raw_heading_error_rad": raw_errors[1],
+                    "corner_local_weight": local_weight,
+                    "preview_tangent_heading_rad": geometry["path_heading_rad"],
+                    "target_bearing_rad": target_bearing,
                     "steer_before_slew": requested_steer,
                     "steer_slew_limited": output_steer != requested_steer,
                     "heading_error_rad": heading, "speed_error_mps": target-speed,
@@ -3789,6 +3845,9 @@ class PolicyNode(Node):
                     "closest_s_m": info.get("closest_s_m"),
                     "preview_s_m": info.get("preview_s_m"),
                     "raw_heading_error_rad": info.get("raw_heading_error_rad"),
+                    "corner_local_weight": info.get("corner_local_weight"),
+                    "preview_tangent_heading_rad": info.get("preview_tangent_heading_rad"),
+                    "target_bearing_rad": info.get("target_bearing_rad"),
                     "preview_xy_m": [info.get("preview_x_m"), info.get("preview_y_m")],
                     "steer_requested": steering_action,
                     "steer_before_slew": info.get("steer_before_slew", steering_action),

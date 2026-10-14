@@ -1327,6 +1327,7 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.estimation_settings.road_max_abs_slope == 3.0
         assert node.estimation_settings.huber_delta_m == 0.20
         assert node.estimation_settings.single_side_from_learned_width is True
+        assert node.estimation_settings.single_side_offset_fraction == pytest.approx(0.6)
         assert node.estimation_settings.history_propagation == "continuous"
         assert node.sensor_timeout_s["cone_detections"] == 1.5
         assert node.control_settings.mvp_drive_feedforward == 0.30
@@ -1334,7 +1335,9 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.control_settings.mvp_steering_direction == -1.0
         assert node.control_settings.mvp_lateral_kp == 2.5
         assert node.control_settings.steering_max_normalized == 1.0
-        assert node.control_settings.mvp_steering_slew_rate_per_s == 2.0
+        assert node.control_settings.mvp_steering_slew_rate_per_s == 4.0
+        assert node.control_settings.mvp_heading_kp == 1.5
+        assert node.control_settings.mvp_ordered_cornering_enabled is True
         assert node.control_settings.reference_hold_max_s == 1.0
         assert node.control_settings.reference_hold_max_distance_m == 0.25
         assert node.control_settings.max_distance_m == 0.0

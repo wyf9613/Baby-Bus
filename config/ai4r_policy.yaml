@@ -212,10 +212,14 @@
       known_lane_width_m: 0.0
       # Learn width from the last valid raw yellow+blue observation in THIS run.
       # If one side loses its fit, offset the fresh visible boundary inward by
-      # half that width; restore the two-sided centreline when both return.
+      # the configured fraction of that FULL width. Restore the geometric
+      # two-sided centreline when both return.
       # Width stays fixed during dropout; no guessed 25 cm offset or old-path
       # replay. A run reset clears it, so single-side cold starts remain invalid.
       single_side_from_learned_width: true
+      # User-selected reference: three fifths of the full width inward.
+      # 0.5 restores the previous midpoint; width learning stays unchanged.
+      single_side_offset_fraction: 0.6
       # Follow ordered XY chains by arc length, including vertical/returning
       # segments. y_of_x restores the archived gentle-bend geometry mode.
       road_geometry: ordered_xy
@@ -276,12 +280,16 @@
       # Still direct normalized feedback; no measured wheel-angle map.
       mvp_lateral_kp: 2.5
       mvp_lateral_ki: 0.0
-      mvp_heading_kp: 1.0
+      mvp_heading_kp: 1.5
+      # Ordered corner entry uses both the observed preview tangent and target
+      # bearing, with continuous distance weighting instead of an endpoint
+      # mode switch. The existing PI + heading P remains the controller.
+      mvp_ordered_cornering_enabled: true
       # Archived main car sign: positive actuator command turned right.
       mvp_steering_direction: -1.0
       # Smooth ordinary corrections: at 20 Hz the request changes by at most
-      # 0.10 per cycle. Fault/operator stops still immediately publish zero.
-      mvp_steering_slew_rate_per_s: 2.0
+      # 0.20 per cycle. Fault/operator stops still immediately publish zero.
+      mvp_steering_slew_rate_per_s: 4.0
       # Smooth current-frame lateral/heading errors when boundary sources
       # change. Faults and operator stops still immediately publish zero.
       mvp_error_filter_tau_s: 0.10
@@ -300,9 +308,8 @@
       # Forward-only effort. Stop/invalid/expired reference transitions to
       # continuous zero actions; the simulated negative-drive hold is NOT used.
       drive_max: 0.35
-      # Use the vehicle interface's complete student input interval. Its own
-      # +/-0.8 output interval remains active; the old +/-0.5 at both levels
-      # restricted firmware-reported output to +/-0.25.
+      # Use the complete student input interval. Car 05's deployed vehicle
+      # interval is also +/-1.0; these are normalized commands, not angles.
       steering_max_normalized: 1.0
       max_dt_s: 0.2
       # Before FIRST control only: neutral priming of delayed camera history.

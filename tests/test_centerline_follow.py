@@ -591,6 +591,36 @@ class OrderedRoadChecks(unittest.TestCase):
     def batch(self, left, right):
         return api["api"]["cones"](left, right)
 
+    def test_recorded_car05_false_nearest_blue_cluster_does_not_stop_valid_visible_side(self):
+        record = json.loads((Path(__file__).parent/"fixtures"/"car05_ordered_chain_false_seed.json").read_text())
+        pipeline = ns["EstimationPipeline"](self.settings(
+            left_colour=1, right_colour=2, min_cone_confidence=0.25,
+            road_max_gap_m=2., huber_delta_m=0.2, road_max_abs_slope=3.))
+        for frame in record["frames"]:
+            road = pipeline._history_road({"detections": frame["detections"]},
+                round(frame["stamp_s"]*1e9), 0., frame["stamp_s"])
+            self.assertTrue(road["valid"], road["status"])
+        self.assertEqual(road["visibility"], "right_only")
+        self.assertTrue(road["single_side_inferred_from_learned_width"])
+        # The short blue-labelled group beside yellow is closer to the car.
+        # The real right-side support starts below y=-0.3 instead.
+        blue = road["_boundary_fits"][2]["support_points"]
+        self.assertTrue(all(p[1] < -0.3 for p in blue[:4]))
+        self.assertGreater(len(blue), 10)
+
+    def test_recorded_short_noisy_near_boundary_uses_longer_opposite_support(self):
+        record = json.loads((Path(__file__).parent/"fixtures"/"car05_ordered_short_near_boundary.json").read_text())
+        pipeline = ns["EstimationPipeline"](self.settings(
+            left_colour=1, right_colour=2, min_cone_confidence=0.25,
+            road_max_gap_m=2., huber_delta_m=0.2, road_max_abs_slope=3.))
+        for frame in record["frames"]:
+            road = pipeline._history_road({"detections": frame["detections"]},
+                round(frame["stamp_s"]*1e9), 0., frame["stamp_s"])
+            self.assertTrue(road["valid"], road["status"])
+        self.assertEqual(road["visibility"], "right_only")
+        self.assertTrue(road["single_side_inferred_from_learned_width"])
+        self.assertGreater(ns["_path_lengths"](road["centerline_xy"])[-1], 2.)
+
     def settings(self, **changes):
         values = dict(road_geometry="ordered_xy", road_min_coverage_m=0.3,
                       road_forward_max_m=4.0, road_rear_support_m=1.0,
@@ -771,6 +801,79 @@ class OrderedRoadChecks(unittest.TestCase):
         ref["stop_requested"] = True
         self.assertEqual(controller.calculate(ref, state, {}, 10., 0.05)[:2], (0., 0.))
         self.assertIsNone(controller._mvp_filtered_errors)
+
+    def test_corner_entry_anticipates_preview_tangent_in_both_directions(self):
+        # Static controller calculation only: no vehicle/dynamics model.
+        for turn in (-1, 1):
+            ref, state, _ = self.reference([(0.25, 0.), (0.4, 0.),
+                                           (0.4, turn*0.4), (0.4, turn*0.8)])
+            outputs = []
+            for enabled in (False, True):
+                controller = ns["PolicyController"](ns["ControlSettings"](
+                    mode="mvp", mvp_ordered_cornering_enabled=enabled,
+                    mvp_lateral_kp=0., mvp_heading_kp=1.,
+                    mvp_steering_direction=-1., steering_max_normalized=1.))
+                _, steer, info = controller.calculate(ref, state, {}, 10., 0.05)
+                self.assertTrue(info["valid"], info)
+                self.assertLess(turn*steer, 0.)
+                outputs.append(info)
+            self.assertGreater(turn*(outputs[1]["raw_heading_error_rad"]
+                                     -outputs[0]["raw_heading_error_rad"]), 0.3)
+            self.assertEqual(outputs[1]["error_basis"], "blended_ordered_corner")
+            self.assertGreater(outputs[1]["corner_local_weight"], 0.)
+            self.assertLess(outputs[1]["corner_local_weight"], 1.)
+
+    def test_corner_feedback_is_continuous_at_observed_entry_projection(self):
+        values = []
+        for start in (-0.0501, -0.0499):
+            ref, state, _ = self.reference([(x, x+0.1) for x in (start, start+0.5, start+1.)])
+            controller = ns["PolicyController"](ns["ControlSettings"](
+                mode="mvp", mvp_ordered_cornering_enabled=True,
+                mvp_lateral_kp=1., mvp_heading_kp=0.5, steering_max_normalized=1.))
+            _, steer, info = controller.calculate(ref, state, {}, 10., 0.05)
+            self.assertTrue(info["valid"], info)
+            self.assertEqual(info["error_basis"], "blended_ordered_corner")
+            values.append((steer, info["raw_lateral_error_m"], info["raw_heading_error_rad"]))
+        for before, after in zip(*values):
+            self.assertLess(abs(before-after), 0.002)
+
+    def test_distant_corner_support_has_less_tangent_weight(self):
+        weights = []
+        for advance in (0., 2.):
+            ref, state, _ = self.reference([(0.25+advance, 0.), (0.4+advance, 0.),
+                                           (0.4+advance, 0.4), (0.4+advance, 0.8)])
+            controller = ns["PolicyController"](ns["ControlSettings"](
+                mode="mvp", mvp_ordered_cornering_enabled=True))
+            _, _, info = controller.calculate(ref, state, {}, 10., 0.05)
+            self.assertTrue(info["valid"], info)
+            weights.append(info["corner_local_weight"])
+        self.assertLess(weights[1], weights[0]/3)
+
+    def test_corner_control_keeps_straight_zero_and_stops_without_slew_delay(self):
+        controller = ns["PolicyController"](ns["ControlSettings"](
+            mode="mvp", mvp_ordered_cornering_enabled=True,
+            mvp_steering_direction=-1., mvp_lateral_kp=2.5, mvp_heading_kp=1.5,
+            steering_max_normalized=1., mvp_steering_slew_rate_per_s=4.,
+            mvp_error_filter_tau_s=0.1))
+        ref, state, _ = self.reference([(0.25, 0.), (0.6, 0.), (1., 0.)])
+        self.assertEqual(controller.calculate(ref, state, {}, 10., 0.05)[1], 0.)
+        ref, state, _ = self.reference([(0.25, 0.), (0.4, 0.), (0.4, 0.4), (0.4, 0.8)])
+        drive, steer, info = controller.calculate(ref, state, {}, 10., 0.05)
+        self.assertTrue(info["valid"], info)
+        self.assertGreater(drive, 0.)
+        self.assertLess(steer, 0.)
+        self.assertLessEqual(abs(steer), 0.2)
+        ref["stop_requested"] = True
+        self.assertEqual(controller.calculate(ref, state, {}, 10., 0.05)[:2], (0., 0.))
+        self.assertIsNone(controller._mvp_filtered_errors)
+        ref["stop_requested"] = False
+        self.assertEqual(controller.calculate(ref, state, {}, 10.3, 0.05)[:2], (0., 0.))
+        self.assertEqual(controller._mvp_previous_steer, 0.)
+
+    def test_corner_mode_requires_boolean_setting(self):
+        for value in (1, 0.6, "true", None):
+            with self.assertRaises(ValueError):
+                ns["ControlSettings"](mvp_ordered_cornering_enabled=value)
 
     def test_clock_sensor_loss_and_prediction_budget_still_stop_without_terminal_straight(self):
         for fault in ("both", "wheel_speed", "imu_angular_velocity"):
