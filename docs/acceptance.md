@@ -1,5 +1,70 @@
 # AI4R policy acceptance
 
+## 0.6 m planning horizon parameter audit, 2026-10-14 (local, not deployed)
+
+User requested increasing the horizon from 0.3 to 0.6 m and checking related
+settings. Only lattice.horizon_m and explanatory comments changed in YAML.
+Retain 1 s longitudinal duration/scoring (at 0.2 m/s, terminal 0.1/0.2 needs
+0.15/0.20 m); 0.2 m preview and minimum output fit within 0.6 m. Geometry step
+0.05 m gives 13 straight-path samples. 0.6/1.5 m transition labels already have
+the bounded short-horizon adaptation; startup join positions remain separately
+bounded to 0.9 m, not shortened to the output arc. Existing stopping-distance
+checks, body extents, margins and boundary constraints remain active.
+
+Planning stays 10 Hz with 100 ms compute budget/300 ms worker timeout; control
+stays 20 Hz. Reference lifetime 200 ms, degraded hold 1 s/0.25 m and current
+motion/source freshness limits were not expanded. Road-fitting/history range
+is independent of the planning horizon. V1 min_forward_x_m=1.5 is not the
+active lattice horizon. Distance/run limits remain 3 m/30 s.
+
+Offline checks read actual YAML horizon/minimum/preview/duration/scoring/grid/
+budget values, admit stationary startup with observed road beginning at 0.84 m,
+then moving startup, and verify 0.6 m straight output with 0.2 m control preview.
+Separate straight cruise checks pass at 0.1, 0.2, 0.26 and 0.5 m/s without a
+planned STOP. 61 lattice and 45 control checks pass; whitespace checks pass.
+Physical performance/full ROS gate remain unverified. This change does not
+resolve the observed_history_conflict from the previous user-supplied car run.
+
+## 0.3 m planning horizon, 2026-10-14 (local YAML, not deployed)
+
+Follow-up PID 10381 logs confirm seven-point ~0.3 m paths and TRACKING, then
+reference 12 planned_stop=true and "No trusted control reference" on the next
+cycle. The initial horizon edit missed durations_s/score_time_s=3.0. Offline
+reproduction from stationary startup to 0.2 m/s shows every cruise candidate
+exceeds longitudinal support and only STOP remains: 3*(0.2+0.1)/2=0.45 m and
+3*(0.2+0.2)/2=0.6 m, both beyond 0.3 m. STOP clears trusted cruise cache by
+design, explaining loss of fallback on a later pending cycle. The supplied log
+does not include the selected STOP candidate's full diagnostics; this is the
+reproduced configuration failure mechanism, not a reconstructed full car input.
+Local YAML now sets durations_s and score_time_s to 1.0. The same moving-start
+regression selects cruise at 0.2 m/s with unchanged 0.3 m support. 61 lattice
+and 45 control checks pass; this follow-up config has not been deployed.
+
+User explicitly requested 0.3 m forward planning. Shipped lattice horizon_m is
+now 0.3, minimum_output_m is 0.2 (otherwise the old 0.4 minimum rejects every
+path), and preview_m is 0.2 (inside the new horizon). Planner defaults and all
+body/motion/boundary checks remain unchanged; the horizon bounds reference-point
+arc length, not the complete vehicle footprint or upstream road-fitting range.
+Planning remains 10 Hz. An offline check using the actual three YAML values
+admits a straight stationary startup with observed support beginning at 0.6 m,
+outputs seven samples through 0.3 m, and admits 0.2 m/s straight cruise with
+0.2 m control preview. All 60 lattice and 45 control checks passed. No hardware
+deployment/full ROS gate or physical result is claimed for this configuration.
+
+## Generated trajectory logs, 2026-10-14 (local, not deployed)
+
+Valid generated references now emit one `Planned trajectory:` JSON record per
+generation/trajectory/timestamp, before async control-frame transport and control
+selection. Records carry original frame/time, target speed, planned-stop flag,
+path encoding/range, and x/y/heading/curvature samples. Up to 128 points are
+printed in full; longer paths use evenly selected indices including endpoints,
+with original/logged counts and indices. Polynomial paths retain their encoding.
+These records establish generation, not execution or physical tracking.
+105 related checks passed (60 lattice, 45 control), including output bounds,
+deduplication, generation changes and input immutability. Syntax/whitespace
+checks passed. Logging runtime overhead and full ROS gate remain unverified;
+no vehicle connection or deployment was performed for this addition.
+
 ## Startup motion across rejected roads, 2026-10-14
 
 Handoff to perception/estimation: user reports about 2 m of physical travel on

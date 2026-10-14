@@ -4741,6 +4741,7 @@ class PolicyNode(Node):
             else:
                 self.planning_output, self.planning_diagnostics = self.planner.plan(
                     *args, mvp=getattr(self, "control_settings", ControlSettings()).mode == "mvp")
+            self._log_planned_trajectory(self.planning_output, "synchronous_planner")
 
         control = getattr(self, "control_settings", ControlSettings())
         if control.enabled:
@@ -4853,6 +4854,9 @@ class PolicyNode(Node):
                 self.last_async_diagnostics = {"worker_error": result["error"]}
             else:
                 ref = result["reference"]
+                # Log the generated path in its ORIGINAL planning frame, before
+                # transport to the later control epoch or reference selection.
+                self._log_planned_trajectory(ref, "planner_worker")
                 self.last_async_diagnostics = {**result["diagnostics"],
                     "trajectory_id": ref.get("trajectory_id"),
                     "generated_at_s": ref.get("generated_at_s"),
@@ -4896,6 +4900,43 @@ class PolicyNode(Node):
             worker.submit(deepcopy(job), now)
             self.last_planning_submit_s = now
         return selected_estimates
+
+    def _log_planned_trajectory(self, reference, source):
+        """One bounded JSON record per valid generated path; no driving effect.
+
+        Generated validity is not proof the controller accepted/executed it.
+        Coordinates use frame_id at timestamp_s: x forward, y left, yaw in rad,
+        curvature in 1/m. Negative y/yaw/curvature indicates a rightward trend.
+        """
+        if not reference.get("valid"):
+            return
+        key = (getattr(self, "planning_generation", 0), reference.get("trajectory_id"),
+               reference.get("timestamp_s"), source)
+        if key == getattr(self, "last_logged_trajectory_key", None):
+            return
+        path = reference.get("path") or {}
+        points = path.get("samples_xy_heading_curvature") or []
+        # Normal 2 m paths fit in full. Longer paths retain endpoints and report
+        # their original count so a diagnostic subset cannot look like a full path.
+        indices = (list(range(len(points))) if len(points) <= 128 else
+                   [round(i*(len(points)-1)/127) for i in range(128)])
+        record = {"generation": key[0], "trajectory_id": reference.get("trajectory_id"),
+                  "source": source, "stage": "generated_before_control_selection",
+                  "frame_id": reference.get("frame_id"), "timestamp_s": reference.get("timestamp_s"),
+                  "generated_at_s": reference.get("generated_at_s"),
+                  "expires_at_s": reference.get("expires_at_s"),
+                  "target_speed_mps": reference.get("target_speed_mps"),
+                  "planned_stop": reference.get("planned_stop", False),
+                  "path_type": path.get("type"), "path_range_m": path.get("range"),
+                  "sample_fields": ["x_m", "y_m", "heading_rad", "curvature_1pm"],
+                  "sample_count": len(points), "logged_sample_count": len(indices),
+                  "sample_indices": indices,
+                  "samples": [[round(float(value), 5) for value in points[i]] for i in indices]}
+        if not points:
+            # Preserve polynomial output for configurations without Cartesian samples.
+            record["path"] = path
+        self.get_logger().info("Planned trajectory: " + json.dumps(record, allow_nan=False, separators=(",", ":")))
+        self.last_logged_trajectory_key = key
 
     def _log_planning_rejection(self, estimates):
         """Keep bounded worker evidence across state-2 cleanup; log once/result."""

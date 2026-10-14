@@ -25,7 +25,7 @@ method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn",
                 "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
 method_names.add("_async_planning_cycle")
 method_names.add("_observe_stationary_gyro")
-method_names.update({"_log_planning_rejection", "_startup_lattice_wait"})
+method_names.update({"_log_planning_rejection", "_startup_lattice_wait", "_log_planned_trajectory"})
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
 constants = [item for item in tree.body if isinstance(item, ast.Assign) and
              any(isinstance(target, ast.Name) and (target.id.startswith("FSM_STATE") or
@@ -453,6 +453,35 @@ class RobustLatticeIntegrationChecks(unittest.TestCase):
 
 
 class ControlChecks(unittest.TestCase):
+    def test_generated_trajectory_logging_preserves_path_and_bounds_output(self):
+        import json
+        node = make_node()
+        lines = []
+        node.get_logger = lambda: SimpleNamespace(info=lines.append)
+        reference = {"valid": True, "trajectory_id": 1, "timestamp_s": 10.0,
+                     "frame_id": "base_link", "target_speed_mps": .2,
+                     "path": {"type": "CARTESIAN_SAMPLES", "range": [0, 2],
+                              "samples_xy_heading_curvature": [[i*.01, -i*.002, -.1, -.2]
+                                                                 for i in range(201)]}}
+        before = deepcopy(reference)
+        node._log_planned_trajectory(reference, "planner_worker")
+        node._log_planned_trajectory(reference, "planner_worker")
+        self.assertEqual(len(lines), 1)
+        record = json.loads(lines[0].split("Planned trajectory: ", 1)[1])
+        self.assertEqual(record["stage"], "generated_before_control_selection")
+        self.assertEqual(record["sample_count"], 201)
+        self.assertEqual(record["logged_sample_count"], 128)
+        self.assertEqual(record["sample_indices"][0], 0)
+        self.assertEqual(record["sample_indices"][-1], 200)
+        self.assertEqual(record["samples"][-1], [2, -.4, -.1, -.2])
+        self.assertEqual(reference, before)
+        node.planning_generation = getattr(node, "planning_generation", 0)+1
+        node._log_planned_trajectory(reference, "planner_worker")
+        self.assertEqual(len(lines), 2)
+        reference["valid"] = False
+        node._log_planned_trajectory(reference, "planner_worker")
+        self.assertEqual(len(lines), 2)
+
     def test_mvp_sustaining_effort_keeps_fault_and_operator_stops_neutral(self):
         node = make_node(simulated=False, mvp=True)
         node.estimation_settings = replace(node.estimation_settings, road_hold_s=0)

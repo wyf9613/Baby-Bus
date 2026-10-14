@@ -64,6 +64,28 @@ class LatticeChecks(unittest.TestCase):
         self.assertLess(diag["selected"]["length_m"], 1.5)
         self.assertLessEqual(diag["longitudinal_candidates"], 16)
 
+    def test_point_three_horizon_needs_matching_longitudinal_duration(self):
+        for duration, expected_stop in ((3.0, True), (1.0, False)):
+            with self.subTest(duration=duration):
+                p = self.startup_planner()
+                p.cfg.horizon_m, p.cfg.minimum_output_m, p.cfg.preview_m = .3, .2, .2
+                p.cfg.durations_s, p.cfg.score_time_s = str(duration), duration
+                self.assertTrue(p.plan(*fixture(near=.6, speed=0), mvp=True)[0]["valid"])
+                args = fixture(near=.58, speed=.2)
+                args[4] = 10.1
+                for item in args[:3]:
+                    item["timestamp_s"] = args[4]
+                ref, diag = p.plan(*args, mvp=True)
+                self.assertTrue(ref["valid"], diag)
+                self.assertEqual(ref["planned_stop"], expected_stop)
+                self.assertLessEqual(ref["path"]["range"][1], .3+1e-8)
+                if expected_stop:
+                    cruise = [c for c in diag["candidates"] if c.get("stop") is False]
+                    self.assertTrue(cruise)
+                    self.assertTrue(all(c["reason"] == "longitudinal_exceeds_support" for c in cruise))
+                else:
+                    self.assertAlmostEqual(ref["target_speed_mps"], .2)
+
     def test_startup_missing_join_space_has_explicit_diagnostics(self):
         ref, diag = self.startup_planner().plan(*self.short_road(near=.6, far=.92), mvp=True)
         self.assertFalse(ref["valid"])

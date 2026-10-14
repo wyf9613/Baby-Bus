@@ -261,7 +261,9 @@
         # independently within observed support / 0.9 m, with one grid step
         # reserved after the join. All candidates retain the same constraints.
         terminal_offsets_m: "0.0"
-        durations_s: "3.0"
+        # Keep 1 s longitudinal prediction inside the 0.6 m local horizon,
+        # including margin for wheel speed temporarily exceeding 0.2 m/s.
+        durations_s: "1.0"
         terminal_speeds_mps: "0.1,0.2"
         # Controlled cone-only trial: raw lidar points do not affect planning.
         # No obstacle avoidance in this profile. Re-enable AND require
@@ -282,8 +284,10 @@
         blind_steering_limit_rad: 0.3490658504
         geometry_step_m: 0.05
         time_step_s: 0.1
-        horizon_m: 2.0
-        score_time_s: 3.0
+        # Low-speed trial: check 0.6 m of forward path arc. Body footprint
+        # checks still extend beyond the path's vehicle-reference point.
+        horizon_m: 0.6
+        score_time_s: 1.0
         # One 100 ms planning period at 10 Hz; control stays at 20 Hz.
         budget_s: 0.1
         max_candidates: 16
@@ -327,12 +331,12 @@
         fit_position_error_m: 0.01
         fit_heading_error_rad: 0.03
         fit_curvature_error_1pm: 0.15
-        preview_m: 0.35
+        preview_m: 0.2
         # MVP cruise commands use advised cruise_speed_mps (normally 0.2) as
         # their floor; STOP and degraded speed limits still take precedence.
         # The speed preview remains the target for non-MVP control.
         speed_preview_s: 0.3
-        minimum_output_m: 0.4
+        minimum_output_m: 0.2
 
     # Single-file control integration. Bare node defaults remain the teaching
     # starter (disabled); this supplied configuration selects closed-loop code.
