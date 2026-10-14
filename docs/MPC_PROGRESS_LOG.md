@@ -2,6 +2,22 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-14：周四前补丁 —— 锥桶颜色可配置、一个校验 bug、现场核对项
+
+来源：盘点其它分支 10-12 到 10-14 的提交（`feature/road-estimation-v2`、`mvp2.0`、`fix/newcar-control`、`feature/vehicle-identification`）。
+
+| 改动 | 原因 |
+| --- | --- |
+| `estimation.left_colour/right_colour`（整数，黄=1、蓝=2；默认蓝左，与原来相同），节点用它构造估计器 | 我们原来写死蓝左。10-13 `.20` 车 dry run 因黄左报 `invalid_width_or_order`；10-14 `09` 车实测黄色锥桶中位 y = +0.465 m。来自 `fix/newcar-control` |
+| `EstimationSettings.__post_init__` 恢复“运动时限不能超过源年龄”的检查 | `1b8c56c` 把它放在 `history_lifetime_s` 的 `return` 之后，一直没执行。由估计组 `1b759ed` 发现 |
+| `make_deploy_yaml.py`：`--cones` 必填（`steer-arc` 除外）；`--road-age-s`（0.4, 0.6] 同时改 `planning.max_source_age_s`、`estimation.max_source_age_s`、`sensor_timeout_s.cone_detections` | Planning 的道路期限取三者中最小的，只改第一个只能多出 0.1 s |
+| `tools/cone_layout_check.py`（车上运行，打印 `--cones` 的值）；`mpc_shadow_summary.py` 新增 `timing rejects` 占比 | 现场判断颜色；异步 V2 时效问题 |
+| 周四清单：新增第 0.7 步（车号、实时 trim、转向区间、颜色）；shadow 增加时效类拒绝 ≤ 10% 的通过条件和 `-age06` 备用部署；非 `.27` 车只跑 shadow | 15 号车实时 trim 0.5、启动参数 0；15 号车转向区间改为 ±0.8；10-13 异步 V2 的参考多数在取用前过期；`.20` 车 0.303 不动 |
+
+**验证（笔记本）**：estimation 65（新增 2 项）、planning 18、control 43、lattice 45、mpc 95、release_contract 4、Gym 10（1 项预期失败，和改前的 HEAD 相同）。5 份部署配置都能通过各 Settings 的校验。`test_policy_node` 和 ROS 门禁需要在 WSL 里跑，**还没跑**。
+
+没有移植 `continuous_road_output`：Gym 直道已经 10/10，周四 shadow 复测看到相机断档造成的掉线多时再考虑。
+
 ## 2026-10-12（夜，再续）：MPC 相对 PID 的目标（提议）
 
 依据 10-10 组会讨论和课程技术要求，写进 [MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md) §1 的 M3：**在跟住 Planning 轨迹、不出界的前提下，MPC 的最高稳定速度和用时比 PID 更好。** 文中包括指标、公平对比的条件、不能做 SLAM 的红线、前提（速度上限归属、刹车实测、Planning 用实测转角上限）、环线只能用 R ≥ 5 m 的弯，以及风险。待组会确认。

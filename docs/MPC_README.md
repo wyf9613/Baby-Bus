@@ -169,7 +169,7 @@ ROS 按顺序加载多个参数文件，后面的覆盖前面的：
 
 `ai4r_policy_mpc_prototype.yaml` 和 `ai4r_policy_mpc_bypass.yaml` 用于课程仿真车辆（Gym），不用于 .27。
 
-部署文件由 `tools/make_deploy_yaml.py` 生成：`--mode steer-arc`（转向短弧标定，控制器关闭）、`mpc-shadow`、`mpc-exec`（`--distance` 直道 3 m、弯道最多 5 m，`--v-exec-max` 默认 0.2）。转向映射用 `offline/vehicle_identification/vehicle_test_tools.py steering-arcs` 从短弧记录推算。
+部署文件由 `tools/make_deploy_yaml.py` 生成：`--mode steer-arc`（转向短弧标定，控制器关闭）、`mpc-shadow`、`mpc-exec`（`--distance` 直道 3 m、弯道最多 5 m，`--v-exec-max` 默认 0.2）。除 `steer-arc` 外必须给 `--cones blue-left|yellow-left`（写入 `estimation.left_colour/right_colour`，现场用 `tools/cone_layout_check.py` 判断）；`--road-age-s 0.6` 同时放宽 Planning 可用的相机年龄（三个上限一起改）。转向映射用 `offline/vehicle_identification/vehicle_test_tools.py steering-arcs` 从短弧记录推算。
 
 ### 5.2 从 shadow 到执行
 

@@ -46,7 +46,8 @@ $taskStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $taskDeployDir = 'E:\26b\AI4R\Baby-Bus\.verification\car-deploy'
 $taskEvidenceDir = "E:\26b\AI4R\car-evidence\g2-$taskStamp"
 New-Item -ItemType Directory -Force $taskEvidenceDir | Out-Null
-python tools/make_deploy_yaml.py --mode mpc-shadow --distance 3.0 --out $taskDeployDir
+# --cones：车前锥桶哪种颜色在左（tools/cone_layout_check.py 在车上判断）；10-08 G2 场地是 blue-left，课程赛道 10-13/14 是 yellow-left
+python tools/make_deploy_yaml.py --mode mpc-shadow --cones blue-left --distance 3.0 --out $taskDeployDir
 git rev-parse HEAD | Set-Content -Encoding ascii (Join-Path $taskEvidenceDir 'source-sha.txt')
 Copy-Item "$taskDeployDir\*" $taskEvidenceDir
 ```
