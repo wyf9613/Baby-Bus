@@ -1,5 +1,26 @@
 # AI4R policy acceptance
 
+## Main bend-version integration, 2026-10-14
+
+The operator explicitly selected aggressive-bend checkpoint 5e8d1b8 as main's
+default and requested preservation of the gentle-bend version. The integration
+first merged 271bfb9 without squash (merge node 55d50ff), then 5e8d1b8 without
+squash (f86561d). Policy code and both vehicle/policy YAML files match 5e8d1b8.
+All original commits remain reachable; CONTROL_VERSION_HISTORY_CN.md documents
+settings, evidence, known limitations and non-destructive retrieval of old code.
+
+The state machine and final undeployed repairs are saved separately as 3aa06e8
+on origin/feature/newcar-turn-fsm-experiment and are excluded from main. Their
+initial right-angle failures and undeployed-fix status remain explicit there.
+
+The exact merged baseline was archived into a separate Docker workspace and
+checked against the pinned dream_interfaces revision with tools/verify_fast.sh.
+Result: 274 checks, zero errors/failures/skips, three existing vehicle-dynamics
+cases deselected at the user's request. Build, installed package, ROS callbacks,
+configuration and launch checks passed. Log:
+experiments/2026-10-14/evidence/main-merge/main-bend-merge-no-simulation.log.
+This Git integration does not deploy code or change any vehicle runtime.
+
 ## Car 05 corner-entry feedback candidate, 2026-10-14
 
 The operator requested sharper turns after selecting a single-side full-width

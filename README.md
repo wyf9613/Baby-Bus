@@ -1,29 +1,33 @@
 # Baby Bus · ai4r_policy
 
-当前 5 号车版本标注为 **弯道激进版**：航向 Kp=1.5、转向变化率 4/s、
+`main` 默认采用 **弯道激进版 `5e8d1b8`**：航向 Kp=1.5、转向变化率 4/s、
 连续混合急弯反馈，策略和车辆转向范围均为 ±1.0，单侧偏移为完整宽度的 0.6 倍。
 用户已反馈急弯改进正常，U 弯仍待改进。配置及验证范围见
 [弯道激进版实测基线](docs/experiments/2026-10-14/AGGRESSIVE_BEND_BASELINE_CN.md)。
+温和转弯版 `271bfb9` 已保留完整合并历史，版本差异和取回方法见
+[控制版本记录](docs/CONTROL_VERSION_HISTORY_CN.md)。状态机及末次未上车修复另存
+[实验分支](https://github.com/wyf9613/Baby-Bus/tree/feature/newcar-turn-fsm-experiment)，不合入 main。
 
 已加入最小 Foxglove 轨迹显示：`/car/policy_trajectory`（标准 ROS Path），
 表示控制器实际采用的参考路径，停止时清线。
 导入 [布局](tools/foxglove_road_visualization/layout.json)，见[使用说明](tools/foxglove_road_visualization/README.md)。
 
-`fix/newcar-control` 当前工作区加入急弯候选：`estimation.road_geometry=ordered_xy`，
-边界按相邻锥桶和行驶方向构成二维有序链，双侧沿局部法线匹配，单侧继续偏移记忆半宽。
+当前策略选择 `estimation.road_geometry=ordered_xy`，
+边界按相邻锥桶和行驶方向构成二维有序链，双侧沿局部法线匹配，单侧偏移记忆完整宽度的 0.6 倍。
 中线按弧长采样，支持竖直及向后折返的局部路段；PID 沿道路预瞄 0.35 m，
 用 `atan2` 计算航向，增加 0.10 s 当前误差平滑。沿用横向 PI、航向 P、速度 PI，
 目标恒定 0.2 m/s；弯道和有效短时预测
 均不自动降速。偏离中心线时由横向 PI 与航向 P 纠正，不搜索回正轨迹。
-急弯候选通过 pinned Jazzy 270 项软件检查，零失败/错误/跳过；尚未部署或实车验证。
+有序二维道路初版的软件检查记录为 270 项；后续激进控制已部署并获得用户正面反馈，
+当前验证范围见[验收记录](docs/acceptance.md)。
 设计、证据与回退设置见 [急弯候选说明](docs/experiments/2026-10-14/ORDERED_ROAD_PID_CN.md)。
 单一 20 Hz timer 同步执行，无 lattice、规划子进程、候选搜索或三帧起步确认；
 控制侧的旧直线路径缓存关闭，连续道路历史只由感知负责。支持已观测前方中线
 起步；双侧观测学习宽度后，缺一侧或共同范围不足时，
-可用近处有效边界向内偏移半宽继续跟踪，
+可用有效边界向内偏移完整宽度的 0.6 倍继续跟踪，
 双侧恢复后更新宽度并回到双侧中线。配置沿用 main 归档车的前馈 0.30、驱动上限 0.35、
 速度 PI 0.35/0.08、转向方向 -1。当前候选横向 Kp=2.5、策略转向上限 1、
-转向变化率 2/s，车辆接口转向区间 ±0.8；单侧跟踪短测获得正面反馈，尚未完成重复圈次验收。
+转向变化率 4/s，航向 Kp=1.5，车辆接口转向区间 ±1.0；U 弯仍待改进。
 实现和参数见 [最简中心线跟踪说明](docs/SIMPLE_CENTERLINE_FOLLOW_CN.md)。
 原 V1 直线规划仍可选，本文后面的 V1 描述属于历史版本。
 每次显式启动累计原始轮速里程。当前 `control.max_distance_m` 与
