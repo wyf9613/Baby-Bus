@@ -1,9 +1,13 @@
 # Development and verification
 
 Follow the [DREAM development guide](https://gitlab.unimelb.edu.au/dream/dream_system/-/blob/main/docs/development-guide.md).
-Use an Ubuntu 24.04 / ROS 2 Jazzy environment. The policy remains a single
-commented Python file; keep student explanations beside code/configuration.
-Do not split it into a framework or create extra example YAML files.
+Use an Ubuntu 24.04 / ROS 2 Jazzy environment. On the simulation branch, the
+imported MVP2.1 implementation is developed in `mvp21_policy/`, with a separate
+`scripts/mvp21_policy_node.py` entry. Keep explanations beside code/configuration
+and use `tools/bundle_python.py` when a single-file delivery is required. The
+original `scripts/policy_node.py` and training framework remain the legacy
+training entry. See [the module guide](mvp21_policy/README.md) for ownership,
+portable checks and packaging. Avoid extra example YAML files.
 
 ## Build dependencies
 

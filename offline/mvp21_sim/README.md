@@ -15,8 +15,9 @@
 特征编码、扩充前后模型与证据。每次实验前后核对文件指纹，本次还核对了原始字节
 未改变。已有训练数据与完整日志继续留在`.verification/`，未重算或覆盖。
 
-`source.py`从上游单文件提取实际纯算法定义，不导入ROS，不实例化`PolicyNode`，
-不提取或执行`calculate_policy_actions()`。接线为：
+`source.py`通过正常Python导入加载[mvp21_policy](../../mvp21_policy/README.md)中的
+实际算法，不导入ROS、不实例化`PolicyNode`，不执行`calculate_policy_actions()`。
+上游单文件和YAML保留为来源快照，并额外记录实际模块源码指纹。接线为：
 
 ```mermaid
 flowchart LR
@@ -98,3 +99,11 @@ plant四角到道路的最小诊断距离分别为0.130085/0.213147 m；这个�
 
 精简结果与指纹见[verification.json](artifacts/2026-10-15/verification.json)，
 完整三组trace及测试日志在`.verification/mvp21-integration-20261015/`。
+
+## 将 lattice 路径接给控制器
+
+新增显式离线开关`--path-source lattice`，默认入口仍直接跟踪感知中线。
+保留planner原参数、每控制周期重新生成选中路径时，感知/理想道路两组均跑完；
+原1 Hz直接交付存在坐标时间不一致，20 Hz同步计算则超过当前机器的周期预算。
+调度与碰撞/评分前瞻共用`rate_hz`的参数耦合也会导致不同闭环结果。
+接线、全部对照与复现命令见[planner控制实验](PLANNER_CONTROL_EXPERIMENT.md)。

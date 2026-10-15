@@ -1,5 +1,11 @@
 # Baby Bus · ai4r_policy
 
+本仿真分支的 MVP2.1 源码现已拆入 [mvp21_policy/](mvp21_policy/README.md)，
+感知、运动历史、规划、控制、lattice 与 ROS 接线可分别修改和导入。
+`offline.mvp21_sim` 已切换到这些模块；原训练 policy、模型、车辆环境及上游来源
+快照保留。单文件打包脚本与用法见 [tools/BUNDLE_PYTHON.md](tools/BUNDLE_PYTHON.md)。
+下文的旧Frenet训练实现仍由原 `scripts/policy_node.py` 提供。
+
 2026-10-10：[完整 policy 训练管线](offline/lattice_training/README.md) 已连接原 env、
 native lattice 和训练用 C* 数值求解，自动生成实际执行标签，训练并导出候选评分器，
 完成排序和闭环对比。唯一入口为 run，无需外部 C* 数据。

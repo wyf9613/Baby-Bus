@@ -2,8 +2,12 @@ cmake_minimum_required(VERSION 3.8)
 project(ai4r_policy)
 find_package(ament_cmake REQUIRED)
 
-# The policy remains one directly readable Python script.
+# Preserve the original training/deployment entry. The modular MVP2.1 entry is
+# separate and can also be delivered through tools/bundle_python.py.
 install(PROGRAMS scripts/policy_node.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/mvp21_policy_node.py DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY mvp21_policy DESTINATION lib/${PROJECT_NAME}
+        FILES_MATCHING PATTERN "*.py")
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)

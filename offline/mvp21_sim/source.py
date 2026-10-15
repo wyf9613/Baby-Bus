@@ -1,16 +1,8 @@
-"""Load pinned, byte-identical upstream pure modules without the policy or ROS node."""
-import ast
-from copy import deepcopy
-from dataclasses import dataclass
+"""Use normal module imports; retain the pinned source/config as provenance."""
 from functools import lru_cache
 import hashlib
 import json
-import math
-from numbers import Real
 from pathlib import Path
-import sys
-import time
-from types import ModuleType, SimpleNamespace
 
 import yaml
 
@@ -34,26 +26,14 @@ def checked_bytes(path, expected):
 
 @lru_cache(maxsize=1)
 def api():
-    tree = ast.parse(checked_bytes(SOURCE, SOURCE_SHA256))
-    nodes = []
-    for node in tree.body:
-        if isinstance(node, ast.ClassDef) and node.name == 'PolicyNode':
-            break
-        if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name not in {
-                '_shadow_worker_entry', 'ShadowWorker'}:
-            nodes.append(node)
-    policy = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name=='PolicyNode')
-    offer = next(n for n in policy.body if isinstance(n, ast.FunctionDef) and n.name=='_shadow_offer')
-    # Reuse the actual upstream selection/forward-geometry fallback, without
-    # extracting or executing calculate_policy_actions or the policy lifecycle.
-    nodes.append(ast.fix_missing_locations(ast.ClassDef(name='ShadowJobSource',bases=[],keywords=[],
-        body=[offer],decorator_list=[])))
-    module = ModuleType('_mvp21_sim_' + SOURCE_SHA256[:16])
-    module.__dict__.update(dataclass=dataclass, deepcopy=deepcopy, math=math, Real=Real,
-        time=time, ConeDetection=SimpleNamespace(COLOR_YELLOW=1, COLOR_BLUE=2))
-    sys.modules[module.__name__] = module
-    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(SOURCE), 'exec'), module.__dict__)
-    return module
+    checked_bytes(SOURCE, SOURCE_SHA256)
+    from mvp21_policy import api as modules
+    return modules
+
+
+def runtime_provenance():
+    from mvp21_policy.provenance import source_fingerprint
+    return source_fingerprint()
 
 
 def parameters():

@@ -7,7 +7,7 @@ import numpy as np
 
 from offline.planner_sim import PlannerSimulationEnv, SensorTiming, load_notebook
 from offline.lattice_training.native_replay import map_road_input
-from .source import api, parameters, SOURCE_SHA256, UPSTREAM_COMMIT
+from .source import api, parameters, runtime_provenance, SOURCE_SHA256, UPSTREAM_COMMIT
 
 
 class MVP21SimulationEnv(PlannerSimulationEnv):
@@ -29,6 +29,7 @@ class MVP21SimulationEnv(PlannerSimulationEnv):
         result = super().configuration()
         result['mvp21_source_commit'] = UPSTREAM_COMMIT
         result['mvp21_source_sha256'] = SOURCE_SHA256
+        result['mvp21_runtime_modules'] = runtime_provenance()
         return result
 
 

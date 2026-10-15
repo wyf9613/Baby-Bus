@@ -11,6 +11,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
 from offline.mvp21_sim.source import api,parameters,verify_preserved_files,SOURCE_SHA256,ROOT
 from offline.mvp21_sim.simulation import MVP21SimulationEnv,recorded_environment,plant_action
+from offline.mvp21_sim.planner_control import selected_reference
 from offline.mvp21_sim.__main__ import DEFAULT_ROAD,run
 from offline.planner_sim import load_notebook
 
@@ -91,6 +92,42 @@ class MVP21IntegrationChecks(unittest.TestCase):
             self.assertEqual(on['valid_reference_count'],4)
             self.assertEqual(on['shadow']['status_counts'],{'VALID':1})
             self.assertEqual(off['shadow']['calls'],0)
+
+    def test_lattice_handoff_keeps_geometry_without_refitting_and_rejects_diagnostic_candidate(self):
+        envelope=dict(valid=True,timestamp_s=4.,valid_for_s=.2,target_speed_mps=.2,
+            stop_requested=False,path=dict(preview_m=.35,samples_xy=[(0.,0.),(1.,0.)]))
+        result=dict(status='VALID',input_stamp_s=4.,check_length_m=.1,score_length_m=.2,
+            generated_length_m=1.,selected=dict(id=7,family='halton',
+                path=[(0.,0.,0.),(.2,.1,.5),(.1,.4,1.8)]))
+        before=deepcopy((envelope,result))
+        reference=selected_reference(envelope,result)
+        self.assertEqual(reference['path']['samples_xy'],[(0.,0.),(.2,.1),(.1,.4)])
+        self.assertAlmostEqual(reference['path']['range'][1],math.hypot(.2,.1)+math.hypot(-.1,.3))
+        self.assertEqual(reference['valid_for_s'],.2)
+        self.assertEqual((envelope,result),before)
+        result['status']='ALL_COLLIDE'  # Still contains a selected diagnostic candidate.
+        rejected=selected_reference(envelope,result)
+        self.assertFalse(rejected['valid'])
+        self.assertIsNone(rejected['path'])
+        self.assertEqual(rejected['target_speed_mps'],0.)
+        result['status']='VALID';result['input_stamp_s']=3.9
+        self.assertEqual(selected_reference(envelope,result)['reason'],'lattice_input_time_mismatch')
+        result['input_stamp_s']=4.;result['selected']['path']=[(0.,0.,0.),(0.,0.,0.)]
+        self.assertEqual(selected_reference(envelope,result)['reason'],'lattice_selected_path_invalid')
+
+    def test_fresh_lattice_cycles_and_literal_one_hz_handoff(self):
+        road=json.loads(DEFAULT_ROAD.read_text())
+        with tempfile.TemporaryDirectory(dir=ROOT/'.verification',prefix='mvp21-lattice-test-') as directory:
+            directory=Path(directory)
+            fresh=run(road,directory/'fresh',max_steps=2,path_source='lattice')
+            stale=run(road,directory/'stale',max_steps=2,path_source='lattice',lattice_cadence='upstream')
+            self.assertEqual(fresh['valid_reference_count'],2)
+            self.assertEqual(fresh['shadow']['calls'],2)
+            self.assertTrue(fresh['shadow']['influences_actions'])
+            self.assertEqual(fresh['lattice_generation_rate_hz'],20.)
+            self.assertEqual(fresh['shadow']['effective_settings']['rate_hz'],1.)
+            self.assertEqual(stale['valid_reference_count'],1)
+            self.assertEqual(stale['fault'],'control:control_frame_or_time_mismatch')
 
 
 if __name__=='__main__':

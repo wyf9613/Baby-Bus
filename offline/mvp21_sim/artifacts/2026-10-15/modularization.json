@@ -1,0 +1,175 @@
+{
+  "date": "2026-10-15",
+  "refactor": {
+    "upstream_commit": "f11428b5444ac4c714a95e86e71662086b3187bd",
+    "source_sha256": "524ffcb244a85e98d5993c273e0ff684629f44be6128a102e5ff31096ef26edd",
+    "unchanged_algorithm_definitions": {
+      "Observation": "contracts.py",
+      "finite_number": "geometry.py",
+      "valid_frame": "geometry.py",
+      "quaternion_xyzw": "geometry.py",
+      "quaternion_product": "geometry.py",
+      "quaternion_inverse": "geometry.py",
+      "rotate_vector": "geometry.py",
+      "transform_position": "geometry.py",
+      "roll_pitch_yaw": "geometry.py",
+      "wrap_angle": "geometry.py",
+      "EstimationSettings": "estimation.py",
+      "FirstOrderSampleFilter": "motion.py",
+      "EstimationMotionHistory": "motion.py",
+      "_estimation_median": "estimation.py",
+      "_estimation_solve": "estimation.py",
+      "_estimation_fit_boundary": "estimation.py",
+      "_path_points": "geometry.py",
+      "_path_lengths": "geometry.py",
+      "_path_sample": "geometry.py",
+      "_path_tangent": "geometry.py",
+      "_path_project": "geometry.py",
+      "_estimation_order_boundary": "estimation.py",
+      "EstimationPipeline": "estimation.py",
+      "PlanningSettings": "planning.py",
+      "planning_vehicle_limits": "planning.py",
+      "evaluate_planning_path": "planning.py",
+      "CenterlinePlanner": "planning.py",
+      "RoadCenterlinePlanner": "planning.py",
+      "ControlSettings": "control.py",
+      "PolicyStopRequest": "control.py",
+      "RunDistanceLimiter": "control.py",
+      "VehicleCalibrationSettings": "control.py",
+      "ControlPID": "control.py",
+      "_control_poly_eval": "control.py",
+      "_control_poly_roots": "control.py",
+      "_control_centerline_geometry": "control.py",
+      "_control_ordered_geometry": "control.py",
+      "control_path_geometry": "control.py",
+      "ControlReferenceManager": "control.py",
+      "PolicyController": "control.py",
+      "ShadowSettings": "lattice.py",
+      "_shadow_points": "lattice.py",
+      "_shadow_lengths": "lattice.py",
+      "_shadow_at": "lattice.py",
+      "ShadowFrame": "lattice.py",
+      "_shadow_halton": "lattice.py",
+      "_shadow_curve": "lattice.py",
+      "_shadow_segment_hit": "lattice.py",
+      "_shadow_collision": "lattice.py",
+      "ShadowLatticePlanner": "lattice.py"
+    },
+    "unchanged_pure_definition_count": 50,
+    "shadow_offer_unchanged": true,
+    "node_only_changes": [
+      "Inherit the relocated ShadowJobSource method",
+      "Two worker constructors select the modular worker entry"
+    ],
+    "ros_main_unchanged": true,
+    "transport_only_changes": [
+      "Constructor selects worker.py rather than the monolith"
+    ],
+    "worker_changes": [
+      "Normal imports replace AST extraction",
+      "source_sha256 fingerprints worker/geometry/lattice module sources"
+    ],
+    "bundler_commit": "66eaea923a7b040de4908975ffecda118795f393",
+    "bundler_files": {
+      "tools/bundle_python.py": "371d7ede9cba0d3b6e69e661c13634e92a44bb9cdb3780fb7ef2e355760c5eb2",
+      "tools/BUNDLE_PYTHON.md": "81da36865580426020361fd96f3d7b877a30bfbd798b5287ec3afdec6c75ae21",
+      "tests/test_bundle_python.py": "c60e50cc15fe20b008064aaa42b784252de194736e08bec53fc8f4db9d285e04"
+    },
+    "preserved_files": {
+      "checkpoint_commit": "d6d1b5c19ca5cb1676253f7acd4deadbc6bf1d0a",
+      "checked_files": 74,
+      "unchanged": true
+    },
+    "runtime_modules": {
+      "format": "mvp21_modules_sha256_v1",
+      "sha256": "3097966548539e9a4aa16c49132ac07241cb1f50da8878da8ba97da5a38922de",
+      "files": {
+        "__init__.py": "caa980464c44a9bc69e8667df083f5d76cd4140098388f2a363171ef52ddd53e",
+        "__main__.py": "3051d19225dc0a7054f63da7c726b15cc9259cbcc980eafcd27a0780863d65d1",
+        "api.py": "47a8733f902e860d7028114798ed8bd67f50a437a1120e769193ae8251fa93ce",
+        "contracts.py": "40b87e61fda2385f1cbeb3eb76a3c05ef60d5d49a058687bdccc8b271fbef7b4",
+        "control.py": "99f3a9079a4abc797b5d0db878dffe4ac6de7d690ce2e1010010dff99b62f0f9",
+        "estimation.py": "9850bbb5e5dc27b83fa0dcfc4bf634a2c24587dbb3dc0b53b6837cf46a591e2c",
+        "geometry.py": "6a3fb3d04b0e4211deca5199621f665e98fa3918f09d278ab69381cddc1cd8c6",
+        "lattice.py": "97d1254b64c382b9ab51e3c265812269d0fc9c189b65c079e270e0a4679eb27a",
+        "motion.py": "01a3f71e8034e2ffa9e91fbecefd8a06547785d0af144201189f76686b187584",
+        "node.py": "2945063a8af380202e6bccf1f3e095c721cb7db7348070f824369ea5860ca940",
+        "planning.py": "f6dbcd6e2f52df08046df1bfe20deaaf87f1be183067b001a1299e11f701d68a",
+        "provenance.py": "3ca8499a79ab11799bda43f17a90d878fb8bbcf7742e51a08bde114eceffb265",
+        "transport.py": "494b6effd06a881786286ecc6b291de131d1ec629c996a53288fd632bafacc90",
+        "worker.py": "82aee694434540800f18384bdbf95a5798683f10334d77e8ee8632b257e95b5e"
+      }
+    }
+  },
+  "original_raw_bytes_unchanged": true,
+  "preserved_files": {
+    "checkpoint_commit": "d6d1b5c19ca5cb1676253f7acd4deadbc6bf1d0a",
+    "checked_files": 74,
+    "unchanged": true
+  },
+  "replays": {
+    "perception-baseline": {
+      "frames": 152,
+      "all_actions_paths_control_state_and_poses_identical": true,
+      "planner_candidates_and_selections_identical": true,
+      "completed": true
+    },
+    "perception-lattice": {
+      "frames": 151,
+      "all_actions_paths_control_state_and_poses_identical": true,
+      "planner_candidates_and_selections_identical": true,
+      "completed": true
+    }
+  },
+  "tests": {
+    "modules_and_real_processes": 4,
+    "simulation_adapter": 8,
+    "bundler": 17,
+    "total_passed": 29
+  },
+  "bundle": {
+    "path": "build/mvp21_policy_single.py",
+    "sha256": "9e2cb87015926f63e1fb8ad8d918b2ca2c7f9cc6e296568eec549fa37366193d",
+    "source_files": 13,
+    "unresolved_dynamic_imports": [],
+    "external_dependencies": {
+      "copy": "runtime Python package / standard library",
+      "dataclasses": "runtime Python package / standard library",
+      "dream_interfaces.msg": "not found; may be an optional import",
+      "geometry_msgs.msg": "not found; may be an optional import",
+      "hashlib": "runtime Python package / standard library",
+      "json": "runtime Python package / standard library",
+      "math": "built-in",
+      "nav_msgs.msg": "not found; may be an optional import",
+      "numbers": "runtime Python package / standard library",
+      "os": "runtime Python package / standard library",
+      "pathlib": "runtime Python package / standard library",
+      "queue": "runtime Python package / standard library",
+      "rcl_interfaces.msg": "not found; may be an optional import",
+      "rclpy": "not found; may be an optional import",
+      "rclpy.clock": "not found; may be an optional import",
+      "rclpy.executors": "not found; may be an optional import",
+      "rclpy.node": "not found; may be an optional import",
+      "rclpy.parameter": "not found; may be an optional import",
+      "rclpy.qos": "not found; may be an optional import",
+      "rclpy.signals": "not found; may be an optional import",
+      "rclpy.time": "not found; may be an optional import",
+      "sensor_msgs.msg": "not found; may be an optional import",
+      "signal": "runtime Python package / standard library",
+      "std_msgs.msg": "not found; may be an optional import",
+      "subprocess": "runtime Python package / standard library",
+      "sys": "built-in",
+      "tf2_ros": "not found; may be an optional import",
+      "threading": "runtime Python package / standard library",
+      "time": "built-in",
+      "traceback": "runtime Python package / standard library"
+    }
+  },
+  "installation_layout_worker_tested": true,
+  "ros_build_tested": false,
+  "ros_gate": "Attempted through WSL; stopped before build: pinned .verification/dependencies/dream_interfaces absent.",
+  "hardware_tested": false,
+  "planner_parameters_changed": false,
+  "previous_planner_control_experiment_behavior_preserved": true,
+  "note": "No live configuration/launch switch. Original training entry and immutable upstream snapshot are preserved."
+}

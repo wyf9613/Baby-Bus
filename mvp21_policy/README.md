@@ -1,0 +1,94 @@
+# MVP2.1 模块开发入口
+
+本目录是当前仿真使用的可编辑实现。来源为`mvp2.1`的
+`f11428b5444ac4c714a95e86e71662086b3187bd`，原文件保留在
+`offline/mvp21_sim/upstream/`作为来源快照。仿真通过正常Python导入使用本目录，
+以后应修改对应模块，不再从单文件动态提取算法。
+
+| 文件 | 负责内容 |
+|---|---|
+| `contracts.py` | 观测记录、传感器与状态常量 |
+| `geometry.py` | 坐标/四元数、折线投影与弧长工具 |
+| `motion.py` | 轮速/偏航率滤波、运动历史、坐标传播 |
+| `estimation.py` | 道路、状态和障碍估计，历史锥桶与道路支持 |
+| `planning.py` | 中线路径、原V1兼容规划、参考准入与有效期 |
+| `control.py` | PID、控制参考管理、距离限制与标定记录 |
+| `lattice.py` | ShadowSettings、候选生成、边界碰撞和评分选择 |
+| `transport.py` | 纯规划任务提交、最新任务队列和后台子进程 |
+| `worker.py` | 无ROS的逐行JSON规划协议 |
+| `node.py` | ROS输入输出、状态机、主循环与学生插入代码 |
+| `api.py` | 仿真兼容导出面；新代码优先直接导入所属模块 |
+| `provenance.py` | 实际模块源码指纹 |
+
+算法模块不导入ROS，也不会在导入时创建线程或进程。跨模块继续使用原来的字典
+数据结构、字段、坐标系、单位和有效期。`node.py`独占ROS消息转换与生命周期，
+`ShadowWorker`显式启动时才创建后台执行。lattice仍为shadow；本次没有改变频率、
+调参、控制连接或上一轮离线实验结论。
+
+```mermaid
+flowchart LR
+    N[node: ROS 接线] --> E[estimation]
+    E --> M[motion]
+    N --> P[planning]
+    N --> C[control]
+    C --> P
+    N --> T[transport]
+    T --> W[worker]
+    W --> L[lattice]
+    S[offline.mvp21_sim] --> E
+    S --> P
+    S --> C
+    S --> L
+```
+
+原`script`入口`../scripts/policy_node.py`及训练/评分模型保留；新入口为
+`../scripts/mvp21_policy_node.py`。CMake安装新入口及其相邻的模块包。
+现有launch继续选择原入口；切换实际运行需要显式选择新入口并提供MVP2.1参数。
+该参数来源仍为`offline/mvp21_sim/upstream/config/ai4r_policy.yaml`，本次未更换
+当前配置或部署。节点启动行为、停止发布与`INSERT POLICY CODE`标记保持。
+
+## 仿真与打包
+
+从仓库根目录使用现有虚拟环境，输出目录必须不存在：
+
+```powershell
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --output .verification/modular-centerline-new
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --output .verification/modular-lattice-new
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B tools/bundle_python.py scripts/mvp21_policy_node.py --root . --output build/mvp21_policy_single.py
+```
+
+单文件工具来自`feature/python-single-file-bundler`的`66eaea923a7b040de4908975ffecda118795f393`，
+原样带入脚本、说明和17项测试。它保留模块层级并恢复到临时目录，支持worker子进程；
+不是把算法拼接到一个共享全局命名空间。ROS及其他外部依赖仍由运行环境提供。
+完整参数与可选profiling见[打包说明](../tools/BUNDLE_PYTHON.md)。生成文件位于
+忽略的`build/`，每次由模块重新构建，不作为另一份算法源码维护。
+
+仿真日志同时保存上游原文件指纹和`runtime_modules`实际源码指纹。worker返回的
+`source_sha256`现按`source_sha256_format=mvp21_worker_geometry_lattice_v1`计算，覆盖
+`worker.py`、`geometry.py`、`lattice.py`，不再把原单文件的hash当作模块运行版本。
+任务generation/job_id、shadow_only、结果状态与计时字段保持。
+
+## 本次验证
+
+机械迁移审计确认50个纯算法定义的AST完全一致；ROS主函数、任务提交方法保持，
+节点只增加共享提交方法的继承并修改两处worker入口构造。后台队列逻辑保持，
+worker中正常导入替代了原来的AST提取。
+
+两组全程回放逐帧比对通过：中线组152帧、lattice组151帧的动作、参考路径、
+控制诊断、估计状态、位姿、进度与车角余量完全一致，所有候选和选择结果也一致
+（不比较实际耗时）。74个原训练/配置/环境文件指纹保持。
+
+```powershell
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B tests/test_mvp21_modules.py -v
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B tests/test_mvp21_sim.py -v
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B tests/test_bundle_python.py -v
+```
+
+4项模块/进程检查、8项仿真检查、17项打包检查通过，共29项。其中模块检查覆盖
+无ROS/无后台副作用导入、实际JSON子进程、安装目录布局、仓库外单文件运行及
+单文件内再次启动子进程。迁移审计是一次性证据，不作为禁止后续调参的冻结测试。
+ROS fast gate已尝试，构建前因缺少固定dream_interfaces checkout而停止，完整ROS
+安装与硬件均未验证。
+
+精简证据见[modularization.json](../offline/mvp21_sim/artifacts/2026-10-15/modularization.json)，
+完整审计与两组回放位于`.verification/mvp21-modularize-20261015/`。

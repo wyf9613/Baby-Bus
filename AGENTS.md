@@ -6,9 +6,13 @@ The canonical [DREAM guide](https://gitlab.unimelb.edu.au/dream/dream_system/-/b
 governs repository workflow; preserve explicit user authority and Solo/Co-op
 preferences. Ordinary implementation requests authorize in-scope edits/checks.
 
-- Keep all policy code in scripts/policy_node.py. The comments, five ROS parameter
-  files and optional camera_mount.yaml/lidar_mount.yaml are the student documentation. Preserve
-  the insertion markers.
+- On this simulation branch the user authorized splitting the imported MVP2.1
+  implementation into mvp21_policy/. Its separate entry is
+  scripts/mvp21_policy_node.py; tools/bundle_python.py can produce a single-file
+  delivery. Keep algorithm edits in their owning modules and preserve the
+  insertion markers in mvp21_policy/node.py. Keep the original training policy,
+  scripts/policy_node.py, its config/models and the immutable upstream snapshot
+  intact unless the user explicitly requests a change to them.
 - Keep one selected trigger, explicit resume, per-field IMU validity and
   freshness, zero publication independent of sensor callbacks, and pan hold.
 - The policy never enables the vehicle. DREAM owns hardware services,

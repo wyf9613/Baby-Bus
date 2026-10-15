@@ -1,0 +1,549 @@
+{
+  "upstream_commit": "f11428b5444ac4c714a95e86e71662086b3187bd",
+  "source_sha256": "524ffcb244a85e98d5993c273e0ff684629f44be6128a102e5ff31096ef26edd",
+  "config_sha256": "f9690e39ca898fb878c9ffa6780c1824b805c3d1f5cab912220d9ff5e48dacf0",
+  "preserved_files": {
+    "checkpoint_commit": "d6d1b5c19ca5cb1676253f7acd4deadbc6bf1d0a",
+    "checked_files": 74,
+    "unchanged": true
+  },
+  "original_raw_bytes_unchanged": true,
+  "baseline_all_152_actions_match_previous_commit": true,
+  "adapter_tests_passed": 8,
+  "deployed": false,
+  "hardware_tested": false,
+  "real_time_qualified": false,
+  "speed_tracking_qualified": false,
+  "experiment": "Unfitted selected lattice polyline replaces only the current-cycle centerline reference geometry.",
+  "note": "The nominal 1 Hz planner rate controls check/score/hold lengths. Fresh 20 Hz scheduling keeps it unchanged by default.",
+  "limitations": [
+    "Synchronous simulation pauses during planning; compute delays do not age the path.",
+    "Baseline centerline admission, target speed and controller remain unchanged.",
+    "Literal 1 Hz handoff has no motion-warp/cache protocol and fails on cycle 2.",
+    "Four plant corners only; not continuous body sweep certification or terminal-stop validation.",
+    "Original vehicle feedforward produces about 0.78 m/s despite a 0.2 m/s target.",
+    "The rate-scaled sensitivity pair ran concurrently; only original-prefix runs are used for compute statistics.",
+    "No ROS fast gate: the pinned dream_interfaces checkout is still absent."
+  ],
+  "runs": {
+    "perception-baseline": {
+      "completed": true,
+      "steps": 152,
+      "fault": null,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.742970643494541,
+      "goal_progress_m": 4.736799508178038,
+      "maximum_executed_speed_mps": 0.7767181154220482,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.38712304401456504,
+      "minimum_plant_corner_road_margin_m": 0.13008478499774423,
+      "road_input": "perception",
+      "path_source": "perception",
+      "generation_rate_hz": 1,
+      "planner_settings": {
+        "enabled": true,
+        "rate_hz": 1.0,
+        "length_m": 1.0,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04
+      },
+      "planner_status_counts": {
+        "VALID": 8
+      },
+      "planner_compute_ms": {
+        "mean": 85.46976249635918,
+        "median": 90.91970001463778,
+        "maximum": 119.7375999763608,
+        "over_50ms": 7,
+        "calls": 8
+      },
+      "last_planner": {
+        "status": "VALID",
+        "input_stamp_s": 8.4,
+        "speed_mps": 0.4259162769247729,
+        "hold_time_s": 1.1,
+        "check_length_m": 0.4685079046172502,
+        "score_length_m": 0.4685079046172502,
+        "generated_length_m": 1.0,
+        "control_read_length_m": 0.8185079046172502,
+        "feasible_count": 48,
+        "known_boundary_sides": []
+      },
+      "evidence_sha256": {
+        "summary.json": "5f06ea1ef584070d2b3c8165fc1d10ebdc171f9093c5c48451a4e6a781b0dd54",
+        "trace.jsonl": "0fda4454bea0b9d1c98ab164ee992b0633e7eb6b98622e6c4b559535893abe6a",
+        "shadow.jsonl": "646a6640d70d1bb6d47bfdbaf8c4df30fac2f72b1235b7f8e2fb6753eb5665ef"
+      },
+      "last_execution": {
+        "step": 151,
+        "timestamp_s": 8.850000000000001,
+        "progress_m": 4.742970643494541,
+        "decision_pose": [
+          3.9168203200324894,
+          -2.0730824748642513,
+          -0.633926898289015
+        ],
+        "x_m": 3.9285088793220515,
+        "y_m": -2.090549112441575,
+        "heading_rad": -0.6844026908713453,
+        "raw_action": [
+          0.003145873295847784,
+          1.0
+        ],
+        "plant_action": [
+          0.003145873295847784,
+          -1.0
+        ],
+        "plant_corner_road_margin_m": 0.23131947508346368
+      }
+    },
+    "perception-20hz-original-prefix": {
+      "completed": true,
+      "steps": 151,
+      "fault": null,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.749139939932172,
+      "goal_progress_m": 4.736799508178038,
+      "maximum_executed_speed_mps": 0.7773127259259044,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.3820207868693672,
+      "minimum_plant_corner_road_margin_m": 0.15196755756392277,
+      "road_input": "perception",
+      "path_source": "lattice",
+      "generation_rate_hz": 20,
+      "planner_settings": {
+        "enabled": true,
+        "rate_hz": 1.0,
+        "length_m": 1.0,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04
+      },
+      "planner_status_counts": {
+        "VALID": 151
+      },
+      "planner_compute_ms": {
+        "mean": 118.63667549741214,
+        "median": 116.02360004326329,
+        "maximum": 236.82220000773668,
+        "over_50ms": 148,
+        "calls": 151
+      },
+      "last_planner": {
+        "status": "VALID",
+        "input_stamp_s": 8.8,
+        "speed_mps": 0.40760664038371514,
+        "hold_time_s": 1.1,
+        "check_length_m": 0.44836730442208667,
+        "score_length_m": 0.44836730442208667,
+        "generated_length_m": 1.0,
+        "control_read_length_m": 0.7983673044220867,
+        "feasible_count": 48,
+        "known_boundary_sides": [
+          "right"
+        ]
+      },
+      "evidence_sha256": {
+        "summary.json": "c1692d7c5a5be0944cf95598e59cbd167dea7de67332e5d0fe4c3b0ec4b045ec",
+        "trace.jsonl": "8e6edd8670e89332acb330aed07f3e0d3c740453a946f1e351b78dea00d64ec9",
+        "shadow.jsonl": "d0a84cab1e76e746bba53503af4c6145d47d344cb0c14c2ab33d2c0a406b267b"
+      },
+      "last_execution": {
+        "step": 150,
+        "timestamp_s": 8.8,
+        "progress_m": 4.749139939932172,
+        "decision_pose": [
+          3.9207326042083697,
+          -2.078543040523741,
+          -0.7737872711626276
+        ],
+        "x_m": 3.9349297586819985,
+        "y_m": -2.0926969479621502,
+        "heading_rad": -0.7752076808106078,
+        "raw_action": [
+          0.0031986260884628026,
+          0.026931820703782056
+        ],
+        "plant_action": [
+          0.0031986260884628026,
+          -0.026931820703782056
+        ],
+        "plant_corner_road_margin_m": 0.21079777356361393
+      }
+    },
+    "map-20hz-original-prefix": {
+      "completed": true,
+      "steps": 148,
+      "fault": null,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.7470085057894345,
+      "goal_progress_m": 4.736799508178038,
+      "maximum_executed_speed_mps": 0.7772854442564093,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.3845960876111855,
+      "minimum_plant_corner_road_margin_m": 0.1642133410422021,
+      "road_input": "map",
+      "path_source": "lattice",
+      "generation_rate_hz": 20,
+      "planner_settings": {
+        "enabled": true,
+        "rate_hz": 1.0,
+        "length_m": 1.0,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04
+      },
+      "planner_status_counts": {
+        "VALID": 148
+      },
+      "planner_compute_ms": {
+        "mean": 310.19242432297244,
+        "median": 325.69499997771345,
+        "maximum": 945.5136999604292,
+        "over_50ms": 148,
+        "calls": 148
+      },
+      "last_planner": {
+        "status": "VALID",
+        "input_stamp_s": 8.65,
+        "speed_mps": 0.41431834982660437,
+        "hold_time_s": 1.1,
+        "check_length_m": 0.4557501848092648,
+        "score_length_m": 0.4557501848092648,
+        "generated_length_m": 1.0,
+        "control_read_length_m": 0.8057501848092647,
+        "feasible_count": 23,
+        "known_boundary_sides": [
+          "left",
+          "right"
+        ]
+      },
+      "evidence_sha256": {
+        "summary.json": "d401f64ccb11ad4a072a0078481f3e44a0942d2bd202c557a519343f1d9b34e6",
+        "trace.jsonl": "6b08b80380a6981d82501ac1e1016ca341cbcff2713f0a7fbeb21f3e05305d95",
+        "shadow.jsonl": "35492b14186b14776ec2171d3a1ce7868644f8d0e752739a0db279ec5c48ace7"
+      },
+      "last_execution": {
+        "step": 147,
+        "timestamp_s": 8.65,
+        "progress_m": 4.7470085057894345,
+        "decision_pose": [
+          3.8032115460808007,
+          -2.2004060364997042,
+          -0.759092511289264
+        ],
+        "x_m": 3.817940021329153,
+        "y_m": -2.214481722705131,
+        "heading_rad": -0.7596154012461714,
+        "raw_action": [
+          0.0033674917898381396,
+          0.011136457694077031
+        ],
+        "plant_action": [
+          0.0033674917898381396,
+          -0.011136457694077031
+        ],
+        "plant_corner_road_margin_m": 0.18980337411394962
+      }
+    },
+    "perception-1hz-literal": {
+      "completed": false,
+      "steps": 1,
+      "fault": "control:control_frame_or_time_mismatch",
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 0.40898882751850263,
+      "goal_progress_m": 4.736799508178038,
+      "maximum_executed_speed_mps": 0.05831443490870845,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.14168556509129157,
+      "minimum_plant_corner_road_margin_m": 0.3439396135530602,
+      "road_input": "perception",
+      "path_source": "lattice",
+      "generation_rate_hz": 1,
+      "planner_settings": {
+        "enabled": true,
+        "rate_hz": 1.0,
+        "length_m": 1.0,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04
+      },
+      "planner_status_counts": {
+        "VALID": 1
+      },
+      "planner_compute_ms": {
+        "mean": 38.962399994488806,
+        "median": 38.962399994488806,
+        "maximum": 38.962399994488806,
+        "over_50ms": 0,
+        "calls": 1
+      },
+      "last_planner": {
+        "status": "VALID",
+        "input_stamp_s": 1.3,
+        "speed_mps": 0.0,
+        "hold_time_s": 1.1,
+        "check_length_m": 0.0,
+        "score_length_m": 0.2,
+        "generated_length_m": 1.0,
+        "control_read_length_m": 0.35,
+        "feasible_count": 48,
+        "known_boundary_sides": [
+          "left",
+          "right"
+        ]
+      },
+      "evidence_sha256": {
+        "summary.json": "53662edac1eae5cb14e6231f55b84f2b796f3c3ddd8b37fa94ef15726a061ed7",
+        "trace.jsonl": "e21e08c8c27521d8c5ad78fc838dbe3c78f5cd74211723789e5234e81b55a6aa",
+        "shadow.jsonl": "f341a70866d43a659d5e3ff25840e99e8ff153d4c2619794c19216ad5bc74863"
+      },
+      "last_execution": {
+        "step": 0,
+        "timestamp_s": 1.3,
+        "progress_m": 0.40898882751850263,
+        "decision_pose": [
+          0.40753073045658084,
+          0.0,
+          0.0
+        ],
+        "x_m": 0.40898882751850263,
+        "y_m": 0.0,
+        "heading_rad": 0.0,
+        "raw_action": [
+          0.35,
+          0.0
+        ],
+        "plant_action": [
+          0.35,
+          -0.0
+        ],
+        "plant_corner_road_margin_m": 0.3439396135530602
+      }
+    },
+    "perception-20hz": {
+      "completed": false,
+      "steps": 82,
+      "fault": "planning:lattice_ALL_COLLIDE",
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 2.8961322852642564,
+      "goal_progress_m": 4.736799508178038,
+      "maximum_executed_speed_mps": 0.8222742744294576,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.4629420573609469,
+      "minimum_plant_corner_road_margin_m": 0.03291162311562906,
+      "road_input": "perception",
+      "path_source": "lattice",
+      "generation_rate_hz": 20,
+      "planner_settings": {
+        "enabled": true,
+        "rate_hz": 20.0,
+        "length_m": 1.0,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04
+      },
+      "planner_status_counts": {
+        "VALID": 82,
+        "ALL_COLLIDE": 1
+      },
+      "planner_compute_ms": {
+        "mean": 71.5904951780047,
+        "median": 75.57909999741241,
+        "maximum": 93.39299995917827,
+        "over_50ms": 70,
+        "calls": 83
+      },
+      "last_planner": {
+        "status": "ALL_COLLIDE",
+        "input_stamp_s": 5.4,
+        "speed_mps": 0.6101560878238058,
+        "hold_time_s": 0.15000000000000002,
+        "check_length_m": 0.09152341317357089,
+        "score_length_m": 0.2,
+        "generated_length_m": 1.0,
+        "control_read_length_m": 0.44152341317357086,
+        "feasible_count": 0,
+        "known_boundary_sides": [
+          "left",
+          "right"
+        ]
+      },
+      "evidence_sha256": {
+        "summary.json": "78ba52ddec32f19657ad71220ee9e56303c7ccecb5c2ece4d955aeb9b48ccc79",
+        "trace.jsonl": "114ac56c7853ea7792155ef85b5950a797c7b84a89dd9677876f35da3551ac36",
+        "shadow.jsonl": "20cc2075430e7e409c61a67f2b640fe8ee1824f54b780b642cc34b2deda67ef2"
+      },
+      "last_execution": {
+        "step": 81,
+        "timestamp_s": 5.3500000000000005,
+        "progress_m": 2.8961322852642564,
+        "decision_pose": [
+          2.7780441669359566,
+          -0.6402378014402093,
+          -0.6132361261333533
+        ],
+        "x_m": 2.800404355049118,
+        "y_m": -0.6607122731346907,
+        "heading_rad": -0.639722604486594,
+        "raw_action": [
+          0.013725892017707436,
+          0.899275566034091
+        ],
+        "plant_action": [
+          0.013725892017707436,
+          -0.899275566034091
+        ],
+        "plant_corner_road_margin_m": 0.044178828628656186
+      }
+    },
+    "map-20hz": {
+      "completed": false,
+      "steps": 44,
+      "fault": "execution:plant_body_corner_outside_road",
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 1.7725981254598238,
+      "goal_progress_m": 4.736799508178038,
+      "maximum_executed_speed_mps": 0.7947709174223013,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.4466890980323603,
+      "minimum_plant_corner_road_margin_m": -0.002434349141228198,
+      "road_input": "map",
+      "path_source": "lattice",
+      "generation_rate_hz": 20,
+      "planner_settings": {
+        "enabled": true,
+        "rate_hz": 20.0,
+        "length_m": 1.0,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04
+      },
+      "planner_status_counts": {
+        "VALID": 44
+      },
+      "planner_compute_ms": {
+        "mean": 118.22150227089878,
+        "median": 131.65354999364354,
+        "maximum": 206.16790000349283,
+        "over_50ms": 44,
+        "calls": 44
+      },
+      "last_planner": {
+        "status": "VALID",
+        "input_stamp_s": 3.45,
+        "speed_mps": 0.7605802195680094,
+        "hold_time_s": 0.15000000000000002,
+        "check_length_m": 0.11408703293520142,
+        "score_length_m": 0.2,
+        "generated_length_m": 1.0,
+        "control_read_length_m": 0.46408703293520137,
+        "feasible_count": 13,
+        "known_boundary_sides": [
+          "left",
+          "right"
+        ]
+      },
+      "evidence_sha256": {
+        "summary.json": "39686b6b0b6befe9e31a57b82b40080f734f3262cb65de7f66efd1a7a047343d",
+        "trace.jsonl": "0a9a83c1be714b848a28ce26d5fba6a3f06a66267b64a5e120073c9ae834f5a9",
+        "shadow.jsonl": "254350e9177da6d2057e052f595d4fff6941146abafb3cab747e57c782cc5198"
+      },
+      "last_execution": {
+        "step": 43,
+        "timestamp_s": 3.45,
+        "progress_m": 1.7725981254598238,
+        "decision_pose": [
+          1.6702469436398524,
+          -0.26386162784030465,
+          -0.7276590368322375
+        ],
+        "x_m": 1.6929254862921144,
+        "y_m": -0.29465098504824316,
+        "heading_rad": -0.7798908391792438,
+        "raw_action": [
+          0.0365105248125971,
+          0.24963719444718674
+        ],
+        "plant_action": [
+          0.0365105248125971,
+          -0.24963719444718674
+        ],
+        "plant_corner_road_margin_m": -0.002434349141228198
+      }
+    }
+  }
+}
