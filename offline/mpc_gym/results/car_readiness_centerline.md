@@ -6,43 +6,18 @@ Seeds 1-10.
 
 | road | lane m | start | completed | hard stops | max lateral m (completed) | median distance m | main stop reasons |
 |---|---:|---|---:|---:|---:|---:|---|
-| car15_v4 | None | centre | 0/10 | 7 | None | 3.376 | stop:invalid_road_invalid_ordered_geometry 6, ref_invalid:reference_too_short 3, stop:invalid_road_insufficient_geometry 1 |
-| gentle_arc | 0.72 | centre | 6/10 | 1 | 0.032 | 5.001 | ref_invalid:reference_too_short 2, stop:invalid_road_invalid_ordered_geometry 1, ref_invalid:origin_past_path_end 1 |
-| gentle_arc | 1.0 | centre | 0/10 | 2 | None | 2.586 | ref_invalid:reference_too_short 8, stop:invalid_road_invalid_ordered_geometry 2 |
-| right_angle_r1 | 0.72 | centre | 0/10 | 10 | None | 1.455 | stop:overspeed 9, stop:invalid_road_motion_interval_too_long 1 |
-| right_angle_r1 | 1.0 | centre | 0/10 | 10 | None | 1.252 | stop:overspeed 8, stop:invalid_road_invalid_ordered_geometry 2 |
-| right_angle_r1_5 | 0.72 | centre | 0/10 | 10 | None | 2.15 | stop:overspeed 5, stop:invalid_road_insufficient_geometry 3, stop:invalid_road_invalid_ordered_geometry 1 |
-| right_angle_r1_5 | 1.0 | centre | 0/10 | 10 | None | 1.276 | stop:overspeed 10 |
-| straight | 0.72 | centre | 4/10 | 1 | 0.017 | 2.917 | ref_invalid:reference_too_short 3, ref_invalid:origin_past_path_end 2, stop:invalid_road_invalid_ordered_geometry 1 |
-| straight | 0.72 | head5deg | 5/10 | 0 | 0.027 | 3.001 | ref_invalid:origin_past_path_end 3, ref_invalid:reference_too_short 2 |
-| straight | 0.72 | left5cm | 7/10 | 0 | 0.05 | 3.001 | ref_invalid:reference_too_short 3 |
-| straight | 1.0 | centre | 2/10 | 1 | 0.025 | 1.757 | ref_invalid:reference_too_short 7, stop:invalid_road_invalid_ordered_geometry 1 |
-| straight | 1.0 | head5deg | 3/10 | 0 | 0.025 | 2.052 | ref_invalid:reference_too_short 6, ref_invalid:origin_past_path_end 1 |
-| straight | 1.0 | left5cm | 2/10 | 1 | 0.05 | 2.306 | ref_invalid:reference_too_short 7, stop:invalid_road_invalid_ordered_geometry 1 |
-| u_turn | 0.72 | centre | 0/10 | 10 | None | 1.87 | stop:overspeed 9, stop:invalid_road_invalid_ordered_geometry 1 |
-| u_turn | 1.0 | centre | 0/10 | 10 | None | 0.876 | stop:overspeed 9, stop:invalid_road_invalid_ordered_geometry 1 |
-
-## Reading this table (2026-10-15, after aligning the camera budget with main)
-
-The first run of this matrix used car .27's camera age budget (0.4 s, tuned for
-V1/V2) and was 0/10 everywhere on `motion_interval_too_long`. main's car runs
-road_centerline with 1.5 s (`sensor_timeout_s.cone_detections`,
-`planning/estimation.max_source_age_s`) plus continuous road output; with those
-values in `config/ai4r_policy_mpc_centerline.yaml` (and `pipeline_sim` now reading
-the YAML's `sensor_timeout_s` instead of a hard-coded 0.5 s), the remaining
-failures are MPC-side and specific:
-
-- **Straight / gentle arc: `reference_too_short` / `origin_past_path_end`.** The
-  road_centerline path often ends only 0.1-0.15 m ahead of the car even with the
-  estimator at `observed_with_history`, so the 1 s horizon runs off its end. Not
-  yet known whether that is a Gym artifact (24-detection cap per frame, 2 cm noise
-  breaking the ordered chain) or real; main's PID on the car does not report it,
-  but its 0.35 m preview needs far less path than the MPC horizon.
-- **Right angle / U-turn: `overspeed`.** At the bend the reference jumps (`e_y` up
-  to ~0.7 m), steering saturates, and the joint MPC trades speed error for lateral
-  error -- speed is only a cost term, the QP has no speed constraint -- reaching
-  0.40 m/s = `v_exec_max_mps` 0.25 + `overspeed_margin_mps` 0.15. The drive-bias
-  estimate stays ~0 (checked), so it is not integrator windup.
-
-The `--car 05` profile (`v_exec_max_mps` 0.12, margin 0.08) peaked at 0.177 m/s on
-the straight (5 seeds): no overspeed there, same `reference_too_short` stops.
+| car15_v4 | None | centre | 0/10 | 6 | None | 3.458 | stop:invalid_road_invalid_ordered_geometry 5, ref_invalid:reference_too_short 2, ref_invalid:origin_past_path_end 2 |
+| gentle_arc | 0.72 | centre | 5/10 | 1 | 0.027 | 5.001 | ref_invalid:reference_too_short 4, stop:invalid_road_invalid_ordered_geometry 1 |
+| gentle_arc | 1.0 | centre | 1/10 | 0 | 0.036 | 2.414 | ref_invalid:reference_too_short 9 |
+| right_angle_r1 | 0.72 | centre | 0/10 | 9 | None | 1.635 | stop:overspeed 7, stop:invalid_road_motion_interval_too_long 1, stop:invalid_road_invalid_ordered_geometry 1 |
+| right_angle_r1 | 1.0 | centre | 0/10 | 10 | None | 1.392 | stop:overspeed 10 |
+| right_angle_r1_5 | 0.72 | centre | 1/10 | 6 | 0.138 | 2.401 | stop:overspeed 3, ref_invalid:reference_too_short 3, stop:invalid_road_motion_interval_too_long 1 |
+| right_angle_r1_5 | 1.0 | centre | 0/10 | 10 | None | 1.059 | stop:overspeed 9, stop:invalid_road_motion_interval_too_long 1 |
+| straight | 0.72 | centre | 7/10 | 0 | 0.018 | 3.003 | ref_invalid:reference_too_short 3 |
+| straight | 0.72 | head5deg | 7/10 | 0 | 0.021 | 3.007 | ref_invalid:reference_too_short 3 |
+| straight | 0.72 | left5cm | 10/10 | 0 | 0.05 | 3.004 |  |
+| straight | 1.0 | centre | 5/10 | 0 | 0.029 | 3.0 | ref_invalid:reference_too_short 4, ref_invalid:origin_past_path_end 1 |
+| straight | 1.0 | head5deg | 6/10 | 1 | 0.027 | 3.006 | ref_invalid:reference_too_short 3, stop:invalid_road_motion_interval_too_long 1 |
+| straight | 1.0 | left5cm | 3/10 | 0 | 0.05 | 2.231 | ref_invalid:reference_too_short 7 |
+| u_turn | 0.72 | centre | 0/10 | 10 | None | 2.158 | stop:overspeed 10 |
+| u_turn | 1.0 | centre | 0/10 | 10 | None | 1.416 | stop:overspeed 9, stop:invalid_road_invalid_ordered_geometry 1 |
