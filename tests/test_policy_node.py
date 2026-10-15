@@ -1231,6 +1231,40 @@ def test_mvp2_actual_worker_does_not_block_control_and_restarts(make_node, failu
     assert node.planning_generation == old_generation
     assert node.action_publisher.messages[-1].drive == 0
 
+@pytest.mark.parametrize("mode,car", [
+    (mode, car) for car in ("27", "05")
+    for mode in ("mvp", "mpc-shadow", "mpc-exec", "mpc-shadow-centerline", "mpc-exec-centerline")])
+def test_every_deploy_profile_starts_a_real_node(tmp_path, mode, car):
+    """Each tools/make_deploy_yaml.py profile must construct a real PolicyNode.
+
+    2026-10-15: the centerline profiles inherited planning.lattice.async_enabled
+    from the V2 overlays, which PolicyNode.__init__ refuses for road_centerline;
+    the gate only loaded config/ai4r_policy.yaml, so nothing caught it before
+    the car would have. Profiles the builder itself refuses (mpc-exec* while
+    vehicle.valid is false, i.e. car 27 today) are skipped, not failed.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    import make_deploy_yaml
+    try:
+        params, _ = make_deploy_yaml.build(mode, 3.0, cones="yellow-left", car=car)
+    except AssertionError as refused:
+        pytest.skip(f"builder refuses {mode} for car {car}: {refused}")
+    path = tmp_path / "deploy.yaml"
+    path.write_text(yaml.safe_dump(params, sort_keys=False))
+    context = Context()
+    rclpy.init(context=context)
+    node = policy.PolicyNode(context=context, namespace="deploy_check",
+        cli_args=["--ros-args", "--params-file", str(path)])
+    try:
+        expected = params[make_deploy_yaml.KEY]["ros__parameters"]
+        assert node.planning_settings.algorithm == expected["planning"].get("algorithm", "centerline")
+        assert node.mpc_settings.enabled is expected["mpc"]["enabled"]
+        assert node.control_settings.enabled is expected["control"]["enabled"]
+    finally:
+        node.destroy_node()
+        context.shutdown()
+
+
 def test_open_loop_yaml_empty_sensor_array(tmp_path):
     # [] has no element from which the ROS YAML parser can infer an array type.
     # Confirm the deliberate open-loop configuration also works through YAML.

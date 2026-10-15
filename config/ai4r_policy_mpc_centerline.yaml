@@ -38,6 +38,9 @@
       huber_delta_m: 0.2
     planning:
       algorithm: road_centerline         # RoadCenterlinePlanner: no lattice search, no body check
+      lattice:
+        async_enabled: false           # inherited true from the V2 overlays; PolicyNode refuses
+                                       # async planning unless algorithm is lattice_v2
       max_source_age_s: 1.5
       preview_m: 0.35
       allow_forward_only: true
