@@ -9,6 +9,9 @@ Layers, merged recursively in order (the repository files stay unchanged):
   mvp:        ai4r_policy.yaml + ai4r_policy_newcar27.yaml
   mpc-shadow: ... + ai4r_policy_mpc_newcar27.yaml
   mpc-exec:   ... + the same, with shadow off and v_exec_max_mps <= 0.2 (needs vehicle.valid: true)
+  mpc-shadow-centerline, mpc-exec-centerline: ... + ai4r_policy_mpc_centerline.yaml (2026-10-15
+    port of main's ordered_xy estimation + road_centerline planning; right-angle/S-bend
+    capable, unlike the y_of_x quadratic fit the plain mpc-shadow/mpc-exec modes keep)
 --cones (required except steer-arc) writes estimation.left_colour/right_colour. Check the
 road on site first: the G2 field (2026-10-08) was blue-left, the course road on 10-13/14
 yellow-left. A swapped pair makes every road invalid_width_or_order.
@@ -59,9 +62,16 @@ CONE_LAYOUTS = {"blue-left": (2, 1), "yellow-left": (1, 2)}
 
 
 def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", road_age_s=None):
+    is_shadow = mode in ("mpc-shadow", "mpc-shadow-centerline")
+    is_exec = mode in ("mpc-exec", "mpc-exec-centerline")
+    is_centerline = mode in ("mpc-shadow-centerline", "mpc-exec-centerline")
     layers = ["ai4r_policy.yaml", "ai4r_policy_newcar27.yaml"]
     if mode not in ("mvp", "steer-arc"):
         layers.append("ai4r_policy_mpc_newcar27.yaml")
+    if is_centerline:
+        # 2026-10-15: main's ordered_xy estimation + road_centerline planning,
+        # right-angle/S-bend capable (see docs/right-angle-bend memory note).
+        layers.append("ai4r_policy_mpc_centerline.yaml")
     base = yaml.safe_load((ROOT / "config" / layers[0]).read_text(encoding="utf-8"))
     for layer in layers[1:]:
         merge(base, yaml.safe_load((ROOT / "config" / layer).read_text(encoding="utf-8")))
@@ -72,7 +82,7 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", roa
         p["planning"]["max_source_age_s"] = road_age_s
         p["estimation"]["max_source_age_s"] = max(p["estimation"]["max_source_age_s"], road_age_s)
         p["sensor_timeout_s"]["cone_detections"] = max(p["sensor_timeout_s"]["cone_detections"], road_age_s)
-    if mode == "mpc-exec":
+    if is_exec:
         p["mpc"].update(shadow=False, v_exec_max_mps=min(p["mpc"]["v_exec_max_mps"], v_exec_max))
     if mode == "steer-arc":
         # Identification only: no controller owns the actions.
@@ -97,7 +107,12 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", roa
         assert p["mpc"]["reference_source"] == "planning"
         assert p["mpc"]["qp_solver"] == "dense", "the car has no osqp (G1, 2026-10-08)"
         assert p["planning"]["vehicle_limits_source"] == "upstream"
-        if mode == "mpc-shadow":
+        if is_centerline:
+            assert p["estimation"]["road_geometry"] == "ordered_xy"
+            assert p["planning"]["algorithm"] == "road_centerline"
+        else:
+            assert p["planning"]["algorithm"] != "road_centerline"
+        if is_shadow:
             assert p["mpc"]["shadow"] is True
         else:
             assert p["vehicle"]["valid"] is True, \
@@ -111,7 +126,8 @@ def sha256(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--mode", required=True, choices=["mvp", "mpc-shadow", "mpc-exec", "steer-arc"])
+    parser.add_argument("--mode", required=True, choices=[
+        "mvp", "mpc-shadow", "mpc-exec", "mpc-shadow-centerline", "mpc-exec-centerline", "steer-arc"])
     parser.add_argument("--distance", type=float, default=3.0,
                         help="control.max_distance_m: (0, 3] for straights, up to 5 for a curve run")
     parser.add_argument("--arc-drive", type=float, default=0.32,

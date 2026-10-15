@@ -1,0 +1,26 @@
+# Overlay: MPC on main's ordered_xy estimation + road_centerline planning. Layer order:
+#   ai4r_policy.yaml -> ai4r_policy_newcar27.yaml -> ai4r_policy_mpc_newcar27.yaml -> this file
+# Ported 2026-10-15 from origin/main 0c8593a (AGGRESSIVE_BEND_BASELINE_CN.md /
+# SIMPLE_CENTERLINE_FOLLOW_CN.md): right-angle and S-bend capable, where mpc-car-run's
+# own y_of_x quadratic fit (the ai4r_policy_mpc_newcar27.yaml default) is gentle-bend only
+# (Gym: 90 deg corners 0/5 even with cones on both sides; see memory car-jetson-no-osqp's
+# sibling note). lattice_v2 cannot be selected at the same time (its corridor math needs
+# y_of_x; PolicyNode.__init__ now rejects that combination).
+# --cones still selects estimation.left_colour/right_colour (see make_deploy_yaml.py);
+# check the road's actual colours on site, same as every other mode.
+/**/ai4r_policy:
+  ros__parameters:
+    estimation:
+      road_geometry: ordered_xy          # arc-length boundary chaining; no x-monotone assumption
+      single_side_from_learned_width: true
+      single_side_offset_fraction: 0.6   # main's car15/car05 value, not the 0.5 geometric centre
+      road_width_min_m: 0.15             # main's car run: 0.3 rejected real frames, 0.15 did not
+      road_forward_max_m: 4.0
+      road_max_abs_slope: 3.0
+      huber_delta_m: 0.2
+    planning:
+      algorithm: road_centerline         # RoadCenterlinePlanner: no lattice search, no body check
+      preview_m: 0.35
+      allow_forward_only: true
+    mpc:
+      reference_source: planning         # road_centerline is synchronous; no async hold needed
