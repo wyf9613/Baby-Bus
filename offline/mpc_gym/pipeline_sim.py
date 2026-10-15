@@ -239,7 +239,10 @@ def make_node(api, params):
         estimation_settings=settings["estimation"], planning_settings=settings["planning"],
         lattice_settings=settings["lattice"], mpc_settings=settings["mpc"], vehicle_settings=settings["vehicle"], mpc_controller=None,
         policy_frame_id=params.get("policy_frame_id", "base_link"), heading_reference=None,
-        sensor_timeout_s={name: 0.5 for name in sensors}, timestamp_tolerance_s=0.05,
+        # The policy YAML's own sensor_timeout_s (all 0.5 in ai4r_policy.yaml, so V2 runs are
+        # unchanged); the centerline overlay raises cone_detections to main's 1.5 s.
+        sensor_timeout_s={name: params.get("sensor_timeout_s", {}).get(name, 0.5) for name in sensors},
+        timestamp_tolerance_s=0.05,
         observations={name: None for name in sensors}, debug=[],
         motion_history=api["EstimationMotionHistory"](settings["estimation"]), clock=clock,
         get_clock=lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=round(clock.now_s*1e9))),

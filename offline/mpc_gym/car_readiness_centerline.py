@@ -80,7 +80,7 @@ def summarise(rows):
     table = []
     for (road, lane, start), group in sorted(groups.items(), key=lambda kv: tuple(map(str, kv[0]))):
         done = [r for r in group if r["completed"]]
-        reasons = Counter(r["stop_planning"] or r["stop_reason"] for r in group if not r["completed"])
+        reasons = Counter(r["stop_reason"] for r in group if not r["completed"])
         table.append({"road": road, "lane_width_m": lane, "start": start,
                       "completed": f"{len(done)}/{len(group)}",
                       "hard_stops": sum(r["hard_stop"] for r in group),

@@ -6,61 +6,43 @@ Seeds 1-10.
 
 | road | lane m | start | completed | hard stops | max lateral m (completed) | median distance m | main stop reasons |
 |---|---:|---|---:|---:|---:|---:|---|
-| car15_v4 | None | centre | 0/10 | 10 | None | 0.81 | invalid_road_motion_interval_too_long 10 |
-| gentle_arc | 0.72 | centre | 0/10 | 10 | None | 0.69 | invalid_road_motion_interval_too_long 10 |
-| gentle_arc | 1.0 | centre | 0/10 | 9 | None | 0.682 | invalid_road_motion_interval_too_long 9, road_centerline_available 1 |
-| right_angle_r1 | 0.72 | centre | 0/10 | 10 | None | 0.71 | invalid_road_motion_interval_too_long 9, road_centerline_available 1 |
-| right_angle_r1 | 1.0 | centre | 0/10 | 10 | None | 0.315 | invalid_road_motion_interval_too_long 6, road_centerline_available 2, invalid_road_insufficient_common_range 1 |
-| right_angle_r1_5 | 0.72 | centre | 0/10 | 10 | None | 0.679 | invalid_road_motion_interval_too_long 10 |
-| right_angle_r1_5 | 1.0 | centre | 0/10 | 10 | None | 0.873 | invalid_road_motion_interval_too_long 9, road_centerline_available 1 |
-| straight | 0.72 | centre | 0/10 | 10 | None | 0.692 | invalid_road_motion_interval_too_long 10 |
-| straight | 0.72 | head5deg | 0/10 | 10 | None | 0.712 | invalid_road_motion_interval_too_long 10 |
-| straight | 0.72 | left5cm | 0/10 | 10 | None | 0.437 | invalid_road_motion_interval_too_long 9, invalid_road_invalid_ordered_geometry 1 |
-| straight | 1.0 | centre | 0/10 | 10 | None | 0.681 | invalid_road_motion_interval_too_long 10 |
-| straight | 1.0 | head5deg | 0/10 | 10 | None | 0.692 | invalid_road_motion_interval_too_long 10 |
-| straight | 1.0 | left5cm | 0/10 | 10 | None | 0.722 | invalid_road_motion_interval_too_long 10 |
-| u_turn | 0.72 | centre | 0/10 | 10 | None | 0.454 | invalid_road_motion_interval_too_long 8, road_centerline_available 2 |
-| u_turn | 1.0 | centre | 0/10 | 10 | None | 0.511 | invalid_road_motion_interval_too_long 5, road_centerline_available 4, invalid_road_insufficient_common_range 1 |
+| car15_v4 | None | centre | 0/10 | 7 | None | 3.376 | stop:invalid_road_invalid_ordered_geometry 6, ref_invalid:reference_too_short 3, stop:invalid_road_insufficient_geometry 1 |
+| gentle_arc | 0.72 | centre | 6/10 | 1 | 0.032 | 5.001 | ref_invalid:reference_too_short 2, stop:invalid_road_invalid_ordered_geometry 1, ref_invalid:origin_past_path_end 1 |
+| gentle_arc | 1.0 | centre | 0/10 | 2 | None | 2.586 | ref_invalid:reference_too_short 8, stop:invalid_road_invalid_ordered_geometry 2 |
+| right_angle_r1 | 0.72 | centre | 0/10 | 10 | None | 1.455 | stop:overspeed 9, stop:invalid_road_motion_interval_too_long 1 |
+| right_angle_r1 | 1.0 | centre | 0/10 | 10 | None | 1.252 | stop:overspeed 8, stop:invalid_road_invalid_ordered_geometry 2 |
+| right_angle_r1_5 | 0.72 | centre | 0/10 | 10 | None | 2.15 | stop:overspeed 5, stop:invalid_road_insufficient_geometry 3, stop:invalid_road_invalid_ordered_geometry 1 |
+| right_angle_r1_5 | 1.0 | centre | 0/10 | 10 | None | 1.276 | stop:overspeed 10 |
+| straight | 0.72 | centre | 4/10 | 1 | 0.017 | 2.917 | ref_invalid:reference_too_short 3, ref_invalid:origin_past_path_end 2, stop:invalid_road_invalid_ordered_geometry 1 |
+| straight | 0.72 | head5deg | 5/10 | 0 | 0.027 | 3.001 | ref_invalid:origin_past_path_end 3, ref_invalid:reference_too_short 2 |
+| straight | 0.72 | left5cm | 7/10 | 0 | 0.05 | 3.001 | ref_invalid:reference_too_short 3 |
+| straight | 1.0 | centre | 2/10 | 1 | 0.025 | 1.757 | ref_invalid:reference_too_short 7, stop:invalid_road_invalid_ordered_geometry 1 |
+| straight | 1.0 | head5deg | 3/10 | 0 | 0.025 | 2.052 | ref_invalid:reference_too_short 6, ref_invalid:origin_past_path_end 1 |
+| straight | 1.0 | left5cm | 2/10 | 1 | 0.05 | 2.306 | ref_invalid:reference_too_short 7, stop:invalid_road_invalid_ordered_geometry 1 |
+| u_turn | 0.72 | centre | 0/10 | 10 | None | 1.87 | stop:overspeed 9, stop:invalid_road_invalid_ordered_geometry 1 |
+| u_turn | 1.0 | centre | 0/10 | 10 | None | 0.876 | stop:overspeed 9, stop:invalid_road_invalid_ordered_geometry 1 |
 
-## Reading this table
+## Reading this table (2026-10-15, after aligning the camera budget with main)
 
-0/10 everywhere, failing within the first ~0.7 m, is a real finding about car
-.27's Gym conditions combined with road_centerline's forward-only bridging --
-not a bug this port introduced, and not specific to any one road (straight
-fails the same way as the bends). Diagnosis (see docs/MPC_PROGRESS_LOG.md,
-2026-10-15):
+The first run of this matrix used car .27's camera age budget (0.4 s, tuned for
+V1/V2) and was 0/10 everywhere on `motion_interval_too_long`. main's car runs
+road_centerline with 1.5 s (`sensor_timeout_s.cone_detections`,
+`planning/estimation.max_source_age_s`) plus continuous road output; with those
+values in `config/ai4r_policy_mpc_centerline.yaml` (and `pipeline_sim` now reading
+the YAML's `sensor_timeout_s` instead of a hard-coded 0.5 s), the remaining
+failures are MPC-side and specific:
 
-- With noise/dropout off (`--noise 0.0`, `gap_probability: 0.0`,
-  `latency_jitter: 0.0`) the same config completes a 3 m straight cleanly
-  (313 steps). With car .27's real conditions (0.19-0.22 s camera latency,
-  5 % dropped cone batches, 2 cm cone noise) the near field stays
-  `near_field_unobserved`/`near_field_requires_both_boundaries` long enough,
-  often enough, to exceed `estimation.motion_max_interval_s` (0.4 s) before
-  ever reaching `observed`/`observed_with_history` -- the estimator's own
-  safety bound on how long it will keep bridging an unresolved near field,
-  working as designed, just not previously exercised with
-  `planning.allow_forward_only: true` in `car_readiness.py`'s own V2/MVP
-  matrix (which never turns that flag on).
-- This matches the real car15 run.jsonl replay independently
-  (`replay_car15_run_jsonl.md`): ~85 % of its ticks are the same two
-  near_field_unobserved/near_field_requires_both_boundaries statuses, and the
-  car's own logged Path was non-empty only 38 % of the time (147/388,
-  SIMPLE_CENTERLINE_FOLLOW_CN.md) -- the car struggles with the same
-  near-field visibility gap in the same way, independently confirming this
-  isn't a Gym-only artifact.
-- Relaxing `motion_max_interval_s` (diagnostic only, not shipped: 0.8 s lets
-  the straight run reach 1.8 m / 188 steps) swaps this failure for a later
-  one, `invalid_road_invalid_ordered_geometry` -- noisy cone ordering under
-  2 cm noise defeating the ordered-chain fit in `_estimation_order_boundary`,
-  ported unmodified from main. Both are pre-existing Estimation-layer
-  limitations under this specific car's sensing budget, not something the MPC
-  adapter (reference_trajectory_from_planning/mpc_path_projector) introduces
-  or could fix from its side.
+- **Straight / gentle arc: `reference_too_short` / `origin_past_path_end`.** The
+  road_centerline path often ends only 0.1-0.15 m ahead of the car even with the
+  estimator at `observed_with_history`, so the 1 s horizon runs off its end. Not
+  yet known whether that is a Gym artifact (24-detection cap per frame, 2 cm noise
+  breaking the ordered chain) or real; main's PID on the car does not report it,
+  but its 0.35 m preview needs far less path than the MPC horizon.
+- **Right angle / U-turn: `overspeed`.** At the bend the reference jumps (`e_y` up
+  to ~0.7 m), steering saturates, and the joint MPC trades speed error for lateral
+  error -- speed is only a cost term, the QP has no speed constraint -- reaching
+  0.40 m/s = `v_exec_max_mps` 0.25 + `overspeed_margin_mps` 0.15. The drive-bias
+  estimate stays ~0 (checked), so it is not integrator windup.
 
-One genuine MPC-port bug this run matrix did catch and fix (2026-10-15,
-before these numbers): `reference_trajectory_from_planning`'s ORDERED_
-CENTERLINE resampling always appended the forced final point (s=total_s)
-even when within 0.25*spacing_m of the previous one, producing a near-zero-
-length final segment that `mpc_reference_errors` rejected as `repeated_point`.
-Fixed by replacing the near-duplicate final point instead of appending it;
-regression test: `tests/test_mpc_real_frames.py::OrderedCenterlineAdapterChecks`.
+The `--car 05` profile (`v_exec_max_mps` 0.12, margin 0.08) peaked at 0.177 m/s on
+the straight (5 seeds): no overspeed there, same `reference_too_short` stops.

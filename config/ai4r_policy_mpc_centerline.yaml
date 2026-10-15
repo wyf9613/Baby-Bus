@@ -10,8 +10,26 @@
 # check the road's actual colours on site, same as every other mode.
 /**/ai4r_policy:
   ros__parameters:
+    # Camera age budget as on main's car (config/ai4r_policy.yaml there): 1.5 s for the
+    # cone source, Planning and Estimation together. car .27's 0.4 s (ai4r_policy_newcar27
+    # .yaml) was tuned for V1/V2; with forward-only bridging it stopped every Gym run on
+    # motion_interval_too_long before both sides were ever observed (2026-10-15).
+    sensor_timeout_s:
+      cone_detections: 1.5
     estimation:
       road_geometry: ordered_xy          # arc-length boundary chaining; no x-monotone assumption
+      # main's deployed estimation (tests/fixtures/car15_*.json estimation_parameters_at_capture)
+      max_source_age_s: 1.5
+      motion_max_interval_s: 0.5
+      continuous_road_output: true
+      road_prediction_max_distance_m: 0.5
+      road_hold_s: 0.8
+      road_rear_support_m: 1.0
+      road_history_max_s: 30.0
+      min_cone_confidence: 0.25
+      road_min_coverage_m: 0.3
+      road_max_gap_m: 2.0
+      road_width_max_m: 2.5
       single_side_from_learned_width: true
       single_side_offset_fraction: 0.6   # main's car15/car05 value, not the 0.5 geometric centre
       road_width_min_m: 0.15             # main's car run: 0.3 rejected real frames, 0.15 did not
@@ -20,6 +38,7 @@
       huber_delta_m: 0.2
     planning:
       algorithm: road_centerline         # RoadCenterlinePlanner: no lattice search, no body check
+      max_source_age_s: 1.5
       preview_m: 0.35
       allow_forward_only: true
     mpc:
