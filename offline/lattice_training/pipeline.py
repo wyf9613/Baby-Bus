@@ -17,7 +17,7 @@ from .features import encode_candidate, scene_features
 from .model import evaluate_policy, train_model
 from .objective import CStarTrackingSettings, cstar_trial_returns, sample_reference, reference_plan, path_completion, tracking_loss
 from .plots import plot_training, plot_closed_loop, plot_road_coverage
-from .source import candidate_api, planner_source_sha256
+from .source import planner_source_sha256
 from .roads import RoadRandomizationSettings, generate_random_road_spec, road_identity, road_length, randomization_provenance, obstacle_passage_report
 
 
@@ -35,10 +35,6 @@ class PipelineSettings:
     segment_resampling_attempts: int = 6
     trials: int = 2
     evaluation_steps: int = 60
-    max_near_gap_m: float = 0.9
-    max_extension_m: float = 1.3
-    allow_unobserved_origin: bool = False
-    require_cartesian_compatibility: bool = False
     train_only: bool = False
 
     def __post_init__(self):
@@ -62,14 +58,6 @@ class PipelineSettings:
             raise ValueError("Scene seeds must not overlap between train/validation/test")
         if not isinstance(self.until_road_end, bool):
             raise ValueError("until_road_end must be boolean")
-        if not isinstance(self.allow_unobserved_origin, bool):
-            raise ValueError("allow_unobserved_origin must be boolean")
-        if not isinstance(self.require_cartesian_compatibility, bool):
-            raise ValueError("require_cartesian_compatibility must be boolean")
-        for name in ("max_near_gap_m", "max_extension_m"):
-            value = getattr(self, name)
-            if isinstance(value, bool) or not math.isfinite(value) or value <= 0:
-                raise ValueError(f"Invalid planner support setting: {name}")
         for name in ("decisions", "max_segments", "trials", "evaluation_steps", "starts_per_road", "segment_resampling_attempts"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 1:
@@ -173,101 +161,33 @@ def make_environment(kind, seed, *, max_steps, initial_index=0, initial_count=1,
         config.initial_state_config["pose"]["lateral_offset_m"].update(lower=offset, upper=offset)
         config.initial_state_config["pose"]["heading_error_rad"].update(lower=heading, upper=heading)
         config.initial_state_config["body_motion"]["longitudinal_velocity"]["value_mps"].update(lower=speed, upper=speed)
-    return PlannerSimulationEnv(config, max_steps=max_steps, sensor_timing=SensorTiming(
+    from offline.mvp21_sim.source import parameters
+    estimator_settings=parameters()['estimation']
+    estimator_settings.update(left_colour=2,right_colour=1)  # Notebook generated cones: blue left.
+    return PlannerSimulationEnv(config, max_steps=max_steps, estimation_settings=estimator_settings, sensor_timing=SensorTiming(
         period_steps={"cone_detections": 2}, delay_steps={"cone_detections": 1}))
 
 
-def make_planner(profile="standard", *, cruise_speed=.2, max_near_gap_m=.9, max_extension_m=1.3,
-                 allow_unobserved_origin=False, require_cartesian_compatibility=False):
-    if not isinstance(allow_unobserved_origin, bool):
-        raise ValueError("allow_unobserved_origin must be boolean")
-    if not isinstance(require_cartesian_compatibility, bool):
-        raise ValueError("require_cartesian_compatibility must be boolean")
-    api = candidate_api()
-    class FrenetTrainingPlanner(api.FrenetLatticePlanner):
-        def _compatibility(self, geometries, left, right, obstacles, model, budget,
-                           transition_length, maximum_speed):
-            # The native caller already checked these Frenet geometries/motion.
-            # C* consumes the original curve, so no Cartesian approximation or
-            # fabricated zero fitting errors are produced for this offline mode.
-            budget()
-            return None, None
+def make_planner(profile="standard", *, cruise_speed=.2):
+    from mvp21_policy.lattice import ShadowSettings
+    from mvp21_policy.planning import PlanningSettings
+    from .planner import PolicyCandidatePlanner
+    variants={"standard":{},"conservative":{"search_half_width_m":.3},"wide":{"sample_count":64,"search_half_width_m":.6}}
+    if profile not in variants:raise ValueError("Unknown latest lattice profile")
+    return PolicyCandidatePlanner(PlanningSettings(algorithm="road_centerline",allow_forward_only=True,
+        max_source_age_s=1.5,reference_lifetime_s=.2,cruise_speed_mps=cruise_speed),
+        ShadowSettings(enabled=True,coverage_mode="generated",length_m=1.5,**variants[profile]))
 
-    planner_type = api.FrenetLatticePlanner if require_cartesian_compatibility else FrenetTrainingPlanner
-    variants = {
-        "standard": {},
-        "conservative": {"transition_lengths_m": "1.0,1.5", "terminal_offsets_m": "-0.15,0.0,0.15",
-                         "terminal_speeds_mps": "0.08,0.16"},
-        "wide": {"terminal_offsets_m": "-0.25,-0.125,0.0,0.125,0.25"},
-    }
-    if profile not in variants:
-        raise ValueError("Unknown lattice profile")
-    config = {"model_source": "course_simulation", "clear_start_assumed": True,
-              "max_near_gap_m": max_near_gap_m, "max_extension_m": max_extension_m,
-              "obstacle_check_enabled": True, "budget_s": 5.0, "terminal_offsets_m": "-0.30,0.0,0.30",
-              "max_candidates": 256,
-              "terminal_speeds_mps": "0.1,0.2,0.3",
-              **variants[profile]}
-    planner = planner_type(api.PlanningSettings(
-        algorithm="lattice_v2", max_source_age_s=0.4, reference_lifetime_s=0.2, cruise_speed_mps=cruise_speed),
-        api.LatticeSettings(**config), clock=lambda: 0.0)
-    # Offline adapter option, deliberately absent from native/live settings.
-    planner.allow_unobserved_origin = allow_unobserved_origin
-    planner.require_cartesian_compatibility = require_cartesian_compatibility
-    return planner
 
 
 def candidates_at(planner, observation, model=None):
-    estimation = observation["estimation"]
-    road = estimation["road"]
-    assumed_origin = False
-    if (getattr(planner, "allow_unobserved_origin", False)
-            and planner.cfg.model_source == "course_simulation" and planner.cfg.clear_start_assumed
-            and planner.observed_origin_seen
-            and not road.get("valid") and road.get("status") == "near_field_unobserved"):
-        forward = road.get("forward_geometry")
-        if (isinstance(forward, dict) and forward.get("geometry_valid") is True
-                and forward.get("time_aligned") is True and forward.get("visibility") == "both"
-                and forward.get("status") == "near_field_unobserved"):
-            # Admit validated forward geometry ONLY to the offline planner query.
-            # This extends the existing bounded near-gap assumption after origin
-            # support is lost; it neither resets native history nor reclassifies
-            # the estimator's observation. Native gap/body/motion checks remain.
-            road = deepcopy(forward)
-            road["valid"] = True
-            assumed_origin = True
-    context = scene_features(observation) if model is not None else None
-    scorer = (lambda candidate: float(model.predict(encode_candidate(
-        observation, candidate, context=context)[None, :])[0])) if model is not None else None
-    # Native plan() commits its rule-selected reference. Candidate enumeration
-    # must not commit a path that the random sampler has not actually executed.
-    preview=deepcopy(planner)
-    result=preview.plan(road, estimation["state"], estimation["obstacles"],
-        estimation["vehicle_limits"], observation["timestamp_s"],
-        source_timeout_s={"road": 0.4, "wheel_speed": 0.15, "imu_angular_velocity": 0.15, "obstacles": 0.4},
-        collect_candidates=True, candidate_scorer=scorer)
-    planner.sequence=preview.sequence
-    planner.observed_origin_seen=preview.observed_origin_seen
-    reference, diagnostics = result
-    representation = ("cartesian_compatible" if getattr(planner, "require_cartesian_compatibility", True)
-                      else "frenet_native")
-    diagnostics["candidate_representation"] = representation
-    reference["candidate_representation"] = representation
-    for candidate in diagnostics.get("candidate_references", []):
-        candidate["reference"]["candidate_representation"] = representation
-    if getattr(planner, "allow_unobserved_origin", False):
-        diagnostics["origin_support_assumption"] = {
-            "enabled": True, "applied": assumed_origin,
-            "source_status": estimation["road"].get("status"),
-            "max_near_gap_m": planner.cfg.max_near_gap_m,
-            "max_extension_m": planner.cfg.max_extension_m,
-            "method": "offline_bounded_backward_extension"}
-        reference["origin_support_assumed"] = assumed_origin or bool(diagnostics.get("controlled_near_extension"))
-        reference["origin_support_override_applied"] = assumed_origin
-        for candidate in diagnostics.get("candidate_references", []):
-            candidate["reference"]["origin_support_assumed"] = reference["origin_support_assumed"]
-            candidate["reference"]["origin_support_override_applied"] = assumed_origin
-    return result
+    estimates=observation["estimation"]
+    context=scene_features(observation) if model is not None else None
+    scorer=(lambda candidate:float(model.predict(encode_candidate(observation,candidate,context=context)[None,:])[0])) if model is not None else None
+    return planner.plan(estimates["road"],estimates["state"],estimates["obstacles"],estimates["vehicle_limits"],
+        observation["timestamp_s"],source_timeout_s={"road":1.5,"wheel_speed":.25,"imu_angular_velocity":.25},
+        collect_candidates=True,candidate_scorer=scorer)
+
 
 
 def initialize_episode(kind, seed, initial_index, settings, objective, road_settings, solver_settings=None):
@@ -284,13 +204,6 @@ def initialize_episode(kind, seed, initial_index, settings, objective, road_sett
         "warmup_steps": 1, "filtered_by_planner": False, "sampling_domain": "physical_free_space_v2",
         "warmup_terminated":bool(terminated),"warmup_truncated":bool(truncated),
         "initial_region":terminal_region(environment,solver_settings or SolverSettings())}
-
-
-def commit_candidate(planner, candidate):
-    reference = candidate["reference"]
-    planner.previous = {"timestamp_s": reference["timestamp_s"], "valid_for_s": reference["valid_for_s"],
-                        "points": deepcopy(candidate["trajectory_xy_m"])}
-    planner.stop_latched = planner.stop_latched or reference["planned_stop"]
 
 
 def road_goal_progress(environment):
@@ -450,10 +363,7 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                 raise ValueError("Same generated road would leak across data splits")
                             with environment:
                                 episode_started = time.perf_counter()
-                                planner = make_planner(profile, max_near_gap_m=settings.max_near_gap_m,
-                                                       max_extension_m=settings.max_extension_m,
-                                                       allow_unobserved_origin=settings.allow_unobserved_origin,
-                                                       require_cartesian_compatibility=settings.require_cartesian_compatibility)
+                                planner = make_planner(profile)
                                 chooser = np.random.default_rng(initialization["episode_seed"])
                                 decisions, faults, previous_action, terminal_behavior = 0, [], (0.0, 0.0), None
                                 initial_progress = environment._info["evaluation"]["ground_truth"]["reference_line_progress_m"]
@@ -552,7 +462,6 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                         break
                                     observation, _ = environment.restore(snapshot)
                                     previous_action = tuple(successor["attempts"][-1]["final_control"])
-                                    commit_candidate(planner, chosen)
                                     current = float(environment._info["evaluation"]["ground_truth"]["reference_line_progress_m"])
                                     if settings.until_road_end and current >= goal:
                                         terminal_behavior = "road_goal_reached"
@@ -746,11 +655,7 @@ def closed_loop_episode(kind, seed, model, objective, solver_settings, steps, *,
     settings = settings or replace(PipelineSettings(), kinds=(kind,), starts_per_road=1, evaluation_steps=steps)
     environment, _, initialization = initialize_episode(kind,seed,initial_index,settings,objective,road_settings,solver_settings)
     with environment:
-        evaluator=RoadEvaluation(environment,model=model,objective=objective,solver_settings=solver_settings,
-                                 seed=seed,performance=performance_profile(seed+1234),
-                                 max_near_gap_m=settings.max_near_gap_m, max_extension_m=settings.max_extension_m,
-                                 allow_unobserved_origin=settings.allow_unobserved_origin,
-                                 require_cartesian_compatibility=settings.require_cartesian_compatibility)
+        evaluator=RoadEvaluation(environment, model=model, objective=objective, solver_settings=solver_settings, seed=seed, performance=performance_profile(seed + 1234))
         report=evaluator.run(max_control_steps=steps)
     report.update(scene_id=f"{kind}:{seed}:initial:{initial_index}",initialization=initialization,
                   render_seed=initialization["episode_seed"] if kind=="randomized" else seed,

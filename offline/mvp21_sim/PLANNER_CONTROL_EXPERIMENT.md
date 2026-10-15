@@ -1,5 +1,8 @@
 # 将 MVP2.1 lattice 选中路径用于控制
 
+本文为初次对照的历史记录。后续已补齐1 Hz交付与路径缓存，当前默认模式和结果见
+[1 Hz闭环实验](ONE_HZ_CONTROL.md)。本篇命令显式选择`control`以复现历史20 Hz重算。
+
 保留 planner 原参数，并每个控制周期生成新路径时，本重建道路的感知输入和理想
 道路输入均能完成闭环。**当前影子输出仍不能直接替换主控制参考**：原1 Hz输出
 没有跨周期路径坐标更新；改为20 Hz同步计算又超过本机50 ms周期。速度跟踪也未通过。
@@ -15,7 +18,7 @@
 直接取前两维，包装为有序折线；不重新拟合。仅`VALID`允许执行，`ALL_COLLIDE`
 即使包含诊断选中项也停止，不回退中线。
 
-`--path-source lattice`默认每个20 Hz控制周期重新规划，但**保留planner内部
+本篇`--path-source lattice --lattice-cadence control`每个20 Hz控制周期重新规划，但**保留planner内部
 `rate_hz=1`**及其他原参数，使碰撞/评分范围不变。这是同步暂停仿真的路径闭环
 实验，尚未实现生产异步接入；`planning`日志字段仍是原中线准入诊断，选路信息
 位于`reference.offline_path_experiment`和`shadow.jsonl`。
@@ -74,12 +77,12 @@
 
 ```powershell
 # 原参数、每个控制周期重新规划；感知/理想道路各一组
-../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --output .verification/lattice-perception-new
-../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --road-input map --output .verification/lattice-map-new
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --lattice-cadence control --output .verification/lattice-perception-new
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --lattice-cadence control --road-input map --output .verification/lattice-map-new
 # 原1 Hz直接交付，不做运动对齐，预期控制拒绝
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --lattice-cadence upstream --output .verification/lattice-literal-1hz-new
 # 显式缩短前瞻范围的敏感性对照；不是默认参数
-../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --lattice-prefix-rate-hz 20 --output .verification/lattice-short-prefix-new
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --lattice-cadence control --lattice-prefix-rate-hz 20 --output .verification/lattice-short-prefix-new
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B tests/test_mvp21_sim.py -v
 ```
 

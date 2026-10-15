@@ -14,7 +14,7 @@ class ShadowJobSource:
     """Pure job handoff shared by ROS and offline simulation."""
     def _shadow_offer(self):
         now = self._monotonic()
-        if now-self.shadow_last_submit_s < 1/self.shadow_settings.rate_hz:
+        if now-self.shadow_last_submit_s+1e-9 < 1/self.shadow_settings.rate_hz:
             return
         estimates = self.estimation_output
         if not estimates:
@@ -25,7 +25,7 @@ class ShadowJobSource:
             road = forward
         keys = ("centerline_xy", "left_boundary_xy", "right_boundary_xy", "boundary_source",
                 "lane_width_m", "lane_width_source", "inward_offset_m", "status", "visibility",
-                "timestamp_s", "measurement_timestamp_s", "time_aligned", "degraded")
+                "timestamp_s", "measurement_timestamp_s", "source_age_s", "time_aligned", "degraded")
         self.shadow_job_id += 1
         job = {"settings": vars(self.shadow_settings).copy(),
             "road": {key: deepcopy(road.get(key)) for key in keys},

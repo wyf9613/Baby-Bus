@@ -1,0 +1,424 @@
+{
+  "upstream_commit": "f11428b5444ac4c714a95e86e71662086b3187bd",
+  "runtime_modules": {
+    "format": "mvp21_modules_sha256_v1",
+    "sha256": "e1b25d0e1198b0ed1b6b9f4a5bd92b4a9865cbff8bdad55dadd5cea595470d2e",
+    "files": {
+      "__init__.py": "caa980464c44a9bc69e8667df083f5d76cd4140098388f2a363171ef52ddd53e",
+      "__main__.py": "3051d19225dc0a7054f63da7c726b15cc9259cbcc980eafcd27a0780863d65d1",
+      "api.py": "47a8733f902e860d7028114798ed8bd67f50a437a1120e769193ae8251fa93ce",
+      "contracts.py": "40b87e61fda2385f1cbeb3eb76a3c05ef60d5d49a058687bdccc8b271fbef7b4",
+      "control.py": "99f3a9079a4abc797b5d0db878dffe4ac6de7d690ce2e1010010dff99b62f0f9",
+      "estimation.py": "9850bbb5e5dc27b83fa0dcfc4bf634a2c24587dbb3dc0b53b6837cf46a591e2c",
+      "geometry.py": "6a3fb3d04b0e4211deca5199621f665e98fa3918f09d278ab69381cddc1cd8c6",
+      "lattice.py": "19c65d5eb5d89d5e6a9b52081c1a540302b36367c91339d47ed4b5fb4e57b24f",
+      "motion.py": "daca37206a81ec0e4d10680b1ebd7d28c9c63a30a90c6561a97463800a56b889",
+      "node.py": "2945063a8af380202e6bccf1f3e095c721cb7db7348070f824369ea5860ca940",
+      "planning.py": "f6dbcd6e2f52df08046df1bfe20deaaf87f1be183067b001a1299e11f701d68a",
+      "provenance.py": "3ca8499a79ab11799bda43f17a90d878fb8bbcf7742e51a08bde114eceffb265",
+      "reference.py": "293436711c9a399739e5593865f0b8684d962d59861218de3042b52341f1c387",
+      "transport.py": "a4113d7a644ffcf340993c348c31d47fd219429ed455f98772ee7c324922e5e2",
+      "worker.py": "82aee694434540800f18384bdbf95a5798683f10334d77e8ee8632b257e95b5e"
+    }
+  },
+  "runs": {
+    "map-verified-measured": {
+      "completed": true,
+      "fault": null,
+      "steps": 154,
+      "valid_reference_count": 147,
+      "zero_action_startup_cycles": 7,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.7393020504074075,
+      "goal_progress_m": 4.736799508178038,
+      "minimum_plant_corner_road_margin_m": 0.1794032689238908,
+      "maximum_executed_speed_mps": 0.7788120150067024,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.37726733405453233,
+      "delivery": {
+        "mode": "measured_cpu_plus_delay",
+        "delay_s": 0.05,
+        "initial_handoff_budget_s": 0.5,
+        "final_handoff_estimate_s": 0.5,
+        "submission_times_s": [
+          1.3,
+          2.3,
+          3.3000000000000003,
+          4.300000000000001,
+          5.3,
+          6.300000000000001,
+          7.300000000000001,
+          8.3
+        ],
+        "submitted": 8,
+        "accepted": 8,
+        "maximum_round_trip_s": 0.3999999999999999
+      },
+      "runtime_modules": {
+        "format": "mvp21_modules_sha256_v1",
+        "sha256": "e1b25d0e1198b0ed1b6b9f4a5bd92b4a9865cbff8bdad55dadd5cea595470d2e",
+        "files": {
+          "__init__.py": "caa980464c44a9bc69e8667df083f5d76cd4140098388f2a363171ef52ddd53e",
+          "__main__.py": "3051d19225dc0a7054f63da7c726b15cc9259cbcc980eafcd27a0780863d65d1",
+          "api.py": "47a8733f902e860d7028114798ed8bd67f50a437a1120e769193ae8251fa93ce",
+          "contracts.py": "40b87e61fda2385f1cbeb3eb76a3c05ef60d5d49a058687bdccc8b271fbef7b4",
+          "control.py": "99f3a9079a4abc797b5d0db878dffe4ac6de7d690ce2e1010010dff99b62f0f9",
+          "estimation.py": "9850bbb5e5dc27b83fa0dcfc4bf634a2c24587dbb3dc0b53b6837cf46a591e2c",
+          "geometry.py": "6a3fb3d04b0e4211deca5199621f665e98fa3918f09d278ab69381cddc1cd8c6",
+          "lattice.py": "19c65d5eb5d89d5e6a9b52081c1a540302b36367c91339d47ed4b5fb4e57b24f",
+          "motion.py": "daca37206a81ec0e4d10680b1ebd7d28c9c63a30a90c6561a97463800a56b889",
+          "node.py": "2945063a8af380202e6bccf1f3e095c721cb7db7348070f824369ea5860ca940",
+          "planning.py": "f6dbcd6e2f52df08046df1bfe20deaaf87f1be183067b001a1299e11f701d68a",
+          "provenance.py": "3ca8499a79ab11799bda43f17a90d878fb8bbcf7742e51a08bde114eceffb265",
+          "reference.py": "293436711c9a399739e5593865f0b8684d962d59861218de3042b52341f1c387",
+          "transport.py": "a4113d7a644ffcf340993c348c31d47fd219429ed455f98772ee7c324922e5e2",
+          "worker.py": "82aee694434540800f18384bdbf95a5798683f10334d77e8ee8632b257e95b5e"
+        }
+      },
+      "planner_calls": 8,
+      "all_planner_results_valid": true,
+      "effective_settings": {
+        "enabled": true,
+        "rate_hz": 1.0,
+        "length_m": 1.5,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04,
+        "coverage_mode": "generated"
+      },
+      "planner_wall_ms": {
+        "mean": 283.0015000072308,
+        "maximum": 301.1976000270806
+      },
+      "max_controlled_path_age_s": 1.3500000000000005,
+      "all_control_references_from_lattice": true,
+      "evidence_sha256": {
+        "summary.json": "95b3e16306365699d696c9957be7aa6141143012bf1881e8b77cccf6aab9cca9",
+        "trace.jsonl": "804d6d79514a0442ff8469f54ceb241abc1a630336304061aae7d39c54aa8be4",
+        "shadow.jsonl": "ff34179361a33247c4e79f01a8572fb0d95a78777c79c6e6d5b5ad0b38a8d3a3"
+      }
+    },
+    "perception-verified-measured": {
+      "completed": true,
+      "fault": null,
+      "steps": 153,
+      "valid_reference_count": 149,
+      "zero_action_startup_cycles": 4,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.754691756734997,
+      "goal_progress_m": 4.736799508178038,
+      "minimum_plant_corner_road_margin_m": 0.17381272599399689,
+      "maximum_executed_speed_mps": 0.7770462886896827,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.3789802037650808,
+      "delivery": {
+        "mode": "measured_cpu_plus_delay",
+        "delay_s": 0.05,
+        "initial_handoff_budget_s": 0.5,
+        "final_handoff_estimate_s": 0.5,
+        "submission_times_s": [
+          1.3,
+          2.3,
+          3.3000000000000003,
+          4.300000000000001,
+          5.3,
+          6.300000000000001,
+          7.300000000000001,
+          8.3
+        ],
+        "submitted": 8,
+        "accepted": 8,
+        "maximum_round_trip_s": 0.20000000000000018
+      },
+      "runtime_modules": {
+        "format": "mvp21_modules_sha256_v1",
+        "sha256": "e1b25d0e1198b0ed1b6b9f4a5bd92b4a9865cbff8bdad55dadd5cea595470d2e",
+        "files": {
+          "__init__.py": "caa980464c44a9bc69e8667df083f5d76cd4140098388f2a363171ef52ddd53e",
+          "__main__.py": "3051d19225dc0a7054f63da7c726b15cc9259cbcc980eafcd27a0780863d65d1",
+          "api.py": "47a8733f902e860d7028114798ed8bd67f50a437a1120e769193ae8251fa93ce",
+          "contracts.py": "40b87e61fda2385f1cbeb3eb76a3c05ef60d5d49a058687bdccc8b271fbef7b4",
+          "control.py": "99f3a9079a4abc797b5d0db878dffe4ac6de7d690ce2e1010010dff99b62f0f9",
+          "estimation.py": "9850bbb5e5dc27b83fa0dcfc4bf634a2c24587dbb3dc0b53b6837cf46a591e2c",
+          "geometry.py": "6a3fb3d04b0e4211deca5199621f665e98fa3918f09d278ab69381cddc1cd8c6",
+          "lattice.py": "19c65d5eb5d89d5e6a9b52081c1a540302b36367c91339d47ed4b5fb4e57b24f",
+          "motion.py": "daca37206a81ec0e4d10680b1ebd7d28c9c63a30a90c6561a97463800a56b889",
+          "node.py": "2945063a8af380202e6bccf1f3e095c721cb7db7348070f824369ea5860ca940",
+          "planning.py": "f6dbcd6e2f52df08046df1bfe20deaaf87f1be183067b001a1299e11f701d68a",
+          "provenance.py": "3ca8499a79ab11799bda43f17a90d878fb8bbcf7742e51a08bde114eceffb265",
+          "reference.py": "293436711c9a399739e5593865f0b8684d962d59861218de3042b52341f1c387",
+          "transport.py": "a4113d7a644ffcf340993c348c31d47fd219429ed455f98772ee7c324922e5e2",
+          "worker.py": "82aee694434540800f18384bdbf95a5798683f10334d77e8ee8632b257e95b5e"
+        }
+      },
+      "planner_calls": 8,
+      "all_planner_results_valid": true,
+      "effective_settings": {
+        "enabled": true,
+        "rate_hz": 1.0,
+        "length_m": 1.5,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04,
+        "coverage_mode": "generated"
+      },
+      "planner_wall_ms": {
+        "mean": 123.62173751171213,
+        "maximum": 143.86110001942143
+      },
+      "max_controlled_path_age_s": 1.1500000000000004,
+      "all_control_references_from_lattice": true,
+      "evidence_sha256": {
+        "summary.json": "e097118009d1406d7c76e378ff3f8a27f3de73c52711c7689c02b2336d5d6767",
+        "trace.jsonl": "c7d0f275785dab882fd27a244f67ccb67b6347dddd82c93b12c35a2e77ba7888",
+        "shadow.jsonl": "f218a623247ef840aa68add5eb590c25ff61881bdd11ae2523af91f528e9182b"
+      }
+    },
+    "map-verified-fixed": {
+      "completed": true,
+      "fault": null,
+      "steps": 149,
+      "valid_reference_count": 147,
+      "zero_action_startup_cycles": 2,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.737975733562654,
+      "goal_progress_m": 4.736799508178038,
+      "minimum_plant_corner_road_margin_m": 0.18551747830932946,
+      "maximum_executed_speed_mps": 0.7783530257601058,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.3831818793429112,
+      "delivery": {
+        "mode": "fixed_simulated_delay",
+        "delay_s": 0.1,
+        "initial_handoff_budget_s": 0.1,
+        "final_handoff_estimate_s": 0.10000000000000053,
+        "submission_times_s": [
+          1.3,
+          2.3,
+          3.3000000000000003,
+          4.300000000000001,
+          5.3,
+          6.300000000000001,
+          7.300000000000001,
+          8.3
+        ],
+        "submitted": 8,
+        "accepted": 8,
+        "maximum_round_trip_s": 0.10000000000000053
+      },
+      "runtime_modules": {
+        "format": "mvp21_modules_sha256_v1",
+        "sha256": "e1b25d0e1198b0ed1b6b9f4a5bd92b4a9865cbff8bdad55dadd5cea595470d2e",
+        "files": {
+          "__init__.py": "caa980464c44a9bc69e8667df083f5d76cd4140098388f2a363171ef52ddd53e",
+          "__main__.py": "3051d19225dc0a7054f63da7c726b15cc9259cbcc980eafcd27a0780863d65d1",
+          "api.py": "47a8733f902e860d7028114798ed8bd67f50a437a1120e769193ae8251fa93ce",
+          "contracts.py": "40b87e61fda2385f1cbeb3eb76a3c05ef60d5d49a058687bdccc8b271fbef7b4",
+          "control.py": "99f3a9079a4abc797b5d0db878dffe4ac6de7d690ce2e1010010dff99b62f0f9",
+          "estimation.py": "9850bbb5e5dc27b83fa0dcfc4bf634a2c24587dbb3dc0b53b6837cf46a591e2c",
+          "geometry.py": "6a3fb3d04b0e4211deca5199621f665e98fa3918f09d278ab69381cddc1cd8c6",
+          "lattice.py": "19c65d5eb5d89d5e6a9b52081c1a540302b36367c91339d47ed4b5fb4e57b24f",
+          "motion.py": "daca37206a81ec0e4d10680b1ebd7d28c9c63a30a90c6561a97463800a56b889",
+          "node.py": "2945063a8af380202e6bccf1f3e095c721cb7db7348070f824369ea5860ca940",
+          "planning.py": "f6dbcd6e2f52df08046df1bfe20deaaf87f1be183067b001a1299e11f701d68a",
+          "provenance.py": "3ca8499a79ab11799bda43f17a90d878fb8bbcf7742e51a08bde114eceffb265",
+          "reference.py": "293436711c9a399739e5593865f0b8684d962d59861218de3042b52341f1c387",
+          "transport.py": "a4113d7a644ffcf340993c348c31d47fd219429ed455f98772ee7c324922e5e2",
+          "worker.py": "82aee694434540800f18384bdbf95a5798683f10334d77e8ee8632b257e95b5e"
+        }
+      },
+      "planner_calls": 8,
+      "all_planner_results_valid": true,
+      "effective_settings": {
+        "enabled": true,
+        "rate_hz": 1.0,
+        "length_m": 1.3,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04,
+        "coverage_mode": "generated"
+      },
+      "planner_wall_ms": {
+        "mean": 241.47342500509694,
+        "maximum": 258.10989999445155
+      },
+      "max_controlled_path_age_s": 1.0500000000000007,
+      "all_control_references_from_lattice": true,
+      "evidence_sha256": {
+        "summary.json": "0b734fc1948973dc3d46beaf3df52c57982fc4c4e5d3443644aa30d02f38da51",
+        "trace.jsonl": "b7d2a12d40dcf8e2b243b1cd61019772307884bc2929fc8a1f9dd732cfc87095",
+        "shadow.jsonl": "ec023a5fee9fb8c0d764b5c390f3ff704a336d8fa39cb22ccf4b81d17780e6e7"
+      }
+    },
+    "perception-verified-fixed": {
+      "completed": true,
+      "fault": null,
+      "steps": 151,
+      "valid_reference_count": 149,
+      "zero_action_startup_cycles": 2,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.747474205459224,
+      "goal_progress_m": 4.736799508178038,
+      "minimum_plant_corner_road_margin_m": 0.15994025804431958,
+      "maximum_executed_speed_mps": 0.7766867288009575,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.3815443344701748,
+      "delivery": {
+        "mode": "fixed_simulated_delay",
+        "delay_s": 0.1,
+        "initial_handoff_budget_s": 0.1,
+        "final_handoff_estimate_s": 0.10000000000000053,
+        "submission_times_s": [
+          1.3,
+          2.3,
+          3.3000000000000003,
+          4.300000000000001,
+          5.3,
+          6.300000000000001,
+          7.300000000000001,
+          8.3
+        ],
+        "submitted": 8,
+        "accepted": 8,
+        "maximum_round_trip_s": 0.10000000000000053
+      },
+      "runtime_modules": {
+        "format": "mvp21_modules_sha256_v1",
+        "sha256": "e1b25d0e1198b0ed1b6b9f4a5bd92b4a9865cbff8bdad55dadd5cea595470d2e",
+        "files": {
+          "__init__.py": "caa980464c44a9bc69e8667df083f5d76cd4140098388f2a363171ef52ddd53e",
+          "__main__.py": "3051d19225dc0a7054f63da7c726b15cc9259cbcc980eafcd27a0780863d65d1",
+          "api.py": "47a8733f902e860d7028114798ed8bd67f50a437a1120e769193ae8251fa93ce",
+          "contracts.py": "40b87e61fda2385f1cbeb3eb76a3c05ef60d5d49a058687bdccc8b271fbef7b4",
+          "control.py": "99f3a9079a4abc797b5d0db878dffe4ac6de7d690ce2e1010010dff99b62f0f9",
+          "estimation.py": "9850bbb5e5dc27b83fa0dcfc4bf634a2c24587dbb3dc0b53b6837cf46a591e2c",
+          "geometry.py": "6a3fb3d04b0e4211deca5199621f665e98fa3918f09d278ab69381cddc1cd8c6",
+          "lattice.py": "19c65d5eb5d89d5e6a9b52081c1a540302b36367c91339d47ed4b5fb4e57b24f",
+          "motion.py": "daca37206a81ec0e4d10680b1ebd7d28c9c63a30a90c6561a97463800a56b889",
+          "node.py": "2945063a8af380202e6bccf1f3e095c721cb7db7348070f824369ea5860ca940",
+          "planning.py": "f6dbcd6e2f52df08046df1bfe20deaaf87f1be183067b001a1299e11f701d68a",
+          "provenance.py": "3ca8499a79ab11799bda43f17a90d878fb8bbcf7742e51a08bde114eceffb265",
+          "reference.py": "293436711c9a399739e5593865f0b8684d962d59861218de3042b52341f1c387",
+          "transport.py": "a4113d7a644ffcf340993c348c31d47fd219429ed455f98772ee7c324922e5e2",
+          "worker.py": "82aee694434540800f18384bdbf95a5798683f10334d77e8ee8632b257e95b5e"
+        }
+      },
+      "planner_calls": 8,
+      "all_planner_results_valid": true,
+      "effective_settings": {
+        "enabled": true,
+        "rate_hz": 1.0,
+        "length_m": 1.3,
+        "sample_count": 48,
+        "path_spacing_m": 0.025,
+        "handoff_allowance_s": 0.1,
+        "score_min_length_m": 0.2,
+        "search_half_width_m": 0.45,
+        "preparation_width_fraction": 0.15,
+        "body_front_m": 0.25,
+        "body_rear_m": 0.25,
+        "body_width_m": 0.3,
+        "sweep_translation_step_m": 0.01,
+        "sweep_rotation_step_rad": 0.025,
+        "weight_lateral": 6.0,
+        "weight_heading": 1.5,
+        "weight_progress": 2.0,
+        "weight_smoothness": 0.04,
+        "coverage_mode": "generated"
+      },
+      "planner_wall_ms": {
+        "mean": 105.89746250479948,
+        "maximum": 123.48359997849911
+      },
+      "max_controlled_path_age_s": 1.0500000000000007,
+      "all_control_references_from_lattice": true,
+      "evidence_sha256": {
+        "summary.json": "5cf31497f4cafc24e4753117d9c4d118ccba7381010bb6956806ba14f833ca75",
+        "trace.jsonl": "c478829a52e309a8883aa7554c809a0c812eb5bb3b101cec851a4eef9ae46b2d",
+        "shadow.jsonl": "ac4f5a143bb0c37513d3e4e00279732b1df037eb8334bcd83a5a7b5cab455fc6"
+      }
+    }
+  },
+  "original_1hz_diagnostics": {
+    "map-delay-100ms": {
+      "fault": "lattice_path_support_exhausted",
+      "steps": 40,
+      "final_progress_m": 1.5520823429069803,
+      "minimum_plant_corner_road_margin_m": 0.2897940903665163
+    },
+    "perception-delay-100ms": {
+      "fault": "execution:plant_body_corner_outside_road",
+      "steps": 21,
+      "final_progress_m": 0.7657939568749106,
+      "minimum_plant_corner_road_margin_m": -0.021493783627955343
+    },
+    "map-generated-100ms": {
+      "fault": "lattice_path_support_exhausted",
+      "steps": 40,
+      "final_progress_m": 1.5515060987428082,
+      "minimum_plant_corner_road_margin_m": 0.2903743942677629
+    },
+    "perception-generated-100ms": {
+      "fault": "lattice_path_support_exhausted",
+      "steps": 39,
+      "final_progress_m": 1.5123396279663226,
+      "minimum_plant_corner_road_margin_m": 0.2727800152895364
+    }
+  },
+  "preserved_files": {
+    "checkpoint_commit": "d6d1b5c19ca5cb1676253f7acd4deadbc6bf1d0a",
+    "checked_files": 74,
+    "unchanged": true
+  },
+  "original_raw_bytes_unchanged": true,
+  "all_152_baseline_actions_unchanged": true,
+  "tests": {
+    "reference": 11,
+    "simulation": 8,
+    "module_process_bundle": 4,
+    "total": 23
+  },
+  "ros_gate": "Precondition blocked: pinned dream_interfaces checkout remains absent; ROS gate not run.",
+  "timing_model": "Causal discrete-event service; real planner CPU time plus explicit 50 ms delivery overhead for measured runs.",
+  "real_time_qualified": false,
+  "hardware_tested": false,
+  "deployed": false,
+  "speed_tracking_qualified": false,
+  "note": "1.3/1.5 m lengths and 0.1/0.5 s handoff budgets are explicit offline experiment profiles, not physical guarantees."
+}

@@ -2,7 +2,7 @@
 
 从 `docs/ad_gym_system_project_v2026_09_18.ipynb` 提取车辆、道路、虚拟传感器、
 初始状态、RK4 和终止配置，使用 **Dream Gym v0.4.0** 的原始动力学与传感器后端。
-外层将观测转换为 Baby-Bus 输入，并调用 `scripts/policy_node.py` 中的实际估计器。
+外层将观测转换为 Baby-Bus 输入，并正常导入 `mvp21_policy.estimation` 的最新估计器。
 本目录提供环境及验证用的命令序列；lattice planner、评分模型、policy 和路径跟踪选择
 留给后续接入。本环境不参与 ROS 安装，也不启动实车组件。
 

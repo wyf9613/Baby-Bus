@@ -69,6 +69,8 @@ def ideal_observation(environment, observation):
     progress = environment._info['evaluation']['ground_truth']['reference_line_progress_m']
     road.update(geometry_encoding='ordered_xy',boundary_source={'left':'observed','right':'observed'},
         centerline_source='recorded_map_ground_truth',
+        # Oracle geometry is sampled NOW, not from the delayed camera packet.
+        measurement_timestamp_s=result['timestamp_s'],source_age_s=0.,
         local_curvature_1pm=float(environment._backend.road.convert_progression_to_curvature([progress])[0]))
     return result
 

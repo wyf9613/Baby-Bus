@@ -10,9 +10,12 @@ preferences. Ordinary implementation requests authorize in-scope edits/checks.
   implementation into mvp21_policy/. Its separate entry is
   scripts/mvp21_policy_node.py; tools/bundle_python.py can produce a single-file
   delivery. Keep algorithm edits in their owning modules and preserve the
-  insertion markers in mvp21_policy/node.py. Keep the original training policy,
-  scripts/policy_node.py, its config/models and the immutable upstream snapshot
-  intact unless the user explicitly requests a change to them.
+  insertion markers in mvp21_policy/node.py. The user subsequently authorized
+  retiring the old V2 planner: both script names now use MVP2.1, and offline
+  training scores only current state, current road/obstacles and candidate
+  trajectory. The user authorized removing legacy feature/model/data readers
+  and planner-cost/history inputs. Preserve historical model/data artifacts and
+  the immutable upstream source snapshot; do not add compatibility loaders.
 - Keep one selected trigger, explicit resume, per-field IMU validity and
   freshness, zero publication independent of sensor callbacks, and pan hold.
 - The policy never enables the vehicle. DREAM owns hardware services,

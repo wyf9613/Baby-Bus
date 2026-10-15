@@ -9,10 +9,13 @@
 |---|---|
 | `contracts.py` | 观测记录、传感器与状态常量 |
 | `geometry.py` | 坐标/四元数、折线投影与弧长工具 |
+| `frenet.py` | 有序参考线的共享 Frenet 坐标图，不生成候选 |
+| `candidates.py` | policy 的 Frenet 候选输入契约及新版导出适配 |
 | `motion.py` | 轮速/偏航率滤波、运动历史、坐标传播 |
 | `estimation.py` | 道路、状态和障碍估计，历史锥桶与道路支持 |
 | `planning.py` | 中线路径、原V1兼容规划、参考准入与有效期 |
 | `control.py` | PID、控制参考管理、距离限制与标定记录 |
+| `reference.py` | lattice有序折线缓存、跨周期运动对齐、任务隔离与有效期 |
 | `lattice.py` | ShadowSettings、候选生成、边界碰撞和评分选择 |
 | `transport.py` | 纯规划任务提交、最新任务队列和后台子进程 |
 | `worker.py` | 无ROS的逐行JSON规划协议 |
@@ -22,8 +25,10 @@
 
 算法模块不导入ROS，也不会在导入时创建线程或进程。跨模块继续使用原来的字典
 数据结构、字段、坐标系、单位和有效期。`node.py`独占ROS消息转换与生命周期，
-`ShadowWorker`显式启动时才创建后台执行。lattice仍为shadow；本次没有改变频率、
-调参、控制连接或上一轮离线实验结论。
+`ShadowWorker`显式启动时才创建后台执行。ROS入口的lattice仍为shadow。
+后续离线实验已使用`reference.py`实现1 Hz规划、20 Hz控制；执行模式显式使用
+完整生成路径检查/评分与实验长度参数，原shadow的prefix默认行为保留。
+接线与结果见[1 Hz闭环实验](../offline/mvp21_sim/ONE_HZ_CONTROL.md)。
 
 ```mermaid
 flowchart LR
@@ -41,11 +46,11 @@ flowchart LR
     S --> L
 ```
 
-原`script`入口`../scripts/policy_node.py`及训练/评分模型保留；新入口为
-`../scripts/mvp21_policy_node.py`。CMake安装新入口及其相邻的模块包。
-现有launch继续选择原入口；切换实际运行需要显式选择新入口并提供MVP2.1参数。
-该参数来源仍为`offline/mvp21_sim/upstream/config/ai4r_policy.yaml`，本次未更换
-当前配置或部署。节点启动行为、停止发布与`INSERT POLICY CODE`标记保持。
+按用户要求，旧 V2 planner 已移除，两个 script 名称均进入同一套 MVP2.1 模块；
+`config/ai4r_policy.yaml` 与固定的 MVP2.1 参数对齐。旧模型/数据和上游来源快照保留。
+训练通过[三组输入协议](../offline/lattice_training/POLICY_INPUT.md)读取当前状态、道路/障碍和候选轨迹，
+不读取 native 评分或上一条路径；旧模型/候选兼容代码已删除。
+ROS 的候选评分尚未启用；本次没有部署。节点停止发布与`INSERT POLICY CODE`标记保持。
 
 ## 仿真与打包
 
@@ -53,7 +58,7 @@ flowchart LR
 
 ```powershell
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --output .verification/modular-centerline-new
-../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --output .verification/modular-lattice-new
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --output .verification/modular-one-hz-new
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B tools/bundle_python.py scripts/mvp21_policy_node.py --root . --output build/mvp21_policy_single.py
 ```
 
@@ -64,11 +69,17 @@ flowchart LR
 忽略的`build/`，每次由模块重新构建，不作为另一份算法源码维护。
 
 仿真日志同时保存上游原文件指纹和`runtime_modules`实际源码指纹。worker返回的
-`source_sha256`现按`source_sha256_format=mvp21_worker_geometry_lattice_v1`计算，覆盖
-`worker.py`、`geometry.py`、`lattice.py`，不再把原单文件的hash当作模块运行版本。
+`source_sha256`现按`source_sha256_format=mvp21_worker_geometry_lattice_v2`计算，覆盖
+`worker.py`、`geometry.py`、`frenet.py`、`lattice.py`，不把原单文件的hash当作模块运行版本。
 任务generation/job_id、shadow_only、结果状态与计时字段保持。
 
 ## 本次验证
+
+以下为模块拆分完成时的历史记录。后续旧 V2 退役与 policy 接口迁移改变了授权范围内的
+源码/配置；当前检查与模型保护范围见[接口说明](../offline/lattice_training/POLICY_INPUT.md)。
+
+以下为初始模块迁移证据。后续1 Hz修改的23项检查、延迟闭环和参数范围单独记录于
+[1 Hz闭环实验](../offline/mvp21_sim/ONE_HZ_CONTROL.md)。
 
 机械迁移审计确认50个纯算法定义的AST完全一致；ROS主函数、任务提交方法保持，
 节点只增加共享提交方法的继承并修改两处worker入口构造。后台队列逻辑保持，

@@ -126,10 +126,6 @@ def main():
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--profile',choices=('standard','conservative','wide'),default='wide')
     parser.add_argument('--cruise-speed',type=float,default=.3,help='Desired native planner speed within vehicle limits')
-    parser.add_argument('--max-near-gap-m',type=float,default=.9)
-    parser.add_argument('--max-extension-m',type=float,default=1.3)
-    parser.add_argument('--allow-unobserved-origin',action='store_true')
-    parser.add_argument('--require-cartesian-compatibility',action='store_true')
     parser.add_argument('--start-progress',type=float,default=.25)
     parser.add_argument('--initial-speed',type=float,default=.2)
     parser.add_argument('--inspect-progress',default='1.0,4.0')
@@ -148,9 +144,7 @@ def main():
     args.output.mkdir(parents=True,exist_ok=True);write_json(args.output/'road.json',spec)
     env=road_environment(spec,args.road_seed,progress=args.start_progress,speed=args.initial_speed)
     evaluator=RoadEvaluation(env,model=model,profile=args.profile,solver_settings=solver,seed=args.road_seed,
-                             cruise_speed=args.cruise_speed,max_near_gap_m=args.max_near_gap_m,
-                             max_extension_m=args.max_extension_m,allow_unobserved_origin=args.allow_unobserved_origin,
-                             require_cartesian_compatibility=args.require_cartesian_compatibility)
+                             cruise_speed=args.cruise_speed)
     try:
         report=evaluator.run(max_segments=args.max_segments,progress=lambda r:print(json.dumps(r),flush=True))
         report['scene']=scene_data(spec)

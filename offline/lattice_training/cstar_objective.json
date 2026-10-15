@@ -1,10 +1,10 @@
 {
-  "id": "cstar_full_path_loss_v2",
+  "id": "cstar_authored_trajectory_loss_v1",
   "direction": "maximize",
   "discount": 1.0,
   "horizon_s": 3.0,
   "definition": {
-    "type": "cstar_full_path_loss_v2",
+    "type": "cstar_authored_trajectory_loss_v1",
     "settings": {
       "horizon_s": 3.0,
       "dt_s": 0.05,
@@ -42,7 +42,7 @@
     ],
     "frame": "decision_base_link",
     "sampling": "interval_end_states",
-    "reference": "full_frenet_path_original_timing_then_terminal_speed_extension",
+    "reference": "explicit_full_candidate_timing",
     "horizon_policy": "complete_spatial_path_or_planned_stop",
     "normalization": "time_average_plus_terminal_cost",
     "speed_utility": "mean_positive_velocity_along_reference_on_moving_stages",

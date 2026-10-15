@@ -1,0 +1,162 @@
+{
+  "format": "policy_three_inputs_verification_v1",
+  "date": "2026-10-15",
+  "policy_input_schema": "state_road_trajectory_v1",
+  "model_format": "state_road_trajectory_mlp_v1",
+  "input_count": 1285,
+  "input_groups": {
+    "current_state": [
+      0,
+      4
+    ],
+    "current_road_and_obstacles": [
+      4,
+      1173
+    ],
+    "candidate_trajectory": [
+      1173,
+      1285
+    ]
+  },
+  "policy_encoder_sha256": "1c0c0df967421be50b4094ce8a31755ee33eededa49f4f80feea357990383dcf",
+  "input_encoding": "raw point/trajectory samples, padding masks and train-only normalization",
+  "planner_costs_used_by_model": false,
+  "previous_path_used_by_model": false,
+  "legacy_candidate_decoder": false,
+  "legacy_model_loader": false,
+  "implicit_timing_extension": false,
+  "native_score_used_for": "baseline comparison only, outside neural input",
+  "objective": {
+    "id": "cstar_authored_trajectory_loss_v1",
+    "direction": "maximize",
+    "discount": 1.0,
+    "horizon_s": 3.0,
+    "definition": {
+      "type": "cstar_authored_trajectory_loss_v1",
+      "settings": {
+        "horizon_s": 3.0,
+        "dt_s": 0.05,
+        "discount": 1.0,
+        "position_weight": 1.0,
+        "heading_weight": 0.2,
+        "speed_weight": 0.2,
+        "drive_rate_weight": 0.01,
+        "steering_rate_weight": 0.05,
+        "position_scale_m": 0.1,
+        "heading_scale_rad": 0.1,
+        "speed_scale_mps": 0.1,
+        "drive_rate_scale_per_s": 1.0,
+        "steering_rate_scale_per_s": 1.0,
+        "max_horizon_s": 60.0,
+        "speed_reward_weight": 0.5,
+        "speed_reward_scale_mps": 0.2,
+        "terminal_position_weight": 2.0,
+        "terminal_speed_weight": 0.2,
+        "completion_tolerance_m": 0.15,
+        "stop_speed_tolerance_mps": 0.02,
+        "stop_settle_s": 0.5,
+        "failure_loss": 1000000.0
+      },
+      "target": "negative_expected_full_path_cost",
+      "state_columns": [
+        "x_m",
+        "y_m",
+        "motion_heading_rad",
+        "speed_mps"
+      ],
+      "control_columns": [
+        "drive_normalized",
+        "steer_normalized"
+      ],
+      "frame": "decision_base_link",
+      "sampling": "interval_end_states",
+      "reference": "explicit_full_candidate_timing",
+      "horizon_policy": "complete_spatial_path_or_planned_stop",
+      "normalization": "time_average_plus_terminal_cost",
+      "speed_utility": "mean_positive_velocity_along_reference_on_moving_stages",
+      "horizon_s_meaning": "minimum_sampling_duration_not_truncation",
+      "constraints": "native_dynamics_input_and_safety_hard_constraints",
+      "zero_speed_heading": "body_heading_plus_kinematic_steering_direction",
+      "failure_encoding": "declared_failure_loss_not_a_feasible_solution"
+    }
+  },
+  "checks": {
+    "full_training_and_input_before_final_timing_cleanup": {
+      "count": 61,
+      "wall_s": 442.166,
+      "log": ".verification\\state-road-trajectory-20261015\\full-training.log",
+      "sha256": "9a51f957a28c9f746171e39bb4dbe1186ec0d551134c43db4c569e2d0dfb8853",
+      "passed": true
+    },
+    "final_authored_timing_model_and_cstar": {
+      "count": 40,
+      "wall_s": 96.406,
+      "log": ".verification\\state-road-trajectory-20261015\\authored-timing.log",
+      "sha256": "b77ef4a4b9b5c7d4a0d5af837150de21172d65a693bbc9c2c38f40b4f12c13ed",
+      "passed": true
+    },
+    "framework_worker_bundle": {
+      "count": 40,
+      "wall_s": 6.925,
+      "log": ".verification\\state-road-trajectory-20261015\\framework.log",
+      "sha256": "13264c02b83041f4fb5a5098fcab685c852781a9d0561d4f67110944d7b4794e",
+      "passed": true
+    }
+  },
+  "source_sha256": {
+    "features.py": "53846630552f6ad44a4fa9ad3e1ca77be4e14d0661b1753924c00f1beee1f19b",
+    "reference.py": "de1770bd2ee40bf290ee07e1c817c35e05efa74606f84a6f8316b3966ae6bfdf",
+    "model.py": "6d71bd61bb348c117258e88c8575cd7c2086ef2049e8874451ab48b8aed25cc9",
+    "source.py": "e8538b80fdb796d1e799883a13d9137e62d45bdd2699a9ebd787eed978f1f61e",
+    "planner.py": "2bcfd41726417e81ff51a96c5601f0964d82ce6768df5f2601f313836280f393",
+    "objective.py": "3b91fb7a2218a0e1bdb68a7ca10778203381341845cdff1202e990c908e58965",
+    "cstar_objective.json": "d85ed9803267f8ef8784a8663e742da9f44f8222d5060f4347c1bae8addc75e1",
+    "pipeline.py": "8fc389b349a681fce0ce5592c21fb6657a41d8b1c15831d16c859e01689c5451"
+  },
+  "candidate_contract_sha256": "3de96fc53f8abf10398e59d08d196d867e12223f8279d0b2944bcc5c64095223",
+  "protected_files": {
+    "checkpoint_commit": "d6d1b5c19ca5cb1676253f7acd4deadbc6bf1d0a",
+    "checked_files": 57,
+    "unchanged": true,
+    "authorized_migrations": 17,
+    "migration_reason": "User authorized retiring V2 and replacing policy input with current state, current road/obstacles and candidate trajectory; legacy model/data readers and planner-score/history features removed. Historical artifacts, plant and C* solver remain protected."
+  },
+  "framework_runs": {
+    "one-hz-map": {
+      "steps": 149,
+      "completed": true,
+      "fault": null,
+      "final_progress_m": 4.737975733562654,
+      "goal_progress_m": 4.736799508178038,
+      "valid_reference_count": 147,
+      "minimum_plant_corner_road_margin_m": 0.18551747830932946,
+      "speed_tracking_qualified": false,
+      "learned_scorer_used": false,
+      "summary_sha256": "e79e5ccc4fe54de24938cfee3df13498a86317fa108f78c3850087f56c66b876",
+      "trace_sha256": "1ea29609fbae28ec61675ab09f7e7f24ce6ff93e9d0679b6ed88a55eb46eee1c"
+    },
+    "one-hz-perception": {
+      "steps": 151,
+      "completed": true,
+      "fault": null,
+      "final_progress_m": 4.747474205459224,
+      "goal_progress_m": 4.736799508178038,
+      "valid_reference_count": 149,
+      "minimum_plant_corner_road_margin_m": 0.15994025804431958,
+      "speed_tracking_qualified": false,
+      "learned_scorer_used": false,
+      "summary_sha256": "31d54d1df6d99d3211e557b1392d7a9d91866fc3b754c5ac924a532d4356c311",
+      "trace_sha256": "a09fc4a9b9e8bcba633af68add024e37784b1f2cdd3c31d66d025972f4ad1e9c"
+    }
+  },
+  "formal_model_training": false,
+  "ros_gate": "stopped before build: pinned dream_interfaces checkout absent",
+  "hardware_tested": false,
+  "deployed": false,
+  "limitations": [
+    "End-to-end training is a small real-C* smoke test, not trained-model road qualification.",
+    "Raw obstacle input above 256 points is rejected; no silent truncation.",
+    "Framework full-road runs use native ranking and existing controller, without the learned scorer.",
+    "Historical weights/data are archival; current loaders do not accept them."
+  ]
+}

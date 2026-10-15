@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import math
 import time
+from .frenet import ShadowFrame, _shadow_lengths, _shadow_at
 from .geometry import (
     finite_number,
     wrap_angle,
@@ -35,14 +36,19 @@ class ShadowSettings:
     weight_heading: float = 1.5
     weight_progress: float = 2.0
     weight_smoothness: float = 0.04
+    # A control consumer can hold/read beyond the diagnostic prefix. Opt-in
+    # execution profile evaluates the entire generated path, including preview.
+    coverage_mode: str = 'prefix'
 
     def __post_init__(self):
+        if self.coverage_mode not in ('prefix', 'generated'):
+            raise ValueError('shadow.coverage_mode must be prefix or generated')
         if not isinstance(self.enabled, bool):
             raise ValueError("shadow.enabled must be boolean")
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
             raise ValueError("shadow.sample_count must be an integer >=8")
         for name, value in vars(self).items():
-            if name in ("enabled", "sample_count"):
+            if name in ("enabled", "sample_count", "coverage_mode"):
                 continue
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
@@ -64,61 +70,10 @@ def _shadow_points(values):
     return points
 
 
-def _shadow_lengths(points):
-    lengths = [0.0]
-    for a, b in zip(points, points[1:]):
-        lengths.append(lengths[-1]+math.dist(a, b))
-    return lengths
 
 
-def _shadow_at(points, lengths, s):
-    """Piecewise linear arc chart with explicitly inferred tangent tails."""
-    if len(points) == 1:
-        return points[0][0]+s, points[0][1]
-    if s <= 0:
-        i = 0
-    elif s >= lengths[-1]:
-        i = len(points)-2
-    else:
-        i = next(i for i in range(len(points)-1) if s <= lengths[i+1])
-    u = (s-lengths[i])/(lengths[i+1]-lengths[i])
-    return tuple(points[i][k]+u*(points[i+1][k]-points[i][k]) for k in (0, 1))
 
 
-class ShadowFrame:
-    """Local two-dimensional Frenet chart; no monotonic-body-x restriction."""
-    def __init__(self, points):
-        self.points = points
-        self.lengths = _shadow_lengths(points)
-        self.end = self.lengths[-1]
-
-    def at(self, s):
-        p = _shadow_at(self.points, self.lengths, s)
-        a = _shadow_at(self.points, self.lengths, s-0.04)
-        b = _shadow_at(self.points, self.lengths, s+0.04)
-        length = math.dist(a, b)
-        tangent = ((b[0]-a[0])/length, (b[1]-a[1])/length) if length > 1e-9 else (1.0, 0.0)
-        return p, tangent, (-tangent[1], tangent[0])
-
-    def project(self, point, heading=0.0):
-        options = []
-        if len(self.points) == 1:
-            s = point[0]-self.points[0][0]
-            return s, point[1]-self.points[0][1]
-        for i, (a, b) in enumerate(zip(self.points, self.points[1:])):
-            length = self.lengths[i+1]-self.lengths[i]
-            tx, ty = (b[0]-a[0])/length, (b[1]-a[1])/length
-            u = ((point[0]-a[0])*tx+(point[1]-a[1])*ty)/length
-            # The first/last rays are inferred chart support, not hard boundaries.
-            u = max(0.0, u) if i else u
-            u = min(1.0, u) if i < len(self.points)-2 else u
-            q = (a[0]+u*(b[0]-a[0]), a[1]+u*(b[1]-a[1]))
-            angle = wrap_angle(math.atan2(ty, tx)-heading)
-            cost = math.dist(q, point)**2+0.02*angle**2
-            options.append((cost, self.lengths[i]+u*length))
-        s = min(options)[1]
-        p, _, n = self.at(s)
-        return s, (point[0]-p[0])*n[0]+(point[1]-p[1])*n[1]
 
 
 def _shadow_halton(index, base):
@@ -243,6 +198,9 @@ class ShadowLatticePlanner:
         preview = job.get("preview_m", 0.0)
         preview = preview if finite_number(preview) and preview > 0 else cfg.score_min_length_m
         horizon = max(cfg.length_m, score_length, check+preview)
+        control_read_length = check+preview
+        if cfg.coverage_mode == 'generated':
+            check = score_length = horizon
         points = _shadow_points(road.get("centerline_xy"))
         left, right = (_shadow_points(road.get(side+"_boundary_xy")) for side in ("left", "right"))
         width = road.get("lane_width_m")
@@ -349,13 +307,13 @@ class ShadowLatticePlanner:
                 "road_status": road.get("status"), "road_sources": sources,
                 "planning_input": {"road": road, "state": state, "preview_m": preview},
                 "shadow_settings": vars(cfg).copy(), "controller_preview_m": preview,
-                "reference_origin": reference_origin, "reference": [frame.at(s0+horizon*i/40)[0] for i in range(41)],
+                "reference_chart_xy": list(frame.points), "reference_origin": reference_origin, "reference": [frame.at(s0+horizon*i/40)[0] for i in range(41)],
                 "reference_observed_range_s_m": [0.0, frame.end], "start_s_m": s0, "start_d_m": d0,
                 "turn_angle_rad": turn, "entry_heading_weight": entry_weight, "preparation_offset_m": preparation,
                 "speed_mps": speed, "speed_available": finite_number(v), "hold_time_s": hold,
                 "handoff_estimate_s": handoff, "requested_rate_hz": cfg.rate_hz,
                 "check_length_m": check, "score_length_m": score_length, "generated_length_m": horizon,
-                "control_read_length_m": check+preview, "known_boundary_sides": list(boundaries),
+                "control_read_length_m": control_read_length, "known_boundary_sides": list(boundaries),
                 "body_dimensions_m": [cfg.body_front_m, cfg.body_rear_m, cfg.body_width_m],
                 "body_dimensions_source": "shadow_configuration_provisional",
                 "collision_method": "adaptive_pose_sampling_no_padding",

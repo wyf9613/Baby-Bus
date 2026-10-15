@@ -8,8 +8,8 @@ from copy import deepcopy
 
 import numpy as np
 
-from .features import FEATURE_NAMES, FEATURE_VERSION, encode_candidate, scene_features
-from .source import planner_source_sha256
+from .features import FEATURE_NAMES, FEATURE_VERSION, INPUT_GROUPS, encode_candidate, scene_features
+from .source import planner_source_sha256,policy_encoder_sha256,POLICY_INPUT_SCHEMA
 from .objective import CSTAR_TARGET, CStarTrackingSettings, cstar_trial_returns
 
 
@@ -33,8 +33,8 @@ def write_json(path, value):
     path.write_text(json.dumps(json_safe(value), ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
 
 
-DECISION_FORMAT = "lattice_policy_decision_v1"
-DATASET_FORMAT = "lattice_cstar_dataset_v1"
+DECISION_FORMAT = "state_road_trajectory_decision_v1"
+DATASET_FORMAT = "state_road_trajectory_dataset_v1"
 SPLITS = {"train", "validation", "test"}
 INTERNAL_LABEL_VERSION = "6"
 
@@ -99,8 +99,7 @@ def _reject_constant(value):
 
 
 def read_decisions(path):
-    """Require the same native candidate encoding at training and inference."""
-    expected_source = planner_source_sha256()
+    """Validate candidate records; producer identity is recorded, not a gate."""
     with Path(path).open("r", encoding="utf-8") as stream:
         for line_number, line in enumerate(stream, 1):
             if not line.strip():
@@ -109,8 +108,9 @@ def read_decisions(path):
                 record = json.loads(line, parse_constant=_reject_constant)
                 if not isinstance(record, dict) or record.get("format") != DECISION_FORMAT:
                     raise ValueError(f"Expected {DECISION_FORMAT}")
-                if record.get("planner_source_sha256") != expected_source:
-                    raise ValueError("Decision was encoded against a different planner source")
+                producer=record.get('planner_source_sha256')
+                if not isinstance(producer,str) or len(producer)!=64 or any(c not in '0123456789abcdef' for c in producer):
+                    raise ValueError('Decision requires a producer planner source fingerprint')
                 if not isinstance(record.get("group_id"), str) or not record["group_id"]:
                     raise ValueError("A nonempty decision group_id is required")
                 if not isinstance(record.get("observation"), dict):
@@ -152,6 +152,7 @@ def import_dataset(records_path, output, *, required_splits=None):
         raise ValueError('Invalid required dataset splits')
     records_sha256 = file_sha256(records_path)
     rows, scene_splits, groups, contract, sources = [], {}, set(), None, {}
+    producers=set()
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     partial_records = output / 'decisions.jsonl.part'
@@ -167,6 +168,7 @@ def import_dataset(records_path, output, *, required_splits=None):
                                         ensure_ascii=False, allow_nan=False) + '\n')
     current_source = planner_source_sha256()
     for record in encoded_records():
+        producers.add(record['planner_source_sha256'])
         objective = record.get("objective")
         fingerprint = validate_objective(objective)
         source = record.get("label_source")
@@ -237,6 +239,9 @@ def import_dataset(records_path, output, *, required_splits=None):
                 "training_readiness": readiness, "training_eligible": readiness['eligible'],
                 "label_aggregation": "negative_arithmetic_mean_of_cstar_tracking_losses",
                 "label_definition": CSTAR_TARGET, "planner_source_sha256": current_source,
+                "producer_planner_sha256": sorted(producers),
+                "policy_input_schema": POLICY_INPUT_SCHEMA,"policy_encoder_sha256":policy_encoder_sha256(),
+                "input_groups": INPUT_GROUPS,
                 "records_sha256": records_sha256,
                 "encoded_records_sha256": file_sha256(output / 'decisions.jsonl'),
                 "pipeline_code_sha256": {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
@@ -310,6 +315,8 @@ def append_training_dataset(base, addition, output):
             sources.setdefault(objective_hash(source), deepcopy(source))
     metadata = deepcopy(old_metadata)
     metadata.update(rows=len(merged['y']), decisions=len(np.unique(merged['groups'])),
+                    producer_planner_sha256=sorted(set(old_metadata['producer_planner_sha256']) |
+                                                  set(new_metadata['producer_planner_sha256'])),
                     split_rows={split: int(np.sum(merged['splits'] == split)) for split in sorted(SPLITS)},
                     scene_splits={**old_metadata['scene_splits'], **new_metadata['scene_splits']},
                     label_source=label_source_contract(old_metadata['label_source']),
@@ -354,7 +361,7 @@ def score_decisions(model, records_path, output):
                         "selected_candidate_id": candidates[index]["candidate_id"],
                         "prediction_space": model.prediction_space,
                         "scores": [{"candidate_id": candidate["candidate_id"],
-                                    ("predicted_return" if model.target_transform == "identity" else "predicted_score"): float(score)}
+                                    "predicted_score": float(score)}
                                    for candidate, score in zip(candidates, scores)]})
     if not results:
         raise ValueError("No decisions to score")
@@ -367,8 +374,9 @@ def load_dataset(directory):
     directory = Path(directory)
     metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
     validate_label_source(metadata.get('label_source'))
-    if metadata.get("planner_source_sha256") != planner_source_sha256():
-        raise ValueError("Dataset was encoded against a different planner source")
+    if (metadata.get('policy_input_schema')!=POLICY_INPUT_SCHEMA or metadata.get('policy_encoder_sha256')!=policy_encoder_sha256()
+            or metadata.get('input_groups')!={k:list(v) for k,v in INPUT_GROUPS.items()}):
+        raise ValueError('Dataset state/road/trajectory encoder/schema differs; collect current-format data')
     fingerprint = validate_objective(metadata.get("objective"))
     if metadata.get("objective_sha256", fingerprint) != fingerprint:
         raise ValueError("Dataset objective fingerprint mismatch")

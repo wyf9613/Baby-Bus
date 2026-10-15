@@ -41,7 +41,7 @@ def parameters():
 
 
 def verify_preserved_files():
-    """Check the original policy, model, config and simulator against the checkpoint."""
+    """Check protected artifacts; report explicitly authorized source migrations."""
     manifest = json.loads((PACKAGE/'preserved-files.json').read_text(encoding='utf-8'))
     changed = []
     for name, expected in manifest['sha256_lf'].items():
@@ -54,4 +54,5 @@ def verify_preserved_files():
     if changed:
         raise ValueError('Preserved files changed: ' + ', '.join(changed))
     return dict(checkpoint_commit=manifest['checkpoint_commit'],checked_files=len(manifest['sha256_lf']),
-                unchanged=True)
+                unchanged=True,authorized_migrations=len(manifest.get('authorized_migrations',{})),
+                migration_reason=manifest.get('migration_reason'))

@@ -10,7 +10,6 @@ from .cstar import CStarSolver, NativePrediction, performance_profile, Performan
 from .dataset import json_safe
 from .objective import CStarTrackingSettings, reference_plan
 from .roads import road_length, road_identity
-from .source import candidate_api
 from .features import encode_candidate
 
 
@@ -21,10 +20,18 @@ def road_environment(spec, seed=0, *, progress=.25, offset=0.0, heading_error=0.
         config.initial_state_config["pose"][key].update(lower=float(value),upper=float(value))
     config.initial_state_config["body_motion"]["longitudinal_velocity"]["value_mps"].update(lower=speed,upper=speed)
     env = PlannerSimulationEnv(config,max_steps=max_steps,sensor_timing=SensorTiming(
-        period_steps={"cone_detections":2},delay_steps={"cone_detections":1}))
+        period_steps={"cone_detections":2},delay_steps={"cone_detections":1}),
+        estimation_settings=_training_estimation_settings())
     env.reset(seed=seed)
     env.step((0,0))
     return env
+
+
+def _training_estimation_settings():
+    from offline.mvp21_sim.source import parameters
+    settings=dict(parameters()['estimation'])
+    settings.update(left_colour=2,right_colour=1)
+    return settings
 
 
 def world_points(points, pose):
@@ -45,54 +52,20 @@ def candidate_panel(planner, observation, pose, *, model=None, progress_m=None, 
                      "selected":candidate['candidate_id']==diag.get('selected_candidate_id'),
                      "speed_profile":candidate['reference']['speed_profile'],
                      "full_path_duration_s":plan['duration_s'],"spatial_span_m":plan['spatial_span_m']})
-        rows[-1]['origin_support_assumed']=candidate['reference'].get('origin_support_assumed')
     if rows:
         best=max(rows,key=lambda row:row['score'])
         for row in rows: row['selected']=row['candidate_id']==best['candidate_id']
-        # Native near-best tie ordering can choose a lower numeric score. This
-        # evaluation explicitly executes the maximum requested planner score.
         diag['native_selected_candidate_id']=diag.get('selected_candidate_id')
         diag['selected_candidate_id']=best['candidate_id']
         ref=next(c['reference'] for c in diag['candidate_references'] if c['candidate_id']==best['candidate_id'])
-    # Render rejected geometries from native initialization and the same reference
-    # curve. Their admission/score remains the native decision, never a fallback.
-    init = diag.get('initialization') or {}
-    curve=None
-    if init and diag.get('near_support'):
-        api=candidate_api()
-        if diag.get('candidate_references'):
-            path=diag['candidate_references'][0]['reference']['frenet_path']
-            curve=api.LatticeCurve.from_record(path['reference_curve']); high=path['lateral']['range'][1]
-        else:
-            raw=observation['estimation']['road']; road=raw if raw.get('valid') else raw.get('forward_geometry',{})
-            boundaries=[road.get(k) or [] for k in ('centerline_xy','left_boundary_xy','right_boundary_xy')]
-            if all(boundaries):
-                near=max(p[0][0] for p in boundaries); far=min(p[-1][0] for p in boundaries)
-                p=boundaries[0]
-                points=[(near,api.CenterlinePlanner._interpolate(p,near)),*[(x,y) for x,y in p if near<x<far],
-                        (far,api.CenterlinePlanner._interpolate(p,far))]
-                curve=api.LatticeCurve(points,diag['near_support']['extension_m'],planner.cfg.geometry_step_m)
-                limits=planner._model(observation['estimation']['vehicle_limits'])
-                end_x=far-math.hypot(limits['front_extent_m'],limits['width_m']/2)-.02
-                high=min(init['s0']+planner.cfg.horizon_m,api._lattice_interp(curve.arc,end_x))
-        if curve is not None:
-            seen=set()
-            for row in diag.get('candidates',[]):
-                if row.get('reason') in ('geometry_feasible','feasible') or 'length_m' not in row: continue
-                key=(row['length_m'],row['offset_m'],row.get('duration_s'),row.get('terminal_speed_mps'),row.get('reason'))
-                if key in seen: continue
-                seen.add(key)
-                coeff=api._lattice_lateral(init['d0'],init['dprime'],init['dsecond'],row['offset_m'],row['length_m'])
-                points=[]
-                for s in np.linspace(init['s0'],high,81):
-                    g=api._lattice_geometry(curve,init['s0'],coeff,row['length_m'],row['offset_m'],float(s))
-                    points.append([g['x'],g['y']])
-                rows.append({'candidate_id':'rejected:'+str(key),'admitted':False,'selected':False,
-                    'score':None,'descriptor':row,'reason':row.get('reason'),'points':world_points(points,pose).tolist()})
+    for proposal in (diag.get('result') or {}).get('candidates',[]):
+        if proposal['collision'] is None:continue
+        rows.append(dict(candidate_id=str(proposal['id']),admitted=False,selected=False,
+            score=None,descriptor=proposal,reason='collision',
+            points=world_points([p[:2] for p in proposal['path']],pose).tolist()))
     return {"progress_m":progress_m,"pose":list(pose),"timestamp_s":observation['timestamp_s'],
             "prediction_space":model.prediction_space if model else "native_rule_score",
             "valid":bool(ref.get('valid')),"reason":ref.get('reason'),"candidates":rows,
-            "origin_support_assumption":diag.get('origin_support_assumption'),
             "selected_candidate_id":diag.get('selected_candidate_id'),
             "admitted_count":sum(row['admitted'] for row in rows),
             "rejected_count":sum(not row['admitted'] for row in rows)},ref,diag
@@ -100,9 +73,7 @@ def candidate_panel(planner, observation, pose, *, model=None, progress_m=None, 
 
 class RoadEvaluation:
     def __init__(self, environment, *, model=None, objective=None, solver_settings=None,
-                 profile='standard', seed=0, performance=None, cruise_speed=.2,
-                 max_near_gap_m=.9, max_extension_m=1.3, allow_unobserved_origin=False,
-                 require_cartesian_compatibility=False):
+                 profile='standard', seed=0, performance=None, cruise_speed=.2):
         from .pipeline import make_planner
         self.env,self.model,self.seed=environment,model,seed
         self.objective=objective or (CStarTrackingSettings.from_specification(model.provenance['objective'])
@@ -110,10 +81,7 @@ class RoadEvaluation:
         if model is not None and self.objective.specification()!=model.provenance['objective']:
             raise ValueError('Evaluation C* objective differs from the policy checkpoint')
         self.solver=CStarSolver(self.objective,solver_settings)
-        self.planner=make_planner(profile,cruise_speed=cruise_speed,
-                                  max_near_gap_m=max_near_gap_m,max_extension_m=max_extension_m,
-                                  allow_unobserved_origin=allow_unobserved_origin,
-                                  require_cartesian_compatibility=require_cartesian_compatibility)
+        self.planner=make_planner(profile, cruise_speed=cruise_speed)
         self.cruise_speed=cruise_speed
         self.profile=profile
         self.performance=performance or performance_profile(seed,nominal=True)
@@ -122,7 +90,7 @@ class RoadEvaluation:
         self.report=None
 
     def run(self, *, max_segments=100, max_control_steps=None, goal_progress=None, progress=None):
-        from .pipeline import simulate_segment,commit_candidate,road_goal_progress
+        from .pipeline import simulate_segment,road_goal_progress
         started=time.perf_counter(); env=self.env
         spec=env.config.road_spec; length=road_length(spec)
         goal=goal_progress if goal_progress is not None else road_goal_progress(env)
@@ -160,8 +128,6 @@ class RoadEvaluation:
                 'start_progress_m':current,'pose':list(panel['pose']),
                 'reference_points':world_points(plan['states'][:,:2],panel['pose']).tolist(),
                 'full_path_duration_s':plan['duration_s'],'spatial_span_m':plan['spatial_span_m'],
-                'origin_support_assumed':ref.get('origin_support_assumed'),
-                'origin_support_override_applied':bool(ref.get('origin_support_override_applied')),
                 'actual_loss':transition.get('actual_loss'),'completion':transition.get('completion'),
                 'fault':transition.get('reason'),'solver_diagnostics':solve['diagnostics']})
             if progress:
@@ -169,7 +135,7 @@ class RoadEvaluation:
                           'steps':transition['steps'],'duration_s':plan['duration_s'],'fault':transition.get('reason')})
             if snapshot is None:
                 fault=transition['reason'];break
-            env.restore(snapshot);previous=tuple(transition['final_control']);commit_candidate(self.planner,candidate)
+            env.restore(snapshot);previous=tuple(transition['final_control'])
             if ref['planned_stop']:
                 completion='planned_stop_reference_complete';break
         else:
@@ -183,10 +149,8 @@ class RoadEvaluation:
         self.report={'format':'lattice_full_road_evaluation_v1','road_id':road_identity(spec),'road_spec':spec,
             'seed':self.seed,'selector':'learned' if self.model else 'rule','lattice_profile':self.profile,
             'cruise_speed_mps':self.cruise_speed,
-            'planner_support':{'max_near_gap_m':self.planner.cfg.max_near_gap_m,
-                               'max_extension_m':self.planner.cfg.max_extension_m},
-            'allow_unobserved_origin':self.planner.allow_unobserved_origin,
-            'candidate_representation':('cartesian_compatible' if self.planner.require_cartesian_compatibility else 'frenet_native'),
+            'planner_profile':{'length_m':self.planner.cfg.length_m,'coverage_mode':self.planner.cfg.coverage_mode},
+            'candidate_representation':'policy_frenet_candidate_v1',
             'objective':self.objective.specification(),'performance':self.performance,'trace':trace,'segments':segments,
             'candidate_panels':panels,'initial_pose':start_pose,'initial_progress_m':initial,'final_progress_m':final,
             'initial_constraint_margins':initial_margins,
@@ -216,11 +180,7 @@ class RoadEvaluation:
             source='local_initial_observation'
         with branch:
             current=float(branch._info['evaluation']['ground_truth']['reference_line_progress_m'])
-            planner=make_planner(self.profile,cruise_speed=self.cruise_speed,
-                                 max_near_gap_m=self.planner.cfg.max_near_gap_m,
-                                 max_extension_m=self.planner.cfg.max_extension_m,
-                                 allow_unobserved_origin=self.planner.allow_unobserved_origin,
-                                 require_cartesian_compatibility=self.planner.require_cartesian_compatibility)
+            planner=make_planner(self.profile, cruise_speed=self.cruise_speed)
             panel,_,_=candidate_panel(planner,branch._frame,branch._backend.car._state_values()[:3],
                                       model=self.model,progress_m=current,objective=self.objective)
             panel['requested_progress_m']=progress_m;panel['state_source']=source

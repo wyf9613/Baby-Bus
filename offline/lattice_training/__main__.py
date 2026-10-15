@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 
 from .dataset import DECISION_FORMAT, json_safe, score_decisions, validate_objective, write_json
-from .features import FEATURE_NAMES, FEATURE_VERSION
+from .features import FEATURE_NAMES, FEATURE_VERSION, INPUT_GROUPS
 from .model import ReturnMLP
 from .objective import CStarTrackingSettings
-from .source import planner_source_sha256, TRAINING_EXPORT_VERSION
+from .source import planner_source_sha256, POLICY_INPUT_SCHEMA
 
 
 def progress(record):
@@ -38,14 +38,6 @@ def main():
                      help="Safety ceiling for until-road-end; exhausting it is reported as a failure")
     run.add_argument("--starts-per-road", type=int, default=2)
     run.add_argument("--planner-profiles", default="standard,conservative")
-    run.add_argument("--max-near-gap-m", type=float, default=.9,
-                     help="Native lattice's bounded near-road gap (offline experiment only)")
-    run.add_argument("--max-extension-m", type=float, default=1.3,
-                     help="Native lattice's maximum backward extension including the rear body")
-    run.add_argument("--allow-unobserved-origin", action="store_true",
-                     help="Offline experiment: allow bounded forward-road extension after losing origin support")
-    run.add_argument("--require-cartesian-compatibility", action="store_true",
-                     help="Comparison only: restore the Cartesian adapter gate; default exports native Frenet")
     run.add_argument("--segment-resampling-attempts", type=int, default=6,
                      help="Retry other random candidates only after a completed illegal terminal state")
     run.add_argument("--trials", type=int, default=2)
@@ -78,8 +70,6 @@ def main():
     train.add_argument("--hidden", type=int, default=32)
     train.add_argument("--seed", type=int, default=0)
     train.add_argument("--learning-rate", type=float, default=.005)
-    train.add_argument("--allow-incomplete-coverage", action="store_true",
-                       help="Deprecated compatibility option; road coverage no longer blocks valid candidate training")
     score = commands.add_parser("score", help="Score admitted candidates using a C*-trained policy")
     score.add_argument("--records", type=Path, required=True)
     score.add_argument("--model", type=Path, required=True)
@@ -101,8 +91,8 @@ def main():
         specification = (json.loads(args.objective.read_text(encoding="utf-8")) if args.objective
                          else CStarTrackingSettings().specification())
         progress({"format": DECISION_FORMAT, "planner_source_sha256": planner_source_sha256(),
-                  "training_export_version": TRAINING_EXPORT_VERSION,
-                  "default_candidate_representation": "frenet_native",
+                  "policy_input_schema": POLICY_INPUT_SCHEMA,"input_groups":INPUT_GROUPS,
+                  "default_candidate_representation": "policy_frenet_candidate_v2",
                   "feature_version": FEATURE_VERSION, "feature_count": len(FEATURE_NAMES),
                   "required_fields": ["group_id", "observation", "candidates"],
                   "training_fields": ["scene_id", "split", "objective", "label_source"],
@@ -121,11 +111,9 @@ def main():
         output = args.output/'model.json'
         if output.exists() or output.with_suffix('.training.json').exists():
             raise FileExistsError(f"Training output already exists: {args.output}")
-        progress({'stage':'training_start','dataset':str(args.dataset),'epochs':args.epochs,
-                  'allow_incomplete_coverage':args.allow_incomplete_coverage})
+        progress({'stage':'training_start','dataset':str(args.dataset),'epochs':args.epochs})
         model,report=train_model(args.dataset,output,epochs=args.epochs,hidden=args.hidden,seed=args.seed,
-                                 learning_rate=args.learning_rate,
-                                 allow_incomplete_coverage=args.allow_incomplete_coverage)
+                                 learning_rate=args.learning_rate)
         plot_training(report,args.output)
         evaluate_policy(model,args.dataset,args.output/'evaluation.json')
         progress({'stage':'training_complete','model':str(output),'best_epoch':model.provenance['best_epoch'],
@@ -138,16 +126,7 @@ def main():
         from .pipeline import PipelineSettings, run_pipeline, collect_dataset, CollectionCoverageError, augment_training_dataset
         from .roads import RoadRandomizationSettings
         configuration = CStarTrackingSettings.from_specification(json.loads(args.objective.read_text(encoding="utf-8")))
-        settings = PipelineSettings(kinds=tuple(args.kinds.split(",")), train_seeds=args.train_seeds,
-            validation_seeds=() if args.command == 'augment' else args.validation_seeds,
-            test_seeds=() if args.command == 'augment' else args.test_seeds,
-            train_only=args.command == 'augment', decisions=args.decisions,
-            until_road_end=args.until_road_end, max_segments=args.max_segments,
-            trials=args.trials, evaluation_steps=args.evaluation_steps, starts_per_road=args.starts_per_road,
-            planner_profiles=tuple(args.planner_profiles.split(",")), segment_resampling_attempts=args.segment_resampling_attempts,
-            max_near_gap_m=args.max_near_gap_m, max_extension_m=args.max_extension_m,
-            allow_unobserved_origin=args.allow_unobserved_origin,
-            require_cartesian_compatibility=args.require_cartesian_compatibility)
+        settings = PipelineSettings(kinds=tuple(args.kinds.split(',')), train_seeds=args.train_seeds, validation_seeds=() if args.command == 'augment' else args.validation_seeds, test_seeds=() if args.command == 'augment' else args.test_seeds, train_only=args.command == 'augment', decisions=args.decisions, until_road_end=args.until_road_end, max_segments=args.max_segments, trials=args.trials, evaluation_steps=args.evaluation_steps, starts_per_road=args.starts_per_road, planner_profiles=tuple(args.planner_profiles.split(',')), segment_resampling_attempts=args.segment_resampling_attempts)
         road_settings = RoadRandomizationSettings(**json.loads(args.road_settings.read_text(encoding="utf-8")))
         solver = SolverSettings(population=args.population, iterations=args.iterations,
             max_evaluations=args.max_evaluations, max_wall_s=args.solver_wall_s,

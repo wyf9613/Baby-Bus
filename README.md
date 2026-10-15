@@ -1,46 +1,16 @@
 # Baby Bus · ai4r_policy
 
-本仿真分支的 MVP2.1 源码现已拆入 [mvp21_policy/](mvp21_policy/README.md)，
-感知、运动历史、规划、控制、lattice 与 ROS 接线可分别修改和导入。
-`offline.mvp21_sim` 已切换到这些模块；原训练 policy、模型、车辆环境及上游来源
-快照保留。单文件打包脚本与用法见 [tools/BUNDLE_PYTHON.md](tools/BUNDLE_PYTHON.md)。
-下文的旧Frenet训练实现仍由原 `scripts/policy_node.py` 提供。
+当前实现位于 [mvp21_policy/](mvp21_policy/README.md)，两个 script 名称均进入同一套
+最新 MVP2.1 模块。重建道路与 1 Hz 规划 / 20 Hz 控制的独立仿真继续使用原车辆环境。
 
-2026-10-10：[完整 policy 训练管线](offline/lattice_training/README.md) 已连接原 env、
-native lattice 和训练用 C* 数值求解，自动生成实际执行标签，训练并导出候选评分器，
-完成排序和闭环对比。唯一入口为 run，无需外部 C* 数据。
-默认使用从 upskill 片段适配的随机长道路、沿路分散初态和多套 lattice 采样参数；
-采集均匀随机选取候选，以完整 C* 执行终态接续下一段，仅非法终点触发候选重抽。
-随机障碍保留连续通行空间；C* 评分覆盖完整空间路径，加入速度收益和终点完成约束。
-整路 evaluation 脚本支持最高分选路、完整 trace 和道路位置的全部候选可视化。
-初始位置不按感知/规划可用性筛选。同一路的所有变体保留在同一数据分区。
-独立 feature/lattice-training-pipeline 保留原 env、控制组和其他分支代码。
-当前[评分模型与训练记录](offline/lattice_training/artifacts/2026-10-11-augmented-sigmoid/README.md)
-随训练分支提供，含扩充前后的模型及固定验证/测试集对照。
+学习 policy 只读取 **当前状态、当前道路与障碍、候选轨迹**，使用 C* 真实执行结果训练
+候选评分。[训练入口](offline/lattice_training/README.md)与[输入协议](offline/lattice_training/POLICY_INPUT.md)
+说明固定数据编码。旧评分特征、历史路径输入及旧模型/候选兼容代码已删除。
+历史权重、数据与上游来源快照保留作档案，当前入口不加载它们。
 
-已在 `scripts/policy_node.py` 接入估计→V2 Frenet lattice 规划→PID 控制→归一化动作。
-V2 包含近端盲区补足、横纵向多项式采样、车身/障碍/运动初筛、固定打分与停车行为，
-输出原始 Frenet 多项式及经过复核的五次以内 Cartesian y(x)，控制侧使用预瞄误差。
-实现和边界见 [V2 规划说明](docs/PLANNING_V2_CN.md)。供给的 YAML 选择单一
-20 Hz timer，要求 cones、轮速和偏航率。近期无障碍锥桶道路测试配置关闭雷达障碍检查，
-雷达继续采集但不是必需传感器；道路边界和车身净空检查仍开启。
-当前 `control.mode: mvp` 使用路径误差与
-航向误差直接计算归一化转向，目标速度 0.2 m/s；不要求先完成完整车辆标定。
-每次显式启动累计原始轮速里程，达到 3.0 m 自动进入状态 2、持续输出零动作；
-30 s 为兜底时间限制。无效/过期路径或反馈断流也会锁存停止，重新请求状态 3 才
-重置里程并恢复。3 m 是编码器估计距离，实际停车位置受轮速尺度、打滑和滑行影响。
-可选 `calibrated` 模式仍支持有来源的 `vehicle.*` 参数。上车步骤及老师要求见
-[MVP 接入说明](docs/MVP_INTEGRATION_REVIEW_2026-10-05_CN.md)。
-离线测试与实际 policy 方法的模型闭环通过；完整 ROS gate 和实车验证仍未完成。
-详细当前证据见 [验收记录](docs/acceptance.md)。
-
-团队策略仓库，基于 DREAM 课程框架。当前分工见 [四组项目计划](docs/TEAM_PROJECT_PLAN.md)。接口优先沿用 GitHub 中的课程框架代码和配置；框架未定义的组间数据结构再按 Word 接口会议草案补充。状态、道路和规划分别在 `self.estimation_output`、`self.planning_output`；控制诊断在 `self.control_diagnostics`，debug1/debug2 为路径误差（m）和本次累计里程（m），停止原因沿用 policy 状态字符串。算法、字段、调参和联调说明见 [估计模块首版说明](docs/ESTIMATION_V1_CN.md) 与 [V1 规划说明](docs/PLANNING_V1_CN.md)。离线检查命令为 `python3 -B tests/test_estimation.py -v`、`python3 -B tests/test_planning.py -v`、`python3 -B tests/test_control.py -v`；模型测试为 `python offline/control_pid/test_controller.py`（AI4R 环境）。下文为上游使用说明。
-
-2026-10-05 更新：有效道路/雷达点通过轮速与偏航率历史补偿到自车状态的参考时刻，并保留原测量时间；历史不足或断档时拒绝使用。该补偿采用前进、平面无侧滑近似，轮速时间为接收时刻代理，未完成实车精度验证。详情见上方模块说明。
-
-2026-10-08 更新：道路估计增加短时历史锥桶缓存（最多 128 点），逐帧运动补偿后补足已经观测过的近端盲区。旧点保留原始年龄，5 秒内过期；首次启动的未观测近处道路仍拒绝使用。有效道路还要求双侧边界与中心线覆盖车体原点，增加 `geometry_valid` / `near_field` 诊断。该检查不替代规划组的完整车身和起步轨迹检查；当前规划分支已接入 V2 与控制器。离线回归、参数和下游接入要求见模块说明。
-
-同日补充：新鲜相机帧偶发空帧、单侧拟合失败或共同覆盖不足时，可短暂运动补偿最近一条完整有效道路，标记 `degraded=True` / `predicted_history`；默认失败延续上限 0.2 秒，原始源年龄、运动跨度和近端历史期限可能使其更早结束。预测不续期，当前失败原因与每侧点数/拟合范围另行保留。过期、运动缺失、异常宽度或观测冲突仍拒绝使用。当前规划分支 V1/V2 已消费降速建议和剩余有效时间，V2 支持车后道路及明确受控起步时的近端补足；PID 与车辆动作映射保持。详细规则见 V2 说明。
+模块源码、单文件打包和虚拟环境分别见上述模块说明、[打包工具](tools/BUNDLE_PYTHON.md)、
+[1 Hz 回放](offline/mvp21_sim/ONE_HZ_CONTROL.md)。ROS lattice 仍为 shadow，未部署学习评分。
+以下为课程 ROS 包使用说明。
 
 Student ROS 2 policy package for the DREAM robot, targeting Ubuntu 24.04 and
 ROS 2 Jazzy. Version 0.2.0 adds ArUco observations to the first source release;
@@ -50,7 +20,7 @@ It is not a physically qualified driving controller.
 robot checks, and [the v0.2.0 release preparation](docs/release-v0.2.0.md)
 defines promotion, tag, artifact, and publication evidence.
 
-**Start with [scripts/policy_node.py](scripts/policy_node.py)** and its
+**Start with [mvp21_policy/node.py](mvp21_policy/node.py)** and its
 `INSERT POLICY CODE` section. It contains the observation/action explanations
 and a zero-action starter. The [policy YAML](config/ai4r_policy.yaml) explains
 every setting and includes lidar-only and wheel-speed-controller examples.

@@ -8,8 +8,8 @@ import numpy as np
 
 from .dataset import (load_dataset, objective_hash, write_json, validate_label_source,
                       training_readiness, road_coverage_complete)
-from .features import FEATURE_NAMES, FEATURE_VERSION
-from .source import planner_source_sha256
+from .features import FEATURE_NAMES, FEATURE_VERSION,INPUT_GROUPS
+from .source import planner_source_sha256,policy_encoder_sha256,POLICY_INPUT_SCHEMA
 from .objective import CSTAR_TARGET, CStarTrackingSettings
 
 
@@ -32,10 +32,9 @@ class ReturnMLP:
     def __init__(self, hidden=32, seed=0, *, target_transform="sigmoid", target_temperature=1.0):
         if not isinstance(hidden, int) or hidden < 1:
             raise ValueError("hidden must be a positive integer")
-        if target_transform not in ("sigmoid", "identity") or (
+        if target_transform != "sigmoid" or (
                 not np.isfinite(target_temperature) or target_temperature <= 0):
             raise ValueError("Invalid training target transform")
-        # Identity is retained to read the preceding v2 raw-return checkpoints.
         self.target_transform, self.target_temperature = target_transform, float(target_temperature)
         rng = np.random.default_rng(seed)
         count = len(FEATURE_NAMES)
@@ -43,13 +42,12 @@ class ReturnMLP:
                            "b1": np.zeros(hidden), "w2": rng.normal(0, 1/np.sqrt(hidden), hidden),
                            "b2": np.zeros(1)}
         self.x_mean, self.x_scale = np.zeros(count), np.ones(count)
-        self.y_mean, self.y_scale = 0.0, 1.0
         self.provenance = {}
         self.planner_source_sha256 = planner_source_sha256()
 
     @property
     def prediction_space(self):
-        return SIGMOID_SCORE_SPACE if self.target_transform == "sigmoid" else RAW_RETURN_SPACE
+        return SIGMOID_SCORE_SPACE
 
     @property
     def target_specification(self):
@@ -62,63 +60,64 @@ class ReturnMLP:
         values = np.asarray(raw_returns, dtype=np.float64)
         if not np.isfinite(values).all():
             raise ValueError("Nonfinite C* training targets")
-        return stable_sigmoid(values / self.target_temperature) if self.target_transform == "sigmoid" else values
+        return stable_sigmoid(values / self.target_temperature)
 
     def _forward(self, X):
         p = self.parameters
         hidden = np.tanh(X @ p["w1"]+p["b1"])
         output = hidden @ p["w2"]+p["b2"]
-        return (stable_sigmoid(output) if self.target_transform == "sigmoid" else output), hidden
+        return stable_sigmoid(output), hidden
 
     def predict(self, X):
         X = np.asarray(X, dtype=np.float64)
         if X.ndim != 2 or X.shape[1] != len(FEATURE_NAMES) or not np.isfinite(X).all():
             raise ValueError("Invalid scorer feature input")
         scores, _ = self._forward((X-self.x_mean)/self.x_scale)
-        result = scores*self.y_scale+self.y_mean
+        result = scores
         if not np.isfinite(result).all():
             raise ValueError("Nonfinite learned candidate scores")
         return result
 
     def save(self, path):
-        write_json(path, {"format": "lattice_return_mlp_v3", "feature_version": FEATURE_VERSION,
+        write_json(path, {"format": "state_road_trajectory_mlp_v1", "feature_version": FEATURE_VERSION,
+                         "input_groups": INPUT_GROUPS,
                          "feature_names": FEATURE_NAMES, "parameters": self.parameters,
                          "x_mean": self.x_mean, "x_scale": self.x_scale,
-                         "y_mean": self.y_mean, "y_scale": self.y_scale,
                          "training_target_transform": self.target_specification,
-                         "output_activation": "sigmoid" if self.target_transform == "sigmoid" else "linear",
+                         "output_activation": "sigmoid",
                          "planner_source_sha256": self.planner_source_sha256,
+                         "policy_input_schema": POLICY_INPUT_SCHEMA,
+                         "policy_encoder_sha256": policy_encoder_sha256(),
                          "provenance": self.provenance})
 
     @classmethod
-    def load(cls, path, *, check_source=True):
+    def load(cls, path):
         record = json.loads(Path(path).read_text(encoding="utf-8"))
-        if (record.get("format") not in ("lattice_return_mlp_v2", "lattice_return_mlp_v3")
+        if (record.get("format") != "state_road_trajectory_mlp_v1"
                 or record.get("feature_version") != FEATURE_VERSION
                 or record.get("feature_names") != list(FEATURE_NAMES)):
             raise ValueError("Unsupported scorer format/schema")
-        if check_source and record["planner_source_sha256"] != planner_source_sha256():
-            raise ValueError("Scorer was trained against a different planner source revision")
-        legacy = record["format"] == "lattice_return_mlp_v2"
+        if (record.get('policy_input_schema')!=POLICY_INPUT_SCHEMA or
+                record.get('policy_encoder_sha256')!=policy_encoder_sha256() or
+                record.get('input_groups')!={k:list(v) for k,v in INPUT_GROUPS.items()}):
+            raise ValueError('Scorer state/road/trajectory input or encoder semantics differ')
         transform = record.get("training_target_transform")
-        if not legacy and not isinstance(transform, dict):
+        if not isinstance(transform, dict):
             raise ValueError("Checkpoint does not declare its training target transform")
         model = cls(hidden=len(record["parameters"]["b1"]),
-                    target_transform="identity" if legacy else transform.get("name"),
-                    target_temperature=1.0 if legacy else transform.get("temperature", float("nan")))
-        if not legacy and (transform != model.target_specification or record.get("output_activation") != (
-                "sigmoid" if model.target_transform == "sigmoid" else "linear")):
+                    target_transform=transform.get("name"),
+                    target_temperature=transform.get("temperature", float("nan")))
+        if transform != model.target_specification or record.get("output_activation") != "sigmoid":
             raise ValueError("Checkpoint score semantics are inconsistent")
         model.parameters = {name: np.asarray(record["parameters"][name], dtype=float)
                             for name in ("w1", "b1", "w2", "b2")}
         model.x_mean, model.x_scale = np.asarray(record["x_mean"]), np.asarray(record["x_scale"])
-        model.y_mean, model.y_scale = float(record["y_mean"]), float(record["y_scale"])
         model.planner_source_sha256, model.provenance = record["planner_source_sha256"], record.get("provenance", {})
         validate_label_source(model.provenance.get('label_source'))
         CStarTrackingSettings.from_specification(model.provenance.get("objective"))
         if model.provenance.get("target") != CSTAR_TARGET:
             raise ValueError("Checkpoint does not declare the C* policy target")
-        if not legacy and model.provenance.get("training_target_transform") != model.target_specification:
+        if model.provenance.get("training_target_transform") != model.target_specification:
             raise ValueError("Checkpoint target transform differs from its training provenance")
         hidden = len(model.parameters["b1"])
         shapes = {"w1": (len(FEATURE_NAMES), hidden), "b1": (hidden,), "w2": (hidden,), "b2": (1,)}
@@ -127,11 +126,8 @@ class ReturnMLP:
             raise ValueError("Invalid model tensor shapes or values")
         if (model.x_mean.shape != (len(FEATURE_NAMES),) or model.x_scale.shape != model.x_mean.shape
                 or not np.isfinite(model.x_mean).all() or not np.isfinite(model.x_scale).all()
-                or (model.x_scale <= 0).any() or not np.isfinite([model.y_mean, model.y_scale]).all()
-                or model.y_scale <= 0):
+                or (model.x_scale <= 0).any()):
             raise ValueError("Invalid model normalization")
-        if model.target_transform == "sigmoid" and (model.y_mean != 0.0 or model.y_scale != 1.0):
-            raise ValueError("Sigmoid scores must not use raw-return output normalization")
         return model
 
     def fit(self, X, y, groups, validation_X, validation_y, *,
@@ -145,10 +141,8 @@ class ReturnMLP:
         self.x_mean, self.x_scale = X.mean(axis=0), X.std(axis=0)
         self.x_scale[self.x_scale < 1e-8] = 1.0
         targets, validation_targets = self.training_targets(y), self.training_targets(validation_y)
-        self.y_mean, self.y_scale = (0.0, 1.0) if self.target_transform == "sigmoid" else (
-            float(y.mean()), max(float(y.std()), 1e-6))
         normalized_X = (X-self.x_mean)/self.x_scale
-        normalized_y = (targets-self.y_mean)/self.y_scale
+        normalized_y = targets
         weights = np.empty(len(y))
         pairs = []
         for group in np.unique(groups):
@@ -172,8 +166,7 @@ class ReturnMLP:
                 np.add.at(derivative, a, 2*pair_weight*differences/len(a))
                 np.add.at(derivative, b, -2*pair_weight*differences/len(a))
             p = self.parameters
-            if self.target_transform == "sigmoid":
-                derivative *= predictions * (1 - predictions)
+            derivative *= predictions * (1 - predictions)
             back = derivative[:, None]*p["w2"][None, :]*(1-hidden**2)
             gradients = {"w1": normalized_X.T @ back+2*l2*p["w1"], "b1": back.sum(axis=0),
                          "w2": hidden.T @ derivative+2*l2*p["w2"],
@@ -227,12 +220,10 @@ def selection_metrics(data, mask, prediction, *, metric_targets=None, prediction
 
 
 def train_model(dataset, output, *, epochs=150, hidden=32, seed=0, learning_rate=0.005,
-                allow_incomplete_coverage=False, target_temperature=1.0):
+                target_temperature=1.0):
     data, metadata = load_dataset(dataset)
-    if not isinstance(allow_incomplete_coverage, bool):
-        raise ValueError("allow_incomplete_coverage must be boolean")
-    # Legacy metadata used training_eligible for whole-road coverage. Recompute
-    # fit eligibility from validated candidate labels without rewriting the corpus.
+    # Fit readiness depends on valid labels and splits; road completion is
+    # reported separately from per-candidate supervision.
     readiness = training_readiness(data)
     if not readiness['eligible']:
         raise ValueError('Training requires at least two Train rows and a nonempty Validation split')
@@ -261,7 +252,6 @@ def train_model(dataset, output, *, epochs=150, hidden=32, seed=0, learning_rate
     model.provenance["training_readiness"] = readiness
     model.provenance["road_coverage_complete"] = road_coverage_complete(coverage)
     model.provenance["coverage_override_applied"] = False
-    model.provenance["legacy_coverage_override_requested"] = allow_incomplete_coverage
     model.provenance["training_scope"] = "candidate_supervision"
     model.provenance["collection_coverage"] = deepcopy(coverage)
     model.provenance["best_epoch"] = min(history,key=lambda row:row['validation_rmse'])['epoch']

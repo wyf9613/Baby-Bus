@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Separate MVP2.1 entry; the original training/deployment entry is preserved."""
+"""MVP2.1 entry; policy_node.py is a compatibility name for this same backend."""
 from pathlib import Path
 import sys
 

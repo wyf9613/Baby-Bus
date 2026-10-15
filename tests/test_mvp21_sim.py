@@ -119,7 +119,7 @@ class MVP21IntegrationChecks(unittest.TestCase):
         road=json.loads(DEFAULT_ROAD.read_text())
         with tempfile.TemporaryDirectory(dir=ROOT/'.verification',prefix='mvp21-lattice-test-') as directory:
             directory=Path(directory)
-            fresh=run(road,directory/'fresh',max_steps=2,path_source='lattice')
+            fresh=run(road,directory/'fresh',max_steps=2,path_source='lattice',lattice_cadence='control')
             stale=run(road,directory/'stale',max_steps=2,path_source='lattice',lattice_cadence='upstream')
             self.assertEqual(fresh['valid_reference_count'],2)
             self.assertEqual(fresh['shadow']['calls'],2)

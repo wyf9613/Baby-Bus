@@ -1,99 +1,75 @@
-"""Versioned observation/candidate features; evaluator truth is never read."""
-import math
-
+"""Encode current state, current road/obstacles and candidate trajectory only."""
 import numpy as np
+from .reference import trajectory_samples
 
-from .source import candidate_api
-
-FEATURE_VERSION = "lattice_scene_candidate_v3"
-ROAD_X = np.linspace(0, 3, 7)
-PATH_FRACTIONS = np.linspace(0, 1, 12)
-_SCENE_NAMES = [
-    "speed_mps", "yaw_rate_rps", "speed_valid", "yaw_valid", "road_valid", "forward_geometry_valid",
-    "road_degraded", "road_width_m", "road_confidence", "road_near_x_m", "road_far_x_m",
-    "road_source_age_s", "road_prediction_remaining_s", "recommended_speed_scale"]
-for _name in ("cone_detections", "wheel_speed", "imu_angular_velocity", "lidar_cartesian"):
-    _SCENE_NAMES += [_name+"_available", _name+"_age_s"]
-for _side in ("centerline", "left_boundary", "right_boundary"):
-    for _index in range(len(ROAD_X)):
-        _SCENE_NAMES += [f"{_side}_{_index}_y_m", f"{_side}_{_index}_supported"]
-_SCENE_NAMES += [f"lidar_sector_{i}_min_m" for i in range(8)]
-_SCENE_NAMES += ["obstacle_points_available"]
-_CANDIDATE_NAMES = ["length_m", "offset_m", "duration_s", "terminal_speed_mps", "planned_stop",
-                    "minimum_clearance_m", "reference_lifetime_s", "rule_center", "rule_clearance", "rule_steering",
-                    "rule_consistency", "rule_motion"]
-for _index in range(len(PATH_FRACTIONS)):
-    _CANDIDATE_NAMES += [f"path_{_index}_{field}" for field in ("x_m", "y_m", "heading_rad", "curvature_1pm")]
-for _index in range(7):
-    _CANDIDATE_NAMES += [f"speed_{_index}_mps"]
-FEATURE_NAMES = tuple(_SCENE_NAMES + _CANDIDATE_NAMES)
+FEATURE_VERSION = 'state_road_trajectory_v1'
+ROAD_POINTS = 16
+OBSTACLE_POINTS = 256
+TRAJECTORY_POINTS = 16
+TRAJECTORY_COLUMNS = ('time_s','x_m','y_m','heading_rad','speed_mps','s_ref_relative_m','d_m')
+_STATE_NAMES = ('speed_mps','yaw_rate_rps','speed_valid','yaw_rate_valid')
+_ROAD_NAMES = tuple(f'{side}_{i}_{field}' for side in ('centerline','left_boundary','right_boundary')
+                    for i in range(ROAD_POINTS) for field in ('x_m','y_m','present'))
+_OBSTACLE_NAMES = ('obstacles_available',)+tuple(f'obstacle_{i}_{field}'
+    for i in range(OBSTACLE_POINTS) for field in ('x_m','y_m','z_m','present'))
+_TRAJECTORY_NAMES = tuple(f'trajectory_{i}_{field}' for i in range(TRAJECTORY_POINTS)
+                          for field in TRAJECTORY_COLUMNS)
+FEATURE_NAMES = _STATE_NAMES+_ROAD_NAMES+_OBSTACLE_NAMES+_TRAJECTORY_NAMES
+INPUT_GROUPS = {
+    'current_state': (0,len(_STATE_NAMES)),
+    'current_road_and_obstacles': (len(_STATE_NAMES),len(_STATE_NAMES+_ROAD_NAMES+_OBSTACLE_NAMES)),
+    'candidate_trajectory': (len(_STATE_NAMES+_ROAD_NAMES+_OBSTACLE_NAMES),len(FEATURE_NAMES)),
+}
 
 
-def _number(value, default=0.0):
-    return float(value) if value is not None and math.isfinite(value) else default
+def _points(values,columns,name):
+    result=np.asarray(values if values is not None else [],dtype=float)
+    if result.size==0:return np.empty((0,columns))
+    if result.ndim!=2 or result.shape[1]!=columns or not np.isfinite(result).all():
+        raise ValueError(f'{name} requires finite {columns}-column points')
+    return result
+
+
+def _polyline(values):
+    points=_points(values,2,'Road');result=np.zeros((ROAD_POINTS,3))
+    if not len(points):return result.ravel()
+    points=points[np.r_[True,np.linalg.norm(np.diff(points,axis=0),axis=1)>1e-9]]
+    arc=np.r_[0.,np.cumsum(np.linalg.norm(np.diff(points,axis=0),axis=1))]
+    samples=np.linspace(0,arc[-1],ROAD_POINTS)
+    for axis in (0,1):result[:,axis]=np.interp(samples,arc,points[:,axis])
+    result[:,2]=1.
+    return result.ravel()
 
 
 def scene_features(observation):
-    estimates = observation["estimation"]
-    state, raw = estimates["state"], estimates["road"]
-    forward = raw.get("forward_geometry") or {}
-    road = raw if raw.get("valid") else forward
-    bounds = road.get("x_range_m") or [0.0, 0.0]
-    values = [_number(state.get("speed_mps")), _number(state.get("yaw_rate_rps")),
-              float(state.get("speed_valid", False)), float(state.get("yaw_rate_valid", False)),
-              float(raw.get("valid", False)), float(forward.get("geometry_valid", False)),
-              float(road.get("degraded", False)), _number(road.get("lane_width_m")),
-              _number(road.get("confidence")), float(bounds[0]), float(bounds[1]),
-              _number(road.get("source_age_s"), 0.5), _number(road.get("prediction_remaining_s")),
-              _number(road.get("recommended_speed_scale"), 1.0)]
-    for name in ("cone_detections", "wheel_speed", "imu_angular_velocity", "lidar_cartesian"):
-        values += [float(observation["sensor_available"].get(name, False)),
-                   _number(observation["sensor_age_s"].get(name), 0.5)]
-    for key in ("centerline_xy", "left_boundary_xy", "right_boundary_xy"):
-        points = road.get(key) or []
-        for x in ROAD_X:
-            supported = bool(points and points[0][0] <= x <= points[-1][0])
-            value = np.interp(x, [p[0] for p in points], [p[1] for p in points]) if supported else 0.0
-            values += [float(value), float(supported)]
-    obstacles = estimates["obstacles"]
-    sectors = [4.0]*8
-    if obstacles.get("available"):
-        for x, y, _ in obstacles.get("points_xyz_m", []):
-            if x < 0:
-                continue
-            angle = math.atan2(y, x)
-            index = min(7, max(0, int((angle+math.pi/2)/math.pi*8)))
-            sectors[index] = min(sectors[index], math.hypot(x, y))
-    values += sectors+[float(obstacles.get("available", False))]
-    result = np.asarray(values, dtype=np.float64)
-    if len(result) != len(_SCENE_NAMES) or not np.isfinite(result).all():
-        raise ValueError("Invalid scene feature schema")
+    estimates=observation['estimation'];state=estimates['state']
+    speed_valid=bool(state.get('speed_valid'));yaw_valid=bool(state.get('yaw_rate_valid'))
+    values=[state['speed_mps'] if speed_valid else 0.,state['yaw_rate_rps'] if yaw_valid else 0.,
+            float(speed_valid),float(yaw_valid)]
+    road=estimates['road']
+    if not road.get('valid'):road=road.get('forward_geometry') or road
+    for side in ('centerline','left_boundary','right_boundary'):
+        values.extend(_polyline(road.get(side+'_xy')))
+    obstacles=estimates['obstacles'];available=bool(obstacles.get('available'))
+    points=_points(obstacles.get('points_xyz_m') if available else [],3,'Obstacles')
+    if len(points)>OBSTACLE_POINTS:
+        raise ValueError(f'Obstacle input exceeds {OBSTACLE_POINTS} points; refusing silent truncation')
+    # Canonical packet ordering; no sector aggregation or distance cost.
+    if len(points):points=points[np.lexsort((points[:,2],points[:,1],points[:,0]))]
+    padded=np.zeros((OBSTACLE_POINTS,4));padded[:len(points),:3]=points;padded[:len(points),3]=1.
+    values.extend([float(available),*padded.ravel()])
+    result=np.asarray(values,dtype=float)
+    if result.shape!=(INPUT_GROUPS['candidate_trajectory'][0],) or not np.isfinite(result).all():
+        raise ValueError('Invalid current-state/road/obstacle input')
     return result
 
 
 def candidate_features(candidate):
-    descriptor, ref = candidate["descriptor"], candidate["reference"]
-    values = [descriptor[key] for key in ("length_m", "offset_m", "duration_s", "terminal_speed_mps")]
-    values += [float(ref["planned_stop"]), candidate["minimum_clearance_m"], ref["valid_for_s"]]
-    values += [descriptor["costs"][key] for key in ("center", "clearance", "steering", "consistency", "motion")]
-    api = candidate_api()
-    path = ref["frenet_path"]
-    curve = api.LatticeCurve.from_record(path["reference_curve"])
-    lateral = path["lateral"]
-    lo, hi = lateral["range"]
-    for fraction in PATH_FRACTIONS:
-        geom = api._lattice_geometry(curve, lateral["origin"], lateral["coeffs_low_to_high"],
-                                     lateral["scale"], lateral["terminal_offset_m"], lo+(hi-lo)*fraction)
-        values += [geom["x"], geom["y"], geom["heading"], geom["curvature"]]
-    profile = ref["speed_profile"]
-    for t in np.linspace(0, ref["longitudinal_profile"]["duration_s"], 7):
-        values.append(float(np.interp(t, [p[0] for p in profile], [p[1] for p in profile])))
-    result = np.asarray(values, dtype=np.float64)
-    if len(result) != len(_CANDIDATE_NAMES) or not np.isfinite(result).all():
-        raise ValueError("Invalid candidate feature schema")
+    return trajectory_samples(candidate,TRAJECTORY_POINTS).ravel()
+
+
+def encode_candidate(observation,candidate,*,context=None):
+    result=np.concatenate((scene_features(observation) if context is None else context,candidate_features(candidate)))
+    if result.shape!=(len(FEATURE_NAMES),) or not np.isfinite(result).all():
+        raise ValueError('Invalid state/road/trajectory input')
     return result
-
-
-def encode_candidate(observation, candidate, *, context=None):
-    return np.concatenate((scene_features(observation) if context is None else context,
-                           candidate_features(candidate)))

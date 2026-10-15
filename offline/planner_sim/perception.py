@@ -1,47 +1,19 @@
 """Virtual sensor conversion and reuse of the deployed pure estimator."""
-import ast
-from copy import deepcopy
-from dataclasses import dataclass
 import hashlib
 import math
-from numbers import Real
-import sys
-from types import ModuleType
-
 import numpy as np
 from dreamgym.envs import Road
-
 from .notebook import ROOT
-
-ESTIMATOR_SOURCE = ROOT / "scripts/policy_node.py"
-_DEFINITIONS = {
-    "finite_number", "EstimationSettings", "FirstOrderSampleFilter",
-    "EstimationMotionHistory", "_estimation_median", "_estimation_solve",
-    "_estimation_fit_boundary", "EstimationPipeline",
-}
+from mvp21_policy.estimation import EstimationPipeline,EstimationSettings
 
 
 def make_estimator(settings=None):
-    """Load actual estimator definitions; no rclpy or test-module imports."""
-    data = ESTIMATOR_SOURCE.read_bytes()
-    digest = hashlib.sha256(data).hexdigest()
-    module_name = "_baby_bus_sim_estimator_" + digest[:16]
-    if module_name not in sys.modules:
-        nodes = [node for node in ast.parse(data).body
-                 if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in _DEFINITIONS]
-        if {node.name for node in nodes} != _DEFINITIONS:
-            raise RuntimeError("Deployed estimator definitions changed; update the simulation adapter")
-        module = ModuleType(module_name)
-        module.__dict__.update(dataclass=dataclass, math=math, Real=Real, deepcopy=deepcopy)
-        sys.modules[module_name] = module
-        try:
-            exec(compile(ast.Module(body=nodes, type_ignores=[]), str(ESTIMATOR_SOURCE), "exec"), module.__dict__)
-        except Exception:
-            del sys.modules[module_name]
-            raise
-    api = sys.modules[module_name]
-    config = api.EstimationSettings(**(settings or {}))
-    return api.EstimationPipeline(config, "base_link", 2, 1), digest
+    """Use the latest module; plant colour mapping remains notebook blue-left."""
+    digest=hashlib.sha256()
+    for name in ('estimation.py','motion.py','geometry.py'):
+        digest.update((ROOT/'mvp21_policy'/name).read_bytes().replace(b'\r\n',b'\n'))
+    config=EstimationSettings(**(settings or {}))
+    return EstimationPipeline(config,'base_link'),digest.hexdigest()
 
 
 def native_sensor_packets(observation, observation_config, confidence):

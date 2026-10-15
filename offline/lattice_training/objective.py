@@ -4,9 +4,9 @@ import math
 
 import numpy as np
 
-from .source import candidate_api
+from .reference import spatial_reference,polynomial
 
-CSTAR_OBJECTIVE = "cstar_full_path_loss_v2"
+CSTAR_OBJECTIVE = "cstar_authored_trajectory_loss_v1"
 CSTAR_TARGET = "negative_expected_full_path_cost"
 
 
@@ -62,7 +62,7 @@ class CStarTrackingSettings:
                                "state_columns": ["x_m", "y_m", "motion_heading_rad", "speed_mps"],
                                "control_columns": ["drive_normalized", "steer_normalized"],
                                "frame": "decision_base_link", "sampling": "interval_end_states",
-                               "reference": "full_frenet_path_original_timing_then_terminal_speed_extension",
+                               "reference": "explicit_full_candidate_timing",
                                "horizon_policy": "complete_spatial_path_or_planned_stop",
                                "normalization": "time_average_plus_terminal_cost",
                                "speed_utility": "mean_positive_velocity_along_reference_on_moving_stages",
@@ -93,42 +93,32 @@ def _array(value, shape, name):
 
 
 def reference_plan(candidate, settings=None):
-    """Cover the entire native spatial path, preserving the authored time prefix."""
+    """Evaluate explicitly timed full candidates; no implicit path extension."""
     cfg = settings or CStarTrackingSettings()
-    api = candidate_api()
     reference = candidate["reference"]
-    lateral = reference["frenet_path"]["lateral"]
-    curve = api.LatticeCurve.from_record(reference["frenet_path"]["reference_curve"])
+    bounds,geometry=spatial_reference(reference)
     longitudinal = reference["longitudinal_profile"]
     duration = float(longitudinal["duration_s"])
     coefficients = np.asarray(longitudinal["coeffs_low_to_high"], dtype=float)
     if (not math.isfinite(duration) or duration <= 0 or coefficients.ndim != 1
             or not 1 <= len(coefficients) <= 6 or not np.isfinite(coefficients).all()
-            or longitudinal.get("type") != "S_REF_OF_TIME"):
+            or longitudinal.get("type") != "P_PATH_OF_TIME"):
         raise ValueError("Invalid original longitudinal reference")
     profile = np.asarray(reference["speed_profile"], dtype=float)
     if (profile.ndim != 2 or profile.shape[1] != 2 or len(profile) < 2 or not np.isfinite(profile).all()
             or (np.diff(profile[:,0]) <= 0).any() or profile[0,0] > 1e-8
             or profile[-1,0]+1e-8 < duration or (profile[:,1] < 0).any()):
         raise ValueError("Physical speed profile must cover its authored duration")
-    lo, hi = map(float,lateral["range"])
-    def geometry(s):
-        return api._lattice_geometry(curve,lateral["origin"],lateral["coeffs_low_to_high"],
-                                     lateral["scale"],lateral["terminal_offset_m"],float(s))
-    end_s = float(api._control_poly_eval(coefficients,1.0))
+    lo, hi = map(float,bounds)
+    end_s = float(polynomial(coefficients,1.0))
     if not lo-1e-7 <= end_s <= hi+1e-7:
         raise ValueError("Timed candidate exceeds its admitted spatial support")
     stopping = reference.get("planned_stop") is True or longitudinal.get("stop") is True
-    goal_s = end_s if stopping else hi
+    if not stopping and not math.isclose(end_s,hi,rel_tol=0.,abs_tol=1e-7):
+        raise ValueError('Candidate timing must cover the full path; implicit extensions are unsupported')
+    goal_s = end_s
     terminal_speed = float(profile[-1,1])
-    extension_s, extension_times = np.array([end_s]), np.array([0.0])
-    if not stopping and goal_s-end_s > 1e-7:
-        if terminal_speed <= 0.01:
-            raise ValueError("Cruise needs a positive terminal speed to cover the full path")
-        extension_s = np.linspace(end_s,goal_s,max(2,int(math.ceil((goal_s-end_s)/.01))+1))
-        xy = np.asarray([[geometry(s)["x"],geometry(s)["y"]] for s in extension_s])
-        extension_times = np.r_[0.0,np.cumsum(np.linalg.norm(np.diff(xy,axis=0),axis=1))/terminal_speed]
-    required = duration+float(extension_times[-1])+(cfg.stop_settle_s if stopping else 0.0)
+    required = duration+(cfg.stop_settle_s if stopping else 0.0)
     horizon = max(cfg.horizon_s,math.ceil(required/cfg.dt_s-1e-8)*cfg.dt_s)
     if horizon > cfg.max_horizon_s+1e-8:
         raise ValueError("Full candidate exceeds max_horizon_s; refusing a truncated score")
@@ -136,9 +126,9 @@ def reference_plan(candidate, settings=None):
     times, targets = np.arange(steps+1)*cfg.dt_s, []
     for t in times:
         if t <= duration+1e-10:
-            s = api._control_poly_eval(coefficients,min(1.0,float(t)/duration))
+            s = polynomial(coefficients,min(1.0,float(t)/duration))
         else:
-            s = float(np.interp(t-duration,extension_times,extension_s))
+            s = end_s
         if not lo-1e-7 <= s <= hi+1e-7:
             raise ValueError("Timed candidate exceeds its admitted spatial support")
         g = geometry(min(hi,max(lo,s)))

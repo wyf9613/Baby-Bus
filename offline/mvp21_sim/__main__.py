@@ -19,14 +19,24 @@ DEFAULT_ROAD = ROOT/'offline/lattice_training/artifacts/2026-10-15-native-diagno
 
 def run(road, output, *, road_input='perception', max_steps=1200, seed=0, progress=None,
         initial_speed=0., latency_steps=4, steering_sign=-1., shadow_enabled=True,
-        path_source='perception', lattice_cadence='control', lattice_prefix_rate_hz=None):
+        path_source='perception', lattice_cadence='cached', lattice_prefix_rate_hz=None,
+        delivery_delay_s=.1, measured_delay=False, handoff_budget_s=None,
+        lattice_coverage='generated', lattice_length_m=1.3):
+    if path_source == 'lattice' and lattice_cadence == 'cached':
+        if not shadow_enabled or lattice_prefix_rate_hz is not None:
+            raise ValueError('Cached experiment requires enabled original 1 Hz settings')
+        from .one_hz import run_cached
+        return run_cached(road,output,road_input=road_input,max_steps=max_steps,seed=seed,progress=progress,
+            initial_speed=initial_speed,latency_steps=latency_steps,steering_sign=steering_sign,
+            delivery_delay_s=delivery_delay_s,measured_delay=measured_delay,handoff_budget_s=handoff_budget_s,
+            lattice_coverage=lattice_coverage,lattice_length_m=lattice_length_m)
     preserved = verify_preserved_files()
     active, config = api(), parameters()
     if config['planning']['algorithm'] != 'road_centerline' or config['control']['mode'] != 'mvp':
         raise ValueError('This adapter verifies the pinned road_centerline/MVP chain only')
     if config['control']['robustness_enabled'] or config['control']['end_straight_distance_m']:
         raise ValueError('A changed upstream recovery mode requires its lifecycle adapter')
-    if path_source not in ('perception', 'lattice') or lattice_cadence not in ('control', 'upstream'):
+    if path_source not in ('perception', 'lattice') or lattice_cadence not in ('control', 'upstream', 'cached'):
         raise ValueError('Unknown path source or lattice cadence')
     if path_source == 'lattice' and not shadow_enabled:
         raise ValueError('Lattice control requires the planner to be enabled')
@@ -194,8 +204,15 @@ def main():
     parser.add_argument('--road-input',choices=('perception','map'),default='perception')
     parser.add_argument('--path-source',choices=('perception','lattice'),default='perception',
         help='Offline experiment: send selected lattice geometry to the unchanged controller')
-    parser.add_argument('--lattice-cadence',choices=('control','upstream'),default='control',
-        help='control: fresh path every 20 Hz cycle; upstream: literal 1 Hz handoff, no motion warp')
+    parser.add_argument('--lattice-cadence',choices=('control','upstream','cached'),default='cached',
+        help='control: fresh 20 Hz; upstream: literal handoff; cached: 1 Hz with motion alignment and delayed delivery')
+    parser.add_argument('--delivery-delay-s',type=float,default=.1)
+    parser.add_argument('--measured-delay',action='store_true',help='Add measured planner CPU time to simulated delivery delay')
+    parser.add_argument('--handoff-budget-s',type=float,help='Explicit assumed delay budget; required with --measured-delay')
+    parser.add_argument('--lattice-coverage',choices=('prefix','generated'),default='generated',
+        help='Cached control defaults to checking/scoring the generated path; shadow mode is unchanged')
+    parser.add_argument('--lattice-length-m',type=float,default=1.3,
+        help='Cached execution profile minimum path length (m); default 1.3 for this recorded-road fixture')
     parser.add_argument('--lattice-prefix-rate-hz',type=float,
         help='Explicit sensitivity override of shadow rate_hz used in hold/check/score lengths; default unchanged 1 Hz')
     parser.add_argument('--max-steps',type=int,default=1200)
@@ -212,7 +229,9 @@ def main():
         max_steps=args.max_steps,seed=args.seed,progress=args.progress,initial_speed=args.initial_speed,
         latency_steps=args.latency_steps,steering_sign=args.steering_sign,shadow_enabled=not args.no_shadow,
         path_source=args.path_source,lattice_cadence=args.lattice_cadence,
-        lattice_prefix_rate_hz=args.lattice_prefix_rate_hz)
+        lattice_prefix_rate_hz=args.lattice_prefix_rate_hz,delivery_delay_s=args.delivery_delay_s,
+        measured_delay=args.measured_delay,handoff_budget_s=args.handoff_budget_s,
+        lattice_coverage=args.lattice_coverage,lattice_length_m=args.lattice_length_m)
     return 0 if result['completed'] else 1
 
 

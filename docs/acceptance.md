@@ -1,12 +1,64 @@
 # AI4R policy acceptance
 
-Last full training/integration suite result: 53 checks passed on 2026-10-15.
-Later offline option changes are covered by the recorded experiments below.
-The run and collect commands share one pipeline
-and one training test file. Eight-road collection has the incomplete-road
-coverage described below. C* is a constrained numerical approximation, not a proven global optimum.
+Current policy input is limited to current state, current road/obstacles and
+candidate trajectory. Old 140/148-feature and polynomial-candidate compatibility
+code was removed at the user's request. The old migration claim is superseded.
+C* remains a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
-Historical V2/controller/physical evidence below remains separate.
+Historical planner/controller/physical evidence below remains separate.
+
+## Three-input learned policy, 2026-10-15
+
+The scorer now reads only current state, current road/obstacles and candidate
+trajectory. Raw point/trajectory sampling and padding replace planner cost,
+clearance-statistic, sector-aggregation and previous-path features. The old
+model loaders and polynomial-candidate decoder are deleted. Native scores are
+baseline diagnostics only. Current models/datasets have a distinct schema and
+cannot silently load historical 140/148-feature checkpoints.
+
+The complete 61-case input/training suite passed. Final removal of implicit
+time-profile extension was followed by 40 passing targeted input/objective/model/
+C* checks, including real-environment CLI collection, training, save/load and
+evaluation. Forty worker/reference/simulation/bundle checks also passed. Neural
+input and prediction invariance under altered planner scores, past paths and
+labels is tested; the three raw input groups retain their geometric information.
+The final time contract requires full explicit candidate coverage. Objective
+weights and C* optimizer are retained; no automatic terminal-speed path tail is
+added. The source and configuration identify this stricter objective explicitly.
+
+The unchanged native-ranked one-Hz framework still completes ideal/perception
+recorded-road runs: 149/151 cycles and 4.737976/4.747474 m final station. These are
+framework regressions, not learned-model road qualification. Training validation
+is a small real-C* smoke run; no production model training or deployment occurred.
+The ROS gate stops before build because the pinned dream_interfaces checkout is
+missing. Fifty-seven protected artifacts/plant/solver files pass checkpoint
+hashes; seventeen authorized source/config/document migrations are listed apart.
+
+See [input contract](../offline/lattice_training/POLICY_INPUT.md) and
+[fingerprinted checks](../offline/mvp21_sim/artifacts/2026-10-15/policy-three-inputs.json).
+
+## MVP2.1 one-Hz offline control, 2026-10-15
+
+Added bounded ordered-path reference reuse and segmented wheel/gyro motion
+alignment in the modular MVP2.1 implementation. Offline simulation submits at
+1 Hz and controls at 20 Hz while a causal service model delays planner delivery.
+An opt-in generated-path collision/scoring profile and explicit 1.3/1.5 m
+minimum lengths address the previously unchecked tail and acceleration-related
+preview exhaustion. The original shadow prefix profile and PID remain unchanged.
+
+Ideal/perception runs with measured planner CPU time plus an assumed 50 ms
+delivery overhead both complete: 8 valid results each, 147/149 tracking cycles,
+4.739302/4.754692 m final station, 0.179403/0.173813 m minimum corner margin.
+Fixed 100 ms delivery runs also complete. All 152 baseline actions match the
+previous centerline run; 74 original files and the pinned source/config remain
+unchanged. Eleven reference/delivery, eight simulation and four module/process/
+bundle checks pass (23 total), including expiry, old-run fencing and zero-action
+stop requests. This is not physical stopping or continuous-sweep qualification.
+
+Speed tracking still fails (about 0.78 m/s maximum versus 0.2 m/s target).
+ROS entry remains shadow-only; no deployment, hardware or executor real-time
+qualification. The ROS gate was not run: its pinned dependency is still absent.
+Details: offline/mvp21_sim/ONE_HZ_CONTROL.md and its fingerprinted artifact.
 
 ## Continuous boundary / full body clearance, 2026-10-15
 

@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 project(ai4r_policy)
 find_package(ament_cmake REQUIRED)
 
-# Preserve the original training/deployment entry. The modular MVP2.1 entry is
-# separate and can also be delivered through tools/bundle_python.py.
+# Both executable names use the same modular MVP2.1 implementation.
 install(PROGRAMS scripts/policy_node.py DESTINATION lib/${PROJECT_NAME})
 install(PROGRAMS scripts/mvp21_policy_node.py DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY mvp21_policy DESTINATION lib/${PROJECT_NAME}
@@ -15,6 +14,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(policy_node tests/test_policy_node.py TIMEOUT 60)
   ament_add_pytest_test(estimation tests/test_estimation.py TIMEOUT 30)
   ament_add_pytest_test(planning tests/test_planning.py TIMEOUT 30)
+  ament_add_pytest_test(centerline_follow tests/test_centerline_follow.py TIMEOUT 30)
   ament_add_pytest_test(lattice tests/test_lattice.py TIMEOUT 60)
   ament_add_pytest_test(control tests/test_control.py TIMEOUT 30)
 endif()

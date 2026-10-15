@@ -16,7 +16,7 @@ from mvp21_policy.lattice import ShadowLatticePlanner, ShadowSettings
 
 def worker_source_sha256():
     digest = hashlib.sha256()
-    for name in ('geometry.py', 'lattice.py', 'worker.py'):
+    for name in ('geometry.py', 'frenet.py', 'lattice.py', 'worker.py'):
         digest.update(name.encode()+b'\0')
         digest.update(Path(__file__).with_name(name).read_bytes().replace(b'\r\n', b'\n'))
     return digest.hexdigest()
@@ -43,7 +43,7 @@ def run_worker():
         result['generation'] = None if job is None else job.get('generation')
         result['job_id'] = None if job is None else job.get('job_id')
         result['source_sha256'] = source_sha256
-        result['source_sha256_format'] = 'mvp21_worker_geometry_lattice_v1'
+        result['source_sha256_format'] = 'mvp21_worker_geometry_lattice_v2'
         result['shadow_only'] = True
         encode_started = time.perf_counter()
         encoded = json.dumps(result, allow_nan=False, separators=(',', ':'))

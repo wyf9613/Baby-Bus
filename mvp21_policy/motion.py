@@ -147,6 +147,31 @@ class EstimationMotionHistory:
         c, s = math.cos(pose["yaw_rad"]), math.sin(pose["yaw_rad"])
         return (c*x+s*y, -s*x+c*y)
 
+    def pose_between_segments(self, start_s, end_s):
+        """Compose admitted short intervals; retain all gap/history checks.
+
+        A delayed planner result can predate the single-interval limit. Splitting
+        the interval does not synthesize samples or relax source freshness.
+        """
+        if not all(finite_number(v) for v in (start_s, end_s)) or end_s < start_s:
+            return None, 'invalid_motion_time'
+        total = dict(dx_m=0., dy_m=0., yaw_rad=0., travelled_distance_m=0., interval_s=end_s-start_s)
+        cursor = start_s
+        while cursor < end_s:
+            following = min(end_s, cursor+self.settings.motion_max_interval_s)
+            if following <= cursor:
+                return None, 'invalid_motion_time'
+            pose, problem = self.pose_between(cursor, following)
+            if problem:
+                return None, problem
+            c, s = math.cos(total['yaw_rad']), math.sin(total['yaw_rad'])
+            total['dx_m'] += c*pose['dx_m']-s*pose['dy_m']
+            total['dy_m'] += s*pose['dx_m']+c*pose['dy_m']
+            total['yaw_rad'] += pose['yaw_rad']
+            total['travelled_distance_m'] += pose['travelled_distance_m']
+            cursor = following
+        return total, None
+
     @staticmethod
     def inverse_transform_xy(point, pose):
         """A point in the frame at the END of pose -> the frame at its START."""

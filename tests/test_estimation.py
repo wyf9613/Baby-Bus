@@ -14,38 +14,24 @@ from types import SimpleNamespace
 import unittest
 
 
-SOURCE = Path(__file__).resolve().parents[1] / "scripts" / "policy_node.py"
+import sys
+ROOT=Path(__file__).resolve().parents[1]
 try:
     from ament_index_python.packages import get_package_prefix
 except ImportError:
-    pass  # Portable offline run: verify the working-tree source.
+    PACKAGE_ROOT=ROOT
 else:
-    # In the ROS gate verify the INSTALLED single-file policy, like the existing
-    # framework suite, rather than accidentally testing a different source copy.
-    SOURCE = Path(get_package_prefix("ai4r_policy")) / "lib" / "ai4r_policy" / "policy_node.py"
-tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
-names = {"finite_number", "Observation", "EstimationSettings", "FirstOrderSampleFilter", "EstimationMotionHistory",
-         "_estimation_median", "_estimation_solve", "_estimation_fit_boundary", "EstimationPipeline",
-         "PlanningSettings", "CenterlinePlanner", "evaluate_planning_path", "planning_vehicle_limits",
-         "ControlSettings", "VehicleCalibrationSettings", "ControlPID", "PolicyController", "wrap_angle",
-         "PolicyStopRequest", "RunDistanceLimiter",
-         "_control_poly_eval", "_control_poly_roots", "control_path_geometry"}
-names.update({"LatticeSettings", "LatticeCurve", "FrenetLatticePlanner", "_lattice_interp",
-              "_lattice_derivative", "_lattice_lateral", "_lattice_geometry", "_lattice_steering"})
-names.add("evaluate_frenet_path")
-names.add("_planning_control_geometry")
-definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
-               and item.name in names]
-policy_class = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
-policy_method = next(item for item in policy_class.body if isinstance(item, ast.FunctionDef)
-                     and item.name == "calculate_policy_actions")
-store_method = next(item for item in policy_class.body if isinstance(item, ast.FunctionDef)
-                    and item.name == "_store")
-namespace = {"dataclass": dataclass, "math": math, "deepcopy": deepcopy,
-             "time": __import__("time"),
-             "Real": __import__("numbers").Real,
-             "ConeDetection": SimpleNamespace(COLOR_BLUE=2, COLOR_YELLOW=1)}
-exec(compile(ast.Module(body=definitions+[policy_method, store_method], type_ignores=[]), str(SOURCE), "exec"), namespace)
+    PACKAGE_ROOT=Path(get_package_prefix('ai4r_policy'))/'lib/ai4r_policy'
+sys.path.insert(0,str(PACKAGE_ROOT))
+from mvp21_policy import api as modules,contracts
+SOURCE=PACKAGE_ROOT/'mvp21_policy/node.py'
+namespace={**vars(modules),**vars(contracts),'math':math,'deepcopy':deepcopy,
+           'time':__import__('time'),'ConeDetection':SimpleNamespace(COLOR_BLUE=2,COLOR_YELLOW=1)}
+tree=ast.parse(SOURCE.read_text(encoding='utf-8'))
+policy_class=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='PolicyNode')
+methods=[n for n in policy_class.body if isinstance(n,ast.FunctionDef) and n.name in ('calculate_policy_actions','_store')]
+exec(compile(ast.Module(body=methods,type_ignores=[]),str(SOURCE),'exec'),namespace)
+
 Settings = namespace["EstimationSettings"]
 Filter = namespace["FirstOrderSampleFilter"]
 Pipeline = namespace["EstimationPipeline"]
@@ -81,6 +67,123 @@ def input_record(speed=0.0, yaw=0.0, lidar=None):
 
 
 class EstimationChecks(unittest.TestCase):
+    def test_recorded_disjoint_return_keeps_near_side_and_learned_width(self):
+        record = json.loads((Path(__file__).parent / "fixtures" / "car15_disjoint_boundary_return.json").read_text())
+        first, returning = record["frames"]
+        pipeline = Pipeline(Settings(**record["estimation_parameters_at_capture"]))
+        batch = {"detections": returning["detections"]}
+        self.assertEqual(pipeline.road(batch, round(returning["timestamp_s"]*1e9), 0.0)["status"],
+                         "insufficient_common_range")  # No cold-start width guess.
+        pipeline._history_road({"detections": first["detections"]},
+                               round(first["timestamp_s"]*1e9), 0.0, first["timestamp_s"])
+        learned, seen = pipeline._learned_lane_width_m, pipeline._learned_lane_width_stamp_s
+        road = pipeline._history_road(batch, round(returning["timestamp_s"]*1e9),
+                                      0.0, returning["timestamp_s"])
+        self.assertTrue(road["valid"], road["status"])
+        self.assertEqual(road["single_side_fallback_reason"], "insufficient_common_range")
+        self.assertEqual(road["visibility"], "left_only")
+        self.assertTrue(all(x < 3.42 for x, _ in road["centerline_xy"]))
+        self.assertEqual(pipeline._learned_lane_width_m, learned)
+        self.assertEqual(pipeline._learned_lane_width_stamp_s, seen)
+
+    def test_disjoint_support_chooses_near_boundary_for_either_colour(self):
+        near = [0.5+0.2*i for i in range(7)]
+        far = [2.8+0.2*i for i in range(7)]
+        for near_side in ("left", "right"):
+            pipeline = Pipeline(Settings(road_forward_max_m=4.0,
+                                          single_side_from_learned_width=True))
+            pipeline._history_road(cones([(x, 0.5) for x in near], [(x, -0.5) for x in near]),
+                                   10_000_000_000, 0.0, 10.0)
+            road = pipeline._history_road(cones([(x, 0.5) for x in (near if near_side == "left" else far)],
+                                                [(x, -0.5) for x in (near if near_side == "right" else far)]),
+                                           10_100_000_000, 0.0, 10.1)
+            self.assertTrue(road["valid"], road["status"])
+            self.assertEqual(road["visibility"], near_side+"_only")
+            for x, y in road["centerline_xy"]:
+                self.assertLessEqual(x, near[-1])
+                self.assertAlmostEqual(y, 0.0)
+
+    def test_recorded_dropout_uses_width_learned_from_raw_both_sides(self):
+        record = json.loads((Path(__file__).parent / "fixtures" / "car15_single_side_dropout.json").read_text())
+        pipeline = Pipeline(Settings(**dict(record["estimation_parameters_at_capture"],
+                                            single_side_from_learned_width=True)))
+        first, missing = record["frames"]
+        both = pipeline._history_road({"detections": first["detections"]},
+                                      round(first["timestamp_s"]*1e9), 0.0, first["timestamp_s"])
+        self.assertTrue(both["valid"])
+        learned = pipeline._learned_lane_width_m
+        stamp = pipeline._learned_lane_width_stamp_s
+        inferred = pipeline._history_road({"detections": missing["detections"]},
+                                          round(missing["timestamp_s"]*1e9), 0.0, missing["timestamp_s"])
+        self.assertTrue(inferred["valid"], inferred["status"])
+        self.assertEqual(inferred["visibility"], "left_only")
+        self.assertEqual(inferred["centerline_source"], "left_boundary_inward_offset")
+        self.assertAlmostEqual(inferred["inward_offset_m"], learned/2)
+        self.assertEqual(inferred["lane_width_observed_at_s"], stamp)
+        self.assertIsNone(inferred["right_boundary_xy"])
+        self.assertEqual(pipeline._road_cones, [])
+        self.assertEqual(pipeline._learned_lane_width_m, learned)
+
+    def test_learned_offset_is_normal_to_either_sloping_boundary(self):
+        for missing_side in ("left", "right"):
+            pipeline = Pipeline(Settings(single_side_from_learned_width=True))
+            left, right = straight(slope=0.4, center=0.2)
+            pipeline._history_road(cones(left, right), 10_000_000_000, 0.0, 10.0)
+            road = pipeline._history_road(cones([] if missing_side == "left" else left,
+                                                [] if missing_side == "right" else right),
+                                           10_100_000_000, 0.0, 10.1)
+            self.assertTrue(road["valid"], road["status"])
+            self.assertAlmostEqual(road["inward_offset_m"], 0.5)
+            for x, y in road["centerline_xy"]:
+                self.assertAlmostEqual(y, 0.2+0.4*x, places=6)
+
+    def test_width_updates_only_on_both_sides_and_resets_with_history(self):
+        pipeline = Pipeline(Settings(single_side_from_learned_width=True))
+        left, right = straight(width=1.0)
+        pipeline._history_road(cones(left, right), 10_000_000_000, 0.0, 10.0)
+        pipeline._history_road(cones([(x, y+0.2) for x, y in left], []),
+                               10_100_000_000, 0.0, 10.1)
+        self.assertAlmostEqual(pipeline._learned_lane_width_m, 1.0)
+        self.assertEqual(pipeline._learned_lane_width_stamp_s, 10.0)
+        left, right = straight(width=1.4)
+        restored = pipeline._history_road(cones(left, right), 10_200_000_000, 0.0, 10.2)
+        self.assertEqual(restored["visibility"], "both")
+        self.assertFalse(restored.get("single_side_inferred_from_learned_width", False))
+        self.assertAlmostEqual(pipeline._learned_lane_width_m, 1.4)
+        self.assertEqual(pipeline._learned_lane_width_stamp_s, 10.2)
+        pipeline._clear_road_history()
+        self.assertIsNone(pipeline._learned_lane_width_m)
+        self.assertFalse(pipeline.road(cones(left, []), 10_300_000_000, 0.0)["valid"])
+
+    def test_recorded_tight_bend_admits_both_observed_sides_with_relaxed_slope(self):
+        record = json.loads((Path(__file__).parent / "fixtures" / "car15_slope_start.json").read_text())
+        for slope, status in ((2.0, "single_side_width_unknown"), (3.0, "observed")):
+            settings = Settings(**dict(record["estimation_parameters_at_capture"],
+                                       road_max_abs_slope=slope))
+            road = Pipeline(settings).road({"detections": record["detections"]},
+                                            round(record["timestamp_s"]*1e9), 0.0)
+            self.assertEqual(road["status"], status)
+            self.assertEqual(road["valid"], slope == 3.0)
+            self.assertEqual(road["boundary_diagnostics"]["left"]["fit_valid"], slope == 3.0)
+            self.assertTrue(road["boundary_diagnostics"]["right"]["fit_valid"])
+            if road["valid"]:
+                self.assertEqual(road["visibility"], "both")
+                self.assertTrue(0.8 < road["lane_width_m"] < 1.0)
+
+    def test_history_conflict_uses_measured_support_instead_of_global_fit_bias(self):
+        fit = namespace["_estimation_fit_boundary"](
+            [(0.0, 0.5, 0.95), (1.0, 0.5, 0.95), (2.0, 0.75, 0.95),
+             (3.0, 0.5, 0.95), (4.0, 0.5, 0.95)], Settings(huber_delta_m=0.15,
+                 road_forward_max_m=4.0, road_max_gap_m=2.0))
+        self.assertIsNotNone(fit)
+        a, b, c = fit["coeffs"]
+        old_y = a+2*b+4*c+0.31
+        self.assertLess(abs(old_y-0.75), 0.3)
+        self.assertFalse(Pipeline._observed_support_conflicts(2.0, old_y, fit, 0.3))
+        self.assertTrue(Pipeline._observed_support_conflicts(2.0, 1.2, fit, 0.3))
+        self.assertTrue(Pipeline._observed_support_conflicts(1.5, 1.2, fit, 0.3))
+        self.assertFalse(Pipeline._observed_support_conflicts(-0.1, 1.2, fit, 0.3))
+
     def test_cached_sample_is_not_reassimilated(self):
         f = Filter(0.15, 0.5)
         f.update(0.0, 1, 0.0)
@@ -208,13 +311,13 @@ class EstimationChecks(unittest.TestCase):
     def test_settings_reject_invalid_ranges_and_unbounded_work(self):
         for kwargs in ({"speed_tau_s": 0.0}, {"road_sample_spacing_m": 1e-6},
                        {"known_lane_width_m": -1.0}, {"road_width_min_m": 3.0},
-                       {"min_cone_confidence": float("nan")}):
+                       {"min_cone_confidence": float("nan")},
+                       {"single_side_from_learned_width": 1}):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 Settings(**kwargs)
 
-    def test_shipped_estimation_configuration_is_valid(self):
-        # The subtree consists only of double scalar defaults. Parse that
-        # restricted subset without adding a YAML dependency to the offline run.
+    def test_shipped_estimation_profile_enables_imported_history_fixes(self):
+        # Parse this restricted scalar subtree without a YAML dependency.
         import re
         config = Path(__file__).resolve().parents[1] / "config" / "ai4r_policy.yaml"
         scalars = {}
@@ -227,12 +330,27 @@ class EstimationChecks(unittest.TestCase):
                 continue
             if not line.startswith("      "):
                 break
-            match = re.fullmatch(r"      ([a-z_]+): (-?[0-9]+(?:\.[0-9]+)?)", line)
+            match = re.fullmatch(r"      ([a-z_]+): ([a-z_]+|-?[0-9]+(?:\.[0-9]+)?)", line)
             self.assertIsNotNone(match, line)
             self.assertNotIn(match[1], scalars)
-            scalars[match[1]] = float(match[2])
-        settings = Settings(**scalars)
-        self.assertLessEqual(settings.motion_max_interval_s, settings.max_source_age_s)
+            value = match[2]
+            scalars[match[1]] = (value == "true" if value in ("true", "false") else
+                                  int(value) if match[1] in ("left_colour", "right_colour") else
+                                  float(value) if value[0] in "-0123456789" else value)
+        expected = vars(Settings())
+        expected.update(left_colour=1, right_colour=2, road_geometry="ordered_xy",
+                        single_side_from_learned_width=True, single_side_offset_fraction=0.6,
+                        history_propagation="continuous", road_history_mode="distance",
+                        history_merge_single_side=True, history_merge_radius_m=0.08,
+                        continuous_road_output=True, max_source_age_s=1.5,
+                        motion_max_gap_s=0.25, motion_max_interval_s=0.5,
+                        road_prediction_max_distance_m=0.5, road_history_max_s=30.0,
+                        road_rear_support_m=1.0, road_hold_s=0.8, min_cone_confidence=0.25,
+                        road_forward_max_m=4.0, road_min_coverage_m=0.3,
+                        road_max_gap_m=2.0, huber_delta_m=0.20,
+                        road_width_min_m=0.15, road_width_max_m=2.5, road_max_abs_slope=3.0)
+        self.assertEqual(scalars, expected)
+        self.assertEqual(vars(Settings(**scalars)), scalars)
 
     def test_actual_student_entry_exports_estimates_and_returns_zero_actions(self):
         obs, ages, stamps, receipts = input_record()
@@ -585,6 +703,147 @@ class NearFieldHistoryChecks(unittest.TestCase):
         self.assertEqual(pipeline._road_cones, [])
 
 
+class CarRunHistoryChecks(unittest.TestCase):
+    """mpc-car-run switches: continuous propagation, distance lifetime, merge radius."""
+
+    @staticmethod
+    def step(pipeline, now_s, camera_s, xs, speed=0.0, offset=0.0):
+        # Policy step at now_s with the latest camera batch acquired at camera_s.
+        batch = cones([(x, offset+0.5) for x in xs], [(x, offset-0.5) for x in xs])
+        obs = {"cone_detections": batch, "wheel_speed": speed,
+               "imu_angular_velocity": (0.0, 0.0, 0.0), "lidar_cartesian": None}
+        ages = {key: 0.0 for key in obs}
+        ages["cone_detections"] = now_s-camera_s
+        return pipeline.update(obs, ages, {"cone_detections": round(camera_s*1e9), "wheel_speed": None,
+                                           "imu_angular_velocity": round(now_s*1e9)},
+                               {"wheel_speed": now_s}, now_s)
+
+    def drive_until_near_field(self, pipeline, speed=0.2, period=0.05, latency=0.0):
+        """Move along a straight cone road seen from 0.9 m; return (time, travelled) once valid."""
+        world = [0.9+0.3*i for i in range(30)]
+        travelled, now = 0.0, 10.0
+        for _ in range(400):
+            camera = now-latency
+            visible = [x-(travelled-speed*latency) for x in world if 0.9 <= x-(travelled-speed*latency) <= 3.0]
+            out = self.step(pipeline, now, camera, visible, speed)
+            if out["road"]["valid"]:
+                return now, travelled, world
+            now, travelled = now+period, travelled+speed*period
+        self.fail("near field never became observed")
+
+    def test_defaults_keep_the_original_behaviour_and_reject_bad_values(self):
+        cfg = Settings()
+        self.assertEqual((cfg.history_propagation, cfg.road_history_mode, cfg.history_merge_single_side,
+                          cfg.history_merge_radius_m), ("camera", "time", False, 0.0))
+        self.assertEqual(cfg.history_lifetime_s, cfg.road_history_s)
+        self.assertEqual(Settings(road_history_mode="distance").history_lifetime_s, 20.0)
+        for bad in ({"history_propagation": "always"}, {"road_history_mode": "space"},
+                    {"history_merge_single_side": 1}, {"history_merge_radius_m": -0.1},
+                    {"road_history_max_s": 4.0}, {"road_history_max_s": 31.0}):
+            with self.assertRaises(ValueError, msg=bad):
+                Settings(**bad)
+
+    def run_camera_gap(self, propagation):
+        pipeline = Pipeline(Settings(history_propagation=propagation, motion_max_interval_s=0.3))
+        now, travelled, world = self.drive_until_near_field(pipeline)
+        last_camera, last_visible = now, [x-travelled for x in world if 0.9 <= x-travelled <= 3.0]
+        gap = []
+        for k in range(1, 8):           # 0.35 s without a new camera batch
+            now, travelled = now+0.05, travelled+0.01
+            gap.append(self.step(pipeline, now, last_camera, last_visible, 0.2)["road"])
+        now, travelled = now+0.05, travelled+0.01
+        resumed = self.step(pipeline, now, now, [x-travelled for x in world if 0.9 <= x-travelled <= 3.0], 0.2)
+        return gap, resumed["road"], pipeline
+
+    def test_continuous_history_survives_a_camera_gap(self):
+        gap, resumed, pipeline = self.run_camera_gap("continuous")
+        self.assertFalse(gap[-1]["valid"])          # no output from a stale frame
+        self.assertIn(gap[-1]["status"], ("motion_interval_too_long", "unavailable"))
+        self.assertTrue(pipeline._road_cones)
+        self.assertTrue(resumed["valid"], resumed["status"])
+        self.assertTrue(resumed["history_used"])
+        self.assertLessEqual(resumed["near_field"]["coverage_x_m"][0], 0.0)
+
+    def test_camera_mode_still_loses_the_near_field_after_the_same_gap(self):
+        _, resumed, _ = self.run_camera_gap("camera")
+        self.assertFalse(resumed["valid"])
+        self.assertEqual(resumed["status"], "near_field_unobserved")
+
+    def test_continuous_history_still_clears_on_a_motion_gap(self):
+        pipeline = Pipeline(Settings(history_propagation="continuous"))
+        now, travelled, world = self.drive_until_near_field(pipeline)
+        pipeline.motion.clear()
+        out = self.step(pipeline, now+0.05, now+0.05, [x-travelled for x in world if 0.9 <= x-travelled <= 3.0], 0.2)
+        self.assertFalse(out["road"]["valid"])
+        self.assertFalse(out["road"]["history_used"])
+
+    def test_inverse_transform_undoes_the_transform(self):
+        motion = Motion(Settings())
+        pose = {"dx_m": 0.12, "dy_m": -0.03, "yaw_rad": 0.2}
+        x, y = motion.inverse_transform_xy(motion.transform_xy((1.3, 0.4), pose), pose)
+        self.assertAlmostEqual(x, 1.3)
+        self.assertAlmostEqual(y, 0.4)
+
+    def test_distance_lifetime_reaches_the_origin_at_low_speed(self):
+        # At 0.1 m/s a cone seen at 0.9 m needs 9 s to reach the car: past 5 s.
+        for mode, expected in (("time", False), ("distance", True)):
+            pipeline = Pipeline(Settings(road_history_mode=mode, history_propagation="continuous"))
+            world = [0.9+0.3*i for i in range(30)]
+            valid = False
+            for frame in range(240):
+                travelled = 0.1*0.05*frame
+                out = self.step(pipeline, 10+0.05*frame, 10+0.05*frame,
+                                [x-travelled for x in world if 0.9 <= x-travelled <= 3.0], 0.1)
+                valid = valid or out["road"]["valid"]
+            self.assertEqual(valid, expected, mode)
+
+    def one_sided(self, merge, left_offset=0.0):
+        """Two-sided history, then a frame that sees only the LEFT boundary."""
+        pipeline = Pipeline(Settings(history_merge_single_side=merge))
+        xs = [-0.3+0.3*i for i in range(9)]
+        self.step(pipeline, 10.0, 10.0, xs)
+        before = list(pipeline._road_cones)
+        batch = cones([(x, 0.5+left_offset) for x in xs[4:]], [])
+        obs = {"cone_detections": batch, "wheel_speed": 0.0,
+               "imu_angular_velocity": (0.0, 0.0, 0.0), "lidar_cartesian": None}
+        out = pipeline.update(obs, {key: 0.0 for key in obs},
+                              {"cone_detections": round(10.1e9), "wheel_speed": None,
+                               "imu_angular_velocity": round(10.1e9)}, {"wheel_speed": 10.1}, 10.1)
+        return out["road"], before, pipeline
+
+    def test_one_sided_frame_merges_with_the_other_side_history_when_enabled(self):
+        road, _, pipeline = self.one_sided(True)
+        self.assertTrue(road["valid"], road["status"])
+        self.assertEqual(road["status"], "observed_with_history")
+        self.assertEqual(road["boundary_source"], {"left": "observed_with_history", "right": "history"})
+        self.assertTrue(road["merged_partial_frame"])
+        self.assertTrue(any(p[3] == 1 for p in pipeline._road_cones))   # right history kept
+
+    def test_one_sided_frame_stays_unfused_by_default(self):
+        road, _, _ = self.one_sided(False)
+        self.assertNotEqual(road["status"], "observed_with_history")
+        self.assertFalse(road.get("merged_partial_frame", False))
+
+    def test_one_sided_conflict_still_clears_the_history(self):
+        road, _, pipeline = self.one_sided(True, left_offset=0.3)
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["status"], "observed_history_conflict")
+        self.assertEqual(pipeline._road_cones, [])
+
+    def test_merge_radius_keeps_the_neighbouring_cone_behind_the_camera_view(self):
+        # A 7 cm odometry offset puts history cone k-1 0.13 m from the fresh
+        # detection of cone k: the default 0.16 m radius deletes it.
+        kept = {}
+        for radius in (0.0, 0.08):
+            pipeline = Pipeline(Settings(history_merge_radius_m=radius))
+            xs = [0.15+0.2*i for i in range(11)]
+            self.step(pipeline, 10.0, 10.0, xs)
+            self.step(pipeline, 10.1, 10.1, [x-0.07 for x in xs if x-0.07 >= 0.88])
+            kept[radius] = any(abs(p[0]-0.75) < 1e-6 for p in pipeline._road_cones)
+        self.assertEqual(kept, {0.0: False, 0.08: True})
+
+
+
 class RoadDropoutChecks(unittest.TestCase):
     XS = [-0.3, 0.0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1]
 
@@ -779,6 +1038,413 @@ class RoadDropoutChecks(unittest.TestCase):
         for value in (-0.01, 0.251, float("nan")):
             with self.assertRaises(ValueError):
                 Settings(road_hold_s=value)
+
+
+class ImportedHistoryIntegrationChecks(unittest.TestCase):
+    def test_motion_budgets_cannot_exceed_source_age_in_either_history_mode(self):
+        for mode in ("time", "distance"):
+            for invalid in ({"max_source_age_s": 0.2, "motion_max_interval_s": 0.3},
+                            {"max_source_age_s": 0.5, "motion_max_gap_s": 0.6}):
+                with self.subTest(mode=mode, invalid=invalid), self.assertRaises(ValueError):
+                    Settings(road_history_mode=mode, **invalid)
+
+    def test_short_common_range_frames_fuse_after_the_prediction_hold_expires(self):
+        pipeline = Pipeline(Settings(history_propagation="continuous", road_history_mode="distance",
+                                     history_merge_single_side=True, history_merge_radius_m=0.08))
+        RoadDropoutChecks.step(pipeline, 10.0, speed=0.0, yaw=0.0)
+        left = [(x, 0.5) for x in (0.3, 0.6, 0.9, 1.2)]
+        right = [(x, -0.5) for x in (0.9, 1.2, 1.5, 1.8, 2.1)]
+        for frame in range(1, 13):
+            now = 10.0 + frame*0.1
+            out = RoadDropoutChecks.step(pipeline, now, left, right, speed=0.0, yaw=0.0)
+            road = out["road"]
+            self.assertTrue(road["valid"], road["status"])
+            self.assertEqual(road["current_frame"]["status"], "insufficient_common_range")
+            self.assertTrue(road["merged_partial_frame"])
+            self.assertFalse(road["degraded"])
+            self.assertEqual(road["oldest_observation_timestamp_s"], 10.0)
+            self.assertAlmostEqual(road["timestamp_s"], out["state"]["timestamp_s"])
+            self.assertAlmostEqual(road["measurement_timestamp_s"], now)
+
+    def test_fresh_single_side_cannot_renew_the_unseen_side_age(self):
+        pipeline = Pipeline(Settings(history_propagation="continuous", road_history_mode="distance",
+                                     history_merge_single_side=True, history_merge_radius_m=0.08))
+        RoadDropoutChecks.step(pipeline, 10.0, speed=0.0, yaw=0.0)
+        left = [(x, 0.5) for x in RoadDropoutChecks.XS]
+        for frame in range(1, 202):
+            out = RoadDropoutChecks.step(pipeline, 10.0+frame*0.1, left, [], speed=0.0, yaw=0.0)
+            right_history = [p for p in pipeline._road_cones if p[3] == 1]
+            self.assertTrue(all(p[5] == 10.0 for p in right_history))
+        self.assertFalse(out["road"]["valid"])
+        self.assertFalse(any(p[3] == 1 for p in pipeline._road_cones))
+
+
+class ContinuousRoadOutputChecks(unittest.TestCase):
+    """Real estimator, bounded outages and provenance; no ROS or hardware mocks."""
+
+    def pipeline(self, **changes):
+        settings = dict(history_propagation="continuous", continuous_road_output=True,
+                        history_merge_single_side=True, history_merge_radius_m=0.08,
+                        road_history_mode="distance")
+        settings.update(changes)
+        return Pipeline(Settings(**settings))
+
+    def step(self, pipeline, now, *, missing=False, stamp=None, left=None, right=None,
+             speed=0.2, yaw=0.0):
+        if not missing:
+            return RoadDropoutChecks.step(pipeline, now, left, right, stamp, speed, yaw)
+        return pipeline.update(
+            {"cone_detections": None, "wheel_speed": speed,
+             "imu_angular_velocity": None if yaw is None else (0, 0, yaw)},
+            {"cone_detections": None, "wheel_speed": 0.0, "imu_angular_velocity": 0.0},
+            {"cone_detections": None, "imu_angular_velocity": round(now*1e9)},
+            {"wheel_speed": now}, now)
+
+    def test_cached_frame_beyond_total_motion_interval_still_has_current_geometry(self):
+        pipeline = self.pipeline()
+        original = self.step(pipeline, 10.0)["road"]
+        for tick in range(1, 10):
+            now = 10.0+tick*0.05
+            out = self.step(pipeline, now, stamp=10.0)
+            road = out["road"]
+            self.assertTrue(road["valid"], (now, road["status"]))
+            self.assertEqual(road["timestamp_s"], out["state"]["timestamp_s"])
+            self.assertEqual(road["measurement_timestamp_s"], 10.0)
+            self.assertAlmostEqual(road["source_age_s"], now-10.0)
+            self.assertLessEqual(road["near_field"]["coverage_x_m"][0], 0.0)
+            self.assertTrue(all(-0.5 <= x <= 3.0 for x, _ in road["centerline_xy"]))
+            if tick >= 7:
+                self.assertTrue(road["degraded"])
+                self.assertEqual(road["fusion_mode"], "observed_cones_wheel_gyro_incremental")
+                self.assertAlmostEqual(road["prediction_distance_m"], 0.2*(now-10.0))
+                self.assertAlmostEqual(road["centerline_xy"][0][0],
+                                       original["centerline_xy"][0][0]-0.2*(now-10.0))
+                self.assertEqual(road["current_frame"]["timestamp_s"], 10.0)
+                self.assertEqual(pipeline._trusted_road["timestamp_s"], 10.0)
+            self.assertTrue(all(p[5] == 10.0 for p in pipeline._road_cones))
+            json.dumps(out, allow_nan=False)
+        expired = self.step(pipeline, 10.5, stamp=10.0)["road"]
+        self.assertFalse(expired["valid"])
+        self.assertEqual(expired["prediction_status"], "prediction_deadline_expired")
+
+    def test_missing_camera_outputs_history_and_correct_current_frame_diagnostics(self):
+        pipeline = self.pipeline()
+        self.step(pipeline, 10.0)
+        road = self.step(pipeline, 10.05, missing=True)["road"]
+        self.assertTrue(road["valid"])
+        self.assertTrue(road["degraded"])
+        self.assertEqual(road["current_frame"]["status"], "unavailable")
+        self.assertFalse(road["current_frame"]["fit_valid"])
+        self.assertIsNone(road["current_frame"]["timestamp_s"])
+        self.assertEqual(road["measurement_timestamp_s"], 10.0)
+        self.assertEqual(road["recommended_speed_scale"], 0.5)
+
+    def test_repeated_bad_and_missing_batches_share_one_hold_budget(self):
+        pipeline = self.pipeline()
+        self.step(pipeline, 10.0, speed=0.0)
+        for tick in range(1, 5):
+            now = 10.0+tick*0.05
+            road = self.step(pipeline, now, missing=(tick % 2 == 0),
+                             left=[], right=[], stamp=10.05, speed=0.0)["road"]
+            self.assertTrue(road["valid"], road["status"])
+            self.assertAlmostEqual(road["prediction_elapsed_s"], now-10.05)
+        for now in (10.25, 10.3, 10.35):
+            road = self.step(pipeline, now, missing=True, speed=0.0)["road"]
+            self.assertFalse(road["valid"])
+        self.assertTrue(pipeline._road_cones)  # recover measured near support
+        self.assertTrue(all(p[5] == 10.0 for p in pipeline._road_cones))
+
+    def test_expired_old_camera_cannot_rearm_but_new_forward_frame_can_recover(self):
+        pipeline = self.pipeline()
+        self.step(pipeline, 10.0, speed=0.0)
+        for tick in range(1, 6):
+            self.step(pipeline, 10.0+tick*0.05, missing=True, speed=0.0)
+        old = self.step(pipeline, 10.3, stamp=10.0, speed=0.0)["road"]
+        self.assertFalse(old["valid"])
+        self.assertEqual(old["status"], "prediction_deadline_expired")
+        forward = [x for x in RoadDropoutChecks.XS if x >= 0.9]
+        new = self.step(pipeline, 10.35, left=[(x, 0.5) for x in forward],
+                        right=[(x, -0.5) for x in forward], speed=0.0)["road"]
+        self.assertTrue(new["valid"], new["status"])
+        self.assertFalse(new["degraded"])
+        self.assertTrue(new["history_used"])
+        self.assertEqual(new["measurement_timestamp_s"], 10.35)
+        self.assertIsNone(pipeline._prediction_expired_source_s)
+
+    def test_turning_prediction_matches_rigid_motion_and_counts_arc_distance(self):
+        pipeline = self.pipeline(road_prediction_max_distance_m=0.5)
+        speed, yaw = 0.4, 0.5
+        self.step(pipeline, 10.0, speed=speed, yaw=yaw)
+        for tick in range(1, 10):
+            now = 10.0+tick*0.05
+            road = self.step(pipeline, now, stamp=10.0, speed=speed, yaw=yaw)["road"]
+        self.assertTrue(road["valid"], road["status"])
+        total = road["motion_compensation"]
+        angle = yaw*0.45
+        self.assertAlmostEqual(total["dx_m"], speed*math.sin(angle)/yaw)
+        self.assertAlmostEqual(total["dy_m"], speed*(1-math.cos(angle))/yaw)
+        self.assertAlmostEqual(total["yaw_rad"], angle)
+        self.assertAlmostEqual(total["interval_s"], 0.45)
+        self.assertAlmostEqual(total["travelled_distance_m"], speed*0.45)
+        # The world center y=0 appears as this line in the turned body frame.
+        c, s = math.cos(angle), math.sin(angle)
+        for x, y in road["centerline_xy"]:
+            self.assertAlmostEqual(total["dy_m"]+s*x+c*y, 0.0, places=6)
+
+    def test_distance_budget_ends_before_time_budget_at_high_speed(self):
+        pipeline = self.pipeline(road_prediction_max_distance_m=0.08)
+        self.step(pipeline, 10.0, speed=0.5)
+        for now in (10.05, 10.1, 10.15):
+            road = self.step(pipeline, now, missing=True, speed=0.5)["road"]
+            self.assertTrue(road["valid"])
+        road = self.step(pipeline, 10.2, missing=True, speed=0.5)["road"]
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["prediction_status"], "prediction_deadline_expired")
+
+    def test_camera_rebasing_does_not_double_count_travel(self):
+        pipeline = self.pipeline()
+        self.step(pipeline, 10.0)
+        for tick in range(1, 5):
+            self.step(pipeline, 10.0+tick*0.05, stamp=10.0)
+        # Delayed new frame observed at 10.05, delivered at 10.25.
+        xs = [x-0.01 for x in RoadDropoutChecks.XS]
+        fresh = self.step(pipeline, 10.25, stamp=10.05,
+                          left=[(x, 0.5) for x in xs], right=[(x, -0.5) for x in xs])["road"]
+        self.assertTrue(fresh["valid"], fresh["status"])
+        self.assertAlmostEqual(pipeline._prediction_distance_m, 0.04)
+        out = self.step(pipeline, 10.3, missing=True)["road"]
+        self.assertTrue(out["valid"], out["status"])
+        self.assertAlmostEqual(out["prediction_distance_m"], 0.05)
+        self.assertEqual(out["measurement_timestamp_s"], 10.05)
+        self.assertAlmostEqual(out["source_age_s"], 0.25)
+
+    def test_missing_or_discontinuous_motion_cannot_be_hidden_by_cone_history(self):
+        for failure in ("missing_gyro", "gap", "reset", "backwards"):
+            pipeline = self.pipeline()
+            self.step(pipeline, 10.0)
+            if failure == "reset":
+                pipeline.motion.clear()
+            now = 10.2 if failure == "gap" else 9.95 if failure == "backwards" else 10.05
+            road = self.step(pipeline, now, missing=True,
+                             yaw=None if failure == "missing_gyro" else 0.0)["road"]
+            self.assertFalse(road["valid"], failure)
+            self.assertFalse(pipeline._road_cones, failure)
+
+    def test_conflicting_side_and_bad_clock_do_not_predict(self):
+        for problem in ("conflict", "future", "out_of_order"):
+            pipeline = self.pipeline()
+            self.step(pipeline, 10.0)
+            if problem == "conflict":
+                road = self.step(pipeline, 10.05,
+                                 left=[(x, 0.9) for x in RoadDropoutChecks.XS], right=[])["road"]
+            else:
+                road = self.step(pipeline, 10.05, stamp=10.1 if problem == "future" else 9.95)["road"]
+            self.assertFalse(road["valid"], problem)
+            self.assertFalse(pipeline._road_cones, problem)
+
+    def test_cold_start_has_no_fabricated_near_field(self):
+        pipeline = self.pipeline()
+        xs = [0.9, 1.2, 1.5, 1.8, 2.1]
+        out = self.step(pipeline, 10.0, left=[(x, 0.5) for x in xs],
+                        right=[(x, -0.5) for x in xs])["road"]
+        self.assertFalse(out["valid"])
+        self.assertEqual(out["status"], "near_field_unobserved")
+        self.assertFalse(self.step(pipeline, 10.05, missing=True)["road"]["valid"])
+
+    def test_unsigned_wheel_contract_does_not_claim_reverse_compensation(self):
+        pipeline = self.pipeline()
+        self.step(pipeline, 10.0, speed=-0.2)
+        road = self.step(pipeline, 10.05, missing=True, speed=-0.2)["road"]
+        self.assertFalse(road["valid"])
+        self.assertFalse(pipeline._road_cones)
+
+    def test_old_successful_batch_during_outage_does_not_renew_hold(self):
+        pipeline = self.pipeline()
+        self.step(pipeline, 10.0, speed=0.0)
+        for tick in range(1, 5):
+            now = 10.0+tick*0.05
+            road = self.step(pipeline, now, missing=(tick % 2 == 1), stamp=10.0, speed=0.0)["road"]
+            self.assertTrue(road["valid"], road["status"])
+            self.assertTrue(road["degraded"])
+            self.assertAlmostEqual(road["prediction_elapsed_s"], now-10.05)
+        self.assertFalse(self.step(pipeline, 10.25, stamp=10.0, speed=0.0)["road"]["valid"])
+        expired = self.step(pipeline, 10.3, stamp=10.0, speed=0.0)["road"]
+        self.assertEqual(expired["centerline_xy"], [])
+        self.assertIsNone(expired["left_boundary_xy"])
+        self.assertIsNone(expired["x_range_m"])
+        self.assertEqual(expired["confidence"], 0.0)
+
+    def test_continuous_noisy_frames_keep_bounded_storage_and_do_not_predict_as_observations(self):
+        import random
+        rng = random.Random(4211)
+        pipeline = self.pipeline()
+        world = [-0.5+i*0.075 for i in range(47)]
+        for tick in range(101):
+            now, travelled = 10.0+tick*0.05, tick*0.01
+            xs = [x-travelled for x in world if -0.5 <= x-travelled <= 3.0]
+            left = [(x, 0.5+rng.gauss(0.0, 0.008)) for x in xs]
+            right = [(x, -0.5+rng.gauss(0.0, 0.008)) for x in xs]
+            if tick % 10 in (1, 2):
+                road = self.step(pipeline, now, missing=True)["road"]
+                self.assertTrue(road["degraded"])
+                self.assertAlmostEqual(pipeline._fused_source_s, now-(tick % 10)*0.05)
+            else:
+                road = self.step(pipeline, now, left=left, right=right)["road"]
+            self.assertTrue(road["valid"], (tick, road["status"]))
+            self.assertLessEqual(len(pipeline._road_cones), 128)
+            self.assertLessEqual(len(road["centerline_xy"]), 201)
+            self.assertLess(max(abs(y) for _, y in road["centerline_xy"]), 0.02)
+
+    def test_new_controls_validate_and_zero_hold_disables_prediction(self):
+        for settings in ({"continuous_road_output": "true"},
+                         {"continuous_road_output": True},
+                         {"road_prediction_max_distance_m": 0.0},
+                         {"road_prediction_max_distance_m": 0.6}):
+            with self.assertRaises(ValueError):
+                Settings(**settings)
+        pipeline = self.pipeline(road_hold_s=0.0)
+        self.step(pipeline, 10.0)
+        self.assertFalse(self.step(pipeline, 10.05, missing=True)["road"]["valid"])
+
+
+class RelaxedContinuityProfileChecks(unittest.TestCase):
+    def setUp(self):
+        import re
+        config = Path(__file__).resolve().parents[1]/"config"/"ai4r_policy.yaml"
+        inside, values = False, {}
+        for line in config.read_text(encoding="utf-8").splitlines():
+            if line == "    estimation:":
+                inside = True
+                continue
+            if not inside or not line.strip() or line.lstrip().startswith("#"):
+                continue
+            if not line.startswith("      "):
+                break
+            match = re.fullmatch(r"      ([a-z_]+): ([a-z_]+|-?[0-9]+(?:\.[0-9]+)?)", line)
+            self.assertIsNotNone(match, line)
+            value = match[2]
+            values[match[1]] = (value == "true" if value in ("true", "false") else
+                                int(value) if match[1] in ("left_colour", "right_colour") else
+                                float(value) if value[0] in "-0123456789" else value)
+        # These cases compare timing/fit tuning with the shared blue-left fixture.
+        # The actual yellow-left policy path is covered in test_centerline_follow.
+        values.update(left_colour=2, right_colour=1, road_geometry="y_of_x")
+        self.settings = Settings(**values)
+
+    def step(self, pipeline, now, **kwargs):
+        return RoadDropoutChecks.step(pipeline, now, speed=kwargs.pop("speed", 0.2),
+                                     yaw=kwargs.pop("yaw", 0.0), **kwargs)["road"]
+
+    def test_eight_failed_10hz_frames_bridge_but_ninth_expires_without_renewing(self):
+        pipeline = Pipeline(self.settings)
+        self.step(pipeline, 10.0)
+        for tick in range(1, 9):
+            road = self.step(pipeline, round(10.0+tick*0.1, 9), left=[], right=[])
+            self.assertTrue(road["valid"], (tick, road["status"]))
+            self.assertTrue(road["degraded"])
+            self.assertEqual(road["measurement_timestamp_s"], 10.0)
+            self.assertAlmostEqual(road["prediction_elapsed_s"], (tick-1)*0.1)
+            self.assertTrue(all(p[5] == 10.0 for p in pipeline._road_cones))
+        road = self.step(pipeline, 10.9, left=[], right=[])
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["prediction_status"], "prediction_deadline_expired")
+
+    def test_camera_pause_past_one_second_and_new_frame_recovery(self):
+        pipeline = Pipeline(self.settings)
+        self.step(pipeline, 10.0)
+        for tick in range(1, 27):
+            road = self.step(pipeline, round(10.0+tick*0.05, 9), stamp=10.0)
+            self.assertTrue(road["valid"], (tick, road["status"]))
+            self.assertEqual(road["measurement_timestamp_s"], 10.0)
+            self.assertLessEqual(len(pipeline._road_cones), 128)
+        self.assertTrue(road["degraded"])
+        fresh = self.step(pipeline, 11.35)
+        self.assertTrue(fresh["valid"], fresh["status"])
+        self.assertFalse(fresh["degraded"])
+
+    def test_low_confidence_and_short_measured_span_are_accepted(self):
+        for confidence, xs in ((0.35, RoadDropoutChecks.XS), (0.95, [-0.1, 0.3])):
+            batch = cones([(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
+            batch["detections"] = [(*p[:4], confidence) for p in batch["detections"]]
+            legacy = Pipeline(Settings()).road(batch, 10_000_000_000, 0.0)
+            relaxed = Pipeline(self.settings).road(batch, 10_000_000_000, 0.0)
+            self.assertFalse(legacy["valid"])
+            self.assertTrue(relaxed["valid"], relaxed["status"])
+
+    def test_larger_boundary_noise_can_fit_without_claiming_exact_measurement(self):
+        xs = RoadDropoutChecks.XS
+        batch = cones([(x, 0.5+(-1)**i*0.12) for i, x in enumerate(xs)],
+                      [(x, -0.5+(-1)**i*0.12) for i, x in enumerate(xs)])
+        legacy = Pipeline(Settings()).road(batch, 10_000_000_000, 0.0)
+        relaxed = Pipeline(self.settings).road(batch, 10_000_000_000, 0.0)
+        self.assertFalse(legacy["valid"])
+        self.assertTrue(relaxed["valid"], relaxed["status"])
+        self.assertGreater(relaxed["boundary_diagnostics"]["left"]["fit_rms_m"], 0.08)
+
+    def test_larger_measured_gap_preserves_real_forward_support(self):
+        xs = [-0.3, 0.0, 0.3, 2.1, 2.4]
+        batch = cones([(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
+        legacy = Pipeline(Settings()).road(batch, 10_000_000_000, 0.0)
+        relaxed = Pipeline(self.settings).road(batch, 10_000_000_000, 0.0)
+        self.assertTrue(relaxed["valid"])
+        self.assertGreater(relaxed["x_range_m"][1], legacy["x_range_m"][1])
+        self.assertLessEqual(relaxed["x_range_m"][1], max(xs))
+
+    def test_local_window_is_bounded_and_width_order_still_checked(self):
+        pipeline = Pipeline(self.settings)
+        xs = [-1.0, -0.5, 0.0, 1.0, 2.0, 3.0, 4.0]
+        road = self.step(pipeline, 10.0, left=[(x, 0.5) for x in xs],
+                         right=[(x, -0.5) for x in xs])
+        self.assertTrue(road["valid"])
+        self.assertEqual(road["x_range_m"], [-1.0, 4.0])
+        self.assertLessEqual(len(road["centerline_xy"]), 201)
+        for left_y, right_y in ((-0.5, 0.5), (0.05, -0.05), (2.0, -2.0)):
+            bad = Pipeline(self.settings).road(cones([(x, left_y) for x in xs],
+                                                      [(x, right_y) for x in xs]),
+                                                  10_000_000_000, 0.0)
+            self.assertFalse(bad["valid"])
+
+    def test_wider_profile_still_rejects_motion_gap_and_observation_conflict(self):
+        for fault in ("motion_gap", "conflict"):
+            pipeline = Pipeline(self.settings)
+            self.step(pipeline, 10.0)
+            if fault == "motion_gap":
+                road = self.step(pipeline, 10.3, left=[], right=[])
+            else:
+                road = self.step(pipeline, 10.1,
+                                 left=[(x, 1.0) for x in RoadDropoutChecks.XS], right=[])
+            self.assertFalse(road["valid"], fault)
+            self.assertFalse(pipeline._road_cones, fault)
+
+    def test_wider_hold_is_opt_in_and_still_has_upper_bound(self):
+        for value in (1.01, -0.1, float("inf")):
+            with self.assertRaises(ValueError):
+                Settings(history_propagation="continuous", continuous_road_output=True,
+                         road_hold_s=value)
+        with self.assertRaises(ValueError):
+            Settings(road_hold_s=0.8)
+        self.assertEqual(self.settings.road_hold_s, 0.8)
+
+    def test_wide_prediction_distance_still_expires_before_hold(self):
+        pipeline = Pipeline(self.settings)
+        self.step(pipeline, 10.0, speed=0.8)
+        for tick in range(1, 7):
+            road = self.step(pipeline, round(10.0+tick*0.1, 9), left=[], right=[], speed=0.8)
+            self.assertTrue(road["valid"], road["status"])
+            self.assertAlmostEqual(road["prediction_distance_m"], tick*0.08)
+        road = self.step(pipeline, 10.7, left=[], right=[], speed=0.8)
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["prediction_status"], "prediction_deadline_expired")
+
+    def test_source_age_still_expires_when_hold_would_allow_more(self):
+        pipeline = Pipeline(Settings(**{**vars(self.settings), "road_hold_s": 1.0}))
+        self.step(pipeline, 10.0, speed=0.0)
+        for tick in range(1, 30):
+            road = self.step(pipeline, round(10.0+tick*0.05, 9), stamp=10.0, speed=0.0)
+            self.assertTrue(road["valid"], (tick, road["status"]))
+        road = self.step(pipeline, 11.5, stamp=10.0, speed=0.0)
+        self.assertFalse(road["valid"])
+        self.assertEqual(road["prediction_status"], "prediction_deadline_expired")
 
 
 if __name__ == "__main__":

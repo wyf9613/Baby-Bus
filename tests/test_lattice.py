@@ -1,586 +1,427 @@
-"""Analytic geometry, failure contracts and integrated V2 checks, without ROS."""
+"""Fresh shadow definitions from actual selected policy source, without ROS.
+
+Includes real subprocess protocol and public run-loop isolation tests; no
+archived lattice imports, vehicle nodes or actuators are involved.
+"""
+import ast
 from copy import deepcopy
+from dataclasses import replace
 import json
 import math
 from pathlib import Path
 import runpy
+import subprocess
+import sys
+import queue
+import threading
+import time
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
-api = runpy.run_path(str(Path(__file__).with_name("test_planning.py")))
-ns = api["api"]["namespace"]
-Settings, Config, Planner = ns["PlanningSettings"], ns["LatticeSettings"], ns["FrenetLatticePlanner"]
-
-
-def fixture(offset=0.0, near=0.0, curve=0.0, speed=0.1, points=()):
-    args = list(api["fixture"](offset))
-    road, state = args[:2]
-    xs = [i*0.1 for i in range(31) if i*0.1 >= near-1e-9]
-    for key, shift in (("centerline_xy", 0), ("left_boundary_xy", 0.5), ("right_boundary_xy", -0.5)):
-        road[key] = [(x, offset+curve*x*x+shift) for x in xs]
-    state["speed_mps"] = speed
-    args[2] = {"available": True, "timestamp_s": 10.0, "source_age_s": 0.01,
-               "frame_id": "base_link", "points_xyz_m": list(points)}
-    return args
+api = runpy.run_path(str(Path(__file__).with_name("test_estimation.py")))
+ns = dict(api["namespace"])
+source = api["SOURCE"]
+from mvp21_policy import lattice,transport
+ns.update(vars(lattice));ns.update(vars(transport))
+tree=ast.parse(source.read_text(encoding='utf-8'))
+worker_source=Path(__file__).resolve().parents[1]/'scripts/mvp21_policy_node.py'
+Settings, Planner = ns["ShadowSettings"], ns["ShadowLatticePlanner"]
 
 
-def planner(**kwargs):
-    # Numerical correctness uses a nonbinding wall budget; deterministic clock
-    # checks exercise timeout separately. Actual runtime is measured by study.
-    return Planner(Settings(algorithm="lattice_v2", max_source_age_s=0.4, reference_lifetime_s=0.2),
-                   Config(budget_s=5.0, clear_start_assumed=True, **kwargs))
+def job(center=0.0, speed=0.2):
+    return {"settings": vars(Settings(sample_count=12)), "stamp_s": 100.0,
+        "generation": 1, "job_id": 1, "submitted_monotonic_s": 10.0,
+        "control_settings": {"enabled": True, "mode": "mvp", "mvp_lateral_kp": 2.5,
+                             "mvp_heading_kp": 1.5, "mvp_steering_direction": -1.0},
+        "preview_m": 0.35, "control_period_s": 0.05, "target_speed_mps": 0.2,
+        "state": {"speed_mps": speed, "speed_valid": True},
+        "road": {"centerline_xy": [(0.0, center), (0.5, center), (1.0, center)],
+            "left_boundary_xy": [(0.0, 0.5), (1.0, 0.5)],
+            "right_boundary_xy": [(0.0, -0.5), (1.0, -0.5)],
+            "boundary_source": {"left": "observed", "right": "observed"},
+            "lane_width_m": 1.0, "measurement_timestamp_s": 99.9}}
 
 
-class LatticeChecks(unittest.TestCase):
-    def test_continuous_body_clearance_is_physical_distance_without_grid_penalties(self):
-        active = planner()
-        model = active._model({})
-        left = ns["LatticeCurve"]([(-1, 0.5), (0, 0.5), (1, 0.5)], 0, 0.025)
-        right = ns["LatticeCurve"]([(-1, -0.5), (0, -0.5), (1, -0.5)], 0, 0.025)
-        for step in (0.01, 0.025, 0.05):
-            active.cfg.geometry_step_m = step
-            g = dict(x=0.0, y=0.0, heading=0.0, curvature=2.0, q=3.0)
-            self.assertAlmostEqual(active._clearance(g, left, right, [], model), 0.325, places=12)
-        # Being entirely outside a boundary must not become a positive unsigned distance.
-        self.assertLess(active._clearance(dict(g, y=0.8), left, right, [], model), 0)
+def plan(record, **overrides):
+    return Planner(Settings(**{**record["settings"], **overrides})).plan(record)
 
-    def test_continuous_body_finds_narrowing_and_intrusion_between_old_edge_samples(self):
-        active = planner()
-        model = active._model({})
-        spacing = (model["front_extent_m"]+model["rear_extent_m"])/4
-        vertex = -model["rear_extent_m"]+spacing/2
-        right = ns["LatticeCurve"]([(-0.5, -0.5), (0, -0.5), (0.5, -0.5)], 0, 0.025)
-        for minimum_y, expected in ((0.165, -0.01), (0.10, -0.05)):
-            coefficient = (0.25-minimum_y)/(spacing/2)**2
-            left = ns["LatticeCurve"]([(x, minimum_y+coefficient*(x-vertex)**2)
-                                     for x in (-0.5, -0.25, 0, 0.25, 0.5)], 0, 0.025)
-            old_points = [-model["rear_extent_m"]+spacing*i for i in range(5)]
-            self.assertTrue(all(left.at_x(x)[0]-model["width_m"]/2 > 0.05 for x in old_points))
-            g = dict(x=0.0, y=0.0, heading=0.0, curvature=0.0, q=1.0)
-            self.assertAlmostEqual(active._clearance(g, left, right, [], model), expected, places=10)
 
-    def test_continuous_body_distance_handles_rotation_and_oblique_nearest_corner(self):
-        active = planner()
-        model = active._model({})
-        left = ns["LatticeCurve"]([(-1, 0.3), (0, 0.3), (1, 0.3)], 0, 0.025)
-        right = ns["LatticeCurve"]([(-1, -0.3), (0, -0.3), (1, -0.3)], 0, 0.025)
-        g = dict(x=0.0, y=0.0, heading=math.pi/4, curvature=0.0, q=1.0)
-        expected = 0.3-(model["front_extent_m"]+model["width_m"]/2)/math.sqrt(2)-0.05
-        self.assertAlmostEqual(active._clearance(g, left, right, [], model), expected, places=12)
-        sloped = ns["LatticeCurve"]([(-1, -0.2), (0, 0.8), (1, 1.8)], 0, 0.025)
-        expected = (0.8-model["rear_extent_m"]-model["width_m"]/2)/math.sqrt(2)
-        self.assertAlmostEqual(sloped.rectangle_distance(dict(g, heading=0.0), model), expected, places=12)
+class ShadowChecks(unittest.TestCase):
+    def test_actual_speed_and_rate_determine_prefix_not_target_speed(self):
+        record = job(speed=0.3)
+        record["target_speed_mps"] = 0.01
+        for rate in (1.0, 2.0, 10.0):
+            result = plan(record, rate_hz=rate)
+            self.assertAlmostEqual(result["check_length_m"], 0.3*(1/rate+0.1))
+            self.assertGreaterEqual(result["generated_length_m"], result["control_read_length_m"])
+            self.assertEqual(result["status"], "VALID")
 
-    def test_continuous_curve_box_minima_match_independent_dense_curve_evaluation(self):
-        active = planner()
-        model = active._model({})
-        cases = ((0.1, 0.4, -0.7, 0.0, 0.2), (-0.2, -0.3, 0.6, 0.0, -0.1),
-                 (0.8, 0.1, -0.2, 0.0, 0.3), (0.7, 0.2, -0.25, 0.13, -0.35),
-                 (-0.6, -0.3, 0.15, -0.2, 0.45), (0.15, 0.3, -0.4, 0.2, -0.2))
-        for a, b, c, d, heading in cases:
-            curve = ns["LatticeCurve"]([(x, a+b*x+c*x*x+d*x**3) for x in (-1, -0.5, 0, 0.5, 1)], 0, 0.025)
-            g = dict(x=0.0, y=0.0, heading=heading)
-            actual = curve.rectangle_distance(g, model)
-            ca, sa = math.cos(heading), math.sin(heading)
-            dense = math.inf
-            for i in range(20001):
-                x = -1+i/10000
-                y = curve.at_x(x)[0]
-                bx, by = ca*x+sa*y, -sa*x+ca*y
-                dense = min(dense, math.hypot(max(-model["rear_extent_m"]-bx, 0, bx-model["front_extent_m"]),
-                                              max(abs(by)-model["width_m"]/2, 0)))
-            self.assertLessEqual(actual, dense+1e-10)
-            self.assertLess(dense-actual, 2e-4)
+    def test_short_single_point_and_boundary_only_are_not_admission_gates(self):
+        for center in ([(0.6, 0.03)], [(0.6, 0.03), (0.62, 0.03)], []):
+            record = job()
+            record["road"].update(valid=False, status="near_field_unobserved", centerline_xy=center,
+                                  right_boundary_xy=None, lane_width_m=None)
+            record["road"]["left_boundary_xy"] = [(0.6, 0.5), (0.62, 0.5)]
+            result = plan(record)
+            self.assertEqual(result["candidate_count"], 12)
+            self.assertEqual(result["status"], "VALID")
+            self.assertGreaterEqual(result["generated_length_m"], 1.0)
+            self.assertEqual(result["known_boundary_sides"], ["left"])
+            self.assertEqual(result["selected"]["path"][0], (0.0, 0.0, 0.0))
 
-    def test_continuous_body_travel_bound_covers_rotating_frenet_motion(self):
-        active = planner()
-        model = active._model({})
-        curve = ns["LatticeCurve"]([(x, 0.2*x*x+0.05*x**3) for x in (-0.5, 0, 0.5, 1, 1.5, 2)], 0, 0.025)
-        origin = curve.project_origin()[0]
-        coeffs = ns["_lattice_lateral"](-0.03, 0.04, 0.05, 0.1, 0.8)
-        corners = [(x, y) for x in (-model["rear_extent_m"], model["front_extent_m"])
-                   for y in (-model["width_m"]/2, model["width_m"]/2)]
-        for lo, hi in ((0.1, 0.2), (0.7, 0.9), (1.0, 1.2)):
-            rate = active._body_motion_bound(curve, coeffs, 0.8, 0.1, origin, origin+lo, origin+hi, model)
-            self.assertTrue(math.isfinite(rate))
-            previous = None
-            ds = (hi-lo)/1000
-            for i in range(1001):
-                g = ns["_lattice_geometry"](curve, origin, coeffs, 0.8, 0.1, origin+lo+i*ds)
-                c, s = math.cos(g["heading"]), math.sin(g["heading"])
-                body = [(g["x"]+c*x-s*y, g["y"]+s*x+c*y) for x, y in corners]
-                if previous is not None:
-                    observed = max(math.hypot(b[0]-a[0], b[1]-a[1])/ds for a, b in zip(previous, body))
-                    self.assertLessEqual(observed, rate*(1+1e-6))
-                previous = body
+    def test_observed_handoff_delay_expands_checked_execution_window(self):
+        record = job(speed=0.2)
+        record["handoff_estimate_s"] = 0.4
+        result = plan(record, rate_hz=10.0)
+        self.assertAlmostEqual(result["hold_time_s"], 0.5)
+        self.assertAlmostEqual(result["check_length_m"], 0.1)
 
-    def test_continuous_body_requires_full_boundary_support(self):
-        active = planner()
-        curve = ns["LatticeCurve"]([(0, 0.5), (0.5, 0.5), (1, 0.5)], 0, 0.025)
-        with self.assertRaisesRegex(ValueError, "curve_range"):
-            curve.rectangle_distance(dict(x=0.0, y=0.0, heading=0.0), active._model({}))
+    def test_empty_geometry_is_the_only_road_admission_gate(self):
+        record = job()
+        record["road"] = {}
+        self.assertEqual(plan(record)["status"], "NO_ROAD")
 
-    def test_continuous_interval_finds_boundary_and_obstacle_collision_between_safe_poses(self):
-        active = planner()
-        model = active._model({})
-        curve = ns["LatticeCurve"]([(-0.5, 0), (0, 0), (1.5, 0)], 0, 0.025)
-        right = ns["LatticeCurve"]([(-0.5, -0.5), (0, -0.5), (1.5, -0.5)], 0, 0.025)
-        origin = curve.project_origin()[0]
-        coeffs = ns["_lattice_lateral"](0, 0, 0, 0, 1.5)
-        straight_left = ns["LatticeCurve"]([(-0.5, 0.5), (0, 0.5), (1.5, 0.5)], 0, 0.025)
-        narrowing = ns["LatticeCurve"]([(x, 0.1+20*(x-0.45)**2) for x in (-0.5, 0, 0.45, 0.8, 1.5)], 0, 0.025)
-        for left, obstacles in ((straight_left, [(0.4, 0.0)]), (narrowing, [])):
-            ends = [ns["_lattice_geometry"](curve, origin, coeffs, 1.5, 0, origin+s) for s in (0.0, 0.8)]
-            for g in ends:
-                g["clearance"] = active._clearance(g, left, right, obstacles, model)
-                self.assertGreater(g["clearance"], 0)
-            with self.assertRaisesRegex(ValueError, "swept_body_boundary_or_obstacle_collision"):
-                active._check_body_interval(curve, left, right, obstacles, model,
-                    origin, coeffs, 1.5, 0, *ends, lambda: None)
+    def test_inferred_and_predicted_boundaries_never_hard_reject(self):
+        record = job()
+        record["road"]["left_boundary_xy"] = [(0.0, -0.1), (0.3, -0.1)]
+        for source_label in ("width_inferred", "predicted_history", "absent"):
+            record["road"]["boundary_source"]["left"] = source_label
+            result = plan(record)
+            self.assertEqual(result["status"], "VALID")
+            self.assertEqual(result["known_boundary_sides"], ["right"])
+        record["road"]["boundary_source"]["left"] = "observed"
+        self.assertEqual(plan(record)["status"], "ALL_COLLIDE")
 
-    def test_continuous_interval_also_checks_cartesian_compatibility_curve(self):
-        active = planner()
-        model = active._model({})
-        left = ns["LatticeCurve"]([(-1, 0.5), (0, 0.5), (2, 0.5)], 0, 0.025)
-        right = ns["LatticeCurve"]([(-1, -0.5), (0, -0.5), (2, -0.5)], 0, 0.025)
-        # Both endpoint poses are straight and centered; the actual quartic
-        # rises into the left boundary between them.
-        coeffs = [0.0, 0.0, 6.4, -12.8, 6.4]
-        ends = [dict(s=x, x=x, y=0.0, heading=0.0) for x in (0.0, 0.8)]
-        for g in ends:
-            g["clearance"] = active._clearance(g, left, right, [], model)
-            self.assertGreater(g["clearance"], 0)
-        with self.assertRaisesRegex(ValueError, "swept_body_boundary_or_obstacle_collision"):
-            active._check_body_interval(None, left, right, [], model, 0.0, coeffs, 0.8, None,
-                *ends, lambda: None, cartesian_origin=0.0)
+    def test_far_contact_does_not_reject_prefix_but_body_front_counts(self):
+        record = job(speed=0.2)
+        record["road"]["right_boundary_xy"] = [(0.6, 0.0), (0.8, 0.0)]
+        self.assertEqual(plan(record, rate_hz=10.0)["status"], "VALID")
+        record["road"]["right_boundary_xy"] = [(0.24, -0.1), (0.24, 0.1)]
+        self.assertEqual(plan(record, rate_hz=10.0)["status"], "ALL_COLLIDE")
 
-    def test_candidate_collection_keeps_default_rule_selection(self):
-        original, collecting = planner(), planner()
-        original.clock = collecting.clock = lambda: 0.0
-        expected, _ = original.plan(*fixture())
-        actual, diagnostics = collecting.plan(*fixture(), collect_candidates=True)
-        self.assertEqual(actual, expected)
-        candidates = diagnostics["candidate_references"]
-        self.assertGreater(len(candidates), 1)
-        self.assertTrue(all(item["reference"]["valid"] and not item["reference"]["planned_stop"]
-                            and item["minimum_clearance_m"] >= 0 for item in candidates))
+    def test_sweep_detects_crossing_between_path_grid_points(self):
+        cfg = Settings(body_front_m=0.005, body_rear_m=0.005, body_width_m=0.01)
+        hit = ns["_shadow_collision"]([(0.0, 0.0, 0.0), (0.2, 0.0, 0.0)], 0.2,
+                                    {"left": [(0.1, -0.03), (0.1, 0.03)]}, cfg)
+        self.assertIsNotNone(hit)
 
-    def test_scorer_ranks_compatible_candidates_without_mutating_outputs(self):
-        active = planner()
-        active.clock = lambda: 0.0
-        def score(candidate):
-            candidate["reference"]["valid"] = False
-            return candidate["descriptor"]["terminal_speed_mps"]
-        reference, diagnostics = active.plan(*fixture(), collect_candidates=True, candidate_scorer=score)
-        self.assertTrue(reference["valid"])
-        self.assertEqual(diagnostics["selected"]["model_score"], max(
-            item["descriptor"]["model_score"] for item in diagnostics["candidate_references"]))
-        self.assertTrue(all(item["reference"]["valid"] for item in diagnostics["candidate_references"]))
+    def test_controller_limits_and_models_cannot_influence_candidate_ranking(self):
+        record = job(center=0.2)
+        record["road"].update(left_boundary_xy=None, right_boundary_xy=None)
+        record["control_settings"].update(steering_max_normalized=0.01,
+                                         mvp_steering_slew_rate_per_s=0.001)
+        original = plan(record)
+        record["control_settings"].update(mvp_lateral_kp=1e9, mvp_heading_kp=1e9)
+        result = plan(record)
+        self.assertEqual(result["feasible_count"], 12)
+        self.assertEqual(result["selected"]["id"], original["selected"]["id"])
+        self.assertEqual([c["cost"] for c in result["candidates"]], [c["cost"] for c in original["candidates"]])
+        self.assertTrue(all("execution" not in c and "execution" not in c["costs"] for c in result["candidates"]))
 
-    def test_scorer_failure_requests_stop_and_unsafe_inputs_are_not_scored(self):
-        active = planner()
-        active.clock = lambda: 0.0
-        reference, _ = active.plan(*fixture(), candidate_scorer=lambda candidate: float("nan"))
-        self.assertFalse(reference["valid"])
-        self.assertIsNone(reference["path"])
-        self.assertTrue(reference["stop_requested"])
-        self.assertEqual(reference["reason"], "nonfinite_candidate_score")
-        visited = []
-        reference, _ = active.plan(*fixture(points=[(0.0, 0.0, 0.0)]),
-                                  candidate_scorer=lambda candidate: visited.append(candidate) or 0.0)
-        self.assertFalse(reference["valid"])
-        self.assertEqual(visited, [])
+    def test_stage_timing_accounts_for_total_including_no_road(self):
+        for record in (job(), {**job(), "road": {}}):
+            result = plan(record)
+            timing = result["timing_s"]
+            self.assertEqual(timing["total"], result["elapsed_s"])
+            self.assertAlmostEqual(sum(v for k, v in timing.items() if k != "total"), timing["total"], places=8)
+            self.assertTrue(all(v >= 0 for v in timing.values()))
 
-    def test_scorer_cannot_publish_after_its_final_callback_consumes_deadline(self):
-        priming = planner()
-        priming.clock = lambda: 0.0
-        count = len(priming.plan(*fixture(), collect_candidates=True)[1]["candidate_references"])
-        active = planner()
-        clock, calls = [0.0], [0]
-        active.clock = lambda: clock[0]
-        def late_score(candidate):
-            calls[0] += 1
-            if calls[0] == count:
-                clock[0] = 0.5
-            return 1.0
-        reference, _ = active.plan(*fixture(), candidate_scorer=late_score)
-        self.assertEqual(calls[0], count)
-        self.assertFalse(reference["valid"])
-        self.assertEqual(reference["status"], "TIME_BUDGET_EXCEEDED")
-        self.assertIsNone(reference["path"])
+    def test_real_car15_continuous_curve_masks_each_side_before_reconstruction(self):
+        import yaml
+        root = Path(__file__).resolve().parents[1]
+        config = yaml.safe_load((root/"config/ai4r_policy.yaml").read_text(encoding="utf-8"))["/**/ai4r_policy"]["ros__parameters"]
+        frames=json.loads((root/'tests/fixtures/car15_shadow_curve_sequence.json').read_text())
+        for side, colour in (("left", 1), ("right", 2)):
+            pipeline = ns["EstimationPipeline"](ns["EstimationSettings"](**config["estimation"]))
+            seed = frames[0]
+            pipeline._history_road({"detections": seed["positions"]}, round(seed["stamp_s"]*1e9), 0, seed["stamp_s"])
+            self.assertIsNotNone(pipeline._learned_lane_width_m)
+            for frame in frames[1:]:
+                masked = [p for p in frame["positions"] if p[3] == colour]
+                road = pipeline.road({"detections": masked}, round(frame["stamp_s"]*1e9), 0)
+                hidden = "right" if side == "left" else "left"
+                self.assertIsNone(road[hidden+"_boundary_xy"])
+                self.assertEqual(road["visibility"], side+"_only")
+                result = plan({**job(), "road": road})
+                self.assertEqual(result["status"], "VALID")
+                self.assertEqual(result["known_boundary_sides"], [side])
+                self.assertIsNone(result["selected"]["collision"])
 
-    def test_observed_rear_support_needs_no_extension_and_roundtrips(self):
-        for start in (-1.5, -0.5, -0.348):
-            args = fixture()
-            xs = [start]+[i*0.1 for i in range(-14, 31) if i*0.1 > start]
-            for key, y in (("centerline_xy", 0), ("left_boundary_xy", 0.5), ("right_boundary_xy", -0.5)):
-                args[0][key] = [(x, y) for x in xs]
-            ref, diag = planner().plan(*args)
-            self.assertTrue(ref["valid"], ref["reason"])
-            self.assertEqual(diag["near_support"]["extension_m"], 0)
-            self.assertEqual(diag["near_support"]["method"], "observed_support")
-            origin = ref["frenet_path"]["lateral"]["origin"]
-            g = ns["evaluate_frenet_path"](json.loads(json.dumps(ref)), origin, 10.0)
-            self.assertAlmostEqual(g["x"], 0, places=6)
-            self.assertAlmostEqual(g["y"], 0, places=6)
+    def test_recenter_prefix_and_turn_preparation_have_explicit_candidates(self):
+        record = job(center=0.10)
+        result = plan(record)
+        candidates = {c["family"]: c for c in result["candidates"] if c["family"] != "halton"}
+        self.assertLess(candidates["fast_center"]["costs"]["lateral"], candidates["hold"]["costs"]["lateral"])
+        for sign in (-1, 1):
+            record = job()
+            record["road"].update(left_boundary_xy=None, right_boundary_xy=None,
+                centerline_xy=[(0.6*math.sin(i*.08), sign*.6*(1-math.cos(i*.08))) for i in range(20)])
+            result = plan(record)
+            self.assertLess(sign*result["preparation_offset_m"], 0)
+            prep = next(c for c in result["candidates"] if c["family"] == "prepare")
+            self.assertLess(sign*prep["offsets_m"][0], 0)
 
-    def test_fused_forward_only_start_requires_explicit_planner_assumption(self):
-        estimator_api = api["api"]
-        out = estimator_api["NearFieldHistoryChecks"].step(
-            estimator_api["Pipeline"](estimator_api["Settings"]()), 10.0,
-            [0.9+0.3*i for i in range(8)], speed=0.0)
-        road = out["road"]
-        self.assertFalse(road["valid"])
-        self.assertEqual(road["centerline_xy"], [])
-        self.assertTrue(road["forward_geometry"]["geometry_valid"])
-        before = deepcopy(road)
-        enabled = planner(obstacle_check_enabled=False)
-        ref, diag = enabled.plan(road, out["state"], out["obstacles"], {}, 10.0)
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertTrue(diag["controlled_near_extension"])
-        # Once observed origin support exists, loss must not revert to the
-        # startup assumption, even when the forward shape remains plausible.
-        observed = fixture()
-        self.assertTrue(enabled.plan(*observed)[0]["valid"])
-        self.assertFalse(enabled.plan(road, out["state"], None, {}, 10.0)[0]["valid"])
-        enabled.cfg = Config(clear_start_assumed=False, budget_s=5, obstacle_check_enabled=False)
-        self.assertFalse(enabled.plan(road, out["state"], out["obstacles"], {}, 10.0)[0]["valid"])
-        bad = deepcopy(road)
-        bad["status"] = "observed_history_conflict"
-        self.assertFalse(planner(obstacle_check_enabled=False).plan(bad, out["state"], None, {}, 10.0)[0]["valid"])
-        self.assertEqual(road, before)
+    def test_vertical_returning_road_preserves_order_and_generates(self):
+        record = job()
+        record["road"].update(centerline_xy=[(0.1, 0), (.4, 0), (.4, .3), (.1, .3), (-.1, .3)],
+                              left_boundary_xy=None, right_boundary_xy=None)
+        result = plan(record)
+        self.assertEqual(result["status"], "VALID")
+        self.assertTrue(all(math.isfinite(v) for c in result["candidates"] for p in c["path"] for v in p))
 
-    def test_degraded_fused_road_caps_speed_and_reference_deadline(self):
-        args = fixture(speed=0.2)
-        args[0].update(degraded=True, recommended_speed_scale=0.5, prediction_remaining_s=0.08)
-        ref, diag = planner().plan(*args)
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertLessEqual(ref["target_speed_mps"], 0.1)
-        self.assertLessEqual(ref["valid_for_s"], 0.08)
-        self.assertTrue(diag["road_degraded"])
-        self.assertAlmostEqual(ref["speed_profile"][0][1], 0.2)
-        self.assertLessEqual(diag["selected"]["terminal_speed_mps"], 0.1)
-        for changes in ({"prediction_remaining_s": 0}, {"prediction_remaining_s": None},
-                        {"recommended_speed_scale": 0}, {"recommended_speed_scale": float("nan")}):
-            args[0].update(changes)
-            self.assertFalse(planner().plan(*args)[0]["valid"])
-            args[0].update(prediction_remaining_s=0.08, recommended_speed_scale=0.5)
+    def test_worker_protocol_executes_without_importing_ros(self):
+        record = job()
+        process = subprocess.run([sys.executable, str(worker_source), "--shadow-worker"],
+            input=json.dumps(record)+"\n", capture_output=True, text=True, timeout=15)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        result = json.loads(process.stdout)
+        self.assertEqual(result["status"], "VALID")
+        self.assertEqual(result["job_id"], 1)
+        self.assertEqual(result["generation"], 1)
 
-    def test_actual_node_bridge_slows_then_expires_and_stays_stopped(self):
-        control_api = runpy.run_path(str(Path(__file__).with_name("test_control.py")))
-        node = control_api["make_node"](simulated=False, mvp=True)
-        node.planning_settings = Settings(algorithm="lattice_v2", max_source_age_s=0.4, reference_lifetime_s=0.2)
-        node.lattice_settings = Config(budget_s=5, clear_start_assumed=True, obstacle_check_enabled=False)
-        control_api["feed"](node, center=0.0, speed=0.2)
-        control_api["start"](node)
-        node.run_policy_step()
-        self.assertEqual(node.fsm_state, 3, node.state_reason)
-        deadlines = []
-        for _ in range(6):
-            node.test_clock.advance(0.05)
-            control_api["feed"](node, center=0.0, speed=0.2, empty=True)
+    def test_real_background_transport_does_not_wait_on_submit_and_closes(self):
+        worker = ns["ShadowWorker"]()
+        try:
+            record = job()
+            record["submitted_monotonic_s"] = time.monotonic()
+            worker.submit(record)
+            deadline = time.monotonic()+10
+            result = None
+            while result is None and time.monotonic() < deadline:
+                result = worker.poll()
+                time.sleep(0.01)
+            self.assertIsNotNone(result)
+            self.assertEqual(result["status"], "VALID", result)
+            self.assertGreaterEqual(result["received_monotonic_s"], record["submitted_monotonic_s"])
+        finally:
+            worker.close()
+            worker.thread.join(timeout=3)
+        self.assertFalse(worker.thread.is_alive())
+
+
+control = runpy.run_path(str(Path(__file__).with_name("test_control.py")))
+node_definition = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "PolicyNode")
+methods = [n for n in node_definition.body if isinstance(n, ast.FunctionDef)
+           and n.name in ("_shadow_offer", "_shadow_poll", "_shadow_clear", "stop_before_shutdown")]
+method_ns = {**ns, "json": json, "String": SimpleNamespace, "FSM_STATE_PUBLISHING_POLICY_ACTION": 3,
+             "FSM_STATE_NOT_PUBLISHING_ACTIONS": 1}
+exec(compile(ast.Module(body=methods, type_ignores=[]), str(source), "exec"), method_ns)
+method_ns["_shadow_offer"]=transport.ShadowJobSource._shadow_offer
+
+
+class ShadowIntegrationChecks(unittest.TestCase):
+    def node(self):
+        node = control["make_node"](simulated=False, mvp=True)
+        node.shadow_settings = Settings(enabled=True)
+        node.shadow_generation = 2
+        node.policy_update_rate_hz = 20.0
+        node.shadow_job_id = 0
+        node.shadow_last_submit_s = -math.inf
+        node.shadow_handoff_estimate_s = node.shadow_settings.handoff_allowance_s
+        node.shadow_worker = SimpleNamespace(submit=lambda job: None, poll=lambda: None)
+        node.shadow_displays = []
+        node._shadow_publish_path = lambda pub, points, stamp: node.shadow_displays.append((pub, points, stamp))
+        for name in ("path", "prefix", "reference", "diagnostics"):
+            setattr(node, "shadow_"+name+"_publisher", control["Recorder"]())
+        for name in ("_shadow_offer", "_shadow_poll", "_shadow_clear", "stop_before_shutdown"):
+            setattr(node, name, method_ns[name].__get__(node))
+        return node
+
+    def baseline_state(self, node):
+        def values(value):
+            if isinstance(value, dict):
+                return {k: values(v) for k, v in value.items()}
+            if isinstance(value, (tuple, list)):
+                return [values(v) for v in value]
+            if hasattr(value, "__dict__"):
+                return values(vars(value))
+            return value
+        return deepcopy({name: getattr(node, name) for name in (
+            "fsm_state", "state_reason", "estimation_output", "planning_output",
+            "planning_diagnostics", "control_diagnostics", "last_control_reference_deadline_s",
+            "control_has_run", "_trajectory_reference")}) | {
+                "controller": values(node.controller),
+                "distance": values(node.distance_limiter),
+                "actions": [vars(msg).copy() for msg in node.action_publisher.messages]}
+
+    def configure_shipped_baseline(self, node):
+        import yaml
+        cfg = yaml.safe_load((source.parents[1]/"config/ai4r_policy.yaml").read_text(
+            encoding="utf-8"))["/**/ai4r_policy"]["ros__parameters"]
+        node.estimation_settings = ns["EstimationSettings"](**cfg["estimation"])
+        node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)
+        node.planning_settings = ns["PlanningSettings"](**cfg["planning"])
+        node.control_settings = ns["ControlSettings"](**cfg["control"])
+        node.controller = ns["PolicyController"](node.control_settings)
+        node.distance_limiter = ns["RunDistanceLimiter"](
+            node.control_settings.max_distance_m, node.control_settings.max_dt_s)
+        node.sensor_timeout_s.update(cfg["sensor_timeout_s"])
+
+    def feed_shipped_baseline(self, node, center=0.0, speed=0.2, yaw=0.0):
+        now, mono = node.test_clock.ros_ns, node.test_clock.monotonic
+        node._store("wheel_speed", speed, None, mono, now)
+        node._store("imu_angular_velocity", (0.0, 0.0, yaw), now, mono, now)
+        # Ordered-road fixture: observed support ahead, with no reversing rear chain.
+        xs = [0.15+0.15*i for i in range(15)]
+        batch = api["cones"]([(x, center+0.35) for x in xs], [(x, center-0.35) for x in xs])
+        batch["detections"] = [(x, y, z, node.estimation_settings.left_colour if y > center
+            else node.estimation_settings.right_colour, confidence)
+            for x, y, z, _, confidence in batch["detections"]]
+        node._store("cone_detections", batch, node.test_clock.ros_ns,
+                    node.test_clock.monotonic, node.test_clock.ros_ns)
+        node.last_nonempty_cones = node.observations["cone_detections"]
+
+    def test_faulting_shadow_offer_cannot_change_baseline_action_or_fsm(self):
+        baseline = control["make_node"](simulated=False, mvp=True)
+        shadow = self.node()
+        def fail():
+            raise RuntimeError("shadow injected fault")
+        shadow._shadow_offer = fail
+        for node in (baseline, shadow):
+            control["feed"](node)
+            control["start"](node)
             node.run_policy_step()
-            if node.fsm_state == 2:
-                break
-            self.assertTrue(node.planning_diagnostics["road_degraded"])
-            self.assertLessEqual(node.planning_output["target_speed_mps"], 0.1)
-            prediction_deadline = node.planning_output["timestamp_s"]+node.planning_diagnostics["prediction_remaining_s"]
-            self.assertLessEqual(node.last_control_reference_deadline_s, prediction_deadline+1e-8)
-            deadlines.append(prediction_deadline)
-        self.assertEqual(node.fsm_state, 2)
-        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
-        self.assertTrue(deadlines)
-        self.assertLessEqual(max(deadlines)-min(deadlines), 1e-8)
+        self.assertEqual(baseline.fsm_state, 3)
+        self.assertEqual(shadow.fsm_state, baseline.fsm_state)
+        self.assertEqual(vars(shadow.action_publisher.messages[-1]), vars(baseline.action_publisher.messages[-1]))
+
+    def test_scheduler_uses_latest_road_without_touching_real_controller(self):
+        node = self.node()
+        record = job()
+        node.estimation_output = {"road": record["road"], "state": record["state"]}
+        submitted = []
+        node.shadow_worker.submit = submitted.append
+        node._shadow_offer()
         node.test_clock.advance(0.05)
-        control_api["feed"](node, center=0.0)
+        node._shadow_offer()
+        self.assertEqual(len(submitted), 1)
+        node.test_clock.advance(1.0)
+        node.estimation_output["state"]["speed_mps"] = 0.3
+        node._shadow_offer()
+        self.assertEqual(len(submitted), 2)
+        self.assertEqual(submitted[-1]["state"]["speed_mps"], 0.3)
+        self.assertEqual(node.controller._mvp_previous_steer, 0.0)
+        node.estimation_output["road"]["centerline_xy"][0] = (9.0, 9.0)
+        self.assertEqual(submitted[-1]["road"]["centerline_xy"][0], (0.0, 0.0))
+
+    def test_stop_generation_fences_old_output_and_all_collision_clears_selected_line(self):
+        node = self.node()
+        result = plan(job())
+        result["generation"] = 1
+        node.fsm_state = 3
+        node.shadow_worker.poll = lambda: result
+        node._shadow_poll()
+        self.assertEqual(node.shadow_displays, [])
+        result["generation"] = 2
+        result["status"] = "ALL_COLLIDE"
+        node._shadow_poll()
+        self.assertEqual(node.shadow_displays[0][1], [])
+        self.assertEqual(node.shadow_displays[1][1], [])
+        count = len(node.shadow_displays)
+        node.fsm_state = 2
+        result["status"] = "VALID"
+        node._shadow_poll()
+        self.assertEqual(len(node.shadow_displays), count)
+
+    def test_shadow_results_never_mutate_live_reference_controller_fsm_or_actions(self):
+        node = self.node()
+        control["feed"](node)
+        control["start"](node)
         node.run_policy_step()
-        self.assertEqual(node.fsm_state, 2)
+        before = self.baseline_state(node)
+        result = plan(job())
+        result["generation"] = node.shadow_generation
+        result["selected"]["path"] = [(0.0, 0.0, 0.0), (0.01, 10.0, 3.0)]
+        for status in ("VALID", "NO_ROAD", "ALL_COLLIDE", "WORKER_ERROR"):
+            with self.subTest(status=status):
+                result["status"] = status
+                node.shadow_worker.poll = lambda: result
+                node._shadow_poll()
+                self.assertEqual(self.baseline_state(node), before)
+        # A malformed diagnostic also cannot corrupt the active controller.
+        node.shadow_worker.poll = lambda: {"generation": node.shadow_generation,
+            "status": "VALID", "selected": {"path": None}}
+        node._shadow_poll()
+        self.assertEqual(self.baseline_state(node), before)
 
-    def test_straight_projection_and_arc_are_analytic(self):
-        curve = ns["LatticeCurve"]([(0, 0.2), (1, 0.2), (2, 0.2)], 0.5, 0.025)
-        s0, d0 = curve.project_origin()
-        self.assertAlmostEqual(s0, 0.5)
-        self.assertAlmostEqual(d0, -0.2)
-        x, y, tx, ty, k, dk = curve.at_s(s0+1)
-        self.assertAlmostEqual(x, 1)
-        self.assertEqual((y, tx, ty, k, dk), (0.2, 1, 0, 0, 0))
+    def test_shipped_baseline_commands_match_with_shadow_results_across_40_ticks(self):
+        baseline, shadow = control["make_node"](simulated=False, mvp=True), self.node()
+        for node in (baseline, shadow):
+            self.configure_shipped_baseline(node)
+            self.feed_shipped_baseline(node)
+            control["start"](node)
+        result = plan(job())
+        for tick in range(40):
+            for node in (baseline, shadow):
+                node.test_clock.advance(0.05)
+                self.feed_shipped_baseline(node, center=0.12*math.sin(tick*0.3),
+                    speed=0.15+0.03*math.cos(tick*0.2), yaw=0.1*math.sin(tick*0.2))
+                node.supervision_callback()
+                node.run_policy_step()
+            result["generation"] = shadow.shadow_generation
+            result["status"] = ("VALID", "ALL_COLLIDE", "NO_ROAD", "WORKER_ERROR")[tick % 4]
+            shadow.shadow_worker.poll = lambda: result
+            shadow._shadow_poll()
+            self.assertEqual(shadow.fsm_state, 3, shadow.state_reason)
+            self.assertEqual(self.baseline_state(shadow), self.baseline_state(baseline))
+        # Independent watchdog must still stop even if shadow says VALID.
+        for node in (baseline, shadow):
+            node.test_clock.advance(0.5)
+            node.supervision_callback()
+        result["status"] = "VALID"
+        shadow._shadow_poll()
+        self.assertEqual(shadow.fsm_state, 2)
+        self.assertEqual(self.baseline_state(shadow), self.baseline_state(baseline))
 
-    def test_quintic_end_conditions_in_physical_units(self):
-        length = 1.3
-        c = ns["_lattice_lateral"](-0.1, 0.08, 0.03, 0.2, length)
-        for u, target in ((0, (-0.1, 0.08, 0.03)), (1, (0.2, 0, 0))):
-            values = [ns["_control_poly_eval"](ns["_lattice_derivative"](c, order), u)/length**order for order in range(3)]
-            for actual, expected in zip(values, target):
-                self.assertAlmostEqual(actual, expected, places=9)
-
-    def test_cg_curvature_steering_round_trip(self):
-        model = planner()._model({})
-        for angle in (-0.5, 0, 0.5):
-            tangent = math.tan(angle)
-            k = tangent/model["wheelbase_m"]/math.sqrt(1+(model["rear_axle_from_cg_m"]*tangent/model["wheelbase_m"])**2)
-            self.assertAlmostEqual(ns["_lattice_steering"](k, model), angle)
-
-    def test_straight_cruise_output_and_serialization(self):
-        ref, diag = planner().plan(*fixture())
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertFalse(ref["planned_stop"])
-        decoded = json.loads(json.dumps(ref))
-        start = decoded["frenet_path"]["lateral"]["origin"]
-        g = ns["evaluate_frenet_path"](decoded, start+0.2, 10.01)
-        self.assertAlmostEqual(g["x"], 0.2, places=5)
-        self.assertAlmostEqual(g["y"], 0)
-        self.assertIsNone(ns["evaluate_frenet_path"](decoded, start, 10.2))
-        self.assertIsNone(ns["evaluate_frenet_path"](decoded, start+5, 10.01))
-        self.assertAlmostEqual(ref["speed_profile"][0][1], 0.1)
-        self.assertIn("costs", diag["selected"])
-
-    def test_offset_returns_continuous_path_and_preview_turn(self):
-        for offset in (-0.1, 0.1):
-            ref, diag = planner().plan(*fixture(offset))
-            self.assertTrue(ref["valid"], ref["reason"])
-            at_start = ns["evaluate_planning_path"](ref, ref["path"]["range"][0], 10.01)
-            self.assertAlmostEqual(at_start["position_xy_m"][1], 0, places=5)
-            self.assertAlmostEqual(at_start["heading_rad"], 0, places=5)
-            preview = ns["evaluate_planning_path"](ref, 0.35, 10.01)
-            self.assertGreater(preview["position_xy_m"][1]*offset, 0)
-            self.assertLessEqual(diag["output_errors"]["position_m"], 0.01)
-
-    def test_near_gap_requires_explicit_assumption_and_preserves_offset(self):
-        args = fixture(0.1, near=0.9)
-        ref, diag = planner().plan(*args)
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertAlmostEqual(diag["initialization"]["d0"], -0.1)
-        cfg = Config(budget_s=5)
-        rejected, _ = Planner(Settings(), cfg).plan(*args)
-        self.assertEqual(rejected["reason"], "near_gap_requires_clear_start_assumption")
-
-    def test_curve_is_supported_without_v1_straight_gate(self):
-        ref, diag = planner().plan(*fixture(curve=0.08))
-        self.assertTrue(ref["valid"], (ref["reason"], diag["candidates"]))
-        self.assertGreater(ns["evaluate_planning_path"](ref, 0.35, 10.01)["heading_rad"], 0)
-
-    def test_obstacle_wall_selects_stop_before_contact(self):
-        points = [(1.5, y, 0) for y in (-0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45)]
-        ref, diag = planner().plan(*fixture(points=points))
-        self.assertTrue(ref["valid"], (ref["reason"], diag))
-        self.assertTrue(ref["planned_stop"])
-        self.assertEqual(diag["behavior"], "obstacle_stop")
-        self.assertAlmostEqual(ref["speed_profile"][-1][1], 0, places=6)
-        self.assertLess(ref["path"]["range"][1]+0.297+0.1, 1.5)
-        self.assertLessEqual(max(v for _, v in ref["speed_profile"]), 0.1+1e-5)
-
-    def test_small_obstacle_can_be_bypassed_and_roadside_point_does_not_force_stop(self):
-        ref, diag = planner().plan(*fixture(points=[(1.5, 0, 0)]))
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertFalse(ref["planned_stop"])
-        self.assertGreater(abs(diag["selected"]["offset_m"]), 0.2)
-        ref, diag = planner().plan(*fixture(points=[(1.5, 0.45, 0)]))
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertFalse(ref["planned_stop"])
-        self.assertEqual(diag["selected"]["offset_m"], 0)
-
-    def test_stop_decision_persists_after_obstacle_disappears(self):
-        p = planner()
-        args = fixture(points=[(1.5, y, 0) for y in (-0.4, -0.2, 0, 0.2, 0.4)])
-        ref, _ = p.plan(*args)
-        self.assertTrue(ref["planned_stop"])
-        args[2]["points_xyz_m"] = []
-        args[4] = 10.05
-        for obj in args[:3]: obj["timestamp_s"] = args[4]
-        ref, _ = p.plan(*args)
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertTrue(ref["planned_stop"])
-        args[4] = 10.4
-        for obj in args[:3]: obj["timestamp_s"] = args[4]
-        ref, _ = p.plan(*args)
-        self.assertFalse(ref["valid"])
-        self.assertEqual(ref["reason"], "planned_stop_requires_explicit_restart")
-
-    def test_measured_speed_overshoot_is_not_mistaken_for_invalid_input(self):
-        ref, _ = planner().plan(*fixture(speed=0.21))
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertAlmostEqual(ref["speed_profile"][0][1], 0.21)
-        self.assertLessEqual(ref["target_speed_mps"], 0.21)
-
-    def test_standstill_can_start_and_blocked_standstill_stays_neutral(self):
-        ref, _ = planner().plan(*fixture(speed=0))
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertEqual(ref["speed_profile"][0][1], 0)
-        self.assertGreater(ref["target_speed_mps"], 0)
-        ref, _ = planner().plan(*fixture(speed=0, points=[(1.5, y, 0) for y in (-0.4, -0.2, 0, 0.2, 0.4)]))
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertTrue(ref["planned_stop"])
-        self.assertEqual(ref["target_speed_mps"], 0)
-
-    def test_shipped_lattice_parameters_are_loadable_without_hidden_keys(self):
-        import re
-        config_path = Path(__file__).resolve().parents[1]/"config"/"ai4r_policy.yaml"
-        values = {}
-        for line in config_path.read_text(encoding="utf-8").splitlines():
-            match = re.fullmatch(r"        ([a-z_0-9]+): (.+)", line)
-            if match:
-                key, raw = match.groups()
-                try: value = json.loads(raw)
-                except ValueError: value = raw
-                self.assertNotIn(key, values)
-                values[key] = value
-        cfg = Config(**values)
-        self.assertFalse(cfg.obstacle_check_enabled)
-        self.assertTrue(cfg.clear_start_assumed)
-        self.assertEqual(set(values), set(vars(cfg)))
-
-    def test_obstacle_disabled_ignores_missing_stale_and_noisy_lidar(self):
-        results = []
-        for obstacle in (None, {"available": False}, fixture(points=[(0.1, 0, 0)])[2]):
-            args = fixture()
-            args[2] = obstacle
-            ref, diag = planner(obstacle_check_enabled=False).plan(*args)
-            self.assertTrue(ref["valid"], ref["reason"])
-            self.assertFalse(diag["obstacle_response_enabled"])
-            self.assertNotIn("obstacles", ref["source_ages_s"])
-            results.append(ref["path"])
-        self.assertEqual(results[0], results[1])
-        self.assertEqual(results[0], results[2])
-        args = fixture()
-        args[0]["left_boundary_xy"] = [(x, 0.1) for x, _ in args[0]["left_boundary_xy"]]
-        args[0]["right_boundary_xy"] = [(x, -0.1) for x, _ in args[0]["right_boundary_xy"]]
-        ref, _ = planner(obstacle_check_enabled=False).plan(*args)
-        self.assertFalse(ref["valid"])
-        self.assertTrue(ref["stop_requested"])
-
-    def test_actual_node_can_follow_road_without_optional_lidar(self):
-        control_api = runpy.run_path(str(Path(__file__).with_name("test_control.py")))
-        node = control_api["make_node"](simulated=False, mvp=True)
-        node.planning_settings = Settings(algorithm="lattice_v2", max_source_age_s=0.4, reference_lifetime_s=0.2)
-        node.lattice_settings = Config(budget_s=5, clear_start_assumed=True, obstacle_check_enabled=False)
-        self.assertNotIn("lidar_cartesian", node.required_sensors)
-        control_api["feed"](node, center=0.1)
-        control_api["start"](node)
+    def test_transport_failure_restarts_only_shadow_worker(self):
+        node = self.node()
+        control["feed"](node)
+        control["start"](node)
         node.run_policy_step()
-        self.assertEqual(node.fsm_state, 3, node.state_reason)
-        self.assertTrue(node.planning_output["valid"])
-        self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+        before = self.baseline_state(node)
+        closed = []
+        node.shadow_worker.close = lambda: closed.append(True)
+        node.shadow_worker.poll = lambda: {"status": "TRANSPORT_ERROR", "error": "injected crash"}
+        replacement = SimpleNamespace(poll=lambda: None, submit=lambda _: None)
+        with patch.dict(method_ns, ShadowWorker=lambda: replacement, __file__=str(source)):
+            node._shadow_poll()
+        self.assertEqual(closed, [True])
+        self.assertIs(node.shadow_worker, replacement)
+        self.assertEqual(self.baseline_state(node), before)
 
-    def test_actual_node_latches_lattice_failure_and_requires_explicit_resume(self):
-        control_api = runpy.run_path(str(Path(__file__).with_name("test_control.py")))
-        node = control_api["make_node"](simulated=False, mvp=True)
-        node.planning_settings = Settings(algorithm="lattice_v2", max_source_age_s=0.4, reference_lifetime_s=0.2)
-        node.lattice_settings = Config(budget_s=5, clear_start_assumed=True)
-        node.required_sensors.append("lidar_cartesian")
-        control_api["feed"](node, center=0.1)
-        node._store("lidar_scan", {"ranges": [], "intensities": []}, node.test_clock.ros_ns,
-                    node.test_clock.monotonic, node.test_clock.ros_ns)
-        node._store("lidar_cartesian", {"points_xyz": [], "scan_indices": []},
-                    node.test_clock.ros_ns, node.test_clock.monotonic, node.test_clock.ros_ns)
-        control_api["start"](node)
+    def test_operator_and_watchdog_zero_precede_shadow_display_clearing(self):
+        for stop_source in ("operator", "watchdog"):
+            with self.subTest(stop_source=stop_source):
+                node = self.node()
+                control["feed"](node)
+                control["start"](node)
+                node.run_policy_step()
+                self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+                cleared_after_zero = []
+                def clear():
+                    command = node.action_publisher.messages[-1]
+                    cleared_after_zero.append((node.fsm_state, command.drive, command.steer))
+                node._shadow_clear = clear
+                if stop_source == "operator":
+                    node.fsm_transition_request_callback(SimpleNamespace(data=2))
+                else:
+                    node.test_clock.advance(1.0)
+                    node.supervision_callback()
+                self.assertEqual(cleared_after_zero, [(2, 0.0, 0.0)])
+
+    def test_shutdown_zero_precedes_worker_close(self):
+        node = self.node()
+        control["feed"](node)
+        control["start"](node)
         node.run_policy_step()
-        self.assertEqual(node.fsm_state, 3, node.state_reason)
-        self.assertGreater(node.action_publisher.messages[-1].steer, 0)
-        node.test_clock.advance(0.05)
-        control_api["feed"](node, center=0.1)
-        node._store("lidar_scan", {"ranges": [], "intensities": []}, node.test_clock.ros_ns,
-                    node.test_clock.monotonic, node.test_clock.ros_ns)
-        node._store("lidar_cartesian", {"points_xyz": [(0.1, 0, 0)], "scan_indices": [0]},
-                    node.test_clock.ros_ns, node.test_clock.monotonic, node.test_clock.ros_ns)
-        node.run_policy_step()
-        self.assertEqual(node.fsm_state, 2)
-        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
-        node.test_clock.advance(0.05)
-        control_api["feed"](node, center=0.1)
-        node._store("lidar_scan", {"ranges": [], "intensities": []}, node.test_clock.ros_ns,
-                    node.test_clock.monotonic, node.test_clock.ros_ns)
-        node._store("lidar_cartesian", {"points_xyz": [], "scan_indices": []},
-                    node.test_clock.ros_ns, node.test_clock.monotonic, node.test_clock.ros_ns)
-        node.run_policy_step()
-        self.assertEqual(node.fsm_state, 2)
-        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
-
-    def test_close_obstacle_or_narrow_road_never_outputs_drive_path(self):
-        for args in (fixture(points=[(0.1, 0, 0)]), fixture()):
-            if not args[2]["points_xyz_m"]:
-                args[0]["left_boundary_xy"] = [(x, 0.12) for x, _ in args[0]["left_boundary_xy"]]
-                args[0]["right_boundary_xy"] = [(x, -0.12) for x, _ in args[0]["right_boundary_xy"]]
-            ref, _ = planner().plan(*args)
-            self.assertFalse(ref["valid"])
-            self.assertTrue(ref["stop_requested"])
-            self.assertIsNone(ref["path"])
-
-    def test_freshness_frame_point_cap_and_source_deadline(self):
-        for change in ("road_age", "obstacle_age", "frame", "points", "missing"):
-            args = fixture()
-            if change == "road_age": args[0]["source_age_s"] = 0.4
-            if change == "obstacle_age": args[2]["source_age_s"] = 0.4
-            if change == "frame": args[2]["frame_id"] = "lidar"
-            if change == "points": args[2]["points_xyz_m"] = [(1, math.nan, 0)]
-            if change == "missing": args[2]["available"] = False
-            ref, _ = planner().plan(*args)
-            self.assertFalse(ref["valid"], change)
-        ref, _ = planner().plan(*fixture(), source_timeout_s={"road": 0.12, "wheel_speed": 0.15, "imu_angular_velocity": 0.15, "obstacles": 0.08})
-        self.assertTrue(ref["valid"], ref["reason"])
-        self.assertLessEqual(ref["valid_for_s"], 0.07+1e-9)
-
-    def test_budget_timeout_is_deterministic_and_neutral(self):
-        tick = [0.0]
-        def clock():
-            tick[0] += 0.01
-            return tick[0]
-        p = Planner(Settings(), Config(clear_start_assumed=True), clock=clock)
-        ref, _ = p.plan(*fixture())
-        self.assertEqual(ref["status"], "TIME_BUDGET_EXCEEDED")
-        self.assertEqual(ref["target_speed_mps"], 0)
-        self.assertIsNone(p.previous)
-
-    def test_upstream_missing_parameters_do_not_fall_back(self):
-        ref, _ = planner(model_source="upstream").plan(*fixture())
-        self.assertFalse(ref["valid"])
-        self.assertEqual(ref["reason"], "incomplete_lattice_vehicle_limits")
-
-    def test_time_polynomials_meet_boundary_conditions(self):
-        p = planner()
-        for stop in (False, True):
-            profile = p._longitudinal(0.5, 0.1, 1.5, 10, 0.2, stop)
-            c, duration = profile["coeffs_low_to_high"], profile["duration_s"]
-            self.assertAlmostEqual(c[0], 0.5)
-            self.assertAlmostEqual(c[1]/duration, 0.1)
-            final_rate = ns["_control_poly_eval"](ns["_lattice_derivative"](c), 1)/duration
-            self.assertAlmostEqual(final_rate, 0 if stop else 0.2)
-            self.assertAlmostEqual(ns["_control_poly_eval"](ns["_lattice_derivative"](c, 2), 1), 0)
-            if stop: self.assertAlmostEqual(sum(c), 1.5)
-
-    def test_invalid_settings_are_rejected(self):
-        for kwargs in ({"geometry_step_m": 0.2}, {"terminal_offsets_m": "nan"},
-                       {"durations_s": "1"}, {"max_candidates": 1}, {"clear_start_assumed": 1},
-                       {"model_source": "guess"}):
-            with self.assertRaises(ValueError): Config(**kwargs)
-
-    def test_inputs_are_not_mutated(self):
-        args = fixture(0.1)
-        original = deepcopy(args)
-        planner().plan(*args)
-        self.assertEqual(args, original)
-
-    def test_score_scales_and_peak_clearance_have_expected_meaning(self):
-        p = planner()
-        geometry = [{"s": i*0.1, "d": 0.125, "clearance": 0.125,
-                     "support": "observed"} for i in range(11)]
-        cost = p._spatial_score(geometry, [], None)
-        self.assertAlmostEqual(cost["center"], 1)
-        self.assertEqual(cost["clearance"], 0)
-        geometry[5]["clearance"] = 0
-        cost = p._spatial_score(geometry, [], None)
-        self.assertGreaterEqual(cost["clearance"], 0.5)
-        self.assertLess(cost["clearance"], 0.6)
-
-    def test_near_extension_is_c2_at_observed_join(self):
-        curve = ns["LatticeCurve"]([(i*0.1, 0.08*(i*0.1)**2) for i in range(9, 31)], 1.3, 0.025)
-        a, b = curve.at_x(0.9-1e-8), curve.at_x(0.9+1e-8)
-        for order in range(3): self.assertAlmostEqual(a[order], b[order], places=6)
-
-    def test_cubic_reference_matches_quadratic_curvature(self):
-        curve = ns["LatticeCurve"]([(i*0.1, 0.08*(i*0.1)**2) for i in range(31)], 0.5, 0.025)
-        for x in (0, 0.4, 1.2, 2.8):
-            s = ns["_lattice_interp"](curve.arc, x)
-            actual = curve.at_s(s)
-            self.assertAlmostEqual(actual[4], 0.16/(1+(0.16*x)**2)**1.5, places=6)
+        node.context = SimpleNamespace(ok=lambda: True)
+        closed_after_zero = []
+        node.shadow_worker.close = lambda: closed_after_zero.append(
+            vars(node.action_publisher.messages[-1]).copy())
+        node.stop_before_shutdown()
+        self.assertEqual(len(closed_after_zero), 1)
+        self.assertEqual((closed_after_zero[0]["drive"], closed_after_zero[0]["steer"]), (0.0, 0.0))
 
 
 if __name__ == "__main__":

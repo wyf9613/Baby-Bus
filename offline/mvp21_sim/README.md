@@ -6,14 +6,15 @@
 
 上游固定为`mvp2.1`的`f11428b5444ac4c714a95e86e71662086b3187bd`。
 `upstream/scripts/policy_node.py`和`upstream/config/ai4r_policy.yaml`是该提交的原样副本，
-加载时检查Git源文件SHA256。它们是离线来源快照，不替换部署入口或当前配置。
+加载时检查Git源文件SHA256。它们是离线来源快照；当前两个 script 入口已按用户要求
+统一为最新模块，YAML 已与 MVP2.1 对齐，本次未部署。
 
 ## 保留范围与接线
 
-`preserved-files.json`固定74个原有文件：`scripts/`、`config/`、
-`offline/planner_sim/`、`offline/lattice_training/`，包括policy训练/评分实现、
-特征编码、扩充前后模型与证据。每次实验前后核对文件指纹，本次还核对了原始字节
-未改变。已有训练数据与完整日志继续留在`.verification/`，未重算或覆盖。
+`preserved-files.json`最初固定74个原有文件。随后用户授权移除旧 V2 planner 并迁移
+policy 输入接口，相关源码/配置/文档的原始哈希单列于 `authorized_migrations`，不再声称
+这些源码保持不变。其余模型、数据、车辆环境、C* 求解器及历史证据继续逐文件检查。
+已有训练数据与完整日志留在`.verification/`，未重算或覆盖。
 
 `source.py`通过正常Python导入加载[mvp21_policy](../../mvp21_policy/README.md)中的
 实际算法，不导入ROS、不实例化`PolicyNode`，不执行`calculate_policy_actions()`。
@@ -101,6 +102,10 @@ plant四角到道路的最小诊断距离分别为0.130085/0.213147 m；这个�
 完整三组trace及测试日志在`.verification/mvp21-integration-20261015/`。
 
 ## 将 lattice 路径接给控制器
+
+后续已按模块实现1 Hz规划与20 Hz缓存控制，感知/理想道路两组在延迟交付下通过。
+`--path-source lattice`默认选择该模式；见[1 Hz闭环结果与命令](ONE_HZ_CONTROL.md)。
+下述为接入前的历史对照，复现每周期重算需显式加`--lattice-cadence control`。
 
 新增显式离线开关`--path-source lattice`，默认入口仍直接跟踪感知中线。
 保留planner原参数、每控制周期重新生成选中路径时，感知/理想道路两组均跑完；
