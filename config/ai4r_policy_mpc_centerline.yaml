@@ -18,6 +18,11 @@
       cone_detections: 1.5
     estimation:
       road_geometry: ordered_xy          # arc-length boundary chaining; no x-monotone assumption
+      # Opposite-boundary step-back allowed while pairing. Kept at main's 0.03: 0.10 stops Gym's
+      # 2 cm cone noise splitting the centerline (reference_too_short), but on car 05's real
+      # false-seed frame it pairs misclassified cones into a 0.41 m road instead of a 2.4 m
+      # single-side one, and the 10-15 car 05 replays split <1 % of frames (2026-10-15).
+      ordered_pairing_backtrack_m: 0.03
       # main's deployed estimation (tests/fixtures/car15_*.json estimation_parameters_at_capture)
       max_source_age_s: 1.5
       motion_max_interval_s: 0.5
