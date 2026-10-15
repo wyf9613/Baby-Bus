@@ -46,6 +46,15 @@ shadow，`offline/mpc_gym/results/replay_car15_run_jsonl.md`）；`offline/mpc_g
 矩阵全 0/10 的发现，shadow 阶段要重点核对 `mpc_debug` 的 `reject_reason` 是否持续落在
 `invalid_road_*`（近处盲区问题），而不是 MPC 自己的求解失败。
 
+**WSL ROS 门禁**（2026-10-15）：第一次（`edccf17`）FAIL——移植的 `from nav_msgs.msg import Path`
+覆盖了文件原有的 `pathlib.Path`，V2 异步规划器启动子进程时 `Path(__file__)` 报 TypeError（上车会让
+异步 V2 启动即崩溃）。改为 `TrajectoryPath` 别名，并加离线检查
+`tests/test_mpc_real_frames.py::ImportShadowingChecks`。第二次（`99cd86c`）PASS：policy_node 81、
+estimation 65、planning 18、lattice 45、control 43，0 失败；证据 `~/ai4r-evidence/ros-20261015-142450/`。
+
+**5 号车**（`--car 05`，`config/ai4r_policy_mpc_car05.yaml`）：05 没有任何辨识数据，现场决定借用 .27 的纵向
+拟合和 .20 的转向实测（-0.3142 rad），`vehicle.valid: true`、`v_exec_max_mps` 压到 0.12，`source` 标明是跨车替代。
+
 ## 2026-10-14：周四前补丁 —— 锥桶颜色可配置、一个校验 bug、现场核对项
 
 来源：盘点其它分支 10-12 到 10-14 的提交（`feature/road-estimation-v2`、`mvp2.0`、`fix/newcar-control`、`feature/vehicle-identification`）。
