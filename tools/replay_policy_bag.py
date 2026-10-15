@@ -205,6 +205,11 @@ def replay(api, params, path, imu_mount):
             dt = 0.0 if first else tick - last_step
             before = len(node.debug)
             row = {"t": round(tick - t0, 2)}
+            cones = (values.get("cone_detections") or {}).get("detections") or []
+            near = {c: min((d for d in cones if d[3] == c and 0.0 < d[0] <= 1.2), key=lambda d: d[0], default=None)
+                    for c in (api["ConeDetection"].COLOR_YELLOW, api["ConeDetection"].COLOR_BLUE)}
+            if all(near.values()):  # diagnostic only: mid-point of the nearest yellow/blue pair
+                row["cone_center_y_m"] = round(sum(d[1] for d in near.values())/2, 3)
             try:
                 node.calculate_policy_actions(values, ages, stamps, dt, 0.0 if first else tick - t0, first)
             except stops as stop:
@@ -217,12 +222,24 @@ def replay(api, params, path, imu_mount):
                        planning=(node.planning_output or {}).get("reason"),
                        planning_valid=(node.planning_output or {}).get("valid"),
                        centerline_rejection=(node.planning_diagnostics or {}).get("centerline_rejection"))
+            planned = (node.planning_output or {}).get("path") or {}
+            if planned.get("samples_xy"):  # ORDERED/CARTESIAN_CENTERLINE: extent of the planned path
+                xy = planned["samples_xy"]
+                row.update(path_len_m=round(sum(((b[0]-a[0])**2+(b[1]-a[1])**2)**0.5
+                                                for a, b in zip(xy, xy[1:])), 3),
+                           path_end_xy=[round(xy[-1][0], 3), round(xy[-1][1], 3)],
+                           path_head_xy=[[round(v, 3) for v in p[:2]] for p in xy[:4]])
             if len(node.debug) > before:
-                row.update(branch=node.debug[-1].get("branch"), reject=node.debug[-1].get("reject_reason"))
+                d = node.debug[-1]
+                row.update(branch=d.get("branch"), reject=d.get("reject_reason"),
+                           steer=d.get("candidate_steer_action"), e_y=d.get("e_y_m"), e_psi=d.get("e_psi_rad"))
             steps.append(row)
             first, last_step = False, tick
         tick += PERIOD_S
     n = len(steps)
+    # The car sits at the origin, so e_y should be about -cone_center_y (nearest pair, x <= 1.2 m).
+    gaps = sorted(abs(s["e_y"]+s["cone_center_y_m"]) for s in steps
+                  if isinstance(s.get("e_y"), (int, float)) and "cone_center_y_m" in s)
     widths = [s["lane_width"] for s in steps if isinstance(s.get("lane_width"), (int, float))]
     return {"bag": Path(path).name, "steps": n, "topics": sorted(topics),
             "road_status": dict(Counter(s["road_status"] for s in steps).most_common()),
@@ -236,6 +253,8 @@ def replay(api, params, path, imu_mount):
             "recorded_reject": dict(rec_reasons.most_common()),
             "lane_width_m": None if not widths else [round(min(widths), 3), round(sorted(widths)[len(widths)//2], 3),
                                                       round(max(widths), 3)],
+            "e_y_vs_cones_m": None if not gaps else {"n": len(gaps), "p50": round(gaps[len(gaps)//2], 3),
+                                                      "p95": round(gaps[int(0.95*(len(gaps)-1))], 3)},
             "warnings": dict(node.warnings), "frames": steps}
 
 
@@ -282,6 +301,8 @@ def main():
         rec = sum(r["recorded_branch"].values())
         print(f"   MPC branch, recorded: {share(r['recorded_branch'], rec)}"
               + (f"; rejects {r['recorded_reject']}" if r["recorded_reject"] else ""))
+        if r["e_y_vs_cones_m"]:
+            print(f"   |e_y + nearest cone-pair centre y| m: {r['e_y_vs_cones_m']}")
         if r["warnings"]:
             print(f"   ignored inputs:  {r['warnings']}")
     total = Counter()
