@@ -39,6 +39,13 @@ shadow，`offline/mpc_gym/results/replay_car15_run_jsonl.md`）；`offline/mpc_g
 按 `repeated_point` 拒绝；改成重合时替换掉上一个点。回归测试：
 `tests/test_mpc_real_frames.py::OrderedCenterlineAdapterChecks`。
 
+**部署**：`tools/make_deploy_yaml.py --mode mpc-shadow-centerline|mpc-exec-centerline`
+（叠加 `config/ai4r_policy_mpc_centerline.yaml`，`mpc.qp_solver: dense`，`--cones` 仍为必填）。
+下次上车顺序和 G2/周四一致：G1 计时 → shadow 推车（看 `/car/policy_trajectory` 绿线和新的
+`/car/mpc_prediction` 预测线，确认两者不发散）→ 低速直道执行 → 缓弯 → 直角弯。鉴于上面 Gym
+矩阵全 0/10 的发现，shadow 阶段要重点核对 `mpc_debug` 的 `reject_reason` 是否持续落在
+`invalid_road_*`（近处盲区问题），而不是 MPC 自己的求解失败。
+
 ## 2026-10-14：周四前补丁 —— 锥桶颜色可配置、一个校验 bug、现场核对项
 
 来源：盘点其它分支 10-12 到 10-14 的提交（`feature/road-estimation-v2`、`mvp2.0`、`fix/newcar-control`、`feature/vehicle-identification`）。
