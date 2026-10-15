@@ -1,0 +1,185 @@
+{
+  "upstream_commit": "f11428b5444ac4c714a95e86e71662086b3187bd",
+  "source_sha256": "524ffcb244a85e98d5993c273e0ff684629f44be6128a102e5ff31096ef26edd",
+  "config_sha256": "f9690e39ca898fb878c9ffa6780c1824b805c3d1f5cab912220d9ff5e48dacf0",
+  "preserved_files": {
+    "checkpoint_commit": "d6d1b5c19ca5cb1676253f7acd4deadbc6bf1d0a",
+    "checked_files": 74,
+    "unchanged": true
+  },
+  "original_raw_bytes_unchanged": true,
+  "tests": [
+    {
+      "suite": "upstream-estimation",
+      "passed": 97,
+      "seconds": 1.756
+    },
+    {
+      "suite": "upstream-planning",
+      "passed": 17,
+      "seconds": 0.028
+    },
+    {
+      "suite": "upstream-control",
+      "passed": 33,
+      "seconds": 2.161
+    },
+    {
+      "suite": "upstream-centerline_follow",
+      "passed": 41,
+      "seconds": 0.974
+    },
+    {
+      "suite": "upstream-shadow_lattice",
+      "passed": 22,
+      "seconds": 1.218
+    },
+    {
+      "suite": "adapter",
+      "passed": 6,
+      "seconds": 0.46
+    }
+  ],
+  "total_tests_passed": 216,
+  "runs": {
+    "perception-final-v2": {
+      "completed": true,
+      "steps": 152,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.742970643494541,
+      "goal_progress_m": 4.736799508178038,
+      "fault": null,
+      "valid_reference_count": 152,
+      "maximum_executed_speed_mps": 0.7767181154220482,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.38712304401456504,
+      "minimum_plant_corner_road_margin_m": 0.13008478499774423,
+      "shadow": {
+        "enabled": true,
+        "calls": 8,
+        "status_counts": {
+          "VALID": 8
+        },
+        "influences_actions": false,
+        "transport": "synchronous offline geometry probe; no ROS worker transport"
+      },
+      "planner_controller_wall_max_s": 0.0005893000052310526,
+      "planner_controller_over_50ms": 0,
+      "simulated_seconds": 7.6000000000000005,
+      "wall_s": 1.2063404999789782,
+      "road_input": "perception",
+      "actuator_mapping": {
+        "steering_sign": -1.0,
+        "drive_gain": 1.0,
+        "drive_offset": 0.0,
+        "explanation": "Upstream car positive steering is right; pinned plant positive steering is left."
+      },
+      "limitations": [
+        "No ROS, hardware, enabling or real-time qualification.",
+        "Physical car drive feedforward/gains remain unchanged on the course simulation plant.",
+        "Plant corner margin is a diagnostic, not continuous full-body sweep certification.",
+        "Shadow result is never connected to control; shadow dimensions are upstream assumptions."
+      ],
+      "road_status_counts": {
+        "near_field_unobserved": 59,
+        "observed_with_history": 9,
+        "near_field_requires_both_boundaries": 74,
+        "predicted_history": 10
+      },
+      "forward_only_count": 133
+    },
+    "map-final": {
+      "completed": true,
+      "steps": 148,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.744388154259442,
+      "goal_progress_m": 4.736799508178038,
+      "fault": null,
+      "valid_reference_count": 148,
+      "maximum_executed_speed_mps": 0.777112941377932,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.38440876888598063,
+      "minimum_plant_corner_road_margin_m": 0.2131473579095132,
+      "shadow": {
+        "enabled": true,
+        "calls": 8,
+        "status_counts": {
+          "VALID": 8
+        },
+        "influences_actions": false,
+        "transport": "synchronous offline geometry probe; no ROS worker transport"
+      },
+      "planner_controller_wall_max_s": 0.0005993000231683254,
+      "planner_controller_over_50ms": 0,
+      "simulated_seconds": 7.4,
+      "wall_s": 2.343344699998852,
+      "road_input": "map",
+      "actuator_mapping": {
+        "steering_sign": -1.0,
+        "drive_gain": 1.0,
+        "drive_offset": 0.0,
+        "explanation": "Upstream car positive steering is right; pinned plant positive steering is left."
+      },
+      "limitations": [
+        "No ROS, hardware, enabling or real-time qualification.",
+        "Physical car drive feedforward/gains remain unchanged on the course simulation plant.",
+        "Plant corner margin is a diagnostic, not continuous full-body sweep certification.",
+        "Shadow result is never connected to control; shadow dimensions are upstream assumptions."
+      ],
+      "road_status_counts": {
+        "recorded_map_oracle": 148
+      },
+      "forward_only_count": 0
+    },
+    "perception-noside": {
+      "completed": true,
+      "steps": 152,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.742970643494541,
+      "goal_progress_m": 4.736799508178038,
+      "fault": null,
+      "valid_reference_count": 152,
+      "maximum_executed_speed_mps": 0.7767181154220482,
+      "target_speed_mps": 0.2,
+      "speed_mean_absolute_error_mps": 0.38712304401456504,
+      "minimum_plant_corner_road_margin_m": 0.13008478499774423,
+      "shadow": {
+        "enabled": false,
+        "calls": 0,
+        "status_counts": {},
+        "influences_actions": false,
+        "transport": "synchronous offline geometry probe; no ROS worker transport"
+      },
+      "planner_controller_wall_max_s": 0.0017423999961465597,
+      "planner_controller_over_50ms": 0,
+      "simulated_seconds": 7.6000000000000005,
+      "wall_s": 0.4731749999918975,
+      "road_input": "perception",
+      "actuator_mapping": {
+        "steering_sign": -1.0,
+        "drive_gain": 1.0,
+        "drive_offset": 0.0,
+        "explanation": "Upstream car positive steering is right; pinned plant positive steering is left."
+      },
+      "limitations": [
+        "No ROS, hardware, enabling or real-time qualification.",
+        "Physical car drive feedforward/gains remain unchanged on the course simulation plant.",
+        "Plant corner margin is a diagnostic, not continuous full-body sweep certification.",
+        "Shadow result is never connected to control; shadow dimensions are upstream assumptions."
+      ],
+      "road_status_counts": {
+        "near_field_unobserved": 59,
+        "observed_with_history": 9,
+        "near_field_requires_both_boundaries": 74,
+        "predicted_history": 10
+      },
+      "forward_only_count": 133
+    }
+  },
+  "full_run_shadow_action_isolation": true,
+  "ros_gate": "Not rerun: pinned dream_interfaces checkout absent; pure source modules only.",
+  "deployed": false,
+  "hardware_tested": false,
+  "speed_tracking_qualified": false,
+  "note": "Road-goal completion is separate from speed tracking, terminal stopping, ROS transport and shadow control validation."
+}

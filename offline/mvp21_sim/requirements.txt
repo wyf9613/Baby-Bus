@@ -1,0 +1,2 @@
+-r ../lattice_training/requirements.txt
+PyYAML==6.0.2
