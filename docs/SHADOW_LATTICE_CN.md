@@ -2,7 +2,9 @@
 
 2026-10-15。基线为 main 的二维道路 / PID 版本。影子规划全部重新实现，
 没有查阅、移植或加载旧 lattice 的代码、参数、起步状态或参考寿命。
-实车动作仍由稳定基线产生；影子结果只用于 Path、JSON 和日志。
+默认实车动作仍由稳定基线产生；`planner_control.enabled: true` 可选择同一 PID 跟踪
+planner，随控制周期运动对齐、滚动检查与覆盖管理，不可用时同周期回基线。
+开关和录制指令见[控制接入说明](PLANNER_CONTROL_CN.md)。后文影子隔离结论适用于默认模式。
 
 ## 启用和频率
 
@@ -20,6 +22,67 @@ dream build ros student && dream runtime restart ai4r_policy
 
 这里没有执行部署、Enable 或 Run。影子是否成功不参与基线控制或停车判断。
 `shadow.enabled: false` 可以关闭整个影子侧通道。
+
+## 多帧道路融合（2026-10-15 更新）
+
+影子侧在每次基线控制完成后收集道路快照，默认保留过去 1 秒、最多 21 份。
+相同相机观测时刻只保留一份，不把同一观测的重复重建当成独立新观测。
+收集频率随原 20 Hz 周期；融合、拟合和候选规划仍在独立 worker 按
+`shadow.rate_hz` 执行。无需等满 20 帧，冷启动和历史不足都可以立即规划。
+
+用已有轮速 / 已转换至车体坐标的 yaw rate 的短区间运动积分，把历史道路变换到
+当前车体坐标。优先沿上一轮融合参考或近期双侧参考的法线做有序匹配；双侧取中点，
+单侧按宽度向内推断，中心线也可作为较弱证据。原始观测年龄参与衰减，同位置重复
+证据限制总权重，再用稳健估计和轻量空间拟合生成参考。只抑制检测到的自交伪回环，
+不以负 x、竖直路段、U 弯、大曲率或大转角拒绝规划。
+
+融合参考现在按车原点投影的道路弧长滚动裁剪，车后默认只保留 0.30 m 支持，
+前方沿用原有拟合范围。裁剪按行驶顺序，不按车体 x 正负删除点；因此真实 U 弯的
+未来回折路段仍可保留。道路支持仅在远处时，继续保留连接到车附近的推断段。
+此修复只改变融合参考范围，保留原始道路快照及本轮硬边界。
+
+融合只改变影子参考。硬碰撞边界及来源完全保留本轮原始道路输入；历史融合线和
+推断的另一侧不会成为新增硬墙。融合异常、对齐重置、拟合无支持或融合候选无解时，
+用原始道路重跑原算法。原始输入能成功的轮次，不会仅因融合失败而丢失成功输出；
+原始道路本身无数据或全部碰撞的情况仍按原规则报告。
+
+| 配置（均在 shadow 下） | 默认 | 用途 |
+| --- | --- | --- |
+| fusion_enabled | true | 关闭后直接用原始影子规划 |
+| fusion_window_s | 1.0 | 历史快照保留时间 |
+| fusion_max_samples | 21 | 过去 20 轮加当前轮的容量上限，实际按观测时刻去重 |
+| fusion_spacing_m | 0.10 | 拟合的弧长采样间距 |
+| fusion_memory_weight | 1.0 | 上轮参考的初始权重，随年龄衰减 |
+| fusion_rear_support_m | 0.30 | 滚动融合参考保留的车后道路弧长，0 表示不保留车后段 |
+
+`/car/shadow_planning` 的 JSON 和 `Shadow planning:` 日志新增 `fusion`：
+
+- `status`：`FUSED` / `RAW_ONLY` / `RAW_FALLBACK` / `DISABLED`。
+- `reason`、`error`、`degraded`、`raw_fallback_used`、`selected_source`：降级原因与选用来源。
+- `fused_status`、`raw_status`、`failed_fused_attempt`：融合失败状态、原始重试状态及失败候选详情。
+- `history_frames`、`measurement_epochs`、`prior_used`、`removed_guidance_loops`：本轮融合信息。
+- `reference_crop`：裁剪前参考长度、车原点投影弧长、拟合窗口、裁掉的车后长度、
+  保留的车后弧长及输出参考长度；完整 JSON 和日志摘要均发布。
+- `collection.events`：运动对齐重置的事件 ID、时刻、原因和坐标代次；事件在诊断成功发布后
+  才确认，避免被 1 Hz 限频或待处理任务替换吞掉。保留最近 64 条未确认事件，
+  `reset_events_total` 给出本跑次累计重置次数。
+
+完整 JSON 还保留 `temporal_input`（历史快照、位姿、坐标代次和上一轮参考），以及
+融合时的 `raw_planning_input`。因此继续录制原来的 `shadow_planning` 话题即可分析
+融合和降级，不需要新增话题。`degraded=true` 也可能表示本轮融合成功，但仍携带
+之前尚未发布的重置事件；是否真正使用原始降级结果应看 `raw_fallback_used`。
+`timing_s.temporal_fusion` / `discarded_fused_plan` 分别记录融合和被放弃的融合规划耗时。
+
+本次录制数据的 20 个真实当前输入仍为 20/20 成功，强制融合异常时也全部恢复原始
+轨迹。连续性对照与历史重建局限见
+[多帧融合报告](experiments/2026-10-15/SHADOW_TEMPORAL_FUSION_CN.md)。
+这批旧 bag 没有完整 20 Hz 道路快照，不能当成新采集链路的实车验收。
+裁剪前多帧版本通过 227 项纯 Python 检查；本次裁剪按用户要求只做轻量验证：
+9 项针对性检查通过，两组实录的 43 个有道路输入仍全部 FUSED / VALID，另 1 个
+启动空道路仍为 NO_ROAD。回放输出参考最大长度从 6.152 m 降至 1.940 m；
+该数值是本批回放结果，不是强制长度上限或实车耗时结论。见
+[裁剪回放证据](experiments/2026-10-15/evidence/shadow-reference-crop/replay.json)。
+后文 210 项及旧证据属于此前影子版本。
 
 ## 算法及评估范围
 

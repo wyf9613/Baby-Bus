@@ -1,0 +1,4513 @@
+{
+  "source_sha256": "9f18ff37612b29a9e1d6f0baaf9d4cfb5c3e99604b26a7bab616953215a5f5dc",
+  "unchanged_classes": [
+    "EstimationMotionHistory",
+    "EstimationPipeline",
+    "EstimationSettings",
+    "PlanningSettings",
+    "RoadCenterlinePlanner",
+    "CenterlinePlanner",
+    "PolicyController",
+    "ControlSettings",
+    "ControlReferenceManager",
+    "RunDistanceLimiter",
+    "ShadowSettings",
+    "ShadowFrame",
+    "ShadowLatticePlanner"
+  ],
+  "runs": [
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "planning": {
+        "VALID": 13
+      },
+      "exact_prechange_path_match": true,
+      "planning_frames": [
+        {
+          "job_id": 51,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 52,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 53,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 54,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 55,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 56,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 57,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 58,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 59,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 60,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 61,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 62,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 63,
+          "status": "VALID",
+          "same_path": true
+        }
+      ],
+      "execution_ticks": 143,
+      "modes": {
+        "baseline": 16,
+        "planner": 127
+      },
+      "reasons": {
+        "waiting_for_planner": 16,
+        "planner_tracking": 127
+      },
+      "adapter_wall_time_ms": {
+        "mean": 2.718625874196503,
+        "p95": 4.237700002704514,
+        "maximum": 6.161500001326203
+      },
+      "ticks": [
+        {
+          "timestamp_s": 1792026739.089908,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 6.300000677583739e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.1390328,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 2.1000014385208488e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.1886911,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 1.8999999156221747e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.2343228,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 1.7999991541728377e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.3353996,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 7.499998901039362e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.432294,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 4.800000169780105e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.5592701,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 4.800000169780105e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.6343882,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 7.099999493220821e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.734485,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 4.899997293250635e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.832823,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 4.300000000512227e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026739.9319544,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 3.999997716164216e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026740.0321114,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 4.099998477613553e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026740.0853918,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 3.1000017770566046e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026740.2353203,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 4.800000169780105e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026740.3349319,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 4.19999923906289e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026740.4352405,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 4.800000169780105e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026740.5908933,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.002805700001772493,
+          "age_s": 0.5055015087127686,
+          "remaining_length_m": 0.9287933131304548
+        },
+        {
+          "timestamp_s": 1792026740.63248,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.0024750999982643407,
+          "age_s": 0.5470881462097168,
+          "remaining_length_m": 0.9199047938015124
+        },
+        {
+          "timestamp_s": 1792026740.731852,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.002432299999782117,
+          "age_s": 0.6464602947235107,
+          "remaining_length_m": 0.8963427092925861
+        },
+        {
+          "timestamp_s": 1792026740.8337162,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.0025937999998859596,
+          "age_s": 0.7483243942260742,
+          "remaining_length_m": 0.8703530866897158
+        },
+        {
+          "timestamp_s": 1792026740.9601297,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.004032699998788303,
+          "age_s": 0.8747379779815674,
+          "remaining_length_m": 0.8367704585709403
+        },
+        {
+          "timestamp_s": 1792026741.0405838,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.004237700002704514,
+          "age_s": 0.9551920890808105,
+          "remaining_length_m": 0.815314706348174
+        },
+        {
+          "timestamp_s": 1792026741.1343136,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.0019049999973503873,
+          "age_s": 1.048921823501587,
+          "remaining_length_m": 0.7902708175003746
+        },
+        {
+          "timestamp_s": 1792026741.2334425,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.003724099999089958,
+          "age_s": 1.1480507850646973,
+          "remaining_length_m": 0.7642222018837849
+        },
+        {
+          "timestamp_s": 1792026741.3322704,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.0038700000004610047,
+          "age_s": 1.2468786239624023,
+          "remaining_length_m": 0.7388476884996523
+        },
+        {
+          "timestamp_s": 1792026741.488845,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.0033948000018426683,
+          "age_s": 1.4034533500671387,
+          "remaining_length_m": 0.7007501349697214
+        },
+        {
+          "timestamp_s": 1792026741.5365841,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.002010700001846999,
+          "age_s": 1.4511923789978027,
+          "remaining_length_m": 0.6898848989935276
+        },
+        {
+          "timestamp_s": 1792026741.6351914,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.002713400001084665,
+          "age_s": 1.5497996807098389,
+          "remaining_length_m": 0.6677076585661136
+        },
+        {
+          "timestamp_s": 1792026741.7388856,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.0035671000005095266,
+          "age_s": 1.653493881225586,
+          "remaining_length_m": 0.6448637253979155
+        },
+        {
+          "timestamp_s": 1792026741.8450174,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.0035760999999183696,
+          "age_s": 1.7596256732940674,
+          "remaining_length_m": 0.6239886991102648
+        },
+        {
+          "timestamp_s": 1792026741.93919,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 51,
+          "elapsed_s": 0.0025824000003922265,
+          "age_s": 1.8537981510162354,
+          "remaining_length_m": 0.6070891485969637
+        },
+        {
+          "timestamp_s": 1792026742.048655,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.0031232000001182314,
+          "age_s": 0.9143414497375488,
+          "remaining_length_m": 0.7972313002966087
+        },
+        {
+          "timestamp_s": 1792026742.1407456,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.0036593000004359055,
+          "age_s": 1.006432056427002,
+          "remaining_length_m": 0.7816647403785955
+        },
+        {
+          "timestamp_s": 1792026742.246688,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.003095000000030268,
+          "age_s": 1.1123743057250977,
+          "remaining_length_m": 0.763775305012121
+        },
+        {
+          "timestamp_s": 1792026742.3340933,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.0032236000006378163,
+          "age_s": 1.199779748916626,
+          "remaining_length_m": 0.7498034943353233
+        },
+        {
+          "timestamp_s": 1792026742.4324386,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.0037927999983367044,
+          "age_s": 1.2981250286102295,
+          "remaining_length_m": 0.736314693547186
+        },
+        {
+          "timestamp_s": 1792026742.536559,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.0036873999997624196,
+          "age_s": 1.4022455215454102,
+          "remaining_length_m": 0.7236157854038536
+        },
+        {
+          "timestamp_s": 1792026742.6325638,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.004164399997534929,
+          "age_s": 1.4982502460479736,
+          "remaining_length_m": 0.7125543204491949
+        },
+        {
+          "timestamp_s": 1792026742.7364628,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.0027092999989690725,
+          "age_s": 1.602149248123169,
+          "remaining_length_m": 0.7015383736209663
+        },
+        {
+          "timestamp_s": 1792026742.834531,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.002443400000629481,
+          "age_s": 1.7002174854278564,
+          "remaining_length_m": 0.6916977234545636
+        },
+        {
+          "timestamp_s": 1792026742.9333155,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.0040442999998049345,
+          "age_s": 1.799001932144165,
+          "remaining_length_m": 0.6820352183092399
+        },
+        {
+          "timestamp_s": 1792026743.0368216,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.003052599997317884,
+          "age_s": 1.902508020401001,
+          "remaining_length_m": 0.6718648635589266
+        },
+        {
+          "timestamp_s": 1792026743.1374726,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 52,
+          "elapsed_s": 0.0032900999976845924,
+          "age_s": 2.0031590461730957,
+          "remaining_length_m": 0.6616802484860793
+        },
+        {
+          "timestamp_s": 1792026743.1845658,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 53,
+          "elapsed_s": 0.003260899997258093,
+          "age_s": 1.0438201427459717,
+          "remaining_length_m": 0.8747063880657175
+        },
+        {
+          "timestamp_s": 1792026743.232697,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 53,
+          "elapsed_s": 0.00286229999983334,
+          "age_s": 1.0919513702392578,
+          "remaining_length_m": 0.8689150272355755
+        },
+        {
+          "timestamp_s": 1792026743.332681,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 53,
+          "elapsed_s": 0.0035180000013497192,
+          "age_s": 1.1919353008270264,
+          "remaining_length_m": 0.8554006915746032
+        },
+        {
+          "timestamp_s": 1792026743.4342263,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 53,
+          "elapsed_s": 0.003826100000878796,
+          "age_s": 1.293480634689331,
+          "remaining_length_m": 0.839532160755202
+        },
+        {
+          "timestamp_s": 1792026743.532128,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 53,
+          "elapsed_s": 0.004709600001660874,
+          "age_s": 1.3913824558258057,
+          "remaining_length_m": 0.8220287757912408
+        },
+        {
+          "timestamp_s": 1792026743.6598287,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 53,
+          "elapsed_s": 0.004550400000880472,
+          "age_s": 1.519083023071289,
+          "remaining_length_m": 0.7966733372850221
+        },
+        {
+          "timestamp_s": 1792026743.7324448,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 53,
+          "elapsed_s": 0.003787299996474758,
+          "age_s": 1.5916991233825684,
+          "remaining_length_m": 0.77995814581257
+        },
+        {
+          "timestamp_s": 1792026743.8528223,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.003842999998596497,
+          "age_s": 0.6682565212249756,
+          "remaining_length_m": 0.875794380910652
+        },
+        {
+          "timestamp_s": 1792026743.932925,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.00388810000004014,
+          "age_s": 0.748359203338623,
+          "remaining_length_m": 0.8553922267091094
+        },
+        {
+          "timestamp_s": 1792026744.0353782,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.0038048000023991335,
+          "age_s": 0.8508124351501465,
+          "remaining_length_m": 0.8289342122906077
+        },
+        {
+          "timestamp_s": 1792026744.1326373,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.0031181999984255526,
+          "age_s": 0.9480714797973633,
+          "remaining_length_m": 0.80392957916262
+        },
+        {
+          "timestamp_s": 1792026744.1834662,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.004061899999214802,
+          "age_s": 0.9989004135131836,
+          "remaining_length_m": 0.7910512370332519
+        },
+        {
+          "timestamp_s": 1792026744.2449899,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.003379300000233343,
+          "age_s": 1.0604240894317627,
+          "remaining_length_m": 0.7755166937700299
+        },
+        {
+          "timestamp_s": 1792026744.333842,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.005681800001184456,
+          "age_s": 1.1492762565612793,
+          "remaining_length_m": 0.7536437700878083
+        },
+        {
+          "timestamp_s": 1792026744.4343174,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.004205299999739509,
+          "age_s": 1.2497515678405762,
+          "remaining_length_m": 0.7298707966970059
+        },
+        {
+          "timestamp_s": 1792026744.5349274,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.0017679999982647132,
+          "age_s": 1.3503615856170654,
+          "remaining_length_m": 0.7066717365924089
+        },
+        {
+          "timestamp_s": 1792026744.6343699,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.002745000001596054,
+          "age_s": 1.4498040676116943,
+          "remaining_length_m": 0.6852732154036022
+        },
+        {
+          "timestamp_s": 1792026744.7324271,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.00236869999935152,
+          "age_s": 1.5478613376617432,
+          "remaining_length_m": 0.6650043772515661
+        },
+        {
+          "timestamp_s": 1792026744.8365376,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.0042668999994930346,
+          "age_s": 1.6519718170166016,
+          "remaining_length_m": 0.6441912412025124
+        },
+        {
+          "timestamp_s": 1792026744.9330475,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 54,
+          "elapsed_s": 0.002875599999242695,
+          "age_s": 1.7484817504882812,
+          "remaining_length_m": 0.6262277340154895
+        },
+        {
+          "timestamp_s": 1792026745.0829234,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.006161500001326203,
+          "age_s": 0.8994572162628174,
+          "remaining_length_m": 0.808595898248819
+        },
+        {
+          "timestamp_s": 1792026745.1322346,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.005678000001353212,
+          "age_s": 0.9487683773040771,
+          "remaining_length_m": 0.8004609155991469
+        },
+        {
+          "timestamp_s": 1792026745.186113,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.0014547999999194872,
+          "age_s": 1.0026469230651855,
+          "remaining_length_m": 0.7917949029922593
+        },
+        {
+          "timestamp_s": 1792026745.2379544,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.0033692000033624936,
+          "age_s": 1.054488182067871,
+          "remaining_length_m": 0.783561322693495
+        },
+        {
+          "timestamp_s": 1792026745.3342314,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.002832400001352653,
+          "age_s": 1.1507651805877686,
+          "remaining_length_m": 0.7684477343415371
+        },
+        {
+          "timestamp_s": 1792026745.4333467,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.0035755999997491017,
+          "age_s": 1.2498805522918701,
+          "remaining_length_m": 0.7531195755237443
+        },
+        {
+          "timestamp_s": 1792026745.5324144,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.0021488999991561286,
+          "age_s": 1.3489482402801514,
+          "remaining_length_m": 0.7378547205907795
+        },
+        {
+          "timestamp_s": 1792026745.6368418,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.0034531000019342173,
+          "age_s": 1.4533755779266357,
+          "remaining_length_m": 0.7215849781197268
+        },
+        {
+          "timestamp_s": 1792026745.7317038,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.002909499999077525,
+          "age_s": 1.5482375621795654,
+          "remaining_length_m": 0.7063612558254384
+        },
+        {
+          "timestamp_s": 1792026745.8319523,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.003608799997891765,
+          "age_s": 1.6484861373901367,
+          "remaining_length_m": 0.68978825242884
+        },
+        {
+          "timestamp_s": 1792026745.9422288,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.003798800000367919,
+          "age_s": 1.7587625980377197,
+          "remaining_length_m": 0.6709602879451901
+        },
+        {
+          "timestamp_s": 1792026746.0349464,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 55,
+          "elapsed_s": 0.003708199998072814,
+          "age_s": 1.85148024559021,
+          "remaining_length_m": 0.6541456122259359
+        },
+        {
+          "timestamp_s": 1792026746.14847,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 56,
+          "elapsed_s": 0.003565099999832455,
+          "age_s": 0.9623568058013916,
+          "remaining_length_m": 0.8407567409962378
+        },
+        {
+          "timestamp_s": 1792026746.234659,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 56,
+          "elapsed_s": 0.003889700001309393,
+          "age_s": 1.0485458374023438,
+          "remaining_length_m": 0.823345748654005
+        },
+        {
+          "timestamp_s": 1792026746.3350332,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 56,
+          "elapsed_s": 0.0034754000007524155,
+          "age_s": 1.1489200592041016,
+          "remaining_length_m": 0.801928200636182
+        },
+        {
+          "timestamp_s": 1792026746.4320402,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 56,
+          "elapsed_s": 0.0015937999996822327,
+          "age_s": 1.245927095413208,
+          "remaining_length_m": 0.7802166831182411
+        },
+        {
+          "timestamp_s": 1792026746.532639,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 56,
+          "elapsed_s": 0.003318600000056904,
+          "age_s": 1.3465259075164795,
+          "remaining_length_m": 0.7566685854265699
+        },
+        {
+          "timestamp_s": 1792026746.6329901,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 56,
+          "elapsed_s": 0.0036609000017051585,
+          "age_s": 1.4468770027160645,
+          "remaining_length_m": 0.7326297360595584
+        },
+        {
+          "timestamp_s": 1792026746.746058,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 56,
+          "elapsed_s": 0.003038599999854341,
+          "age_s": 1.5599448680877686,
+          "remaining_length_m": 0.7050895013420924
+        },
+        {
+          "timestamp_s": 1792026746.8425548,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 56,
+          "elapsed_s": 0.003078800000366755,
+          "age_s": 1.6564416885375977,
+          "remaining_length_m": 0.6812899670899111
+        },
+        {
+          "timestamp_s": 1792026746.9462998,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.0031462999977520667,
+          "age_s": 0.7116408348083496,
+          "remaining_length_m": 0.8317712749496042
+        },
+        {
+          "timestamp_s": 1792026747.0339034,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.0037932999985059723,
+          "age_s": 0.7992444038391113,
+          "remaining_length_m": 0.8102457458845257
+        },
+        {
+          "timestamp_s": 1792026747.1320724,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.003154799996991642,
+          "age_s": 0.8974134922027588,
+          "remaining_length_m": 0.7863296944224962
+        },
+        {
+          "timestamp_s": 1792026747.2442584,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.004745900001580594,
+          "age_s": 1.0095994472503662,
+          "remaining_length_m": 0.7597445567513592
+        },
+        {
+          "timestamp_s": 1792026747.3024056,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.0027049000018450897,
+          "age_s": 1.067746639251709,
+          "remaining_length_m": 0.746302361164088
+        },
+        {
+          "timestamp_s": 1792026747.3872538,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.003272800000559073,
+          "age_s": 1.152594804763794,
+          "remaining_length_m": 0.7269794958025502
+        },
+        {
+          "timestamp_s": 1792026747.4319236,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.0025480000003881287,
+          "age_s": 1.1972646713256836,
+          "remaining_length_m": 0.7172074625949438
+        },
+        {
+          "timestamp_s": 1792026747.5327065,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.002205200002208585,
+          "age_s": 1.2980475425720215,
+          "remaining_length_m": 0.6958078677942776
+        },
+        {
+          "timestamp_s": 1792026747.6328676,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.002686700001504505,
+          "age_s": 1.3982086181640625,
+          "remaining_length_m": 0.6752987705739945
+        },
+        {
+          "timestamp_s": 1792026747.7387328,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.0026939999988826457,
+          "age_s": 1.5040738582611084,
+          "remaining_length_m": 0.654492096865575
+        },
+        {
+          "timestamp_s": 1792026747.8322606,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.0033468000001448672,
+          "age_s": 1.5976016521453857,
+          "remaining_length_m": 0.6365605894335711
+        },
+        {
+          "timestamp_s": 1792026747.9324048,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.0029342999987420626,
+          "age_s": 1.6977458000183105,
+          "remaining_length_m": 0.6177598580690152
+        },
+        {
+          "timestamp_s": 1792026748.0528073,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 57,
+          "elapsed_s": 0.0021325000016076956,
+          "age_s": 1.8181483745574951,
+          "remaining_length_m": 0.595436133873193
+        },
+        {
+          "timestamp_s": 1792026748.1339924,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.002894400000513997,
+          "age_s": 0.8897340297698975,
+          "remaining_length_m": 0.8203250252169765
+        },
+        {
+          "timestamp_s": 1792026748.233375,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.002940500002296176,
+          "age_s": 0.9891166687011719,
+          "remaining_length_m": 0.8019603613597795
+        },
+        {
+          "timestamp_s": 1792026748.2848876,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.0031153000018093735,
+          "age_s": 1.0406291484832764,
+          "remaining_length_m": 0.7923533083123442
+        },
+        {
+          "timestamp_s": 1792026748.3391526,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.001864200003183214,
+          "age_s": 1.0948941707611084,
+          "remaining_length_m": 0.7821354846559827
+        },
+        {
+          "timestamp_s": 1792026748.4327626,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.0023705000021436717,
+          "age_s": 1.1885042190551758,
+          "remaining_length_m": 0.7637199276001405
+        },
+        {
+          "timestamp_s": 1792026748.5325987,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.002757500002189772,
+          "age_s": 1.2883403301239014,
+          "remaining_length_m": 0.7434746215852126
+        },
+        {
+          "timestamp_s": 1792026748.643542,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.002861799999664072,
+          "age_s": 1.3992836475372314,
+          "remaining_length_m": 0.719941432824406
+        },
+        {
+          "timestamp_s": 1792026748.7324884,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.0033031999992090277,
+          "age_s": 1.4882299900054932,
+          "remaining_length_m": 0.700586396423998
+        },
+        {
+          "timestamp_s": 1792026748.8330026,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.0026441000009072013,
+          "age_s": 1.5887441635131836,
+          "remaining_length_m": 0.678135916223339
+        },
+        {
+          "timestamp_s": 1792026748.9332201,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.002451100001053419,
+          "age_s": 1.6889617443084717,
+          "remaining_length_m": 0.6553567171355503
+        },
+        {
+          "timestamp_s": 1792026749.0324776,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.0023487000034947414,
+          "age_s": 1.7882192134857178,
+          "remaining_length_m": 0.632618883852859
+        },
+        {
+          "timestamp_s": 1792026749.1336668,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 58,
+          "elapsed_s": 0.002510700000129873,
+          "age_s": 1.8894083499908447,
+          "remaining_length_m": 0.6094278078912918
+        },
+        {
+          "timestamp_s": 1792026749.2335453,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 59,
+          "elapsed_s": 0.002217400000517955,
+          "age_s": 0.948657751083374,
+          "remaining_length_m": 0.7990980216729917
+        },
+        {
+          "timestamp_s": 1792026749.2859688,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 59,
+          "elapsed_s": 0.0016170999988389667,
+          "age_s": 1.0010812282562256,
+          "remaining_length_m": 0.7877951255883502
+        },
+        {
+          "timestamp_s": 1792026749.357323,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 59,
+          "elapsed_s": 0.0018055999971693382,
+          "age_s": 1.0724353790283203,
+          "remaining_length_m": 0.7730653137533131
+        },
+        {
+          "timestamp_s": 1792026749.4358032,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 59,
+          "elapsed_s": 0.0027652999997371808,
+          "age_s": 1.1509156227111816,
+          "remaining_length_m": 0.7567089181735975
+        },
+        {
+          "timestamp_s": 1792026749.5323842,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 59,
+          "elapsed_s": 0.0027259999988018535,
+          "age_s": 1.2474966049194336,
+          "remaining_length_m": 0.7380221337838855
+        },
+        {
+          "timestamp_s": 1792026749.63275,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 59,
+          "elapsed_s": 0.002455299996654503,
+          "age_s": 1.3478624820709229,
+          "remaining_length_m": 0.720172404219773
+        },
+        {
+          "timestamp_s": 1792026749.742065,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 59,
+          "elapsed_s": 0.0025507999998808373,
+          "age_s": 1.4571774005889893,
+          "remaining_length_m": 0.6999924136598021
+        },
+        {
+          "timestamp_s": 1792026749.8384962,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 59,
+          "elapsed_s": 0.0030106000012892764,
+          "age_s": 1.5536086559295654,
+          "remaining_length_m": 0.6845305343700552
+        },
+        {
+          "timestamp_s": 1792026749.93528,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 59,
+          "elapsed_s": 0.0029428000016196165,
+          "age_s": 1.6503925323486328,
+          "remaining_length_m": 0.6701177373187386
+        },
+        {
+          "timestamp_s": 1792026750.069494,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 60,
+          "elapsed_s": 0.002668099998118123,
+          "age_s": 0.7835252285003662,
+          "remaining_length_m": 0.8522142366180936
+        },
+        {
+          "timestamp_s": 1792026750.1339278,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 60,
+          "elapsed_s": 0.002025600002525607,
+          "age_s": 0.847959041595459,
+          "remaining_length_m": 0.8401016732481139
+        },
+        {
+          "timestamp_s": 1792026750.2327607,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 60,
+          "elapsed_s": 0.0024030000022321474,
+          "age_s": 0.9467918872833252,
+          "remaining_length_m": 0.8205744530710384
+        },
+        {
+          "timestamp_s": 1792026750.3327188,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 60,
+          "elapsed_s": 0.002144300000509247,
+          "age_s": 1.0467500686645508,
+          "remaining_length_m": 0.8050634905387513
+        },
+        {
+          "timestamp_s": 1792026750.435094,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 60,
+          "elapsed_s": 0.0021753999972133897,
+          "age_s": 1.149125337600708,
+          "remaining_length_m": 0.7819218952702593
+        },
+        {
+          "timestamp_s": 1792026750.5328395,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 60,
+          "elapsed_s": 0.0024326999991899356,
+          "age_s": 1.246870756149292,
+          "remaining_length_m": 0.758612204378837
+        },
+        {
+          "timestamp_s": 1792026750.6354525,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 60,
+          "elapsed_s": 0.0022567000014532823,
+          "age_s": 1.3494837284088135,
+          "remaining_length_m": 0.7384752530544435
+        },
+        {
+          "timestamp_s": 1792026750.7318313,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 60,
+          "elapsed_s": 0.0022730999990017153,
+          "age_s": 1.4458625316619873,
+          "remaining_length_m": 0.719696686736712
+        },
+        {
+          "timestamp_s": 1792026750.8348668,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 60,
+          "elapsed_s": 0.0018478000019968022,
+          "age_s": 1.5488979816436768,
+          "remaining_length_m": 0.7020142276184087
+        },
+        {
+          "timestamp_s": 1792026750.9325151,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.0027695000026142225,
+          "age_s": 0.5997962951660156,
+          "remaining_length_m": 0.8998455769941598
+        },
+        {
+          "timestamp_s": 1792026751.0329468,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.002563999998528743,
+          "age_s": 0.7002279758453369,
+          "remaining_length_m": 0.8814513984185194
+        },
+        {
+          "timestamp_s": 1792026751.1318176,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.0031524000005447306,
+          "age_s": 0.7990987300872803,
+          "remaining_length_m": 0.8624490080564602
+        },
+        {
+          "timestamp_s": 1792026751.2362092,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.004301000000850763,
+          "age_s": 0.9034903049468994,
+          "remaining_length_m": 0.8413821236083693
+        },
+        {
+          "timestamp_s": 1792026751.3372178,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.0032939000011538155,
+          "age_s": 1.0044989585876465,
+          "remaining_length_m": 0.8202889321464528
+        },
+        {
+          "timestamp_s": 1792026751.3887813,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.003241000002162764,
+          "age_s": 1.0560624599456787,
+          "remaining_length_m": 0.8096267556293335
+        },
+        {
+          "timestamp_s": 1792026751.4453177,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.0022117000007710885,
+          "age_s": 1.1125988960266113,
+          "remaining_length_m": 0.7972821938164882
+        },
+        {
+          "timestamp_s": 1792026751.534223,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.002813600000081351,
+          "age_s": 1.2015042304992676,
+          "remaining_length_m": 0.779006774430819
+        },
+        {
+          "timestamp_s": 1792026751.6375096,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.0024808999987726565,
+          "age_s": 1.304790735244751,
+          "remaining_length_m": 0.7575833672873088
+        },
+        {
+          "timestamp_s": 1792026751.7325313,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.002367099998082267,
+          "age_s": 1.3998124599456787,
+          "remaining_length_m": 0.7387631539442766
+        },
+        {
+          "timestamp_s": 1792026751.8384154,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.0023576999992656056,
+          "age_s": 1.5056965351104736,
+          "remaining_length_m": 0.7194630032588132
+        },
+        {
+          "timestamp_s": 1792026751.934487,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 61,
+          "elapsed_s": 0.0028443999981391244,
+          "age_s": 1.6017682552337646,
+          "remaining_length_m": 0.7017746574625823
+        },
+        {
+          "timestamp_s": 1792026752.122603,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 62,
+          "elapsed_s": 0.0024056000002019573,
+          "age_s": 0.7338216304779053,
+          "remaining_length_m": 0.8822825250084279
+        },
+        {
+          "timestamp_s": 1792026752.1348264,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 62,
+          "elapsed_s": 0.002767500001937151,
+          "age_s": 0.7460451126098633,
+          "remaining_length_m": 0.8804158731257032
+        },
+        {
+          "timestamp_s": 1792026752.2369733,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 62,
+          "elapsed_s": 0.0027675999990606215,
+          "age_s": 0.8481919765472412,
+          "remaining_length_m": 0.8653662676021405
+        },
+        {
+          "timestamp_s": 1792026752.3338757,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 62,
+          "elapsed_s": 0.002679799999896204,
+          "age_s": 0.9450943470001221,
+          "remaining_length_m": 0.8467680383612968
+        },
+        {
+          "timestamp_s": 1792026752.4320657,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 62,
+          "elapsed_s": 0.002883000001020264,
+          "age_s": 1.0432844161987305,
+          "remaining_length_m": 0.8306897416711453
+        }
+      ]
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "planning": {
+        "NO_ROAD": 1,
+        "VALID": 30
+      },
+      "exact_prechange_path_match": true,
+      "planning_frames": [
+        {
+          "job_id": 66,
+          "status": "NO_ROAD",
+          "same_path": true
+        },
+        {
+          "job_id": 67,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 68,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 69,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 70,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 71,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 72,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 73,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 74,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 75,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 76,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 77,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 78,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 79,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 80,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 81,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 82,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 83,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 84,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 85,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 86,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 87,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 88,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 89,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 90,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 91,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 92,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 94,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 95,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 96,
+          "status": "VALID",
+          "same_path": true
+        },
+        {
+          "job_id": 97,
+          "status": "VALID",
+          "same_path": true
+        }
+      ],
+      "execution_ticks": 325,
+      "modes": {
+        "baseline": 43,
+        "planner": 282
+      },
+      "reasons": {
+        "waiting_for_planner": 2,
+        "planner_no_road": 17,
+        "planner_tracking": 282,
+        "known_boundary_collision": 18,
+        "preview_coverage_exhausted": 6
+      },
+      "adapter_wall_time_ms": {
+        "mean": 2.761876923233593,
+        "p95": 4.79540000014822,
+        "maximum": 11.169900000822963
+      },
+      "ticks": [
+        {
+          "timestamp_s": 1792026790.3354404,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 4.099998477613553e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026790.432178,
+          "mode": "baseline",
+          "reason": "waiting_for_planner",
+          "job_id": null,
+          "elapsed_s": 2.2000021999701858e-06,
+          "age_s": null,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026790.483351,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 3.2999996619764715e-06,
+          "age_s": 0.14791059494018555,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026790.5327685,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 5.199999577598646e-06,
+          "age_s": 0.1973280906677246,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026790.6320214,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 4.899997293250635e-06,
+          "age_s": 0.2965810298919678,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026790.7330613,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 4.099998477613553e-06,
+          "age_s": 0.39762091636657715,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026790.83437,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 3.8000034692231566e-06,
+          "age_s": 0.498929500579834,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026790.9339855,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 3.8000034692231566e-06,
+          "age_s": 0.5985450744628906,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.0443735,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 4.400000761961564e-06,
+          "age_s": 0.7089331150054932,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.1330516,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 3.899996954714879e-06,
+          "age_s": 0.7976112365722656,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.2329028,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 4.19999923906289e-06,
+          "age_s": 0.8974623680114746,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.3432124,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 2.7999994927085936e-06,
+          "age_s": 1.0077719688415527,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.3833344,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 1.8000027921516448e-06,
+          "age_s": 1.04789400100708,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.4319215,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 4.400000761961564e-06,
+          "age_s": 1.0964810848236084,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.5344968,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 4.2000028770416975e-06,
+          "age_s": 1.1990563869476318,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.632195,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 3.4000004234258085e-06,
+          "age_s": 1.2967545986175537,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.7503214,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 2.4000000848900527e-06,
+          "age_s": 1.4148809909820557,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.8322358,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 1.8999999156221747e-06,
+          "age_s": 1.496795415878296,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026791.9424565,
+          "mode": "baseline",
+          "reason": "planner_no_road",
+          "job_id": 66,
+          "elapsed_s": 8.900002285372466e-06,
+          "age_s": 1.6070160865783691,
+          "remaining_length_m": null
+        },
+        {
+          "timestamp_s": 1792026792.0331929,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.003412000001844717,
+          "age_s": 0.6498584747314453,
+          "remaining_length_m": 0.8529334494376531
+        },
+        {
+          "timestamp_s": 1792026792.1321242,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.002322100001038052,
+          "age_s": 0.7487897872924805,
+          "remaining_length_m": 0.8447909430994085
+        },
+        {
+          "timestamp_s": 1792026792.2375188,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.002957000000606058,
+          "age_s": 0.8541843891143799,
+          "remaining_length_m": 0.8403786049541602
+        },
+        {
+          "timestamp_s": 1792026792.3334224,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.0025825999982771464,
+          "age_s": 0.9500880241394043,
+          "remaining_length_m": 0.838310016514576
+        },
+        {
+          "timestamp_s": 1792026792.3825285,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.002328700000362005,
+          "age_s": 0.9991941452026367,
+          "remaining_length_m": 0.8376617238980197
+        },
+        {
+          "timestamp_s": 1792026792.4362192,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.0030917000003682915,
+          "age_s": 1.052884817123413,
+          "remaining_length_m": 0.8371218003948668
+        },
+        {
+          "timestamp_s": 1792026792.533791,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.00479540000014822,
+          "age_s": 1.1504566669464111,
+          "remaining_length_m": 0.8364536063079628
+        },
+        {
+          "timestamp_s": 1792026792.6329925,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.0057243000010203104,
+          "age_s": 1.2496581077575684,
+          "remaining_length_m": 0.8356008444750207
+        },
+        {
+          "timestamp_s": 1792026792.7323074,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.006355800000164891,
+          "age_s": 1.348973035812378,
+          "remaining_length_m": 0.8346266561078236
+        },
+        {
+          "timestamp_s": 1792026792.8388987,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 67,
+          "elapsed_s": 0.0056075000029522926,
+          "age_s": 1.455564260482788,
+          "remaining_length_m": 0.8333196552232898
+        },
+        {
+          "timestamp_s": 1792026792.9397955,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.004203800002869684,
+          "age_s": 0.5572669506072998,
+          "remaining_length_m": 0.9937956429651643
+        },
+        {
+          "timestamp_s": 1792026793.032853,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.007912600001873216,
+          "age_s": 0.6503243446350098,
+          "remaining_length_m": 0.9918757865915054
+        },
+        {
+          "timestamp_s": 1792026793.1329215,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.003997499999968568,
+          "age_s": 0.7503929138183594,
+          "remaining_length_m": 0.9882191019951373
+        },
+        {
+          "timestamp_s": 1792026793.2325954,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.004619499999535037,
+          "age_s": 0.8500669002532959,
+          "remaining_length_m": 0.9780834488131331
+        },
+        {
+          "timestamp_s": 1792026793.338438,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.0034764000010909513,
+          "age_s": 0.9559094905853271,
+          "remaining_length_m": 0.9611243460547688
+        },
+        {
+          "timestamp_s": 1792026793.4345891,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.005234900003415532,
+          "age_s": 1.052060604095459,
+          "remaining_length_m": 0.9409236010234081
+        },
+        {
+          "timestamp_s": 1792026793.5323284,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.003475500001513865,
+          "age_s": 1.1497998237609863,
+          "remaining_length_m": 0.9175106677574082
+        },
+        {
+          "timestamp_s": 1792026793.6362092,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.00343339999744785,
+          "age_s": 1.25368070602417,
+          "remaining_length_m": 0.8902127801079652
+        },
+        {
+          "timestamp_s": 1792026793.7328014,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.0031235000024025794,
+          "age_s": 1.3502728939056396,
+          "remaining_length_m": 0.8636348214483874
+        },
+        {
+          "timestamp_s": 1792026793.8401365,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.003468899998551933,
+          "age_s": 1.4576079845428467,
+          "remaining_length_m": 0.8331992641386985
+        },
+        {
+          "timestamp_s": 1792026793.9344068,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.004357500001788139,
+          "age_s": 1.5518782138824463,
+          "remaining_length_m": 0.8062700197482869
+        },
+        {
+          "timestamp_s": 1792026794.042824,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 68,
+          "elapsed_s": 0.003416899999137968,
+          "age_s": 1.6602954864501953,
+          "remaining_length_m": 0.7729683402731923
+        },
+        {
+          "timestamp_s": 1792026794.1361396,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.0034231999998155516,
+          "age_s": 0.7015504837036133,
+          "remaining_length_m": 0.8104880662341285
+        },
+        {
+          "timestamp_s": 1792026794.2321932,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.0038299000007100403,
+          "age_s": 0.7976040840148926,
+          "remaining_length_m": 0.785235712377741
+        },
+        {
+          "timestamp_s": 1792026794.332789,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.003963899998780107,
+          "age_s": 0.8981997966766357,
+          "remaining_length_m": 0.7582838948836164
+        },
+        {
+          "timestamp_s": 1792026794.4380832,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.002974200000608107,
+          "age_s": 1.0034940242767334,
+          "remaining_length_m": 0.7301602762708879
+        },
+        {
+          "timestamp_s": 1792026794.4893806,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.0036981999983254354,
+          "age_s": 1.0547914505004883,
+          "remaining_length_m": 0.716628374124845
+        },
+        {
+          "timestamp_s": 1792026794.5934398,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.004237400000420166,
+          "age_s": 1.1588506698608398,
+          "remaining_length_m": 0.6905152656631228
+        },
+        {
+          "timestamp_s": 1792026794.633851,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.00399680000191438,
+          "age_s": 1.1992619037628174,
+          "remaining_length_m": 0.6807225448776011
+        },
+        {
+          "timestamp_s": 1792026794.7393475,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.0030731000006198883,
+          "age_s": 1.3047583103179932,
+          "remaining_length_m": 0.6544258994206248
+        },
+        {
+          "timestamp_s": 1792026794.8355348,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.005069500002718996,
+          "age_s": 1.4009456634521484,
+          "remaining_length_m": 0.6305207226946034
+        },
+        {
+          "timestamp_s": 1792026794.9343183,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.0031417999998666346,
+          "age_s": 1.4997291564941406,
+          "remaining_length_m": 0.6061269406327696
+        },
+        {
+          "timestamp_s": 1792026795.031955,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.002960900001198752,
+          "age_s": 1.5973658561706543,
+          "remaining_length_m": 0.582152328981389
+        },
+        {
+          "timestamp_s": 1792026795.1339996,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 69,
+          "elapsed_s": 0.003351999999722466,
+          "age_s": 1.6994104385375977,
+          "remaining_length_m": 0.5572564137985265
+        },
+        {
+          "timestamp_s": 1792026795.2326431,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.004108199998881901,
+          "age_s": 0.7945599555969238,
+          "remaining_length_m": 0.8073944296240501
+        },
+        {
+          "timestamp_s": 1792026795.3326523,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.002878699997381773,
+          "age_s": 0.8945691585540771,
+          "remaining_length_m": 0.7832209798445294
+        },
+        {
+          "timestamp_s": 1792026795.4326227,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.0017798000008042436,
+          "age_s": 0.9945394992828369,
+          "remaining_length_m": 0.7590671336086023
+        },
+        {
+          "timestamp_s": 1792026795.4821165,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.0032852000003913417,
+          "age_s": 1.0440332889556885,
+          "remaining_length_m": 0.747114741064737
+        },
+        {
+          "timestamp_s": 1792026795.5334709,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.003213399999367539,
+          "age_s": 1.0953876972198486,
+          "remaining_length_m": 0.734698389212534
+        },
+        {
+          "timestamp_s": 1792026795.6320748,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.003628099999332335,
+          "age_s": 1.1939916610717773,
+          "remaining_length_m": 0.7108653707882793
+        },
+        {
+          "timestamp_s": 1792026795.7360075,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.002053600001090672,
+          "age_s": 1.297924280166626,
+          "remaining_length_m": 0.6857499707492494
+        },
+        {
+          "timestamp_s": 1792026795.8350136,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.0024974000007205177,
+          "age_s": 1.396930456161499,
+          "remaining_length_m": 0.6618328873572256
+        },
+        {
+          "timestamp_s": 1792026795.9352446,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.003138699998089578,
+          "age_s": 1.4971613883972168,
+          "remaining_length_m": 0.6376287306970904
+        },
+        {
+          "timestamp_s": 1792026796.0323734,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.0025456000003032386,
+          "age_s": 1.5942902565002441,
+          "remaining_length_m": 0.614184433972284
+        },
+        {
+          "timestamp_s": 1792026796.132736,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.002565799997682916,
+          "age_s": 1.694652795791626,
+          "remaining_length_m": 0.5899701395615675
+        },
+        {
+          "timestamp_s": 1792026796.23906,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.002414999999018619,
+          "age_s": 1.8009767532348633,
+          "remaining_length_m": 0.564329655473907
+        },
+        {
+          "timestamp_s": 1792026796.334474,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 70,
+          "elapsed_s": 0.0028684999997494742,
+          "age_s": 1.8963909149169922,
+          "remaining_length_m": 0.5413414923490305
+        },
+        {
+          "timestamp_s": 1792026796.4826965,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 71,
+          "elapsed_s": 0.002395499999693129,
+          "age_s": 1.000580072402954,
+          "remaining_length_m": 0.7580061197771992
+        },
+        {
+          "timestamp_s": 1792026796.532126,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 71,
+          "elapsed_s": 0.003005200000188779,
+          "age_s": 1.0500094890594482,
+          "remaining_length_m": 0.746080510962014
+        },
+        {
+          "timestamp_s": 1792026796.6343868,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 71,
+          "elapsed_s": 0.002712700003030477,
+          "age_s": 1.1522703170776367,
+          "remaining_length_m": 0.7213810295071595
+        },
+        {
+          "timestamp_s": 1792026796.7332618,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 71,
+          "elapsed_s": 0.001994800000829855,
+          "age_s": 1.251145362854004,
+          "remaining_length_m": 0.6975066468508897
+        },
+        {
+          "timestamp_s": 1792026796.8335438,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 71,
+          "elapsed_s": 0.0031834000001254026,
+          "age_s": 1.3514273166656494,
+          "remaining_length_m": 0.6732994746215647
+        },
+        {
+          "timestamp_s": 1792026796.9324389,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 71,
+          "elapsed_s": 0.0031663999980082735,
+          "age_s": 1.4503223896026611,
+          "remaining_length_m": 0.6494350503670476
+        },
+        {
+          "timestamp_s": 1792026797.0363483,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 71,
+          "elapsed_s": 0.002843300000677118,
+          "age_s": 1.554231882095337,
+          "remaining_length_m": 0.6243674841289506
+        },
+        {
+          "timestamp_s": 1792026797.1318166,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 71,
+          "elapsed_s": 0.0015389000000141095,
+          "age_s": 1.6497001647949219,
+          "remaining_length_m": 0.6114864828111906
+        },
+        {
+          "timestamp_s": 1792026797.2354608,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 71,
+          "elapsed_s": 0.00178310000046622,
+          "age_s": 1.7533442974090576,
+          "remaining_length_m": 0.6046248440437672
+        },
+        {
+          "timestamp_s": 1792026797.3762965,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 72,
+          "elapsed_s": 0.00370420000035665,
+          "age_s": 0.8441705703735352,
+          "remaining_length_m": 0.853575661212349
+        },
+        {
+          "timestamp_s": 1792026797.438019,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 72,
+          "elapsed_s": 0.002846399998816196,
+          "age_s": 0.905893087387085,
+          "remaining_length_m": 0.8518842417888879
+        },
+        {
+          "timestamp_s": 1792026797.532266,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 72,
+          "elapsed_s": 0.0017903999978443608,
+          "age_s": 1.0001399517059326,
+          "remaining_length_m": 0.8495622463784207
+        },
+        {
+          "timestamp_s": 1792026797.5843258,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 72,
+          "elapsed_s": 0.003923599997506244,
+          "age_s": 1.0521998405456543,
+          "remaining_length_m": 0.848329100587974
+        },
+        {
+          "timestamp_s": 1792026797.6405382,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 72,
+          "elapsed_s": 0.003223800002160715,
+          "age_s": 1.108412265777588,
+          "remaining_length_m": 0.8470083612275078
+        },
+        {
+          "timestamp_s": 1792026797.73248,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 72,
+          "elapsed_s": 0.0031575000029988587,
+          "age_s": 1.2003540992736816,
+          "remaining_length_m": 0.8448991726790351
+        },
+        {
+          "timestamp_s": 1792026797.832712,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 72,
+          "elapsed_s": 0.0023190000028989743,
+          "age_s": 1.3005859851837158,
+          "remaining_length_m": 0.84265121782719
+        },
+        {
+          "timestamp_s": 1792026797.9319177,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 72,
+          "elapsed_s": 0.004089600002771476,
+          "age_s": 1.3997917175292969,
+          "remaining_length_m": 0.8404232991354766
+        },
+        {
+          "timestamp_s": 1792026798.0644665,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.0033244000005652197,
+          "age_s": 0.48014068603515625,
+          "remaining_length_m": 0.9885440853721719
+        },
+        {
+          "timestamp_s": 1792026798.1325407,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.0034162999982072506,
+          "age_s": 0.5482149124145508,
+          "remaining_length_m": 0.9860610742854964
+        },
+        {
+          "timestamp_s": 1792026798.2322075,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.0038841999994474463,
+          "age_s": 0.6478817462921143,
+          "remaining_length_m": 0.9811025813974343
+        },
+        {
+          "timestamp_s": 1792026798.334801,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.0023903000001155306,
+          "age_s": 0.7504751682281494,
+          "remaining_length_m": 0.9675530370010657
+        },
+        {
+          "timestamp_s": 1792026798.4339426,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.0025219999988621566,
+          "age_s": 0.8496167659759521,
+          "remaining_length_m": 0.9485254433582782
+        },
+        {
+          "timestamp_s": 1792026798.533507,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.003371700000570854,
+          "age_s": 0.949181318283081,
+          "remaining_length_m": 0.9250704993786893
+        },
+        {
+          "timestamp_s": 1792026798.6322315,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.0037661000023945235,
+          "age_s": 1.047905683517456,
+          "remaining_length_m": 0.8987970634792064
+        },
+        {
+          "timestamp_s": 1792026798.735641,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.0020181000036245678,
+          "age_s": 1.1513152122497559,
+          "remaining_length_m": 0.8692884181367596
+        },
+        {
+          "timestamp_s": 1792026798.8369298,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.003318399998534005,
+          "age_s": 1.2526040077209473,
+          "remaining_length_m": 0.8397205307176612
+        },
+        {
+          "timestamp_s": 1792026798.9435248,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.0032428000013169367,
+          "age_s": 1.359199047088623,
+          "remaining_length_m": 0.8087035291657441
+        },
+        {
+          "timestamp_s": 1792026799.0322487,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.003945799999200972,
+          "age_s": 1.447922945022583,
+          "remaining_length_m": 0.7837643524368738
+        },
+        {
+          "timestamp_s": 1792026799.1329854,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.002126999999745749,
+          "age_s": 1.5486595630645752,
+          "remaining_length_m": 0.7568839967870555
+        },
+        {
+          "timestamp_s": 1792026799.2327282,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 73,
+          "elapsed_s": 0.0030399999996006954,
+          "age_s": 1.648402452468872,
+          "remaining_length_m": 0.7310281804643322
+        },
+        {
+          "timestamp_s": 1792026799.348778,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.0030600999998569023,
+          "age_s": 0.7165465354919434,
+          "remaining_length_m": 0.8041198014361385
+        },
+        {
+          "timestamp_s": 1792026799.4330373,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.0024794999990263022,
+          "age_s": 0.8008058071136475,
+          "remaining_length_m": 0.7859004221810141
+        },
+        {
+          "timestamp_s": 1792026799.5318913,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.0034214999977848493,
+          "age_s": 0.8996598720550537,
+          "remaining_length_m": 0.7655282065379464
+        },
+        {
+          "timestamp_s": 1792026799.6323504,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.0027860999980475754,
+          "age_s": 1.0001189708709717,
+          "remaining_length_m": 0.7454522902106074
+        },
+        {
+          "timestamp_s": 1792026799.6825411,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.00502760000017588,
+          "age_s": 1.050309658050537,
+          "remaining_length_m": 0.7355711036204919
+        },
+        {
+          "timestamp_s": 1792026799.7356231,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.0031415000012202654,
+          "age_s": 1.1033916473388672,
+          "remaining_length_m": 0.7251648676409782
+        },
+        {
+          "timestamp_s": 1792026799.832094,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.002078199999232311,
+          "age_s": 1.1998624801635742,
+          "remaining_length_m": 0.7064208712608119
+        },
+        {
+          "timestamp_s": 1792026799.9387074,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.003430000000662403,
+          "age_s": 1.3064758777618408,
+          "remaining_length_m": 0.6857894001137562
+        },
+        {
+          "timestamp_s": 1792026800.0348034,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.0021196999987296294,
+          "age_s": 1.4025719165802002,
+          "remaining_length_m": 0.6672326183006643
+        },
+        {
+          "timestamp_s": 1792026800.132016,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.006492799999250565,
+          "age_s": 1.4997844696044922,
+          "remaining_length_m": 0.6484722091908666
+        },
+        {
+          "timestamp_s": 1792026800.2327206,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.002510999998776242,
+          "age_s": 1.6004891395568848,
+          "remaining_length_m": 0.6290411980246868
+        },
+        {
+          "timestamp_s": 1792026800.3367467,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.002768499998637708,
+          "age_s": 1.7045152187347412,
+          "remaining_length_m": 0.6089672897538833
+        },
+        {
+          "timestamp_s": 1792026800.432265,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.0032303000007232185,
+          "age_s": 1.8000335693359375,
+          "remaining_length_m": 0.5905172905401632
+        },
+        {
+          "timestamp_s": 1792026800.5328212,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.0018603999997139908,
+          "age_s": 1.9005897045135498,
+          "remaining_length_m": 0.5710735007873166
+        },
+        {
+          "timestamp_s": 1792026800.639889,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 74,
+          "elapsed_s": 0.0026356999987910967,
+          "age_s": 2.007657527923584,
+          "remaining_length_m": 0.5504212890403866
+        },
+        {
+          "timestamp_s": 1792026800.7338045,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 75,
+          "elapsed_s": 0.0023650999974051956,
+          "age_s": 1.0512633323669434,
+          "remaining_length_m": 0.7965839064055582
+        },
+        {
+          "timestamp_s": 1792026800.832126,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 75,
+          "elapsed_s": 0.003000400000018999,
+          "age_s": 1.1495847702026367,
+          "remaining_length_m": 0.7776332692996395
+        },
+        {
+          "timestamp_s": 1792026800.938258,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 75,
+          "elapsed_s": 0.002871400000003632,
+          "age_s": 1.2557168006896973,
+          "remaining_length_m": 0.7562990113290163
+        },
+        {
+          "timestamp_s": 1792026801.0344305,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 75,
+          "elapsed_s": 0.003143800000543706,
+          "age_s": 1.3518893718719482,
+          "remaining_length_m": 0.7370305938018766
+        },
+        {
+          "timestamp_s": 1792026801.13555,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 75,
+          "elapsed_s": 0.002946100001281593,
+          "age_s": 1.4530088901519775,
+          "remaining_length_m": 0.7171334182835991
+        },
+        {
+          "timestamp_s": 1792026801.2327423,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 75,
+          "elapsed_s": 0.0029654000027221628,
+          "age_s": 1.550201177597046,
+          "remaining_length_m": 0.6980841507441925
+        },
+        {
+          "timestamp_s": 1792026801.333383,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 75,
+          "elapsed_s": 0.0026107000012416393,
+          "age_s": 1.6508419513702393,
+          "remaining_length_m": 0.6787043515592422
+        },
+        {
+          "timestamp_s": 1792026801.4468687,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.0025136999975075014,
+          "age_s": 0.7130641937255859,
+          "remaining_length_m": 0.8627974971276822
+        },
+        {
+          "timestamp_s": 1792026801.5323403,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.001929100002598716,
+          "age_s": 0.7985358238220215,
+          "remaining_length_m": 0.8463805547977921
+        },
+        {
+          "timestamp_s": 1792026801.6328216,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.0031565999997837935,
+          "age_s": 0.8990170955657959,
+          "remaining_length_m": 0.8270668302277657
+        },
+        {
+          "timestamp_s": 1792026801.7326605,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.0051917000018875115,
+          "age_s": 0.9988560676574707,
+          "remaining_length_m": 0.8078400571915412
+        },
+        {
+          "timestamp_s": 1792026801.7833438,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.0027986000022792723,
+          "age_s": 1.04953932762146,
+          "remaining_length_m": 0.7979969372005666
+        },
+        {
+          "timestamp_s": 1792026801.8358681,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.0013082000004942529,
+          "age_s": 1.1020636558532715,
+          "remaining_length_m": 0.7878923477375692
+        },
+        {
+          "timestamp_s": 1792026801.9381309,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.002598399998532841,
+          "age_s": 1.2043263912200928,
+          "remaining_length_m": 0.7680328683043796
+        },
+        {
+          "timestamp_s": 1792026802.0344079,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.0036466000019572675,
+          "age_s": 1.3006033897399902,
+          "remaining_length_m": 0.7493718387489621
+        },
+        {
+          "timestamp_s": 1792026802.132551,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.002973700000438839,
+          "age_s": 1.3987464904785156,
+          "remaining_length_m": 0.7304658736097557
+        },
+        {
+          "timestamp_s": 1792026802.2341056,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.0017507000011391938,
+          "age_s": 1.5003011226654053,
+          "remaining_length_m": 0.7109140037106992
+        },
+        {
+          "timestamp_s": 1792026802.338935,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 76,
+          "elapsed_s": 0.0018061000009765849,
+          "age_s": 1.6051304340362549,
+          "remaining_length_m": 0.6943145590988653
+        },
+        {
+          "timestamp_s": 1792026802.4325092,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 77,
+          "elapsed_s": 0.003211899998859735,
+          "age_s": 0.6491653919219971,
+          "remaining_length_m": 0.8885230649846524
+        },
+        {
+          "timestamp_s": 1792026802.534945,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 77,
+          "elapsed_s": 0.0037250000023050234,
+          "age_s": 0.7516012191772461,
+          "remaining_length_m": 0.8841204987725795
+        },
+        {
+          "timestamp_s": 1792026802.6337178,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 77,
+          "elapsed_s": 0.004202299998723902,
+          "age_s": 0.8503739833831787,
+          "remaining_length_m": 0.8819502411443195
+        },
+        {
+          "timestamp_s": 1792026802.7327118,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 77,
+          "elapsed_s": 0.005166200000530807,
+          "age_s": 0.9493680000305176,
+          "remaining_length_m": 0.8808121223495
+        },
+        {
+          "timestamp_s": 1792026802.7856944,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 77,
+          "elapsed_s": 0.0031655999991926365,
+          "age_s": 1.0023505687713623,
+          "remaining_length_m": 0.8804663196409312
+        },
+        {
+          "timestamp_s": 1792026802.9383862,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 77,
+          "elapsed_s": 0.002947699998912867,
+          "age_s": 1.1550424098968506,
+          "remaining_length_m": 0.8797288034556218
+        },
+        {
+          "timestamp_s": 1792026803.0321023,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 77,
+          "elapsed_s": 0.0018421999993734062,
+          "age_s": 1.2487585544586182,
+          "remaining_length_m": 0.8790065779388241
+        },
+        {
+          "timestamp_s": 1792026803.1320572,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 77,
+          "elapsed_s": 0.0020707000003312714,
+          "age_s": 1.3487133979797363,
+          "remaining_length_m": 0.8780705734362816
+        },
+        {
+          "timestamp_s": 1792026803.2341723,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.011169900000822963,
+          "age_s": 0.44847798347473145,
+          "remaining_length_m": 0.9964619898205188
+        },
+        {
+          "timestamp_s": 1792026803.3329425,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0011487999981909525,
+          "age_s": 0.547248125076294,
+          "remaining_length_m": 0.994961365621814
+        },
+        {
+          "timestamp_s": 1792026803.4352582,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.001220800000737654,
+          "age_s": 0.6495637893676758,
+          "remaining_length_m": 0.9929039186459837
+        },
+        {
+          "timestamp_s": 1792026803.5319278,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0011374999994586688,
+          "age_s": 0.7462334632873535,
+          "remaining_length_m": 0.9899454112920197
+        },
+        {
+          "timestamp_s": 1792026803.6328478,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0022415999992517754,
+          "age_s": 0.8471534252166748,
+          "remaining_length_m": 0.9796173898186451
+        },
+        {
+          "timestamp_s": 1792026803.7348232,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0018333000007260125,
+          "age_s": 0.9491288661956787,
+          "remaining_length_m": 0.9620514856200839
+        },
+        {
+          "timestamp_s": 1792026803.8335142,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0014843000026303343,
+          "age_s": 1.0478198528289795,
+          "remaining_length_m": 0.9389805171915685
+        },
+        {
+          "timestamp_s": 1792026803.9338741,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0020580000018526334,
+          "age_s": 1.1481797695159912,
+          "remaining_length_m": 0.9111243108753202
+        },
+        {
+          "timestamp_s": 1792026804.032305,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0013115000001562294,
+          "age_s": 1.2466106414794922,
+          "remaining_length_m": 0.8814096912500262
+        },
+        {
+          "timestamp_s": 1792026804.1389403,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0020084999996470287,
+          "age_s": 1.3532459735870361,
+          "remaining_length_m": 0.8478965075826216
+        },
+        {
+          "timestamp_s": 1792026804.2355084,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.002354399999603629,
+          "age_s": 1.4498140811920166,
+          "remaining_length_m": 0.8173003820414291
+        },
+        {
+          "timestamp_s": 1792026804.337465,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.002790300000924617,
+          "age_s": 1.5517706871032715,
+          "remaining_length_m": 0.7853726245275259
+        },
+        {
+          "timestamp_s": 1792026804.4379253,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0035891000006813556,
+          "age_s": 1.652230978012085,
+          "remaining_length_m": 0.755744852937734
+        },
+        {
+          "timestamp_s": 1792026804.5384429,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0018012000000453554,
+          "age_s": 1.7527484893798828,
+          "remaining_length_m": 0.7272585668920166
+        },
+        {
+          "timestamp_s": 1792026804.63891,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.003543899998476263,
+          "age_s": 1.8532156944274902,
+          "remaining_length_m": 0.7002490612141536
+        },
+        {
+          "timestamp_s": 1792026804.7386894,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 78,
+          "elapsed_s": 0.0042890999975497834,
+          "age_s": 1.9529950618743896,
+          "remaining_length_m": 0.6760319773421646
+        },
+        {
+          "timestamp_s": 1792026804.8318763,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 79,
+          "elapsed_s": 0.0031089000003703404,
+          "age_s": 0.9983620643615723,
+          "remaining_length_m": 0.7166125263481704
+        },
+        {
+          "timestamp_s": 1792026804.883614,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 79,
+          "elapsed_s": 0.003397600001335377,
+          "age_s": 1.0500998497009277,
+          "remaining_length_m": 0.7052318548144363
+        },
+        {
+          "timestamp_s": 1792026804.938505,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 79,
+          "elapsed_s": 0.0028292999995755963,
+          "age_s": 1.1049907207489014,
+          "remaining_length_m": 0.693285517970115
+        },
+        {
+          "timestamp_s": 1792026805.0325098,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 79,
+          "elapsed_s": 0.003183999997418141,
+          "age_s": 1.198995590209961,
+          "remaining_length_m": 0.673093649026411
+        },
+        {
+          "timestamp_s": 1792026805.1338987,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 79,
+          "elapsed_s": 0.002820499998051673,
+          "age_s": 1.300384521484375,
+          "remaining_length_m": 0.6516530957808655
+        },
+        {
+          "timestamp_s": 1792026805.2362864,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 79,
+          "elapsed_s": 0.0030449999976553954,
+          "age_s": 1.4027721881866455,
+          "remaining_length_m": 0.6324273986713433
+        },
+        {
+          "timestamp_s": 1792026805.3352783,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 79,
+          "elapsed_s": 0.0029383000000962056,
+          "age_s": 1.5017640590667725,
+          "remaining_length_m": 0.6162159053779159
+        },
+        {
+          "timestamp_s": 1792026805.4328172,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 79,
+          "elapsed_s": 0.0029333000020415056,
+          "age_s": 1.5993030071258545,
+          "remaining_length_m": 0.6014793420022808
+        },
+        {
+          "timestamp_s": 1792026805.5325778,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0036012999989907257,
+          "age_s": 0.6489636898040771,
+          "remaining_length_m": 0.8817472063859613
+        },
+        {
+          "timestamp_s": 1792026805.6358528,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0020593000008375384,
+          "age_s": 0.7522387504577637,
+          "remaining_length_m": 0.8672058076292781
+        },
+        {
+          "timestamp_s": 1792026805.7423358,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.002669699999387376,
+          "age_s": 0.8587217330932617,
+          "remaining_length_m": 0.852371243957708
+        },
+        {
+          "timestamp_s": 1792026805.831955,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.002291600001626648,
+          "age_s": 0.948340892791748,
+          "remaining_length_m": 0.8399779324897607
+        },
+        {
+          "timestamp_s": 1792026805.9319236,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0024459000014758203,
+          "age_s": 1.048309564590454,
+          "remaining_length_m": 0.8274262164774748
+        },
+        {
+          "timestamp_s": 1792026806.033965,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0020660000009229407,
+          "age_s": 1.1503510475158691,
+          "remaining_length_m": 0.8168875046283047
+        },
+        {
+          "timestamp_s": 1792026806.1347983,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0023868999996921048,
+          "age_s": 1.2511842250823975,
+          "remaining_length_m": 0.807616524777094
+        },
+        {
+          "timestamp_s": 1792026806.2383518,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0020242999999027234,
+          "age_s": 1.3547377586364746,
+          "remaining_length_m": 0.7987140774650527
+        },
+        {
+          "timestamp_s": 1792026806.3348575,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0026238000027660746,
+          "age_s": 1.4512434005737305,
+          "remaining_length_m": 0.7907235080002775
+        },
+        {
+          "timestamp_s": 1792026806.4317935,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0020774999975401442,
+          "age_s": 1.5481793880462646,
+          "remaining_length_m": 0.7831591108938191
+        },
+        {
+          "timestamp_s": 1792026806.5334594,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0024904999991122168,
+          "age_s": 1.6498453617095947,
+          "remaining_length_m": 0.7755942085694092
+        },
+        {
+          "timestamp_s": 1792026806.6326208,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.0026496999998926185,
+          "age_s": 1.749006748199463,
+          "remaining_length_m": 0.7681431209511145
+        },
+        {
+          "timestamp_s": 1792026806.732303,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 80,
+          "elapsed_s": 0.002028000002610497,
+          "age_s": 1.8486888408660889,
+          "remaining_length_m": 0.7603180046699267
+        },
+        {
+          "timestamp_s": 1792026806.8335044,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 81,
+          "elapsed_s": 0.0024123000002873596,
+          "age_s": 0.901580810546875,
+          "remaining_length_m": 0.9230196794540234
+        },
+        {
+          "timestamp_s": 1792026806.933481,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 81,
+          "elapsed_s": 0.0022389999976439867,
+          "age_s": 1.0015573501586914,
+          "remaining_length_m": 0.9107630920650687
+        },
+        {
+          "timestamp_s": 1792026807.0392008,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 81,
+          "elapsed_s": 0.002110100002028048,
+          "age_s": 1.1072771549224854,
+          "remaining_length_m": 0.8942121139759517
+        },
+        {
+          "timestamp_s": 1792026807.1355605,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 81,
+          "elapsed_s": 0.0029857000008632895,
+          "age_s": 1.203636884689331,
+          "remaining_length_m": 0.8758856306079392
+        },
+        {
+          "timestamp_s": 1792026807.235322,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 81,
+          "elapsed_s": 0.003284800000983523,
+          "age_s": 1.3033983707427979,
+          "remaining_length_m": 0.8545728236048743
+        },
+        {
+          "timestamp_s": 1792026807.3350563,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 81,
+          "elapsed_s": 0.002873000001272885,
+          "age_s": 1.403132677078247,
+          "remaining_length_m": 0.8315290215182191
+        },
+        {
+          "timestamp_s": 1792026807.4346,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 81,
+          "elapsed_s": 0.0034760000016831327,
+          "age_s": 1.5026764869689941,
+          "remaining_length_m": 0.8071340393865424
+        },
+        {
+          "timestamp_s": 1792026807.5351286,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.0033815999995567836,
+          "age_s": 0.6016476154327393,
+          "remaining_length_m": 0.8776191613080239
+        },
+        {
+          "timestamp_s": 1792026807.6372578,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.0017834999998740386,
+          "age_s": 0.7037768363952637,
+          "remaining_length_m": 0.8539965783174517
+        },
+        {
+          "timestamp_s": 1792026807.7319329,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.002577800001745345,
+          "age_s": 0.7984519004821777,
+          "remaining_length_m": 0.8311954202498978
+        },
+        {
+          "timestamp_s": 1792026807.8332894,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.0028124000018578954,
+          "age_s": 0.899808406829834,
+          "remaining_length_m": 0.8058969510548637
+        },
+        {
+          "timestamp_s": 1792026807.9351683,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.002060500002698973,
+          "age_s": 1.0016872882843018,
+          "remaining_length_m": 0.7788852574674956
+        },
+        {
+          "timestamp_s": 1792026808.032552,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.0024722000016481616,
+          "age_s": 1.0990710258483887,
+          "remaining_length_m": 0.744795911317349
+        },
+        {
+          "timestamp_s": 1792026808.1346962,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.0021998000011080876,
+          "age_s": 1.2012152671813965,
+          "remaining_length_m": 0.7204070538901628
+        },
+        {
+          "timestamp_s": 1792026808.2378514,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.002594500001578126,
+          "age_s": 1.304370403289795,
+          "remaining_length_m": 0.6975401138246288
+        },
+        {
+          "timestamp_s": 1792026808.3344166,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.0023269000012078322,
+          "age_s": 1.4009356498718262,
+          "remaining_length_m": 0.678835199829939
+        },
+        {
+          "timestamp_s": 1792026808.4347649,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.002957500000775326,
+          "age_s": 1.501283884048462,
+          "remaining_length_m": 0.6588876327632531
+        },
+        {
+          "timestamp_s": 1792026808.5320153,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.0024162000008800533,
+          "age_s": 1.598534345626831,
+          "remaining_length_m": 0.6409902838403805
+        },
+        {
+          "timestamp_s": 1792026808.632649,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.0010011999984271824,
+          "age_s": 1.6991679668426514,
+          "remaining_length_m": 0.6235431949701962
+        },
+        {
+          "timestamp_s": 1792026808.7343388,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 82,
+          "elapsed_s": 0.002176599999074824,
+          "age_s": 1.8008577823638916,
+          "remaining_length_m": 0.6081625655064956
+        },
+        {
+          "timestamp_s": 1792026808.8322701,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 83,
+          "elapsed_s": 0.0027300000001559965,
+          "age_s": 0.897101879119873,
+          "remaining_length_m": 0.8443554650859659
+        },
+        {
+          "timestamp_s": 1792026808.9321628,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 83,
+          "elapsed_s": 0.0031579999995301478,
+          "age_s": 0.9969944953918457,
+          "remaining_length_m": 0.8304329902514853
+        },
+        {
+          "timestamp_s": 1792026808.9862378,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 83,
+          "elapsed_s": 0.002580099997430807,
+          "age_s": 1.0510694980621338,
+          "remaining_length_m": 0.819551699678367
+        },
+        {
+          "timestamp_s": 1792026809.0331426,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 83,
+          "elapsed_s": 0.0010522999982640613,
+          "age_s": 1.0979743003845215,
+          "remaining_length_m": 0.813096932172767
+        },
+        {
+          "timestamp_s": 1792026809.1321583,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 83,
+          "elapsed_s": 0.00363380000271718,
+          "age_s": 1.1969900131225586,
+          "remaining_length_m": 0.7936508019686492
+        },
+        {
+          "timestamp_s": 1792026809.2383375,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 83,
+          "elapsed_s": 0.0018801999976858497,
+          "age_s": 1.3031692504882812,
+          "remaining_length_m": 0.7705106037447793
+        },
+        {
+          "timestamp_s": 1792026809.332474,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 83,
+          "elapsed_s": 0.0023866000010457356,
+          "age_s": 1.3973057270050049,
+          "remaining_length_m": 0.7573856578318672
+        },
+        {
+          "timestamp_s": 1792026809.4339418,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 83,
+          "elapsed_s": 0.001296799997362541,
+          "age_s": 1.4987735748291016,
+          "remaining_length_m": 0.736363386929832
+        },
+        {
+          "timestamp_s": 1792026809.5353186,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 83,
+          "elapsed_s": 0.0022868999985803384,
+          "age_s": 1.6001503467559814,
+          "remaining_length_m": 0.718665879154833
+        },
+        {
+          "timestamp_s": 1792026809.636184,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0018086000018229242,
+          "age_s": 0.6499462127685547,
+          "remaining_length_m": 0.9082892028944016
+        },
+        {
+          "timestamp_s": 1792026809.731787,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.002150799999071751,
+          "age_s": 0.745549201965332,
+          "remaining_length_m": 0.8931455963534296
+        },
+        {
+          "timestamp_s": 1792026809.8359396,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.002552800000557909,
+          "age_s": 0.8497018814086914,
+          "remaining_length_m": 0.8755700458771699
+        },
+        {
+          "timestamp_s": 1792026809.9319232,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0024859000004653353,
+          "age_s": 0.9456853866577148,
+          "remaining_length_m": 0.858952073016982
+        },
+        {
+          "timestamp_s": 1792026809.9837804,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0024951999985205475,
+          "age_s": 0.9975426197052002,
+          "remaining_length_m": 0.8496795120596725
+        },
+        {
+          "timestamp_s": 1792026810.0345426,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0016420000029029325,
+          "age_s": 1.048304796218872,
+          "remaining_length_m": 0.8404198097844233
+        },
+        {
+          "timestamp_s": 1792026810.133279,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0020890000014333054,
+          "age_s": 1.1470413208007812,
+          "remaining_length_m": 0.8216596989468113
+        },
+        {
+          "timestamp_s": 1792026810.2330172,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0024908999985200353,
+          "age_s": 1.246779441833496,
+          "remaining_length_m": 0.8025101102996748
+        },
+        {
+          "timestamp_s": 1792026810.3390615,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.002418199997919146,
+          "age_s": 1.3528237342834473,
+          "remaining_length_m": 0.7805000090899361
+        },
+        {
+          "timestamp_s": 1792026810.4360392,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0020351999992271885,
+          "age_s": 1.4498014450073242,
+          "remaining_length_m": 0.7585941864792728
+        },
+        {
+          "timestamp_s": 1792026810.534895,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0025957999969250523,
+          "age_s": 1.5486571788787842,
+          "remaining_length_m": 0.7353240494901794
+        },
+        {
+          "timestamp_s": 1792026810.6334493,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0011484999995445833,
+          "age_s": 1.6472115516662598,
+          "remaining_length_m": 0.7116320178967042
+        },
+        {
+          "timestamp_s": 1792026810.7347348,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0022706999989168253,
+          "age_s": 1.7484970092773438,
+          "remaining_length_m": 0.6871327264854525
+        },
+        {
+          "timestamp_s": 1792026810.8320768,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.001743600001645973,
+          "age_s": 1.845839023590088,
+          "remaining_length_m": 0.6636781395489144
+        },
+        {
+          "timestamp_s": 1792026810.9400778,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 84,
+          "elapsed_s": 0.0022623000004386995,
+          "age_s": 1.9538400173187256,
+          "remaining_length_m": 0.6381619761750945
+        },
+        {
+          "timestamp_s": 1792026811.0322347,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 85,
+          "elapsed_s": 0.0024266000000352506,
+          "age_s": 1.0484542846679688,
+          "remaining_length_m": 0.7891418633520736
+        },
+        {
+          "timestamp_s": 1792026811.1326134,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 85,
+          "elapsed_s": 0.0017903000007208902,
+          "age_s": 1.1488330364227295,
+          "remaining_length_m": 0.7643047333044255
+        },
+        {
+          "timestamp_s": 1792026811.2387671,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 85,
+          "elapsed_s": 0.002539100001740735,
+          "age_s": 1.2549867630004883,
+          "remaining_length_m": 0.7362935193771586
+        },
+        {
+          "timestamp_s": 1792026811.3341312,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 85,
+          "elapsed_s": 0.0021658000005118083,
+          "age_s": 1.3503508567810059,
+          "remaining_length_m": 0.7089253209265345
+        },
+        {
+          "timestamp_s": 1792026811.439098,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 85,
+          "elapsed_s": 0.0022146000010252465,
+          "age_s": 1.455317497253418,
+          "remaining_length_m": 0.6788048505838737
+        },
+        {
+          "timestamp_s": 1792026811.5352273,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 85,
+          "elapsed_s": 0.002412099998764461,
+          "age_s": 1.5514469146728516,
+          "remaining_length_m": 0.6530324353886057
+        },
+        {
+          "timestamp_s": 1792026811.6320107,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 85,
+          "elapsed_s": 0.0023737999981676694,
+          "age_s": 1.6482303142547607,
+          "remaining_length_m": 0.6298025639549831
+        },
+        {
+          "timestamp_s": 1792026811.7530305,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.001876299997093156,
+          "age_s": 0.7207958698272705,
+          "remaining_length_m": 0.8441293543511594
+        },
+        {
+          "timestamp_s": 1792026811.8336332,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.001067599998350488,
+          "age_s": 0.801398515701294,
+          "remaining_length_m": 0.8287906456948705
+        },
+        {
+          "timestamp_s": 1792026811.9320564,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.0024084000033326447,
+          "age_s": 0.8998217582702637,
+          "remaining_length_m": 0.8077653089651147
+        },
+        {
+          "timestamp_s": 1792026812.0344028,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.005631200001516845,
+          "age_s": 1.0021681785583496,
+          "remaining_length_m": 0.7880652913894333
+        },
+        {
+          "timestamp_s": 1792026812.1340814,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.0026070999992953148,
+          "age_s": 1.101846694946289,
+          "remaining_length_m": 0.7703405306646718
+        },
+        {
+          "timestamp_s": 1792026812.2330956,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.0014057000007596798,
+          "age_s": 1.2008609771728516,
+          "remaining_length_m": 0.7542665391220742
+        },
+        {
+          "timestamp_s": 1792026812.3345032,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.0020855000002484303,
+          "age_s": 1.3022685050964355,
+          "remaining_length_m": 0.7381452403723334
+        },
+        {
+          "timestamp_s": 1792026812.4318562,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.0018189999973401427,
+          "age_s": 1.3996214866638184,
+          "remaining_length_m": 0.7235410719451769
+        },
+        {
+          "timestamp_s": 1792026812.5347333,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.002832699999999022,
+          "age_s": 1.5024986267089844,
+          "remaining_length_m": 0.7085019163925406
+        },
+        {
+          "timestamp_s": 1792026812.6318574,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 86,
+          "elapsed_s": 0.0030076999973971397,
+          "age_s": 1.5996227264404297,
+          "remaining_length_m": 0.6949425261632456
+        },
+        {
+          "timestamp_s": 1792026812.7336583,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 87,
+          "elapsed_s": 0.0026647999984561466,
+          "age_s": 0.6992554664611816,
+          "remaining_length_m": 0.8928106127626068
+        },
+        {
+          "timestamp_s": 1792026812.833303,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 87,
+          "elapsed_s": 0.0018204000007244758,
+          "age_s": 0.7989001274108887,
+          "remaining_length_m": 0.8786196689300237
+        },
+        {
+          "timestamp_s": 1792026812.937705,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 87,
+          "elapsed_s": 0.002469899998686742,
+          "age_s": 0.9033021926879883,
+          "remaining_length_m": 0.8655157487061691
+        },
+        {
+          "timestamp_s": 1792026813.0405242,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 87,
+          "elapsed_s": 0.0027939000028709415,
+          "age_s": 1.0061213970184326,
+          "remaining_length_m": 0.8511644142598265
+        },
+        {
+          "timestamp_s": 1792026813.1347573,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 87,
+          "elapsed_s": 0.0028628000000026077,
+          "age_s": 1.1003544330596924,
+          "remaining_length_m": 0.839158993989678
+        },
+        {
+          "timestamp_s": 1792026813.2338166,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 87,
+          "elapsed_s": 0.003599800002120901,
+          "age_s": 1.199413776397705,
+          "remaining_length_m": 0.8257087742987401
+        },
+        {
+          "timestamp_s": 1792026813.3353548,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 87,
+          "elapsed_s": 0.0018644999981916044,
+          "age_s": 1.3009519577026367,
+          "remaining_length_m": 0.8119663521706777
+        },
+        {
+          "timestamp_s": 1792026813.4347632,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 87,
+          "elapsed_s": 0.0022905999976501334,
+          "age_s": 1.400360345840454,
+          "remaining_length_m": 0.7967230235379716
+        },
+        {
+          "timestamp_s": 1792026813.5325491,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 87,
+          "elapsed_s": 0.001999799998884555,
+          "age_s": 1.4981462955474854,
+          "remaining_length_m": 0.7842689759449165
+        },
+        {
+          "timestamp_s": 1792026813.631868,
+          "mode": "baseline",
+          "reason": "known_boundary_collision",
+          "job_id": 87,
+          "elapsed_s": 0.002970000001369044,
+          "age_s": 1.5974650382995605,
+          "remaining_length_m": 0.7663014852506065
+        },
+        {
+          "timestamp_s": 1792026813.7320938,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.002091499998641666,
+          "age_s": 0.6915695667266846,
+          "remaining_length_m": 0.8792741961040861
+        },
+        {
+          "timestamp_s": 1792026813.8344069,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.002625999997690087,
+          "age_s": 0.7938826084136963,
+          "remaining_length_m": 0.8643533459916874
+        },
+        {
+          "timestamp_s": 1792026813.9340034,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.0017038000005413778,
+          "age_s": 0.8934791088104248,
+          "remaining_length_m": 0.8493126406322107
+        },
+        {
+          "timestamp_s": 1792026814.0327706,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.003722500001458684,
+          "age_s": 0.9922463893890381,
+          "remaining_length_m": 0.8349676049976347
+        },
+        {
+          "timestamp_s": 1792026814.0825343,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.0035635999993246514,
+          "age_s": 1.0420100688934326,
+          "remaining_length_m": 0.8279800836279017
+        },
+        {
+          "timestamp_s": 1792026814.1329033,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.003616199999669334,
+          "age_s": 1.092379093170166,
+          "remaining_length_m": 0.8191989851102406
+        },
+        {
+          "timestamp_s": 1792026814.2322743,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.004043400000227848,
+          "age_s": 1.1917500495910645,
+          "remaining_length_m": 0.805772736979092
+        },
+        {
+          "timestamp_s": 1792026814.334193,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.0036705000020447187,
+          "age_s": 1.2936687469482422,
+          "remaining_length_m": 0.787705939863739
+        },
+        {
+          "timestamp_s": 1792026814.4322107,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.004274000002624234,
+          "age_s": 1.3916864395141602,
+          "remaining_length_m": 0.7663644285039026
+        },
+        {
+          "timestamp_s": 1792026814.540806,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.002642399998876499,
+          "age_s": 1.500281810760498,
+          "remaining_length_m": 0.7383946576226426
+        },
+        {
+          "timestamp_s": 1792026814.6387315,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 88,
+          "elapsed_s": 0.0033382000001438428,
+          "age_s": 1.5982072353363037,
+          "remaining_length_m": 0.6602424915486014
+        },
+        {
+          "timestamp_s": 1792026814.7319198,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.003622799998993287,
+          "age_s": 0.6493854522705078,
+          "remaining_length_m": 0.8948523356885895
+        },
+        {
+          "timestamp_s": 1792026814.8328376,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.00704300000143121,
+          "age_s": 0.7503032684326172,
+          "remaining_length_m": 0.879254586653609
+        },
+        {
+          "timestamp_s": 1792026814.938501,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.00353249999898253,
+          "age_s": 0.8559665679931641,
+          "remaining_length_m": 0.8630554994108743
+        },
+        {
+          "timestamp_s": 1792026815.0385733,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.003394200000911951,
+          "age_s": 0.9560389518737793,
+          "remaining_length_m": 0.8460841806328752
+        },
+        {
+          "timestamp_s": 1792026815.0819247,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.003966000000218628,
+          "age_s": 0.9993903636932373,
+          "remaining_length_m": 0.8388904708604219
+        },
+        {
+          "timestamp_s": 1792026815.134313,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.0035914000000047963,
+          "age_s": 1.051778793334961,
+          "remaining_length_m": 0.8300955993462653
+        },
+        {
+          "timestamp_s": 1792026815.2330036,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.0036419999996724073,
+          "age_s": 1.1504693031311035,
+          "remaining_length_m": 0.8100340282203902
+        },
+        {
+          "timestamp_s": 1792026815.3347962,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.004097900000488153,
+          "age_s": 1.2522618770599365,
+          "remaining_length_m": 0.7857860506951257
+        },
+        {
+          "timestamp_s": 1792026815.4320514,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.0015687999984947965,
+          "age_s": 1.3495171070098877,
+          "remaining_length_m": 0.7581163224975547
+        },
+        {
+          "timestamp_s": 1792026815.533507,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.0019277999999758322,
+          "age_s": 1.4509727954864502,
+          "remaining_length_m": 0.7313161153703307
+        },
+        {
+          "timestamp_s": 1792026815.6325936,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.0028596000011020806,
+          "age_s": 1.5500593185424805,
+          "remaining_length_m": 0.7107867069930291
+        },
+        {
+          "timestamp_s": 1792026815.7317932,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.003043299999262672,
+          "age_s": 1.6492588520050049,
+          "remaining_length_m": 0.6896419086085146
+        },
+        {
+          "timestamp_s": 1792026815.832307,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.002351499999349471,
+          "age_s": 1.7497727870941162,
+          "remaining_length_m": 0.6674107968290054
+        },
+        {
+          "timestamp_s": 1792026815.9375598,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.0025343999986944254,
+          "age_s": 1.8550255298614502,
+          "remaining_length_m": 0.6433831441369731
+        },
+        {
+          "timestamp_s": 1792026816.032472,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 89,
+          "elapsed_s": 0.0021297999992384575,
+          "age_s": 1.9499375820159912,
+          "remaining_length_m": 0.6208117973266156
+        },
+        {
+          "timestamp_s": 1792026816.1318443,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.003669699999591103,
+          "age_s": 1.049919605255127,
+          "remaining_length_m": 0.7958135151694332
+        },
+        {
+          "timestamp_s": 1792026816.2341177,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.0026418000015837606,
+          "age_s": 1.1521930694580078,
+          "remaining_length_m": 0.7701030204365796
+        },
+        {
+          "timestamp_s": 1792026816.3367057,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.0015316999997594394,
+          "age_s": 1.2547810077667236,
+          "remaining_length_m": 0.7471163078665689
+        },
+        {
+          "timestamp_s": 1792026816.4321594,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.0026852000009967014,
+          "age_s": 1.3502347469329834,
+          "remaining_length_m": 0.72754336884112
+        },
+        {
+          "timestamp_s": 1792026816.5373447,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.0033571999993000645,
+          "age_s": 1.4554200172424316,
+          "remaining_length_m": 0.708624708972978
+        },
+        {
+          "timestamp_s": 1792026816.6322122,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.004302100001950748,
+          "age_s": 1.5502874851226807,
+          "remaining_length_m": 0.6917290033558094
+        },
+        {
+          "timestamp_s": 1792026816.7333488,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.004129299999476643,
+          "age_s": 1.6514241695404053,
+          "remaining_length_m": 0.6736152942338846
+        },
+        {
+          "timestamp_s": 1792026816.8319826,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.004215599998133257,
+          "age_s": 1.7500579357147217,
+          "remaining_length_m": 0.6551270461564792
+        },
+        {
+          "timestamp_s": 1792026816.932712,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.0036924000014550984,
+          "age_s": 1.8507874011993408,
+          "remaining_length_m": 0.6374913872227517
+        },
+        {
+          "timestamp_s": 1792026817.0338547,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.002710000000661239,
+          "age_s": 1.951930046081543,
+          "remaining_length_m": 0.6196871793993427
+        },
+        {
+          "timestamp_s": 1792026817.1369436,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 90,
+          "elapsed_s": 0.002990900000440888,
+          "age_s": 2.055018901824951,
+          "remaining_length_m": 0.601854690576259
+        },
+        {
+          "timestamp_s": 1792026818.2343202,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 91,
+          "elapsed_s": 0.0024286999978357926,
+          "age_s": 2.102475881576538,
+          "remaining_length_m": 0.5014525451756685
+        },
+        {
+          "timestamp_s": 1792026818.3352613,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 91,
+          "elapsed_s": 0.002057599998806836,
+          "age_s": 2.2034170627593994,
+          "remaining_length_m": 0.47963108340006144
+        },
+        {
+          "timestamp_s": 1792026818.4325294,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 91,
+          "elapsed_s": 0.002053899999737041,
+          "age_s": 2.300685167312622,
+          "remaining_length_m": 0.4589143942251981
+        },
+        {
+          "timestamp_s": 1792026818.5327215,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 91,
+          "elapsed_s": 0.0026746000003186055,
+          "age_s": 2.4008772373199463,
+          "remaining_length_m": 0.43793095689005646
+        },
+        {
+          "timestamp_s": 1792026818.6320996,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 91,
+          "elapsed_s": 0.0009114999993471429,
+          "age_s": 2.5002553462982178,
+          "remaining_length_m": 0.4173488507289064
+        },
+        {
+          "timestamp_s": 1792026818.7350333,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 91,
+          "elapsed_s": 0.0010736000003817026,
+          "age_s": 2.603188991546631,
+          "remaining_length_m": 0.3945511103169259
+        },
+        {
+          "timestamp_s": 1792026818.8319595,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 91,
+          "elapsed_s": 0.0019065000014961697,
+          "age_s": 2.700115203857422,
+          "remaining_length_m": 0.37239075234670216
+        },
+        {
+          "timestamp_s": 1792026818.9335477,
+          "mode": "baseline",
+          "reason": "preview_coverage_exhausted",
+          "job_id": 91,
+          "elapsed_s": 0.0002792999985103961,
+          "age_s": 2.801703453063965,
+          "remaining_length_m": 0.3510730298168263
+        },
+        {
+          "timestamp_s": 1792026819.0399077,
+          "mode": "baseline",
+          "reason": "preview_coverage_exhausted",
+          "job_id": 91,
+          "elapsed_s": 0.00038279999716905877,
+          "age_s": 2.9080634117126465,
+          "remaining_length_m": 0.3273312882841063
+        },
+        {
+          "timestamp_s": 1792026819.1326425,
+          "mode": "baseline",
+          "reason": "preview_coverage_exhausted",
+          "job_id": 91,
+          "elapsed_s": 0.000103599999420112,
+          "age_s": 3.000798225402832,
+          "remaining_length_m": 0.30680701687712686
+        },
+        {
+          "timestamp_s": 1792026819.1852582,
+          "mode": "baseline",
+          "reason": "preview_coverage_exhausted",
+          "job_id": 91,
+          "elapsed_s": 9.399999908055179e-05,
+          "age_s": 3.0534138679504395,
+          "remaining_length_m": 0.2949140050618949
+        },
+        {
+          "timestamp_s": 1792026819.233251,
+          "mode": "baseline",
+          "reason": "preview_coverage_exhausted",
+          "job_id": 91,
+          "elapsed_s": 0.00015160000111791305,
+          "age_s": 3.1014068126678467,
+          "remaining_length_m": 0.2849839518555739
+        },
+        {
+          "timestamp_s": 1792026819.347372,
+          "mode": "baseline",
+          "reason": "preview_coverage_exhausted",
+          "job_id": 91,
+          "elapsed_s": 0.00026960000104736537,
+          "age_s": 3.2155277729034424,
+          "remaining_length_m": 0.26084922061277316
+        },
+        {
+          "timestamp_s": 1792026819.4345157,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 92,
+          "elapsed_s": 0.002409800003078999,
+          "age_s": 2.297572135925293,
+          "remaining_length_m": 0.529124640165213
+        },
+        {
+          "timestamp_s": 1792026819.5334997,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 92,
+          "elapsed_s": 0.0019931000024371315,
+          "age_s": 2.3965561389923096,
+          "remaining_length_m": 0.5092348439120885
+        },
+        {
+          "timestamp_s": 1792026819.6382234,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 92,
+          "elapsed_s": 0.0019763999989663716,
+          "age_s": 2.501279830932617,
+          "remaining_length_m": 0.4882316970214753
+        },
+        {
+          "timestamp_s": 1792026819.7333655,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 92,
+          "elapsed_s": 0.0015012000003480352,
+          "age_s": 2.596421957015991,
+          "remaining_length_m": 0.46924682229884473
+        },
+        {
+          "timestamp_s": 1792026819.8319411,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 92,
+          "elapsed_s": 0.00228870000137249,
+          "age_s": 2.694997549057007,
+          "remaining_length_m": 0.4496187506641395
+        },
+        {
+          "timestamp_s": 1792026819.969966,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.003757500002393499,
+          "age_s": 0.78470778465271,
+          "remaining_length_m": 0.8440213454132246
+        },
+        {
+          "timestamp_s": 1792026820.0319161,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.006703300001390744,
+          "age_s": 0.8466579914093018,
+          "remaining_length_m": 0.8165829497953776
+        },
+        {
+          "timestamp_s": 1792026820.1337056,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.0069598999980371445,
+          "age_s": 0.9484474658966064,
+          "remaining_length_m": 0.7605036570243244
+        },
+        {
+          "timestamp_s": 1792026820.186485,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.006851599999208702,
+          "age_s": 1.0012269020080566,
+          "remaining_length_m": 0.7431849068574161
+        },
+        {
+          "timestamp_s": 1792026820.2350578,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.0034415000009175856,
+          "age_s": 1.0497996807098389,
+          "remaining_length_m": 0.7337744705851467
+        },
+        {
+          "timestamp_s": 1792026820.3343015,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.007924500001536217,
+          "age_s": 1.149043321609497,
+          "remaining_length_m": 0.7101664492385277
+        },
+        {
+          "timestamp_s": 1792026820.4329515,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.0033440000006521586,
+          "age_s": 1.2476933002471924,
+          "remaining_length_m": 0.6890682347822492
+        },
+        {
+          "timestamp_s": 1792026820.5393682,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.00313319999986561,
+          "age_s": 1.3541100025177002,
+          "remaining_length_m": 0.6687361598119541
+        },
+        {
+          "timestamp_s": 1792026820.632197,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.0038378999997803476,
+          "age_s": 1.4469387531280518,
+          "remaining_length_m": 0.6532178039864023
+        },
+        {
+          "timestamp_s": 1792026820.7323253,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.004092000002856366,
+          "age_s": 1.5470671653747559,
+          "remaining_length_m": 0.6367799109788973
+        },
+        {
+          "timestamp_s": 1792026820.8351014,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.0032382000026700553,
+          "age_s": 1.6498432159423828,
+          "remaining_length_m": 0.6212909223812741
+        },
+        {
+          "timestamp_s": 1792026820.9340625,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.0029180999990785494,
+          "age_s": 1.7488043308258057,
+          "remaining_length_m": 0.607214744107456
+        },
+        {
+          "timestamp_s": 1792026821.0352504,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.003990200002590427,
+          "age_s": 1.849992275238037,
+          "remaining_length_m": 0.5936865410376155
+        },
+        {
+          "timestamp_s": 1792026821.1331823,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.0036921999999321997,
+          "age_s": 1.9479241371154785,
+          "remaining_length_m": 0.5808611181987169
+        },
+        {
+          "timestamp_s": 1792026821.2073977,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 94,
+          "elapsed_s": 0.0032945999992080033,
+          "age_s": 2.022139549255371,
+          "remaining_length_m": 0.5714249018748632
+        },
+        {
+          "timestamp_s": 1792026821.3334086,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 95,
+          "elapsed_s": 0.00338470000133384,
+          "age_s": 1.146923542022705,
+          "remaining_length_m": 0.7952044709860544
+        },
+        {
+          "timestamp_s": 1792026821.4325163,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 95,
+          "elapsed_s": 0.003418299998884322,
+          "age_s": 1.2460312843322754,
+          "remaining_length_m": 0.7779389319079428
+        },
+        {
+          "timestamp_s": 1792026821.5352032,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 95,
+          "elapsed_s": 0.004232400002365466,
+          "age_s": 1.3487181663513184,
+          "remaining_length_m": 0.7610371516629226
+        },
+        {
+          "timestamp_s": 1792026821.6336102,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 95,
+          "elapsed_s": 0.002873800000088522,
+          "age_s": 1.4471251964569092,
+          "remaining_length_m": 0.7433863454471967
+        },
+        {
+          "timestamp_s": 1792026821.7351978,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 95,
+          "elapsed_s": 0.002677899999980582,
+          "age_s": 1.5487127304077148,
+          "remaining_length_m": 0.7246033811854858
+        },
+        {
+          "timestamp_s": 1792026821.8383598,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 95,
+          "elapsed_s": 0.0029767000014544465,
+          "age_s": 1.6518747806549072,
+          "remaining_length_m": 0.704782746528996
+        },
+        {
+          "timestamp_s": 1792026821.9326818,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 95,
+          "elapsed_s": 0.0033775999982026406,
+          "age_s": 1.7461967468261719,
+          "remaining_length_m": 0.6890595458762103
+        },
+        {
+          "timestamp_s": 1792026822.040983,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 96,
+          "elapsed_s": 0.003325800000311574,
+          "age_s": 0.833585262298584,
+          "remaining_length_m": 0.8289899814571919
+        },
+        {
+          "timestamp_s": 1792026822.1326096,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 96,
+          "elapsed_s": 0.004169100000581238,
+          "age_s": 0.9252119064331055,
+          "remaining_length_m": 0.8135926579497019
+        },
+        {
+          "timestamp_s": 1792026822.23255,
+          "mode": "planner",
+          "reason": "planner_tracking",
+          "job_id": 96,
+          "elapsed_s": 0.004260300000169082,
+          "age_s": 1.0251522064208984,
+          "remaining_length_m": 0.7957470910771601
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Recorded baseline motion is exogenous, not a closed-loop vehicle response.",
+    "Only deduplicated recorded road snapshot timestamps are covered; not full continuous 20Hz.",
+    "Snapshot frame_id restored from known policy contract; geometry/timestamp are recorded.",
+    "Wheel speed is interpolated from recorded planning inputs for coverage only.",
+    "Original result reception schedule retained; no new on-car latency measurement."
+  ]
+}

@@ -1,5 +1,104 @@
 # AI4R policy acceptance
 
+## Opt-in lattice control execution adapter, 2026-10-15
+
+After the checks below, the user explicitly selected planner_control.enabled=true
+in the shipped YAML. The code-level default remains false. The recorded check
+manifest preserves the earlier baseline-selected YAML hash; only this selector
+changed afterwards, with policy source unchanged.
+
+Startup-only planner_control.enabled defaults false: baseline control and parallel
+planning stay selected. Opting in feeds the same MVP PID an ORDERED_CENTERLINE
+reference aligned to each current state using incremental wheel/gyro odometry.
+Passed arc is cropped without deleting future U-bend legs. Original job pose,
+epoch and input timestamp survive computation/transport; source age is distinct
+from the fresh per-tick execution reference (max_dt + control period = 0.25 s).
+No fixed source TTL or curvature/steering gate was introduced.
+
+Every control tick checks remaining preview plus one tick of travel, and the
+selected path's geometric body sweep through actual preview/tangent support,
+against current aligned observed / observed_with_history boundaries only.
+No clearance or whole-tail collision gate is added. Coverage, alignment, worker,
+planning and selected-reference failures use that tick's baseline automatically;
+PID state is restored before retry if the planner controller call fails.
+Existing operator/sensor/action/invalid-baseline stops remain. This does not
+promise nonstop driving when baseline and feedback are themselves unavailable.
+
+/car/planner_execution publishes actual source/fallback reason, source age,
+progress/coverage, current known walls, aligned path and steering at control rate.
+Green policy_trajectory shows the actually consumed reference; blue retains the
+worker input epoch. Perception snapshots also retain frame_id and per-tick state.
+
+248 portable checks pass (18 new execution checks), including the real worker
+protocol, delayed alignment, preview beyond the original prefix, single-side
+provenance, coverage recovery, controller fault/exception baseline retry, operator
+Stop/watchdog/generation fencing and baseline action equivalence. All existing
+YAML values and 13 existing pure algorithm/settings classes are unchanged.
+Both recordings retain 43/43 available-road planning success with selected paths
+exactly matching the pre-integration cropped implementation; one startup empty
+input remains NO_ROAD. Of 468 deduplicated historical snapshot epochs, the
+adapter selects planner on 409, baseline on 59 (waiting/NO_ROAD 35, known-wall
+contact 18, preview coverage exhaustion 6). Every returned planner reference
+passes the actual controller's contract. This replay uses original baseline
+motion and delivery times, restored snapshot frame IDs and interpolated speeds;
+it is not a continuous 20 Hz closed-loop or physical collision experiment.
+Local adapter wall time averages about 2.7-2.8 ms, maximum about 11.2 ms; no
+on-vehicle latency claim. Existing large-steering/reference-direction concerns
+have not been solved by this integration.
+
+Executable LF preserved. No ROS gate per user instruction, push or deployment.
+See [switch and recording](PLANNER_CONTROL_CN.md) and
+[evidence](experiments/2026-10-15/evidence/planner-control/manifest.json).
+
+## Shadow rolling reference crop, 2026-10-15
+
+The fused guide now drops passed road arc beyond shadow.fusion_rear_support_m
+(default 0.30 m). Forward fit coverage and inferred connection to far/short support
+remain as before. Cropping follows ordered arc, preserving future returning legs
+of U bends. Raw current hard boundaries/provenance, all candidate generation,
+scoring, collision checks, fallback and baseline control methods are unchanged.
+Both diagnostic JSON and summary logs expose reference_crop dimensions.
+
+At the user's request only lightweight checks ran: nine targeted checks passed,
+covering repeated travel, returning roads, short far support, hard-boundary
+preservation, raw retry and actual worker protocol. The two recorded runs retain
+43/43 FUSED / VALID available-road inputs; their one startup empty-road input
+remains NO_ROAD. Replay preserves recorded preceding-reference lineage while
+substituting newly cropped guides. Maximum fused reference arc decreases from
+6.1519 to 1.9402 m in this replay. This is not live scheduling or physical evidence.
+AST comparison with the pre-crop source confirms baseline methods and original
+geometry planner unchanged. LF executable preserved. No ROS gate, push or deployment.
+See [lightweight evidence](experiments/2026-10-15/evidence/shadow-reference-crop/replay.json).
+
+## Shadow temporal guidance and recorded fallback, 2026-10-15
+
+Shadow-only road collection follows baseline ticks after action publication;
+fusion remains in the independent worker. The default window is 1 s / 21 slots,
+deduplicated by original observation epoch, without waiting for a full buffer.
+Incremental read-only motion alignment, ordered normal association, robust spatial
+fusion and guidance-only self-crossing repair reduce single-side reference jumps.
+No archived lattice code/settings were used. Current hard boundaries and provenance
+are copied unchanged. Fit/alignment faults or infeasible fused candidates retry the
+identical original geometry planner. Explicit modes, failure reasons, pending reset
+events and complete temporal input are published on existing shadow diagnostics.
+Pending reset events are acknowledged only after diagnostic publication succeeds.
+
+The recorded run's 20 exact current inputs reproduce original selected trajectories;
+all 20 remain VALID after fusion. Forced fusion errors recover all 20 original paths.
+Mean motion-aligned checked-prefix lateral RMS is 0.1271 -> 0.0692 m; after removing
+the old path's current-origin offset, shape RMS is 0.0663 -> 0.0343 m. History is
+approximate: the old bag contains baseline Paths but no full 20 Hz road snapshots,
+and body-yaw inputs are interpolated between recorded planner snapshots. This is
+paired offline evidence, not closed-loop or new on-vehicle collection validation.
+
+227 portable checks pass, including temporal reset/deduplication, fault preservation,
+real worker protocol, raw fallback and baseline action isolation. Source AST audit
+confirms nine baseline classes, seven baseline control/state methods, launch files,
+existing YAML values and the original shadow geometry algorithm remain unchanged.
+Executable source uses LF. No ROS gate (per user instruction), push or deployment.
+See [report](experiments/2026-10-15/SHADOW_TEMPORAL_FUSION_CN.md) and
+[current evidence](experiments/2026-10-15/evidence/shadow-temporal/manifest.json).
+
 ## MVP2.1 independent shadow lattice, 2026-10-15
 
 Fresh implementation from the stable ordered-XY road interface; no archived

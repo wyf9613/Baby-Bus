@@ -9,7 +9,9 @@
 在 Foxglove 的 Layouts 菜单选择 Import from file，重新导入本目录 `layout.json`。
 车端需要部署当前 mvp2.1 影子实现，并以 `shadow.enabled: true` 启动；规划频率
 由 `shadow.rate_hz` 决定。蓝线显示有效的影子选中轨迹，停止或无有效选中轨迹时清线。
-绿色仍表示稳定控制器采用的参考。此次仅添加布局显示，按用户要求未进行本机测试
+绿色表示控制器实际采用的参考；启用 planner_control 后也可为当前对齐裁剪的 planner
+参考，降级时回到基线。实际来源见 /car/planner_execution，详见
+[接入与录制说明](../../docs/PLANNER_CONTROL_CN.md)。原布局添加时按用户要求未进行本机测试
 或车端部署；以下记录属于原基线绿色参考的实现与历史验证。
 
 车端只记录控制器已经采用的参考路径，以最多 10 Hz 发布；中心线使用原始点，

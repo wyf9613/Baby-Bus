@@ -1,9 +1,16 @@
 # Baby Bus · ai4r_policy
 
-`mvp2.1` 增加独立影子 lattice，默认 1 Hz，`shadow.rate_hz` 可调。实车继续使用
-稳定基线控制；影子进程只发布候选诊断、选中轨迹和动态检查段，不接管动作。
+`mvp2.1` 增加独立 lattice，默认 1 Hz，`shadow.rate_hz` 可调。当前分支随车测试配置
+已设 `planner_control.enabled: true`，让同一 PID 跟踪 lattice 轨迹；设为 false 可回到基线，
+执行层随 20 Hz 运动对齐、滚动检查和管理预瞄覆盖，不可用时同周期退回基线。
+开关、执行语义和直道录制指令见[控制接入说明](docs/PLANNER_CONTROL_CN.md)。
 新算法不使用旧 lattice 的代码或参数。现场话题、近似尺寸与验证范围见
 [影子规划说明](docs/SHADOW_LATTICE_CN.md)。
+
+影子侧新增过去 1 秒道路的运动补偿与稳健参考融合，收集随 20 Hz 基线周期，
+规划频率仍可独立调整。融合不可用时重试原始规划；降级原因和完整历史输入通过
+`shadow_planning` 记录。稳定控制与本轮硬碰撞边界保持原样。
+见[多帧融合验证](docs/experiments/2026-10-15/SHADOW_TEMPORAL_FUSION_CN.md)。
 
 `main` 默认采用 **弯道激进版 `5e8d1b8`**：航向 Kp=1.5、转向变化率 4/s、
 连续混合急弯反馈，策略和车辆转向范围均为 ±1.0，单侧偏移为完整宽度的 0.6 倍。

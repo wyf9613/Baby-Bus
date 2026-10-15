@@ -228,13 +228,29 @@
     # Synchronous at 20 Hz; no lattice, candidate search, worker or return path.
     # Forward-only mode uses observed samples without inventing near boundaries.
     # Off-centre/heading errors are corrected by control, not planning gates.
-    # Independent shadow only; baseline 20 Hz actions/road follower are unchanged.
+    # Startup switch. false: unchanged baseline control + shadow planning.
+    # true: PID reads lattice paths through the high-rate alignment/check adapter;
+    # planner failure/unusable coverage falls back to this tick's baseline.
+    # Change this file, rebuild and restart policy. No automatic vehicle Enable.
+    planner_control:
+      enabled: true
+
+    # Independent planner process; control selection is configured above.
     # All fields are startup-only. Edit rate_hz and restart POLICY for 1/2/5/10 Hz.
     # Snapshot submission cannot exceed policy_update_rate_hz. No legacy lattice
     # parameters, admission thresholds or reference lifetime are used here.
     shadow:
       enabled: true
       rate_hz: 1.0
+      # Road snapshots are collected at the baseline tick rate; same-camera
+      # epochs are deduplicated. Fusion runs in the shadow process only.
+      fusion_enabled: true
+      fusion_window_s: 1.0
+      fusion_max_samples: 21
+      fusion_spacing_m: 0.10
+      fusion_memory_weight: 1.0
+      # Retain this much road arc behind the car in the rolling fused guide.
+      fusion_rear_support_m: 0.30
       length_m: 1.0
       sample_count: 48
       path_spacing_m: 0.025

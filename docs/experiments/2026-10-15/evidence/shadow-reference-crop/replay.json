@@ -1,0 +1,846 @@
+{
+  "source_sha256": "ea9f4a50d56c14f7421133fe118a09217480621a761166bdfc6742b5adfb96af",
+  "pre_crop_sha256": "62b624acd8108af58cf8faadd385cf7bf10942149925b167911351d63f0c8a02",
+  "scope_audit": "All top-level definitions unchanged except ShadowSettings, fuser and PolicyNode; all PolicyNode methods unchanged except shadow diagnostic summary.",
+  "statuses": {
+    "VALID": 43,
+    "NO_ROAD": 1
+  },
+  "valid_fusion_modes": {
+    "FUSED": 43
+  },
+  "original_hard_boundaries_and_candidate_count_preserved": true,
+  "max_old_reference_length_m": 6.1519181392993625,
+  "max_new_reference_length_m": 1.9401961752529444,
+  "max_retained_rear_m": 0.3,
+  "method": "Recorded road/state/odometry and original preceding-reference lineage; replace recorded prior guides with corresponding cropped replay outputs when present. Not live scheduling replay.",
+  "ros_gate": "not run, user requested lightweight checks only",
+  "frames": [
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 51,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 1.5008577829730805,
+      "reference_crop": {
+        "source_length_m": 1.7238716760224149,
+        "origin_s_m": -0.6741517574228674,
+        "window_s_m": [
+          -0.6741517574228674,
+          0.8258482425771326
+        ],
+        "trimmed_rear_m": 0.0,
+        "retained_rear_m": 0.0,
+        "output_length_m": 1.5008577829730805
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 52,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 1.7090765363083689,
+      "reference_crop": {
+        "source_length_m": 2.443704675584092,
+        "origin_s_m": 0.2104958019947708,
+        "window_s_m": [
+          0.0,
+          1.710495801994771
+        ],
+        "trimmed_rear_m": 0.0,
+        "retained_rear_m": 0.2104958019947708,
+        "output_length_m": 1.7090765363083689
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 53,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 1.813922205425182,
+      "reference_crop": {
+        "source_length_m": 1.8136949315115807,
+        "origin_s_m": 0.42886767077997107,
+        "window_s_m": [
+          0.12886767077997108,
+          1.8136949315115807
+        ],
+        "trimmed_rear_m": 0.12886767077997108,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.6849208169038539
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 54,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.052464420226773,
+      "reference_crop": {
+        "source_length_m": 2.6426279512176425,
+        "origin_s_m": 0.42445988516183475,
+        "window_s_m": [
+          0.12445988516183476,
+          1.9244598851618346
+        ],
+        "trimmed_rear_m": 0.12445988516183476,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.799785497853644
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 55,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.2627709051111373,
+      "reference_crop": {
+        "source_length_m": 2.4939492284733986,
+        "origin_s_m": 0.5090658565045199,
+        "window_s_m": [
+          0.20906585650451986,
+          2.00906585650452
+        ],
+        "trimmed_rear_m": 0.20906585650451986,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8005036377120236
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 56,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.476694429498904,
+      "reference_crop": {
+        "source_length_m": 2.3924573467556005,
+        "origin_s_m": 0.5089628141415834,
+        "window_s_m": [
+          0.2089628141415834,
+          2.0089628141415834
+        ],
+        "trimmed_rear_m": 0.2089628141415834,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8049381236485713
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 57,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.646140212816413,
+      "reference_crop": {
+        "source_length_m": 3.1699986943916034,
+        "origin_s_m": 0.4764965760631954,
+        "window_s_m": [
+          0.1764965760631954,
+          1.9764965760631954
+        ],
+        "trimmed_rear_m": 0.1764965760631954,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.7985915292714252
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 58,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.78411397562304,
+      "reference_crop": {
+        "source_length_m": 1.9533018607327393,
+        "origin_s_m": 0.5405837159476251,
+        "window_s_m": [
+          0.24058371594762512,
+          1.9533018607327393
+        ],
+        "trimmed_rear_m": 0.24058371594762512,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.6965149643169875
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 59,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.116003561059971,
+      "reference_crop": {
+        "source_length_m": 2.201627768050918,
+        "origin_s_m": 0.5080566867594636,
+        "window_s_m": [
+          0.2080566867594636,
+          2.0080566867594634
+        ],
+        "trimmed_rear_m": 0.2080566867594636,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.820452919211763
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 60,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.1228610814095052,
+      "reference_crop": {
+        "source_length_m": 1.8204529192117633,
+        "origin_s_m": 0.513806237851804,
+        "window_s_m": [
+          0.21380623785180403,
+          1.8204529192117633
+        ],
+        "trimmed_rear_m": 0.21380623785180403,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.6172684457637707
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 61,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.610849292909566,
+      "reference_crop": {
+        "source_length_m": 3.2463124141471087,
+        "origin_s_m": 0.5734640792731778,
+        "window_s_m": [
+          0.2734640792731778,
+          2.0734640792731778
+        ],
+        "trimmed_rear_m": 0.2734640792731778,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8650105083673736
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 62,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.895953000887917,
+      "reference_crop": {
+        "source_length_m": 3.061226149222695,
+        "origin_s_m": 0.45963457032747923,
+        "window_s_m": [
+          0.15963457032747924,
+          1.9596345703274793
+        ],
+        "trimmed_rear_m": 0.15963457032747924,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8237344964962299
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121217",
+      "job_id": 63,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.9514652402062036,
+      "reference_crop": {
+        "source_length_m": 2.8008515359090853,
+        "origin_s_m": 0.5283837236270226,
+        "window_s_m": [
+          0.22838372362702258,
+          2.0283837236270226
+        ],
+        "trimmed_rear_m": 0.22838372362702258,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.7803028522352502
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 66,
+      "status": "NO_ROAD",
+      "fusion_status": "RAW_ONLY",
+      "raw_fallback_used": true,
+      "old_reference_length_m": null,
+      "reference_crop": null
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 67,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 1.5004029844393572,
+      "reference_crop": {
+        "source_length_m": 1.9313990110273889,
+        "origin_s_m": -0.5381360641711133,
+        "window_s_m": [
+          -0.5381360641711133,
+          0.9618639358288867
+        ],
+        "trimmed_rear_m": 0.0,
+        "retained_rear_m": 0.0,
+        "output_length_m": 1.5004029844393572
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 68,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 1.6610556832090562,
+      "reference_crop": {
+        "source_length_m": 2.606037214397908,
+        "origin_s_m": 0.16673384031411234,
+        "window_s_m": [
+          0.0,
+          1.6667338403141123
+        ],
+        "trimmed_rear_m": 0.0,
+        "retained_rear_m": 0.16673384031411234,
+        "output_length_m": 1.6610556832090562
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 69,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 1.7255950052313935,
+      "reference_crop": {
+        "source_length_m": 2.431472798836967,
+        "origin_s_m": 0.2249977254180538,
+        "window_s_m": [
+          0.0,
+          1.7249977254180537
+        ],
+        "trimmed_rear_m": 0.0,
+        "retained_rear_m": 0.2249977254180538,
+        "output_length_m": 1.7255950052313935
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 70,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 1.9880778596946966,
+      "reference_crop": {
+        "source_length_m": 2.4236654371930544,
+        "origin_s_m": 0.48761663448887826,
+        "window_s_m": [
+          0.18761663448887828,
+          1.9876166344888784
+        ],
+        "trimmed_rear_m": 0.18761663448887828,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8005760516054279
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 71,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.2394116633557957,
+      "reference_crop": {
+        "source_length_m": 2.525317970170999,
+        "origin_s_m": 0.5533173266339747,
+        "window_s_m": [
+          0.2533173266339747,
+          2.053317326633975
+        ],
+        "trimmed_rear_m": 0.2533173266339747,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.798230519360041
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 72,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.4935950527583532,
+      "reference_crop": {
+        "source_length_m": 2.549804842637395,
+        "origin_s_m": 0.5532226434161993,
+        "window_s_m": [
+          0.2532226434161993,
+          2.0532226434161993
+        ],
+        "trimmed_rear_m": 0.2532226434161993,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.799339265934794
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 73,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.646234382609486,
+      "reference_crop": {
+        "source_length_m": 2.516295579748461,
+        "origin_s_m": 0.45194042320636446,
+        "window_s_m": [
+          0.15194042320636447,
+          1.9519404232063644
+        ],
+        "trimmed_rear_m": 0.15194042320636447,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8004826124715179
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 74,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.754115027454077,
+      "reference_crop": {
+        "source_length_m": 2.3375830385533503,
+        "origin_s_m": 0.4010844782680266,
+        "window_s_m": [
+          0.10108447826802663,
+          1.9010844782680265
+        ],
+        "trimmed_rear_m": 0.10108447826802663,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8076102896006194
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 75,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.0148945970561773,
+      "reference_crop": {
+        "source_length_m": 2.3211458175716735,
+        "origin_s_m": 0.5649187205661802,
+        "window_s_m": [
+          0.2649187205661802,
+          2.06491872056618
+        ],
+        "trimmed_rear_m": 0.2649187205661802,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.804230554007263
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 76,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.2255968949541898,
+      "reference_crop": {
+        "source_length_m": 2.1178623261614504,
+        "origin_s_m": 0.5066276092883735,
+        "window_s_m": [
+          0.20662760928837348,
+          2.0066276092883735
+        ],
+        "trimmed_rear_m": 0.20662760928837348,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8091719214094968
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 77,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.427109644543599,
+      "reference_crop": {
+        "source_length_m": 2.19572074097177,
+        "origin_s_m": 0.5018127240462787,
+        "window_s_m": [
+          0.20181272404627876,
+          2.0018127240462786
+        ],
+        "trimmed_rear_m": 0.20181272404627876,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8088609571614493
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 78,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.542735018376378,
+      "reference_crop": {
+        "source_length_m": 1.9692009429206199,
+        "origin_s_m": 0.41956327283428896,
+        "window_s_m": [
+          0.11956327283428897,
+          1.919563272834289
+        ],
+        "trimmed_rear_m": 0.11956327283428897,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8048890831041982
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 79,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.544098676502344,
+      "reference_crop": {
+        "source_length_m": 1.8048890831041986,
+        "origin_s_m": 0.3609585188124571,
+        "window_s_m": [
+          0.06095851881245712,
+          1.8048890831041986
+        ],
+        "trimmed_rear_m": 0.06095851881245712,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.7457542275635411
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 80,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.7257393188865717,
+      "reference_crop": {
+        "source_length_m": 1.8992657937129125,
+        "origin_s_m": 0.5951514028243771,
+        "window_s_m": [
+          0.2951514028243771,
+          1.8992657937129125
+        ],
+        "trimmed_rear_m": 0.2951514028243771,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.6564723957941212
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 81,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 3.7413546296937317,
+      "reference_crop": {
+        "source_length_m": 1.6564723957941212,
+        "origin_s_m": 0.47268706890631107,
+        "window_s_m": [
+          0.17268706890631108,
+          1.6564723957941212
+        ],
+        "trimmed_rear_m": 0.17268706890631108,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.4937956306752602
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 82,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 4.182315282641128,
+      "reference_crop": {
+        "source_length_m": 2.0161338078753746,
+        "origin_s_m": 0.3894948776631194,
+        "window_s_m": [
+          0.08949487766311942,
+          1.8894948776631195
+        ],
+        "trimmed_rear_m": 0.08949487766311942,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.825620177032588
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 83,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 4.643979520858984,
+      "reference_crop": {
+        "source_length_m": 3.5260595746247025,
+        "origin_s_m": 0.5276840870597068,
+        "window_s_m": [
+          0.22768408705970683,
+          2.027684087059707
+        ],
+        "trimmed_rear_m": 0.22768408705970683,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.7956948948924967
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 84,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 4.580131860095053,
+      "reference_crop": {
+        "source_length_m": 2.0981184220759843,
+        "origin_s_m": 0.5089084791937469,
+        "window_s_m": [
+          0.20890847919374694,
+          2.008908479193747
+        ],
+        "trimmed_rear_m": 0.20890847919374694,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.7792681763498985
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 85,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 4.605934691873902,
+      "reference_crop": {
+        "source_length_m": 1.7792681763498988,
+        "origin_s_m": 0.5043953274868058,
+        "window_s_m": [
+          0.20439532748680583,
+          1.7792681763498988
+        ],
+        "trimmed_rear_m": 0.20439532748680583,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.5926214519713122
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 86,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 4.9315876970206665,
+      "reference_crop": {
+        "source_length_m": 1.9074363069521842,
+        "origin_s_m": 0.4661908879004696,
+        "window_s_m": [
+          0.1661908879004696,
+          1.9074363069521842
+        ],
+        "trimmed_rear_m": 0.1661908879004696,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.7242706981385916
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 87,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 5.158684644178274,
+      "reference_crop": {
+        "source_length_m": 2.0396866202590016,
+        "origin_s_m": 0.5872005919861085,
+        "window_s_m": [
+          0.28720059198610853,
+          2.0396866202590016
+        ],
+        "trimmed_rear_m": 0.28720059198610853,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.7259497006519
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 88,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 5.3153455948007995,
+      "reference_crop": {
+        "source_length_m": 2.4837751658834666,
+        "origin_s_m": 0.39569123358760444,
+        "window_s_m": [
+          0.09569123358760445,
+          1.8956912335876044
+        ],
+        "trimmed_rear_m": 0.09569123358760445,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.7578060554493913
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 89,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 5.510158364546783,
+      "reference_crop": {
+        "source_length_m": 2.2454894936620993,
+        "origin_s_m": 0.4759429680934728,
+        "window_s_m": [
+          0.17594296809347282,
+          1.9759429680934728
+        ],
+        "trimmed_rear_m": 0.17594296809347282,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.8044661054923339
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 90,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 5.682602512550553,
+      "reference_crop": {
+        "source_length_m": 2.5379962649231875,
+        "origin_s_m": 0.4658003035769301,
+        "window_s_m": [
+          0.1658003035769301,
+          1.96580030357693
+        ],
+        "trimmed_rear_m": 0.1658003035769301,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.800529544856119
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 91,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 5.673158581947278,
+      "reference_crop": {
+        "source_length_m": 1.8005295448561196,
+        "origin_s_m": 0.5248198867645238,
+        "window_s_m": [
+          0.22481988676452386,
+          1.8005295448561196
+        ],
+        "trimmed_rear_m": 0.22481988676452386,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.5393098579205582
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 92,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 6.1519181392993625,
+      "reference_crop": {
+        "source_length_m": 2.9443675053240037,
+        "origin_s_m": 0.7972675032031873,
+        "window_s_m": [
+          0.4972675032031873,
+          2.2972675032031873
+        ],
+        "trimmed_rear_m": 0.4972675032031873,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.7603174049707204
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 94,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 1.4423709023205191,
+      "reference_crop": {
+        "source_length_m": 0.5686582185887101,
+        "origin_s_m": -0.5101186784050087,
+        "window_s_m": [
+          -0.5101186784050087,
+          0.5686582185887101
+        ],
+        "trimmed_rear_m": 0.0,
+        "retained_rear_m": 0.0,
+        "output_length_m": 1.4423709023205191
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 95,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 1.8722794950911994,
+      "reference_crop": {
+        "source_length_m": 1.7971404616753404,
+        "origin_s_m": 0.3099836891624197,
+        "window_s_m": [
+          0.009983689162419707,
+          1.7971404616753404
+        ],
+        "trimmed_rear_m": 0.009983689162419707,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.792370133066476
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 96,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.178096338084516,
+      "reference_crop": {
+        "source_length_m": 1.792960111694791,
+        "origin_s_m": 0.39502105509930674,
+        "window_s_m": [
+          0.09502105509930675,
+          1.792960111694791
+        ],
+        "trimmed_rear_m": 0.09502105509930675,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.9401961752529444
+      }
+    },
+    {
+      "recording": "shadow_fusion_20261015_121304",
+      "job_id": 97,
+      "status": "VALID",
+      "fusion_status": "FUSED",
+      "raw_fallback_used": false,
+      "old_reference_length_m": 2.224666879033891,
+      "reference_crop": {
+        "source_length_m": 2.0867868331391435,
+        "origin_s_m": 0.4850832806008961,
+        "window_s_m": [
+          0.18508328060089613,
+          1.9850832806008962
+        ],
+        "trimmed_rear_m": 0.18508328060089613,
+        "retained_rear_m": 0.3,
+        "output_length_m": 1.708503940171246
+      }
+    }
+  ]
+}

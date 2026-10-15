@@ -1,0 +1,43 @@
+{
+  "source_sha256": "9f18ff37612b29a9e1d6f0baaf9d4cfb5c3e99604b26a7bab616953215a5f5dc",
+  "baseline_default": true,
+  "portable_tests": 248,
+  "ros_gate": "not run: user says host has no ROS",
+  "hardware": "not run",
+  "push": "not performed",
+  "unchanged_pure_classes": [
+    "EstimationMotionHistory",
+    "EstimationPipeline",
+    "EstimationSettings",
+    "PlanningSettings",
+    "RoadCenterlinePlanner",
+    "CenterlinePlanner",
+    "PolicyController",
+    "ControlSettings",
+    "ControlReferenceManager",
+    "RunDistanceLimiter",
+    "ShadowSettings",
+    "ShadowFrame",
+    "ShadowLatticePlanner"
+  ],
+  "available_road_planning_success": "43/43",
+  "planning_selected_paths": "exactly identical to pre-integration source on the same 43 inputs",
+  "replay_scope": [
+    "Recorded baseline motion is exogenous, not a closed-loop vehicle response.",
+    "Only deduplicated recorded road snapshot timestamps are covered; not full continuous 20Hz.",
+    "Snapshot frame_id restored from known policy contract; geometry/timestamp are recorded.",
+    "Wheel speed is interpolated from recorded planning inputs for coverage only.",
+    "Original result reception schedule retained; no new on-car latency measurement."
+  ],
+  "files": {
+    "scripts/policy_node.py": "9f18ff37612b29a9e1d6f0baaf9d4cfb5c3e99604b26a7bab616953215a5f5dc",
+    "config/ai4r_policy.yaml": "f32577def76aaec521fadbc8c3599fc90529bea3a0f1249de0e885f6f78f0f76",
+    "tests/test_planner_execution.py": "0f4cb98e5eacbcd4fd2581175b7c1373a81742f678cef5bd9b8301475f876554",
+    "tests/test_control.py": "a940837bf9c86b8b621ea51e1c4135a6dfccaff7fa1b59436586b93070d4525c",
+    "tests/test_shadow_lattice.py": "858787211501bb8e95d458bbd0c633fa57d8f8bfa26ed09d1c81ca168e85f85f"
+  },
+  "evidence_sha256": {
+    "portable.log": "ef9533c640407ec8d613e214a3d256645a74be56df90ef877a8eb6bc320b8ba2",
+    "replay.json": "a623be22b54e3bda8ff11338f30075f117c37ae8d868322d18d62172e483f798"
+  }
+}

@@ -95,7 +95,9 @@ def _shadow_worker_entry():
         result["generation"] = None if job is None else job.get("generation")
         result["job_id"] = None if job is None else job.get("job_id")
         result["source_sha256"] = hashlib.sha256(source_bytes).hexdigest()
-        result["shadow_only"] = True
+        result["execution_anchor"] = None if job is None else {
+            "pose": job.get("shadow_pose"), "odometry_epoch": job.get("shadow_odometry_epoch")}
+        result["shadow_only"] = not bool(job and job.get("planner_control_enabled"))
         encode_started = time.perf_counter()
         encoded = json.dumps(result, allow_nan=False, separators=(",", ":"))
         wire_timing = {"json_decode_s": decode_s, "json_encode_s": time.perf_counter()-encode_started}
@@ -2921,20 +2923,30 @@ class ShadowSettings:
     weight_heading: float = 1.5
     weight_progress: float = 2.0
     weight_smoothness: float = 0.04
+    fusion_enabled: bool = True
+    fusion_window_s: float = 1.0
+    fusion_max_samples: int = 21
+    fusion_spacing_m: float = 0.10
+    fusion_memory_weight: float = 1.0
+    fusion_rear_support_m: float = 0.30
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
             raise ValueError("shadow.enabled must be boolean")
+        if not isinstance(self.fusion_enabled, bool):
+            raise ValueError("shadow.fusion_enabled must be boolean")
+        if type(self.fusion_max_samples) is not int or not 1 <= self.fusion_max_samples <= 128:
+            raise ValueError("shadow.fusion_max_samples must be an integer in [1,128]")
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
             raise ValueError("shadow.sample_count must be an integer >=8")
         for name, value in vars(self).items():
-            if name in ("enabled", "sample_count"):
+            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples"):
                 continue
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
         for name in ("rate_hz", "length_m", "path_spacing_m", "score_min_length_m",
                      "search_half_width_m", "body_front_m", "body_rear_m", "body_width_m",
-                     "sweep_translation_step_m", "sweep_rotation_step_rad"):
+                     "sweep_translation_step_m", "sweep_rotation_step_rad", "fusion_window_s", "fusion_spacing_m"):
             if getattr(self, name) == 0:
                 raise ValueError("shadow."+name+" must be positive")
 
@@ -3101,6 +3113,284 @@ def _shadow_collision(path, check_length, boundaries, cfg):
     return None
 
 
+def _shadow_pose_points(points, source_pose, target_pose):
+    """Road samples already aligned to their state times -> current body frame."""
+    if (len(source_pose) != 3 or len(target_pose) != 3
+            or not all(finite_number(v) for v in (*source_pose, *target_pose))):
+        raise ValueError("invalid shadow odometry pose")
+    x, y, angle = source_pose
+    tx, ty, target_angle = target_pose
+    c, s = math.cos(angle), math.sin(angle)
+    rc, rs = math.cos(target_angle), math.sin(target_angle)
+    result = []
+    for px, py in _shadow_points(points):
+        wx, wy = x+c*px-s*py-tx, y+s*px+c*py-ty
+        result.append((rc*wx+rs*wy, -rs*wx+rc*wy))
+    return result
+
+
+def _shadow_normal_match(points, p, tangent, normal, expected=0.0, first_segment=0):
+    """Match ordered, agreeing road branches; no body-x/curvature admission gate."""
+    matches = []
+    for index in range(max(0, first_segment-1), len(points)-1):
+        a, b = points[index:index+2]
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        length = math.hypot(dx, dy)
+        denominator = normal[0]*dy-normal[1]*dx
+        if length < 1e-9 or abs(denominator) < 1e-9:
+            continue
+        agreement = (dx*tangent[0]+dy*tangent[1])/length
+        if agreement <= 0:
+            continue  # Opposite U-turn leg is not the same ordered road branch.
+        ax, ay = a[0]-p[0], a[1]-p[1]
+        d = (ax*dy-ay*dx)/denominator
+        u = (ax*normal[1]-ay*normal[0])/denominator
+        if -1e-8 <= u <= 1+1e-8:
+            matches.append((abs(d-expected), d, agreement, index))
+    if not matches:
+        return None
+    _, d, agreement, index = min(matches)
+    return d, agreement, index
+
+
+def _shadow_reference_spline(points, spacing):
+    """Arc-parameter Hermite fit; preserve vertical and returning road branches."""
+    points = _shadow_points(points)
+    if len(points) < 3:
+        return points
+    arc = _shadow_lengths(points)
+    derivatives = []
+    for i in range(len(points)):
+        lo, hi = max(0, i-1), min(len(points)-1, i+1)
+        ds = max(1e-9, arc[hi]-arc[lo])
+        derivatives.append(tuple((points[hi][k]-points[lo][k])/ds for k in (0, 1)))
+    result = [points[0]]
+    for i, (a, b) in enumerate(zip(points, points[1:])):
+        ds = arc[i+1]-arc[i]
+        count = max(1, math.ceil(ds/spacing))
+        for j in range(1, count+1):
+            u = j/count
+            h = (2*u**3-3*u*u+1, u**3-2*u*u+u, -2*u**3+3*u*u, u**3-u*u)
+            result.append(tuple(h[0]*a[k]+h[1]*ds*derivatives[i][k]+h[2]*b[k]
+                                +h[3]*ds*derivatives[i+1][k] for k in (0, 1)))
+    return _shadow_points(result)
+
+
+def _shadow_erase_reference_loops(points):
+    """Remove self-intersecting excursions in guidance, never observed boundaries.
+
+    No negative-x or large-turn filter: an ordinary U bend has no self-crossing.
+    Degenerate fits are returned to the caller's raw-planning fallback.
+    """
+    points, removed = list(points), 0
+    for _ in range(8):
+        crossing = None
+        for i in range(len(points)-3):
+            for j in range(i+2, len(points)-1):
+                if math.dist(points[i], points[j+1]) < 1e-8:
+                    continue  # Preserve genuinely closed route support.
+                if _shadow_segment_hit(points[i], points[i+1], points[j], points[j+1]):
+                    crossing = (i, j)
+                    break
+            if crossing:
+                break
+        if crossing is None:
+            break
+        i, j = crossing
+        points = points[:i+1]+points[j+1:]
+        removed += 1
+    return points, removed
+
+
+def _shadow_simplify_reference(points, tolerance):
+    """Bound geometric approximation error, avoiding dense Frenet projection cost."""
+    if len(points) < 3:
+        return points
+    keep, pending = {0, len(points)-1}, [(0, len(points)-1)]
+    while pending:
+        lo, hi = pending.pop()
+        a, b = points[lo], points[hi]
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        norm2 = dx*dx+dy*dy
+        farthest, maximum = None, tolerance*tolerance
+        for i in range(lo+1, hi):
+            p = points[i]
+            u = max(0.0, min(1.0, ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/norm2)) if norm2 > 1e-12 else 0.0
+            distance2 = (p[0]-a[0]-u*dx)**2+(p[1]-a[1]-u*dy)**2
+            if distance2 > maximum:
+                farthest, maximum = i, distance2
+        if farthest is not None:
+            keep.add(farthest)
+            pending.extend(((lo, farthest), (farthest, hi)))
+    return [points[i] for i in sorted(keep)]
+
+
+def _shadow_fuse_road(job, cfg):
+    """Robust local road guidance from deduplicated, motion-aligned snapshots.
+
+    Real boundary samples supply normal intersections against a stable guide,
+    avoiding the folding of a large offset around noisy boundary corners.
+    Fused/inferred guidance NEVER replaces the current hard collision boundaries.
+    """
+    now, target_pose = job.get("stamp_s"), job.get("shadow_pose")
+    if not finite_number(now) or not target_pose or len(target_pose) != 3:
+        return None, {"status": "RAW_ONLY", "reason": "no_shadow_pose"}
+    epoch = job.get("shadow_odometry_epoch")
+    frames, seen = [], set()
+    for snapshot in reversed(job.get("road_history") or []):
+        stamp, pose = snapshot.get("stamp_s"), snapshot.get("pose")
+        if (not finite_number(stamp) or not pose or len(pose) != 3
+                or snapshot.get("odometry_epoch") != epoch or not 0 <= now-stamp <= cfg.fusion_window_s+1e-6):
+            continue
+        road = snapshot.get("road") or {}
+        measurement = road.get("measurement_timestamp_s")
+        key = measurement if finite_number(measurement) else stamp
+        if key in seen:
+            continue
+        seen.add(key)
+        transformed = dict(road)
+        for field in ("centerline_xy", "left_boundary_xy", "right_boundary_xy"):
+            transformed[field] = _shadow_pose_points(road.get(field), pose, target_pose)
+        transformed["age_s"] = max(0.0, now-measurement) if finite_number(measurement) else now-stamp
+        frames.append(transformed)
+        if len(frames) >= cfg.fusion_max_samples:
+            break
+    raw = job.get("road") or {}
+    if not frames:
+        return None, {"status": "RAW_ONLY", "reason": "no_aligned_history"}
+    prior = job.get("previous_reference") or {}
+    prior_age = now-prior.get("stamp_s", now)
+    prior_points = []
+    if (prior.get("odometry_epoch") == epoch and prior.get("pose")
+            and 0 <= prior_age <= cfg.fusion_window_s+2/cfg.rate_hz):
+        prior_points = _shadow_pose_points(prior.get("points"), prior["pose"], target_pose)
+    guide = prior_points
+    if not guide:
+        # Prefer the freshest actually two-sided reference for branch association.
+        reliable = [r for r in frames if r.get("visibility") == "both" and r.get("centerline_xy")]
+        guide = (reliable[0] if reliable else frames[0]).get("centerline_xy") or []
+    if len(guide) < 2:
+        return None, {"status": "RAW_ONLY", "reason": "insufficient_fit_support"}
+    guide, removed = _shadow_erase_reference_loops(guide)
+    if len(guide) < 2:
+        return None, {"status": "RAW_ONLY", "reason": "degenerate_reference"}
+    base = ShadowFrame(guide)
+    # Append new measured support only on the same ordered, agreeing branch.
+    for point in _shadow_points(raw.get("centerline_xy")):
+        s, d = base.project(point)
+        if s > base.end+cfg.fusion_spacing_m and abs(d) < cfg.search_half_width_m:
+            guide.append(point)
+            base = ShadowFrame(guide)
+    s0, _ = base.project((0.0, 0.0))
+    # Roll the fit window forward along ROAD ARC, retaining only local rear
+    # support. A negative s0 means support starts ahead: keep the inferred
+    # connection to the car rather than introducing a short-road gate.
+    lo = max(0.0, s0-cfg.fusion_rear_support_m) if s0 >= 0 else s0
+    hi = min(base.end, s0+1.5*max(cfg.length_m, cfg.score_min_length_m))
+    hi = max(hi, lo+cfg.fusion_spacing_m)
+    count = min(64, max(2, math.ceil((hi-lo)/cfg.fusion_spacing_m)))
+    width = raw.get("lane_width_m")
+    width = width if finite_number(width) and width > 0 else None
+    scale = max(2*cfg.path_spacing_m, (width or 2*cfg.search_half_width_m)*0.10)
+    last_segments = {}
+    offsets, strengths, supports, locations = [], [], [], []
+    for i in range(count+1):
+        s = lo+(hi-lo)*i/count
+        p, tangent, normal = base.at(s)
+        observations = []
+        if prior_points and 0 <= s <= base.end:
+            observations.append((0.0, cfg.fusion_memory_weight*math.exp(-prior_age/cfg.fusion_window_s)))
+        supported = False
+        for index, road in enumerate(frames):
+            weight = math.exp(-road["age_s"]/(cfg.fusion_window_s/2))
+            w = road.get("lane_width_m")
+            w = w if finite_number(w) and w > 0 else width
+            sides = {}
+            sources = road.get("boundary_source") or {}
+            for side, sign in (("left", 1), ("right", -1)):
+                if sources.get(side) not in ("observed", "observed_with_history"):
+                    continue
+                key = (index, side)
+                match = _shadow_normal_match(road[side+"_boundary_xy"], p, tangent, normal,
+                    sign*(w or 2*cfg.search_half_width_m)/2, last_segments.get(key, 0))
+                if match:
+                    sides[side] = match
+                    last_segments[key] = match[2]
+            if len(sides) == 2:
+                a, b = sides["left"], sides["right"]
+                d, quality = (a[0]+b[0])/2, min(a[1], b[1])**2
+                if a[0] <= b[0]:
+                    quality *= 0.1  # Conflicting evidence is weak, not a planning veto.
+            elif sides and w:
+                side, match = next(iter(sides.items()))
+                d = match[0]+(-1 if side == "left" else 1)*w/2
+                quality = 0.65*match[1]**2
+            else:
+                key = (index, "center")
+                match = _shadow_normal_match(road.get("centerline_xy") or [], p, tangent, normal,
+                                             0.0, last_segments.get(key, 0))
+                if match is None:
+                    continue
+                last_segments[key] = match[2]
+                d, quality = match[0], 0.4*match[1]**2
+            # Only finite observations participate; no resulting road is rejected.
+            if finite_number(d) and quality > 0:
+                observations.append((d, weight*quality))
+                supported = True
+        # Cap repeated spatial evidence: history-backed copies do not become
+        # independent votes merely because the estimator runs at 20 Hz.
+        clusters = {}
+        for value, weight in observations:
+            key = round(value/scale)
+            accumulated, total_weight, maximum_weight = clusters.get(key, (0.0, 0.0, 0.0))
+            clusters[key] = (accumulated+value*weight, total_weight+weight, max(maximum_weight, weight))
+        observations = sorted((value/total, maximum) for value, total, maximum in clusters.values() if total > 0)
+        if observations:
+            total = sum(w for _, w in observations)
+            cumulative = 0.0
+            middle = observations[-1][0]
+            for value, weight in observations:
+                cumulative += weight
+                if cumulative >= total/2:
+                    middle = value
+                    break
+            robust = [(v, w*min(1.0, scale/max(abs(v-middle), 1e-9))) for v, w in observations]
+            strength = sum(w for _, w in robust)
+            offset = sum(v*w for v, w in robust)/strength
+        else:
+            offset, strength = 0.0, 0.0
+        offsets.append(offset)
+        strengths.append(strength)
+        supports.append(supported)
+        locations.append((p, normal))
+    # Small spatial regularisation of noisy offsets, not a curvature/steering cap.
+    fitted = offsets[:]
+    for _ in range(3):
+        fitted = [fitted[0]]+[(strengths[i]*offsets[i]+0.25*(fitted[i-1]+fitted[i+1]))
+            /(strengths[i]+0.5) for i in range(1, len(fitted)-1)]+[fitted[-1]]
+    points = [(p[0]+d*n[0], p[1]+d*n[1]) for (p, n), d in zip(locations, fitted)]
+    points, extra = _shadow_erase_reference_loops(points)
+    points = _shadow_reference_spline(points, cfg.fusion_spacing_m/2)
+    points = _shadow_simplify_reference(points, cfg.path_spacing_m/4)
+    points, after_fit_loops = _shadow_erase_reference_loops(points)
+    if len(points) < 2:
+        return None, {"status": "RAW_ONLY", "reason": "empty_fit"}
+    road = dict(raw)
+    road.update(centerline_xy=points, centerline_source="shadow_temporal_fusion",
+                shadow_reference_is_inferred=True)
+    # Current boundaries and their provenance are copied verbatim from raw.
+    reference = {"points": points, "pose": list(target_pose), "stamp_s": now, "odometry_epoch": epoch}
+    return road, {"status": "FUSED", "history_frames": len(frames), "measurement_epochs": len(seen),
+        "prior_used": bool(prior_points), "supported_fit_samples": sum(supports), "fit_samples": len(supports),
+        "removed_guidance_loops": removed+extra+after_fit_loops, "guide": reference,
+        "oldest_measurement_age_s": max(r["age_s"] for r in frames),
+        "source_age_is_not_refreshed": True,
+        "reference_crop": {"source_length_m": base.end, "origin_s_m": s0,
+            "window_s_m": [lo, hi], "trimmed_rear_m": max(0.0, min(lo, base.end)),
+            "retained_rear_m": max(0.0, s0-lo), "output_length_m": _shadow_lengths(points)[-1]},
+        "hard_boundaries": "unchanged_current_input", "reference_is_observed_boundary": False}
+
+
 class ShadowLatticePlanner:
     """Fresh bounded sampler / prefix ranker, deliberately permissive about road.
 
@@ -3113,6 +3403,74 @@ class ShadowLatticePlanner:
         self.cfg = settings
 
     def plan(self, job):
+        """Fusion cannot reduce raw planner availability: retry raw on any failure."""
+        collection = job.get("temporal_collection")
+        collection = collection if isinstance(collection, dict) else {}
+        if not self.cfg.fusion_enabled or not job.get("road_history") or collection.get("reset"):
+            result = self._plan_geometry(job)
+            reason = "motion_alignment_reset" if collection.get("reset") else "history_unavailable"
+            result["fusion"] = {"status": "RAW_FALLBACK" if collection.get("reset") else "RAW_ONLY" if self.cfg.fusion_enabled else "DISABLED",
+                "reason": reason if self.cfg.fusion_enabled else "fusion_disabled",
+                "degraded": bool(self.cfg.fusion_enabled), "raw_fallback_used": bool(self.cfg.fusion_enabled),
+                "selected_source": "raw", "raw_status": result["status"], "fused_status": None,
+                "collection": collection}
+            if self.cfg.fusion_enabled:
+                result["temporal_input"] = {key: job.get(key) for key in
+                    ("road_history", "shadow_pose", "shadow_odometry_epoch", "previous_reference", "temporal_collection")}
+            return result
+        started = time.perf_counter()
+        road, fusion, attempt_s = None, {}, 0.0
+        try:
+            road, fusion = _shadow_fuse_road(job, self.cfg)
+        except Exception as error:
+            fusion = {"status": "RAW_FALLBACK", "reason": "fusion_error", "error": str(error)}
+        fusion_s = time.perf_counter()-started
+        result = None
+        if road is not None:
+            attempt_started = time.perf_counter()
+            try:
+                result = self._plan_geometry({**job, "road": road})
+            except Exception as error:
+                fusion.update(reason="fused_planning_error", error=str(error))
+            fusion["fused_status"] = result.get("status") if result else "ERROR"
+            if result is None or result.get("status") != "VALID":
+                attempt_s = time.perf_counter()-attempt_started
+                fusion.update(status="RAW_FALLBACK", fused_status=result.get("status") if result else "ERROR")
+                fusion.setdefault("reason", "no_feasible_fused_candidate")
+                if result:
+                    fusion["failed_fused_attempt"] = {"reference": road.get("centerline_xy"),
+                        "candidate_count": result.get("candidate_count"), "feasible_count": result.get("feasible_count"),
+                        "selected": result.get("selected"), "elapsed_s": result.get("elapsed_s")}
+                result = None
+        if result is None:
+            result = self._plan_geometry(job)
+            fusion.pop("guide", None)
+            fusion.update(raw_fallback_used=True, selected_source="raw", raw_status=result["status"])
+        else:
+            fusion.update(raw_fallback_used=False, selected_source="fused", raw_status=None)
+        fusion.setdefault("reason", "temporal_reference")
+        fusion["collection"] = collection
+        fusion["degraded"] = fusion.get("status") != "FUSED" or bool(collection.get("events"))
+        result["fusion"] = fusion
+        result["temporal_input"] = {key: job.get(key) for key in
+            ("road_history", "shadow_pose", "shadow_odometry_epoch", "previous_reference", "temporal_collection")}
+        result["raw_planning_input"] = {"road": job.get("road"), "state": job.get("state")}
+        if fusion.get("status") == "FUSED":
+            result["reference_support_kind"] = "fused_guidance_not_observed_boundary"
+            result["reference_observed_range_s_m"] = None
+            result["observed_centerline_length_m"] = _shadow_lengths(_shadow_points(
+                (job.get("road") or {}).get("centerline_xy")))[-1] if _shadow_points(
+                (job.get("road") or {}).get("centerline_xy")) else 0.0
+        elapsed = time.perf_counter()-started
+        timing = result["timing_s"]
+        old_total = timing.pop("total")
+        timing.update(temporal_fusion=fusion_s, discarded_fused_plan=attempt_s)
+        timing["overhead"] += max(0.0, elapsed-old_total-fusion_s-attempt_s)
+        timing["total"] = elapsed
+        result.update(elapsed_s=elapsed, late_for_requested_period=elapsed > 1/self.cfg.rate_hz)
+        return result
+
+    def _plan_geometry(self, job):
         started = time.perf_counter()
         timing = {key: 0.0 for key in ("input", "frenet", "sampling", "generation",
                                        "collision", "scoring", "selection", "assembly")}
@@ -3331,6 +3689,175 @@ class ShadowWorker:
             self.process.terminate()
 
 
+@dataclass
+class PlannerControlSettings:
+    """Opt-in consumer of the fresh lattice; baseline remains the default.
+
+    There is no fixed source-trajectory TTL or steering/curvature admission
+    threshold. Fresh feedback, rolling known-boundary checks and remaining
+    preview coverage decide whether to use the path or this cycle's baseline.
+    """
+    enabled: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.enabled, bool):
+            raise ValueError("planner_control.enabled must be boolean")
+
+
+class PlannerExecutionManager:
+    """Geometry-only high-rate adapter; never publishes actions or requests Stop.
+
+    A result's input pose/epoch survives arbitrarily long computation. The
+    short execution reference is rebuilt at each CURRENT state timestamp;
+    source age is retained separately and cannot be renewed by reception.
+    Only the selected path is checked, without a controller rollout or cost.
+    """
+    def __init__(self, frame_id="base_link"):
+        self.frame_id = frame_id
+        self.clear()
+
+    def clear(self, reason="waiting_for_planner"):
+        self.active = None
+        self.reason = reason
+        self.last_job_id = None
+        self.last_result_stamp_s = None
+        self.last_result_status = None
+        self.diagnostics = {}
+
+    def accept(self, result):
+        # A completed planning failure immediately selects baseline, rather
+        # than silently continuing the previous successful trajectory.
+        self.active = None
+        self.last_job_id = result.get("job_id")
+        self.last_result_stamp_s = result.get("input_stamp_s")
+        self.last_result_status = result.get("status")
+        self.reason = "planner_"+str(result.get("status", "missing_status")).lower()
+        if result.get("status") != "VALID":
+            return
+        anchor = result.get("execution_anchor") or {}
+        pose = anchor.get("pose")
+        selected = result.get("selected") or {}
+        path = selected.get("path")
+        if (not isinstance(pose, (list, tuple)) or len(pose) != 3
+                or not all(finite_number(v) for v in pose)
+                or not isinstance(anchor.get("odometry_epoch"), int)
+                or not finite_number(self.last_result_stamp_s)
+                or not isinstance(path, (list, tuple)) or len(path) < 2
+                or any(not isinstance(p, (list, tuple)) or len(p) != 3
+                       or not all(finite_number(v) for v in p) for p in path)
+                or any(math.hypot(b[0]-a[0], b[1]-a[1]) <= 1e-9
+                       for a, b in zip(path, path[1:]))):
+            self.reason = "planner_invalid_execution_payload"
+            return
+        self.active = {"path": [tuple(p) for p in path], "pose": list(pose),
+            "epoch": anchor["odometry_epoch"], "stamp_s": self.last_result_stamp_s,
+            "measurement_stamp_s": result.get("measurement_stamp_s"), "progress_m": 0.0}
+        self.reason = "planner_ready"
+
+    def select(self, road, state, pose, epoch, cfg, preview_m, target_speed_mps,
+               control_period_s, execution_lifetime_s):
+        started = time.perf_counter()
+        now = state.get("timestamp_s")
+        self.diagnostics = {"requested_source": "planner", "mode": "baseline",
+            "fallback": True, "reason": self.reason, "timestamp_s": now,
+            "job_id": self.last_job_id, "planner_status": self.last_result_status,
+            "input_stamp_s": self.last_result_stamp_s,
+            "source_age_s": now-self.last_result_stamp_s if finite_number(now)
+                and finite_number(self.last_result_stamp_s) else None}
+
+        def fallback(reason):
+            self.diagnostics.update(reason=reason, elapsed_s=time.perf_counter()-started)
+            return None
+
+        active = self.active
+        if active is None:
+            return fallback(self.reason)
+        if epoch != active["epoch"]:
+            self.active = None
+            self.reason = "motion_epoch_changed"
+            return fallback(self.reason)
+        if (state.get("frame_id") != self.frame_id or state.get("speed_valid") is not True
+                or state.get("yaw_rate_valid") is not True or not finite_number(now)
+                or now < active["stamp_s"] or not all(finite_number(v) for v in pose)):
+            return fallback("execution_motion_unavailable")
+        points = _shadow_pose_points(active["path"], active["pose"], pose)
+        arc = _path_lengths(points)
+        # Remove previously passed arc BEFORE projecting: a returning leg may
+        # remain ahead; deleting by x sign would destroy genuine U bends.
+        start = active["progress_m"]
+        local = [_path_sample(points, arc, start)]
+        local.extend(p for p, s in zip(points, arc) if s > start+1e-6)
+        if len(local) < 2:
+            return fallback("preview_coverage_exhausted")
+        local_arc = _path_lengths(local)
+        nearest = _path_project(local, local_arc)
+        if nearest is None:
+            return fallback("execution_branch_unavailable")
+        progress = min(arc[-1], start+nearest[1])
+        active["progress_m"] = progress
+        remaining = arc[-1]-progress
+        speed = abs(state["speed_mps"])
+        needed = preview_m+speed*control_period_s
+        self.diagnostics.update(progress_m=progress, remaining_length_m=remaining,
+            preview_m=preview_m, required_coverage_m=needed,
+            remaining_preview_time_s=max(0.0, remaining-preview_m)/speed if speed > 1e-9 else None,
+            measurement_stamp_s=active["measurement_stamp_s"], odometry_epoch=epoch,
+            current_pose=list(pose), execution_lifetime_s=execution_lifetime_s)
+        if remaining+1e-9 < needed:
+            return fallback("preview_coverage_exhausted")
+        cropped = [_path_sample(points, arc, progress)]
+        cropped.extend(p for p, s in zip(points, arc) if s > progress+1e-6)
+        lengths = _path_lengths(cropped)
+        # Use exactly the same geometric reader as the actual PID, including
+        # its tangent smoothing beyond the preview. This is NOT a rollout.
+        path = {"type": "ORDERED_CENTERLINE", "independent_variable": "s_m",
+                "samples_xy": cropped, "range": [0.0, lengths[-1]], "preview_m": preview_m}
+        try:
+            geometry = control_path_geometry(path)
+        except (ValueError, TypeError, ArithmeticError) as error:
+            return fallback("execution_geometry: "+str(error))
+        # Projecting again inside the controller may select a later segment.
+        # Check coverage at ITS actual preview position as well.
+        if lengths[-1]-geometry["closest_s_m"]+1e-9 < needed:
+            return fallback("preview_coverage_exhausted")
+        check = min(lengths[-1], max(needed,
+            geometry["preview_s_m"]+0.15))  # Existing PID tangent window.
+        sources = road.get("boundary_source") or {}
+        boundaries = {side: _shadow_points(road.get(side+"_boundary_xy"))
+            for side in ("left", "right") if sources.get(side) in ("observed", "observed_with_history")
+            and road.get(side+"_boundary_xy")}
+        if boundaries and (road.get("time_aligned") is not True
+                or road.get("frame_id") != self.frame_id
+                or not finite_number(road.get("timestamp_s"))
+                or abs(road["timestamp_s"]-now) > 1e-6):
+            return fallback("known_boundary_alignment_unavailable")
+        sweep = []
+        for i, p in enumerate(cropped):
+            heading = _path_tangent(cropped, lengths, lengths[i], window=cfg.path_spacing_m/2)
+            sweep.append((*p, math.atan2(heading[1], heading[0])))
+        # Include the actual vehicle footprint and the geometric connection to
+        # the closest reference point when tracking has a lateral error.
+        collision = _shadow_collision([(0.0, 0.0, 0.0)], 0.0, boundaries, cfg)
+        connector = math.hypot(*cropped[0])
+        if connector > 1e-9:
+            sweep.insert(0, (0.0, 0.0, 0.0))
+        collision = collision or _shadow_collision(sweep, check+connector, boundaries, cfg)
+        self.diagnostics.update(check_length_m=check, connector_length_m=connector,
+            known_boundary_sides=list(boundaries), known_boundaries_xy=boundaries,
+            collision=collision, remaining_path_xy=cropped,
+            checked_through_preview=True)
+        if collision:
+            return fallback("known_boundary_collision")
+        self.diagnostics.update(mode="planner", fallback=False, reason="planner_tracking",
+            elapsed_s=time.perf_counter()-started)
+        return {"schema_version": "planning_reference_v1", "planner_version": "lattice_execution",
+            "trajectory_id": self.last_job_id, "timestamp_s": now, "valid_for_s": execution_lifetime_s,
+            "frame_id": self.frame_id, "vehicle_reference_point": "cg_ground_projection",
+            "valid": True, "status": "VALID", "reason": "planner_tracking", "path": path,
+            "target_speed_mps": target_speed_mps, "stop_requested": False, "stop_reason": None,
+            "simulation_only": False, "original_input_stamp_s": active["stamp_s"]}
+
+
 class PolicyNode(Node):
     def __init__(self, **kwargs):
         super().__init__("ai4r_policy", **kwargs)
@@ -3413,6 +3940,18 @@ class PolicyNode(Node):
             self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
             shadow_values[name] = self.get_parameter(parameter_name).value
         self.shadow_settings = ShadowSettings(**shadow_values)
+        self.declare_parameter("planner_control.enabled", False, ParameterDescriptor(read_only=True))
+        self.planner_control_settings = PlannerControlSettings(
+            enabled=self.get_parameter("planner_control.enabled").value)
+        if self.planner_control_settings.enabled and (
+                not self.shadow_settings.enabled or not self.control_settings.enabled
+                or self.control_settings.mode != "mvp"
+                or self.planning_settings.algorithm != "road_centerline"
+                or self.policy_update_mode != "timer"):
+            raise ValueError("Planner control requires shadow, timer updates and MVP road_centerline control")
+        self.planner_execution = PlannerExecutionManager(self.policy_frame_id)
+        self.planner_execution_publisher = self.create_publisher(String, "planner_execution", 1)
+        self._last_execution_mode = None
         if self.control_settings.enabled:
             if (self.estimation_settings.road_geometry == "ordered_xy"
                     and self.planning_settings.algorithm != "road_centerline"):
@@ -3475,6 +4014,13 @@ class PolicyNode(Node):
         self.shadow_last_submit_s = -math.inf
         self.shadow_handoff_estimate_s = self.shadow_settings.handoff_allowance_s
         self.shadow_last_result_s = None
+        self.shadow_road_history = []
+        self.shadow_pose = [0.0, 0.0, 0.0]
+        self.shadow_pose_stamp_s = None
+        self.shadow_odometry_epoch = 0
+        self.shadow_previous_reference = None
+        self.shadow_collection_events = []
+        self.shadow_collection_reset_id = 0
         self.shadow_worker = None
         self.shadow_timer = None
         if self.shadow_settings.enabled:
@@ -3948,6 +4494,8 @@ class PolicyNode(Node):
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
         self._publish_actions(drive, steer, pan)
+        if hasattr(self, "planner_execution_publisher"):
+            self._publish_planner_execution()
         # Offer AFTER the baseline action, never on its calculation/exception path.
         # This is a diagnostic side channel; failures cannot change the action/FSM.
         if getattr(self, "shadow_worker", None) is not None:
@@ -4283,18 +4831,22 @@ class PolicyNode(Node):
             if is_first_policy_step or not hasattr(self, "controller"):
                 self.controller = PolicyController(control, self.policy_frame_id)
                 self.control_has_run = False
+            planner_requested = bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False))
+            planner_reference = self._select_planner_reference(estimates) if planner_requested else None
             # Delayed camera data may predate the reset motion history at start.
             # Bounded neutral priming is allowed only BEFORE the first valid
             # control step; any fault after tracking requires explicit resume.
-            if (not self.planning_output["valid"] and not self.control_has_run
+            if (planner_reference is None and not self.planning_output["valid"] and not self.control_has_run
                     and estimates["state"]["valid"]
                     and estimates["road"]["status"] == "missing_motion_history"
                     and policy_elapsed_s < control.startup_grace_s):
                 self.control_diagnostics = {"valid": False, "stop_requested": False,
                                             "reason": "priming_motion_history"}
                 return 0.0, 0.0, None, None, None
-            selected_reference = self.planning_output
-            if self._robust_control_enabled():
+            selected_reference = planner_reference if planner_reference is not None else self.planning_output
+            if planner_reference is not None and hasattr(self, "control_reference_manager"):
+                self.control_reference_manager.clear()
+            if planner_reference is None and self._robust_control_enabled():
                 try:
                     selected_reference = self._select_control_reference(estimates)
                 except (ValueError, TypeError, ArithmeticError) as error:
@@ -4331,9 +4883,29 @@ class PolicyNode(Node):
                     "planning_diagnostics": self.planning_diagnostics,
                 }))
                 raise PolicyStopRequest(reason)
-            drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
-                selected_reference, estimates["state"], estimates["vehicle_params"],
-                self.get_clock().now().nanoseconds/1e9, dt)
+            # Only the selected path reaches the PID. Save its previous state
+            # so a malformed planner reference cannot reset the baseline PID.
+            previous_controller = deepcopy(self.controller) if planner_reference is not None else None
+            try:
+                drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
+                    selected_reference, estimates["state"], estimates["vehicle_params"],
+                    self.get_clock().now().nanoseconds/1e9, dt)
+            except Exception as error:
+                if planner_reference is None:
+                    raise
+                self.control_diagnostics = {"valid": False, "stop_requested": True,
+                    "reason": "planner_controller_exception: "+str(error)}
+            if planner_reference is not None and (
+                    not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]):
+                self.controller = previous_controller
+                self.planner_execution.diagnostics.update(mode="baseline", fallback=True,
+                    reason="planner_control_rejected: "+str(self.control_diagnostics.get("reason")))
+                selected_reference = self.planning_output
+                if self._robust_control_enabled():
+                    selected_reference = self._select_control_reference(estimates)
+                drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
+                    selected_reference, estimates["state"], estimates["vehicle_params"],
+                    self.get_clock().now().nanoseconds/1e9, dt)
             if not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]:
                 reason = "Control: " + self.control_diagnostics["reason"]
                 raise PolicyStopRequest(reason)
@@ -4341,8 +4913,13 @@ class PolicyNode(Node):
             self._trajectory_reference = selected_reference
             self.last_control_reference_deadline_s = (
                 selected_reference["timestamp_s"]+selected_reference["valid_for_s"])
-            if self._robust_control_enabled():
+            if self._robust_control_enabled() and selected_reference.get("planner_version") != "lattice_execution":
                 self._report_control_status()
+            if planner_requested:
+                self.control_diagnostics["reference_source"] = self.planner_execution.diagnostics.get("mode")
+                self.control_diagnostics["reference_selection_reason"] = self.planner_execution.diagnostics.get("reason")
+                self.planner_execution.diagnostics.update(drive_action=drive_action,
+                    steering_action=steering_action, control_dt_s=dt)
             # Existing debug topics: lateral error (m), per-run distance (m).
             # The existing state string reports planning/control stop reasons.
             debug1 = self.control_diagnostics["path_error_m"]
@@ -4388,6 +4965,58 @@ class PolicyNode(Node):
         return drive_action, steering_action, camera_pan_action, debug1, debug2
 
     # ---- Control-only reference recovery; upstream algorithms stay unchanged --
+    def _select_planner_reference(self, estimates):
+        """Opt-in adapter faults return THIS tick's baseline, never Stop."""
+        try:
+            road = estimates.get("road") or {}
+            if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
+                road = road.get("forward_geometry") or {}
+            state = estimates["state"]
+            # In planner mode advance the same short-interval odometry before
+            # execution. The post-action offer is idempotent at this timestamp.
+            self._shadow_collect_road(road, state["timestamp_s"])
+            if self.planning_output.get("valid") and self.planning_output.get("stop_requested"):
+                self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
+                    "reason": "baseline_stop_request", "requested_source": "planner"}
+                return None
+            period = 1/self.policy_update_rate_hz
+            return self.planner_execution.select(road, state, self.shadow_pose, self.shadow_odometry_epoch,
+                self.shadow_settings, self.planning_settings.preview_m, self.planning_settings.cruise_speed_mps,
+                period, self.control_settings.max_dt_s+period)
+        except Exception as error:
+            self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
+                "requested_source": "planner", "reason": "execution_exception: "+str(error)}
+            return None
+
+    def _publish_planner_execution(self):
+        """Record every executed control tick; transport faults cannot stop it."""
+        try:
+            enabled = self.planner_control_settings.enabled
+            info = dict(self.planner_execution.diagnostics) if enabled else {
+                "requested_source": "baseline", "mode": "baseline", "fallback": False,
+                "reason": "baseline_selected"}
+            ref = getattr(self, "_trajectory_reference", None) or {}
+            control = self.control_diagnostics or {}
+            info.update(timestamp_s=ref.get("timestamp_s"), generation=self.shadow_generation,
+                reference_version=ref.get("planner_version"),
+                baseline_valid=bool(self.planning_output and self.planning_output.get("valid")),
+                baseline_reason=(self.planning_output or {}).get("reason"),
+                speed_mps=(self.estimation_output or {}).get("state", {}).get("speed_mps"),
+                preview_xy_m=[control.get("preview_x_m"), control.get("preview_y_m")],
+                heading_error_rad=control.get("heading_error_rad"),
+                steer_before_slew=control.get("steer_before_slew"),
+                steer_after_slew=info.get("steering_action"),
+                reference_valid_for_s=ref.get("valid_for_s"))
+            if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
+                info.update(mode="idle", fallback=False, reason=self.state_reason)
+            self.planner_execution_publisher.publish(String(data=json.dumps(info, allow_nan=False)))
+            mode = (info["mode"], info["reason"])
+            if mode != self._last_execution_mode:
+                self.get_logger().info("Reference selection: "+json.dumps(info, separators=(",", ":")))
+                self._last_execution_mode = mode
+        except Exception as error:
+            self._warn("planner_execution_diagnostics", "Execution diagnostics unavailable: "+str(error))
+
     def _robust_control_enabled(self):
         cfg = self.control_settings
         return cfg.enabled and cfg.mode == "mvp" and cfg.robustness_enabled
@@ -4481,6 +5110,9 @@ class PolicyNode(Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        if hasattr(self, "planner_execution"):
+            self.planner_execution.clear()
+            self._last_execution_mode = None
         self._end_straight_start_distance_m = None
         self._end_straight_started_at_s = None
         if getattr(self, "shadow_worker", None) is not None:
@@ -4488,6 +5120,13 @@ class PolicyNode(Node):
             self.shadow_last_submit_s = -math.inf
             self.shadow_handoff_estimate_s = self.shadow_settings.handoff_allowance_s
             self.shadow_last_result_s = None
+            self.shadow_road_history = []
+            self.shadow_pose_stamp_s = None
+            self.shadow_pose = [0.0, 0.0, 0.0]
+            self.shadow_odometry_epoch = getattr(self, "shadow_odometry_epoch", 0)+1
+            self.shadow_previous_reference = None
+            self.shadow_collection_events = []
+            self.shadow_collection_reset_id = 0
         if state == FSM_STATE_PUBLISHING_POLICY_ACTION:
             wheel = self.observations.get("wheel_speed")
             speed = wheel.value if wheel is not None else None
@@ -4505,23 +5144,78 @@ class PolicyNode(Node):
         # Baseline state/zero publications have priority over shadow diagnostics.
         if getattr(self, "shadow_worker", None) is not None:
             self._shadow_clear()
+        if hasattr(self, "planner_execution_publisher"):
+            self._publish_planner_execution()
 
     def _shadow_clear(self):
         """Clear shadow displays on every run boundary; old results are fenced."""
+        if hasattr(self, "planner_execution"):
+            self.planner_execution.clear()
         try:
             stamp = self.get_clock().now().nanoseconds/1e9
             for publisher in (self.shadow_path_publisher, self.shadow_prefix_publisher,
                               self.shadow_reference_publisher):
                 self._shadow_publish_path(publisher, [], stamp)
             self.shadow_diagnostics_publisher.publish(String(data=json.dumps({
-                "status": "IDLE", "generation": self.shadow_generation, "shadow_only": True})))
+                "status": "IDLE", "generation": self.shadow_generation,
+                "shadow_only": not bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False))})))
         except Exception as error:
             self._warn("shadow_clear", f"Shadow display clearing unavailable: {error}")
 
+    def _shadow_collect_road(self, road, stamp):
+        """Bounded 20 Hz collection; planner execution also calls before control.
+
+        Accumulate short read-only motion intervals; no per-frame fitting and no
+        changes to the estimator's motion history. Alignment faults clear only
+        shadow memory. Original source epochs are not renewed by reconstruction.
+        """
+        previous = getattr(self, "shadow_pose_stamp_s", None)
+        pose = getattr(self, "shadow_pose", [0.0, 0.0, 0.0])
+        epoch = getattr(self, "shadow_odometry_epoch", 0)
+        history = getattr(self, "shadow_road_history", [])
+        reason, reset = ("bootstrap" if previous is None else "aligned"), False
+        if previous is not None and stamp != previous:
+            try:
+                motion, motion_reason = self.motion_history.pose_between(previous, stamp)
+            except Exception as error:
+                motion, motion_reason = None, "motion_exception: "+str(error)
+            if motion is None:
+                history, pose, epoch = [], [0.0, 0.0, 0.0], epoch+1
+                self.shadow_previous_reference = None
+                reason, reset = motion_reason, True
+                self.shadow_collection_reset_id = getattr(self, "shadow_collection_reset_id", 0)+1
+                events = getattr(self, "shadow_collection_events", [])
+                events.append({"id": self.shadow_collection_reset_id, "stamp_s": stamp,
+                               "reason": motion_reason, "odometry_epoch": epoch})
+                self.shadow_collection_events = events[-64:]
+                self._warn("shadow_alignment", "Shadow temporal history reset: "+str(motion_reason))
+            else:
+                c, s = math.cos(pose[2]), math.sin(pose[2])
+                pose = [pose[0]+c*motion["dx_m"]-s*motion["dy_m"],
+                        pose[1]+s*motion["dx_m"]+c*motion["dy_m"], pose[2]+motion["yaw_rad"]]
+        measurement = road.get("measurement_timestamp_s")
+        key = measurement if finite_number(measurement) else stamp
+        history = [h for h in history if stamp-h["stamp_s"] <= self.shadow_settings.fusion_window_s
+                   and h.get("measurement_key") != key]
+        keys = ("centerline_xy", "left_boundary_xy", "right_boundary_xy", "boundary_source",
+                "lane_width_m", "lane_width_source", "inward_offset_m", "status", "visibility",
+                "timestamp_s", "measurement_timestamp_s", "time_aligned", "degraded", "frame_id")
+        snapshot = {"road": {key: deepcopy(road.get(key)) for key in keys}, "stamp_s": stamp,
+                    "pose": list(pose), "odometry_epoch": epoch, "measurement_key": key}
+        state = (getattr(self, "estimation_output", None) or {}).get("state") or {}
+        snapshot["state"] = {key: state.get(key) for key in
+            ("timestamp_s", "frame_id", "speed_mps", "yaw_rate_rps", "speed_valid", "yaw_rate_valid")}
+        history.append(snapshot)
+        self.shadow_road_history = history[-self.shadow_settings.fusion_max_samples:]
+        self.shadow_pose, self.shadow_pose_stamp_s, self.shadow_odometry_epoch = pose, stamp, epoch
+        self.shadow_collection_diagnostics = {"status": "RESET" if reset else "BOOTSTRAP" if previous is None else "ALIGNED",
+            "reason": reason, "reset": reset, "buffer_samples": len(self.shadow_road_history), "odometry_epoch": epoch,
+            "events": deepcopy(getattr(self, "shadow_collection_events", [])),
+            "reset_events_total": getattr(self, "shadow_collection_reset_id", 0)}
+        return snapshot["road"]
+
     def _shadow_offer(self):
         now = self._monotonic()
-        if now-self.shadow_last_submit_s < 1/self.shadow_settings.rate_hz:
-            return
         estimates = self.estimation_output
         if not estimates:
             return
@@ -4529,19 +5223,31 @@ class PolicyNode(Node):
         forward = road.get("forward_geometry") or {}
         if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
             road = forward
-        keys = ("centerline_xy", "left_boundary_xy", "right_boundary_xy", "boundary_source",
-                "lane_width_m", "lane_width_source", "inward_offset_m", "status", "visibility",
-                "timestamp_s", "measurement_timestamp_s", "time_aligned", "degraded")
+        stamp = estimates.get("state", {}).get("timestamp_s")
+        stamp = stamp if finite_number(stamp) else self.get_clock().now().nanoseconds/1e9
+        if self.shadow_settings.fusion_enabled or getattr(getattr(self, "planner_control_settings", None), "enabled", False):
+            road = self._shadow_collect_road(road, stamp)
+        if now-self.shadow_last_submit_s < 1/self.shadow_settings.rate_hz:
+            return
         self.shadow_job_id += 1
         job = {"settings": vars(self.shadow_settings).copy(),
-            "road": {key: deepcopy(road.get(key)) for key in keys},
+            "road": deepcopy(road),
             "state": {key: estimates.get("state", {}).get(key) for key in
                       ("speed_mps", "yaw_rate_rps", "timestamp_s", "speed_valid", "yaw_rate_valid")},
-            "stamp_s": estimates.get("state", {}).get("timestamp_s"),
+            "stamp_s": stamp,
             "generation": self.shadow_generation, "job_id": self.shadow_job_id,
             "submitted_monotonic_s": now, "preview_m": self.planning_settings.preview_m,
             "handoff_estimate_s": self.shadow_handoff_estimate_s,
-            "shadow_only": True}
+            "shadow_pose": list(getattr(self, "shadow_pose", [0.0, 0.0, 0.0])),
+            "shadow_odometry_epoch": getattr(self, "shadow_odometry_epoch", 0),
+            "planner_control_enabled": bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False)),
+            "shadow_only": not bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False))}
+        if self.shadow_settings.fusion_enabled:
+            job.update(road_history=deepcopy(getattr(self, "shadow_road_history", [])),
+                shadow_pose=list(getattr(self, "shadow_pose", [0.0, 0.0, 0.0])),
+                shadow_odometry_epoch=getattr(self, "shadow_odometry_epoch", 0),
+                temporal_collection=getattr(self, "shadow_collection_diagnostics", None),
+                previous_reference=deepcopy(getattr(self, "shadow_previous_reference", None)))
         self.shadow_worker.submit(job)
         self.shadow_last_submit_s = now
 
@@ -4566,6 +5272,8 @@ class PolicyNode(Node):
             if result.get("status") == "TRANSPORT_ERROR":
                 self._warn("shadow_worker", "Shadow worker failed: "+result.get("error", "unknown"))
                 self._shadow_clear()
+                if getattr(getattr(self, "planner_control_settings", None), "enabled", False):
+                    self.planner_execution.accept(result)
                 self.shadow_diagnostics_publisher.publish(String(data=json.dumps(result)))
                 self.shadow_worker.close()
                 self.shadow_worker = ShadowWorker(__file__)
@@ -4573,6 +5281,12 @@ class PolicyNode(Node):
             if (self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION
                     or result.get("generation") != self.shadow_generation):
                 return
+            if getattr(getattr(self, "planner_control_settings", None), "enabled", False):
+                self.planner_execution.accept(result)
+            guide = (result.get("fusion") or {}).get("guide")
+            if (result.get("status") == "VALID" and guide
+                    and guide.get("odometry_epoch") == getattr(self, "shadow_odometry_epoch", 0)):
+                self.shadow_previous_reference = guide
             round_trip = self._monotonic()-result.get("submitted_monotonic_s", self._monotonic())
             self.shadow_handoff_estimate_s = max(self.shadow_handoff_estimate_s, round_trip)
             received = self._monotonic()
@@ -4603,12 +5317,22 @@ class PolicyNode(Node):
             # The large candidate JSON was encoded off the executor. Append only
             # small transport metadata here, instead of re-encoding all points.
             self.shadow_diagnostics_publisher.publish(String(data=wire[:-1]+',"transport":'+json.dumps(transport)+'}'))
+            # Retain pending faults until a diagnostic carrying them was published.
+            acknowledged = ((result.get("fusion") or {}).get("collection") or {}).get("events") or []
+            if acknowledged:
+                reset_id = max(event.get("id", 0) for event in acknowledged)
+                self.shadow_collection_events = [event for event in getattr(self, "shadow_collection_events", [])
+                                                 if event.get("id", 0) > reset_id]
             summary = {key: result.get(key) for key in ("status", "job_id", "candidate_count", "feasible_count",
                 "speed_mps", "hold_time_s", "check_length_m", "score_length_m", "elapsed_s", "late_for_requested_period", "timing_s")}
             summary.update(selected_id=selected.get("id") if selected else None,
                 selected_family=selected.get("family") if selected else None,
                 result_age_s=self.get_clock().now().nanoseconds/1e9-stamp,
                 **transport)
+            if result.get("fusion"):
+                summary["fusion"] = {k: result["fusion"].get(k) for k in
+                    ("status", "reason", "degraded", "raw_fallback_used", "selected_source",
+                     "fused_status", "raw_status", "history_frames", "prior_used", "removed_guidance_loops", "reference_crop", "collection")}
             if result.get("error"):
                 summary["error"] = result["error"]
             self.get_logger().info("Shadow planning: "+json.dumps(summary, separators=(",", ":")))

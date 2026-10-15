@@ -1,0 +1,953 @@
+{
+  "provenance": "shadow_quality_run_0.mcap SHA256 4cbad393115d521da65c8a21ebc73192a416e1f48488877146a65ad8c67e3761. Exact 20 current planner inputs; partial history reconstructed from recorded baseline Path, deduplicated by latest received raw cone epoch. Wheel + linearly interpolated 1Hz body-yaw snapshots; no TF in bag, not an exact 20Hz perception replay. Historical metadata unavailable is marked baseline_reference_only; known hard boundaries always exact current input. First incomplete motion interval uses a separate epoch.",
+  "source_sha256": "62b624acd8108af58cf8faadd385cf7bf10942149925b167911351d63f0c8a02",
+  "fixture_sha256": "c58fe02f6bfd2e6afdd247c0d011bc9afef575b1ab8b54b857748dacf597395f",
+  "hard_boundaries_identical": true,
+  "raw_outputs_match_recorded": true,
+  "before": {
+    "summary": {
+      "valid": 20,
+      "total": 20,
+      "by_visibility": {
+        "both": {
+          "valid": 14,
+          "max_abs_lateral_m": {
+            "count": 14,
+            "mean": 0.04452355343552796,
+            "median": 0.028027428421508696,
+            "maximum": 0.17931355491780782
+          },
+          "continuity_rms_m": {
+            "count": 12,
+            "mean": 0.07252638722446092,
+            "median": 0.04878970253512885,
+            "maximum": 0.3214481855443049
+          },
+          "shape_rms_m": {
+            "count": 12,
+            "mean": 0.04529924944002836,
+            "median": 0.04156148801108061,
+            "maximum": 0.09075495170438785
+          }
+        },
+        "left_only": {
+          "valid": 3,
+          "max_abs_lateral_m": {
+            "count": 3,
+            "mean": 0.2370284396074253,
+            "median": 0.2512270960846796,
+            "maximum": 0.27138480980025537
+          },
+          "continuity_rms_m": {
+            "count": 3,
+            "mean": 0.1930556510693696,
+            "median": 0.17934506266469308,
+            "maximum": 0.27419531157120286
+          },
+          "shape_rms_m": {
+            "count": 3,
+            "mean": 0.11398472309927357,
+            "median": 0.10578252799304662,
+            "maximum": 0.19731682369727913
+          }
+        },
+        "right_only": {
+          "valid": 3,
+          "max_abs_lateral_m": {
+            "count": 3,
+            "mean": 0.18552814914761842,
+            "median": 0.19934936531494613,
+            "maximum": 0.31318979602587105
+          },
+          "continuity_rms_m": {
+            "count": 3,
+            "mean": 0.2794425079889893,
+            "median": 0.25467429130692215,
+            "maximum": 0.3653717414912106
+          },
+          "shape_rms_m": {
+            "count": 3,
+            "mean": 0.10283738311764497,
+            "median": 0.053769889158657456,
+            "maximum": 0.2161970300126062
+          }
+        }
+      },
+      "max_abs_lateral_m": {
+        "count": 20,
+        "mean": 0.09454997571812614,
+        "median": 0.044417515973079275,
+        "maximum": 0.31318979602587105
+      },
+      "continuity_rms_m": {
+        "count": 18,
+        "mean": 0.12710061799270042,
+        "median": 0.07198849220300334,
+        "maximum": 0.3653717414912106
+      },
+      "shape_rms_m": {
+        "count": 18,
+        "mean": 0.06633651732950532,
+        "median": 0.044198886429544365,
+        "maximum": 0.2161970300126062
+      },
+      "elapsed_s": {
+        "count": 20,
+        "mean": 0.07899863499997081,
+        "median": 0.07858929999974862,
+        "maximum": 0.09970530000009603
+      }
+    },
+    "frames": [
+      {
+        "job_id": 143,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.0034660600832520554,
+        "endpoint_xy_m": [
+          0.20079757853802793,
+          0.0034660600832520554
+        ],
+        "elapsed_s": 0.07604509999964648,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        }
+      },
+      {
+        "job_id": 144,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.004947017214063295,
+        "endpoint_xy_m": [
+          0.35435135665649814,
+          -0.003994816465952337
+        ],
+        "elapsed_s": 0.09970530000009603,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        }
+      },
+      {
+        "job_id": 145,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.02393546974523822,
+        "endpoint_xy_m": [
+          0.5255452667198042,
+          0.02256816345837953
+        ],
+        "elapsed_s": 0.0839944999997897,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.017532838848867006,
+        "shape_rms_m": 0.0126311926290247
+      },
+      {
+        "job_id": 146,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.06300417670786675,
+        "endpoint_xy_m": [
+          0.3813476587185619,
+          0.06300417670786675
+        ],
+        "elapsed_s": 0.0769006000000445,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.020303750738439392,
+        "shape_rms_m": 0.03538951145695033
+      },
+      {
+        "job_id": 147,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.031041959593900374,
+        "endpoint_xy_m": [
+          0.4696981884831461,
+          0.030026214725930818
+        ],
+        "elapsed_s": 0.09071640000001935,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.05491450348161032,
+        "shape_rms_m": 0.008492847898354108
+      },
+      {
+        "job_id": 148,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.17931355491780782,
+        "endpoint_xy_m": [
+          0.35003872269784564,
+          0.17931355491780782
+        ],
+        "elapsed_s": 0.0800002999994831,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.06975124651105355,
+        "shape_rms_m": 0.09075495170438785
+      },
+      {
+        "job_id": 149,
+        "visibility": "left_only",
+        "max_abs_lateral_m": 0.27138480980025537,
+        "endpoint_xy_m": [
+          0.16070550757002175,
+          -0.27138480980025537
+        ],
+        "elapsed_s": 0.08199909999984811,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.27419531157120286,
+        "shape_rms_m": 0.19731682369727913
+      },
+      {
+        "job_id": 150,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.025012897249117018,
+        "endpoint_xy_m": [
+          0.4415633889630395,
+          -0.011117569053501381
+        ],
+        "elapsed_s": 0.07688549999966199,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.3214481855443049,
+        "shape_rms_m": 0.078807838557171
+      },
+      {
+        "job_id": 151,
+        "visibility": "left_only",
+        "max_abs_lateral_m": 0.2512270960846796,
+        "endpoint_xy_m": [
+          0.36915997187223243,
+          -0.2512270960846796
+        ],
+        "elapsed_s": 0.09067940000022645,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.12562657897221283,
+        "shape_rms_m": 0.10578252799304662
+      },
+      {
+        "job_id": 152,
+        "visibility": "left_only",
+        "max_abs_lateral_m": 0.188473412937341,
+        "endpoint_xy_m": [
+          0.41560879878690077,
+          -0.188473412937341
+        ],
+        "elapsed_s": 0.07717830000001413,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.17934506266469308,
+        "shape_rms_m": 0.03885481760749496
+      },
+      {
+        "job_id": 153,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.02117479310949479,
+        "endpoint_xy_m": [
+          0.40959724693238236,
+          -0.02117479310949479
+        ],
+        "elapsed_s": 0.07213430000047083,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.14553111669265698,
+        "shape_rms_m": 0.07224104581037456
+      },
+      {
+        "job_id": 154,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.005922036577712506,
+        "endpoint_xy_m": [
+          0.4371379065757169,
+          0.0004723977823105594
+        ],
+        "elapsed_s": 0.08135930000025837,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.018528210737325915,
+        "shape_rms_m": 0.022277183907537124
+      },
+      {
+        "job_id": 155,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.0889663799734528,
+        "endpoint_xy_m": [
+          0.4591719488605023,
+          -0.0889663799734528
+        ],
+        "elapsed_s": 0.08087019999948097,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.058327965245062494,
+        "shape_rms_m": 0.03942526954137212
+      },
+      {
+        "job_id": 156,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.034224160101108535,
+        "endpoint_xy_m": [
+          0.42039608782101767,
+          -0.01812360593173195
+        ],
+        "elapsed_s": 0.07256150000011985,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.011457507984711277,
+        "shape_rms_m": 0.009966529028763105
+      },
+      {
+        "job_id": 157,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.017218774609132927,
+        "endpoint_xy_m": [
+          0.47761426211469815,
+          -0.017218774609132927
+        ],
+        "elapsed_s": 0.08339650000016263,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.07422573789495313,
+        "shape_rms_m": 0.08520684988731671
+      },
+      {
+        "job_id": 158,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.04478974584412043,
+        "endpoint_xy_m": [
+          0.43581851484557227,
+          -0.04478974584412043
+        ],
+        "elapsed_s": 0.0760058999994726,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.04266490158864738,
+        "shape_rms_m": 0.04470006637829964
+      },
+      {
+        "job_id": 159,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.0803127223711239,
+        "endpoint_xy_m": [
+          0.3614773625864939,
+          -0.0803127223711239
+        ],
+        "elapsed_s": 0.06401659999937692,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.03563068142589875,
+        "shape_rms_m": 0.0436977064807891
+      },
+      {
+        "job_id": 160,
+        "visibility": "right_only",
+        "max_abs_lateral_m": 0.31318979602587105,
+        "endpoint_xy_m": [
+          0.16127484360475133,
+          0.31318979602587105
+        ],
+        "elapsed_s": 0.0826812000004793,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.25467429130692215,
+        "shape_rms_m": 0.2161970300126062
+      },
+      {
+        "job_id": 161,
+        "visibility": "right_only",
+        "max_abs_lateral_m": 0.19934936531494613,
+        "endpoint_xy_m": [
+          0.32908657319408763,
+          0.19934936531494613
+        ],
+        "elapsed_s": 0.07421270000031654,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.3653717414912106,
+        "shape_rms_m": 0.03854523018167124
+      },
+      {
+        "job_id": 162,
+        "visibility": "right_only",
+        "max_abs_lateral_m": 0.04404528610203811,
+        "endpoint_xy_m": [
+          0.40376562118242265,
+          0.04404528610203811
+        ],
+        "elapsed_s": 0.05863000000044849,
+        "fusion": {
+          "status": null,
+          "reason": null,
+          "raw_fallback_used": null,
+          "history_frames": null,
+          "removed_guidance_loops": null
+        },
+        "continuity_rms_m": 0.21828149116883505,
+        "shape_rms_m": 0.053769889158657456
+      }
+    ]
+  },
+  "after": {
+    "summary": {
+      "valid": 20,
+      "total": 20,
+      "by_visibility": {
+        "both": {
+          "valid": 14,
+          "max_abs_lateral_m": {
+            "count": 14,
+            "mean": 0.059159925633966416,
+            "median": 0.04326123327705583,
+            "maximum": 0.191667237238483
+          },
+          "continuity_rms_m": {
+            "count": 12,
+            "mean": 0.06291745840629666,
+            "median": 0.046126382415266405,
+            "maximum": 0.2517299650009667
+          },
+          "shape_rms_m": {
+            "count": 12,
+            "mean": 0.02303433313044749,
+            "median": 0.020097707501955102,
+            "maximum": 0.06241337016924904
+          }
+        },
+        "left_only": {
+          "valid": 3,
+          "max_abs_lateral_m": {
+            "count": 3,
+            "mean": 0.16395961938037767,
+            "median": 0.1911251565697218,
+            "maximum": 0.2108184757060179
+          },
+          "continuity_rms_m": {
+            "count": 3,
+            "mean": 0.1429630936224191,
+            "median": 0.09441295889624063,
+            "maximum": 0.2616705987271373
+          },
+          "shape_rms_m": {
+            "count": 3,
+            "mean": 0.10420837285936291,
+            "median": 0.09951109951993639,
+            "maximum": 0.1345366875248509
+          }
+        },
+        "right_only": {
+          "valid": 3,
+          "max_abs_lateral_m": {
+            "count": 3,
+            "mean": 0.028520474553880692,
+            "median": 0.028059764140275587,
+            "maximum": 0.03209038402182975
+          },
+          "continuity_rms_m": {
+            "count": 3,
+            "mean": 0.020770144032100944,
+            "median": 0.024465392444879254,
+            "maximum": 0.031981655368664895
+          },
+          "shape_rms_m": {
+            "count": 3,
+            "mean": 0.009588689734277678,
+            "median": 0.006412636034089122,
+            "maximum": 0.017482927109710222
+          }
+        }
+      },
+      "max_abs_lateral_m": {
+        "count": 20,
+        "mean": 0.07028396203391525,
+        "median": 0.04326123327705583,
+        "maximum": 0.2108184757060179
+      },
+      "continuity_rms_m": {
+        "count": 18,
+        "mean": 0.06923384521328445,
+        "median": 0.046126382415266405,
+        "maximum": 0.2616705987271373
+      },
+      "shape_rms_m": {
+        "count": 18,
+        "mean": 0.03432239918590509,
+        "median": 0.020097707501955102,
+        "maximum": 0.1345366875248509
+      },
+      "elapsed_s": {
+        "count": 20,
+        "mean": 0.09219768499988276,
+        "median": 0.0898927499997626,
+        "maximum": 0.11348069999985455
+      }
+    },
+    "frames": [
+      {
+        "job_id": 143,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.0024390450963061227,
+        "endpoint_xy_m": [
+          0.20081546304305395,
+          -0.0024390450963061227
+        ],
+        "elapsed_s": 0.066695599999548,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 1,
+          "removed_guidance_loops": 0
+        }
+      },
+      {
+        "job_id": 144,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.0037504053999241078,
+        "endpoint_xy_m": [
+          0.354374044806967,
+          -0.002640517997062008
+        ],
+        "elapsed_s": 0.08808049999970535,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 4,
+          "removed_guidance_loops": 0
+        }
+      },
+      {
+        "job_id": 145,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.013791850193921625,
+        "endpoint_xy_m": [
+          0.5264058246630567,
+          0.013791850193921625
+        ],
+        "elapsed_s": 0.08758109999962471,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 7,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.004042371823777581,
+        "shape_rms_m": 0.0008771954178643245
+      },
+      {
+        "job_id": 146,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.02318787692131816,
+        "endpoint_xy_m": [
+          0.38807363822226887,
+          0.02318787692131816
+        ],
+        "elapsed_s": 0.08417259999987436,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 10,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.006114635844884244,
+        "shape_rms_m": 0.0010392446649188237
+      },
+      {
+        "job_id": 147,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.01731979737881109,
+        "endpoint_xy_m": [
+          0.4704726727575784,
+          0.01731979737881109
+        ],
+        "elapsed_s": 0.09510139999929379,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 8,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.04022436597065781,
+        "shape_rms_m": 0.019976588848093876
+      },
+      {
+        "job_id": 148,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.11071890626334913,
+        "endpoint_xy_m": [
+          0.36922052562800567,
+          0.10476925152199121
+        ],
+        "elapsed_s": 0.08962549999978364,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 8,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.061666107019835104,
+        "shape_rms_m": 0.06241337016924904
+      },
+      {
+        "job_id": 149,
+        "visibility": "left_only",
+        "max_abs_lateral_m": 0.2108184757060179,
+        "endpoint_xy_m": [
+          0.2514463204719372,
+          0.2108184757060179
+        ],
+        "elapsed_s": 0.07762000000002445,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 8,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.07280572324387936,
+        "shape_rms_m": 0.09951109951993639
+      },
+      {
+        "job_id": 150,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.191667237238483,
+        "endpoint_xy_m": [
+          0.39239175529185377,
+          0.191667237238483
+        ],
+        "elapsed_s": 0.1025710000003528,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 9,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.2517299650009667,
+        "shape_rms_m": 0.03135061899093927
+      },
+      {
+        "job_id": 151,
+        "visibility": "left_only",
+        "max_abs_lateral_m": 0.1911251565697218,
+        "endpoint_xy_m": [
+          0.4058945899488447,
+          0.1911251565697218
+        ],
+        "elapsed_s": 0.09346069999992324,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 7,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.09441295889624063,
+        "shape_rms_m": 0.07857733153330143
+      },
+      {
+        "job_id": 152,
+        "visibility": "left_only",
+        "max_abs_lateral_m": 0.08993522586539339,
+        "endpoint_xy_m": [
+          0.44010073614416617,
+          -0.08993522586539339
+        ],
+        "elapsed_s": 0.10749080000005051,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 9,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.2616705987271373,
+        "shape_rms_m": 0.1345366875248509
+      },
+      {
+        "job_id": 153,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.01792843487151799,
+        "endpoint_xy_m": [
+          0.40886771520525494,
+          0.0004124960471471881
+        ],
+        "elapsed_s": 0.09378949999972974,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 9,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.052028398859875,
+        "shape_rms_m": 0.05909834173520807
+      },
+      {
+        "job_id": 154,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.09244029711709349,
+        "endpoint_xy_m": [
+          0.42657231038442395,
+          0.09244029711709349
+        ],
+        "elapsed_s": 0.10321659999954136,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 9,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.009642163855346745,
+        "shape_rms_m": 0.01168174101652389
+      },
+      {
+        "job_id": 155,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.1298948932393734,
+        "endpoint_xy_m": [
+          0.44148606411399804,
+          0.12867200738252352
+        ],
+        "elapsed_s": 0.1093258999999307,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 9,
+          "removed_guidance_loops": 1
+        },
+        "continuity_rms_m": 0.062170714878055804,
+        "shape_rms_m": 0.012340123907942627
+      },
+      {
+        "job_id": 156,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.08177235773313743,
+        "endpoint_xy_m": [
+          0.39873912886159635,
+          0.04632211781914512
+        ],
+        "elapsed_s": 0.11348069999985455,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 9,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.12451680865482365,
+        "shape_rms_m": 0.02021882615581633
+      },
+      {
+        "job_id": 157,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.0540115829620879,
+        "endpoint_xy_m": [
+          0.4747871889032684,
+          -0.0540115829620879
+        ],
+        "elapsed_s": 0.105322200000046,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 9,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.11691329156899503,
+        "shape_rms_m": 0.024231623920980362
+      },
+      {
+        "job_id": 158,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.05680539086818259,
+        "endpoint_xy_m": [
+          0.4342141846843894,
+          -0.05680539086818259
+        ],
+        "elapsed_s": 0.09015999999974156,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 8,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.015771447798168556,
+        "shape_rms_m": 0.0251919171854682
+      },
+      {
+        "job_id": 159,
+        "visibility": "both",
+        "max_abs_lateral_m": 0.032510883592023775,
+        "endpoint_xy_m": [
+          0.36993200809871735,
+          -0.032510883592023775
+        ],
+        "elapsed_s": 0.08482600000024831,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 8,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.010189229600173665,
+        "shape_rms_m": 0.00799240555236505
+      },
+      {
+        "job_id": 160,
+        "visibility": "right_only",
+        "max_abs_lateral_m": 0.025411275499536735,
+        "endpoint_xy_m": [
+          0.36981877164309507,
+          0.025411275499536735
+        ],
+        "elapsed_s": 0.07978240000011283,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 8,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.031981655368664895,
+        "shape_rms_m": 0.017482927109710222
+      },
+      {
+        "job_id": 161,
+        "visibility": "right_only",
+        "max_abs_lateral_m": 0.028059764140275587,
+        "endpoint_xy_m": [
+          0.3938562238599471,
+          0.026525856263658186
+        ],
+        "elapsed_s": 0.0835015000002386,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 9,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.005863384282758685,
+        "shape_rms_m": 0.0048705060590336895
+      },
+      {
+        "job_id": 162,
+        "visibility": "right_only",
+        "max_abs_lateral_m": 0.03209038402182975,
+        "endpoint_xy_m": [
+          0.4030050242815893,
+          0.016827359353012383
+        ],
+        "elapsed_s": 0.08814970000003086,
+        "fusion": {
+          "status": "FUSED",
+          "reason": "temporal_reference",
+          "raw_fallback_used": false,
+          "history_frames": 9,
+          "removed_guidance_loops": 0
+        },
+        "continuity_rms_m": 0.024465392444879254,
+        "shape_rms_m": 0.006412636034089122
+      }
+    ]
+  }
+}

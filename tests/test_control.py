@@ -22,6 +22,7 @@ method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn",
                 "_robust_control_enabled", "_control_health_problem", "_select_control_reference", "_report_control_status",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
                 "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
+method_names.update({"_select_planner_reference", "_publish_planner_execution"})
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
 constants = [item for item in tree.body if isinstance(item, ast.Assign) and
              any(isinstance(target, ast.Name) and (target.id.startswith("FSM_STATE") or
@@ -33,7 +34,7 @@ class DriveMessage(SimpleNamespace):
     UNITS_NORMALIZED = 1
 
 
-ns.update(Float32=SimpleNamespace, Int8=SimpleNamespace, String=SimpleNamespace,
+ns.update(json=__import__('json'), Float32=SimpleNamespace, Int8=SimpleNamespace, String=SimpleNamespace,
           DriveAndSteer=DriveMessage, traceback=traceback)
 exec(compile(ast.fix_missing_locations(ast.Module(body=constants+[node_class], type_ignores=[])),
              str(api["SOURCE"]), "exec"), ns)
