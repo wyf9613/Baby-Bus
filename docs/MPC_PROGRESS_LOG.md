@@ -2,6 +2,16 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-15（17:06 固定输入试验后）：5 号车起步保持修复，待实车复测
+
+实测 V2 请求爬升 0.30→0.35、接口应用峰值 0.324，但达到 >=0.32 只有约 0.147 秒，规划等待会落到旧 QP 跟踪序列的较低输入；随后 no_motion_after_breakaway。独立 id_test 固定请求 0.35 时，接口应用约 0.324，约 0.79 秒出现 >0.05 m/s 轮速，约 0.98 秒触发 0.15 m/s 速度保护，实际轮速峰值约 0.172 m/s。用户确认车移动。原始包和只读分析在仓库外 car-evidence 下，不能把该固定输入结果当成 V2 已跑通。
+
+改动：car05 overlay 固定起步请求/上限 0.35，ramp 置 0；其余纵向模型仍借 .27、转向仍借 .20，source 保留 UNVERIFIED。MPC 在已接受一次起步求解之后，短时 plan_hold 保持已应用的起步努力，不取更低的旧 QP drive，也不在等待中增加努力。轮速越过 0.05 后恢复原 tracking hold。规划失效期间也执行超速和起步超时门禁；其余明确停车、失效到期、无计划回零和反馈保护保留。
+
+TDD：旧代码在三种规划等待原因下的起步保持、等待中的超速、等待跨越起步超时五个断言失败；修复后 targeted 33 项通过。新增检测“轮动首次出现在 dropout”的交接和无首个成功计划时不加油。Ubuntu dense MPC 共 102 项、0 失败、2 项 OSQP 对照跳过；ROS 门禁复跑 PASS（colcon 267 项、0 错误、0 失败、2 跳过）。首次门禁有一个原有 MVP lattice 用例 source_deadline_during_planning 失败，单项复核及无并行测试负载的完整复跑均通过，未放宽时效/测试门槛。两个部署 YAML 均用安装节点在本机 LOCALHOST 域 219 初始化通过、停在 state 2。Astra 只读复核无阻塞问题。完整证据及部署哈希见本轮部署包 verification.json；新版本尚未上车执行。
+
+复测专用清单：[CAR05_V2_START_FIX_RUN_CN.md](CAR05_V2_START_FIX_RUN_CN.md)。使用 .verification/car05-v2-startfix-shadow 和 car05-v2-startfix-exec，先 Disabled shadow 看参考与方向，再首次居中 0.5 m exec（0.12 m/s 配置、超速阈值 0.20 m/s）。不覆盖/复用旧 car05-v2-first 部署副本，不取消油门上限或停车保护。
+
 ## 2026-10-15：把 main 的 ordered_xy 估计和 road_centerline 规划接入 MPC
 
 分支 `mpc-car-run-port-main`（基于 `mpc-car-run` 的 `c01aa9b`，周四部署版本已打 tag
