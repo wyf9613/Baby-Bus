@@ -17,6 +17,8 @@
 改动：`config/ai4r_policy_mpc_car05.yaml` 的 `vehicle.drive_deadband` 0.289 → **0.32**（只这一项，`source` 加 `db032`），
 代码不变。新包 `.verification/car05-v2-db032-{shadow,exec}`，距离上限 1.0 m。下一次：看交接后车速能不能稳在 0.12 附近。
 
+后续修复和顺序：[MPC_FIX_PLAN_CN.md](MPC_FIX_PLAN_CN.md)。
+
 ## 2026-10-15（17:06 固定输入试验后）：5 号车起步保持修复，待实车复测
 
 实测 V2 请求爬升 0.30→0.35、接口应用峰值 0.324，但达到 >=0.32 只有约 0.147 秒，规划等待会落到旧 QP 跟踪序列的较低输入；随后 no_motion_after_breakaway。独立 id_test 固定请求 0.35 时，接口应用约 0.324，约 0.79 秒出现 >0.05 m/s 轮速，约 0.98 秒触发 0.15 m/s 速度保护，实际轮速峰值约 0.172 m/s。用户确认车移动。原始包和只读分析在仓库外 car-evidence 下，不能把该固定输入结果当成 V2 已跑通。
