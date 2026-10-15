@@ -4594,6 +4594,8 @@ class MPCController:
     The exception is a TOLERABLE rejection (reference unavailable, late update, over budget)
     shorter than reference_dropout_tolerance_s: the last solved input sequence keeps running
     (drive never above the last applied value); without a plan the car coasts, steering held.
+    During an active breakaway, a short dropout holds the last applied start drive instead
+    of taking a lower drive from the QP's tracking sequence. Stop guards still take priority.
     There is no wheel-angle sensor: the initial steering angle and the delayed part of the
     motion are replayed through the model from the commands actually applied.
 
@@ -4738,6 +4740,14 @@ class MPCController:
             d.update(applied_steer_action=steer, applied_drive=drive)
 
         def reject(branch, reason, tolerable=False):
+            # A tolerable reference gap must not mask a stop while an old plan is held.
+            # These guards also run below for a fresh, successfully solved reference.
+            if tolerable and not cfg.shadow:
+                if finite_number(speed_mps) and speed_mps > cfg.v_exec_max_mps + cfg.overspeed_margin_mps:
+                    branch, reason, tolerable = "stop", "overspeed", False
+                elif (self.phase == "starting" and self.start_since is not None
+                      and self.clock_s-self.start_since > cfg.breakaway_timeout_s):
+                    branch, reason, tolerable = "stop", "no_motion_after_breakaway", False
             d["branch"], d["reject_reason"] = branch, reason
             d["step_s"] = time.perf_counter()-t0
             self.nominal = None
@@ -4759,6 +4769,11 @@ class MPCController:
                         # increasing the drive. Its age is bounded by the tolerance.
                         d["branch"], d["plan_index"] = "plan_hold", index
                         drive, steer = min(inputs[index][0], self.applied_drive), inputs[index][1]
+                        if self.phase == "starting" and self.start_since is not None:
+                            # Breakaway overrides drive0 after the QP is solved, so its
+                            # future inputs may be too small to start the real car. Keep
+                            # only the already-applied start effort, never ramp up here.
+                            drive = min(self.applied_drive, self.vehicle.drive_max)
                         record(drive, steer)
                         return {"drive": drive, "steer": steer, "debug": d}
             self.plan = None

@@ -942,6 +942,114 @@ class DeadbandDrive(unittest.TestCase):
     """The longitudinal changes made after the 2026-10-06 car runs."""
     NOW = 10.0
 
+    def fixed_start_controller(self, **changes):
+        """A low-effort QP isolates the actual controller's start/hold guards."""
+        class LowDrive:
+            def solve(self, *args, **kwargs):
+                return {"inputs": [(0.29, 0.1)] + [(0.28, 0.2)]*9,
+                        "drive0": 0.29, "steer0": 0.1, "delta0": -0.02,
+                        "iterations": 1, "solve_s": 0.0,
+                        "pred_e_y": [0.0], "pred_v": [0.12]}, None
+
+        cfg = dict(reference_dropout_tolerance_s=0.3, breakaway_ramp_per_s=0.0,
+                   v_exec_max_mps=0.12, overspeed_margin_mps=0.08)
+        cfg.update(changes)
+        ctrl = verified(vehicle=newcar(drive_max=0.35, drive_breakaway=0.35), **cfg)
+        ctrl.solver = LowDrive()
+        return ctrl
+
+    def test_fixed_start_effort_survives_short_planner_dropouts(self):
+        for reason in ("planning_pending", "lattice_time_budget_exceeded",
+                       "source_deadline_during_planning"):
+            with self.subTest(reason=reason):
+                ctrl = self.fixed_start_controller()
+                first = ctrl.step(straight_trajectory(speed=0.12), 0.0, 0.0, self.NOW, True)
+                self.assertEqual(first["drive"], 0.35)
+                pending = {"schema": "reference_trajectory_v0.1", "valid": False,
+                           "reason": reason}
+                for k in range(1, 5):
+                    out = ctrl.step(pending, 0.0, 0.05, self.NOW+k*0.05, False)
+                    self.assertEqual(out["debug"]["branch"], "plan_hold")
+                    self.assertEqual(out["debug"]["phase"], "starting")
+                    self.assertEqual(out["drive"], 0.35)
+                    self.assertLessEqual(out["drive"], ctrl.vehicle.drive_max)
+                resumed = ctrl.step(straight_trajectory(speed=0.12, stamp=self.NOW+0.25),
+                                    0.0, 0.05, self.NOW+0.25, False)
+                self.assertEqual(resumed["drive"], 0.35)
+
+    def test_start_hold_hands_over_to_the_normal_plan_when_wheels_move(self):
+        ctrl = self.fixed_start_controller()
+        ctrl.step(straight_trajectory(speed=0.12), 0.0, 0.0, self.NOW, True)
+        out = ctrl.step(straight_trajectory(speed=0.12, stamp=self.NOW+0.05),
+                        0.08, 0.05, self.NOW+0.05, False)
+        self.assertEqual((out["debug"]["phase"], out["drive"]), ("tracking", 0.29))
+        pending = {"schema": "reference_trajectory_v0.1", "valid": False,
+                   "reason": "planning_pending"}
+        out = ctrl.step(pending, 0.08, 0.1, self.NOW+0.15, False)
+        self.assertEqual((out["debug"]["phase"], out["drive"]), ("tracking", 0.28))
+        self.assertIsNone(ctrl.start_since)
+
+    def test_movement_first_seen_during_dropout_ends_the_start_hold(self):
+        ctrl = self.fixed_start_controller()
+        ctrl.step(straight_trajectory(speed=0.12), 0.0, 0.0, self.NOW, True)
+        pending = {"schema": "reference_trajectory_v0.1", "valid": False,
+                   "reason": "planning_pending"}
+        out = ctrl.step(pending, 0.08, 0.1, self.NOW+0.1, False)
+        self.assertEqual((out["debug"]["branch"], out["debug"]["phase"], out["drive"]),
+                         ("plan_hold", "tracking", 0.28))
+        self.assertIsNone(ctrl.start_since)
+
+    def test_fixed_start_does_not_apply_effort_before_a_first_solved_plan(self):
+        ctrl = self.fixed_start_controller()
+        pending = {"schema": "reference_trajectory_v0.1", "valid": False,
+                   "reason": "planning_pending"}
+        out = ctrl.step(pending, 0.0, 0.0, self.NOW, True)
+        self.assertEqual((out["debug"]["branch"], out["drive"]), ("ref_hold", 0.0))
+        self.assertIsNone(ctrl.start_since)
+
+    def test_planner_dropout_cannot_extend_the_start_timeout(self):
+        ctrl = self.fixed_start_controller()
+        ctrl.step(straight_trajectory(speed=0.12), 0.0, 0.0, self.NOW, True)
+        for k in range(1, 30):
+            ctrl.step(straight_trajectory(speed=0.12, stamp=self.NOW+k*0.05),
+                      0.0, 0.05, self.NOW+k*0.05, False)
+        pending = {"schema": "reference_trajectory_v0.1", "valid": False,
+                   "reason": "planning_pending"}
+        with self.assertRaises(Stop):
+            ctrl.step(pending, 0.0, 0.1, self.NOW+1.55, False)
+        self.assertEqual(ctrl.last_debug["reject_reason"], "no_motion_after_breakaway")
+        self.assertEqual((ctrl.applied_drive, ctrl.applied_steer), (0.0, 0.0))
+
+    def test_overspeed_during_a_planner_dropout_stops_instead_of_holding(self):
+        ctrl = self.fixed_start_controller()
+        ctrl.step(straight_trajectory(speed=0.12), 0.0, 0.0, self.NOW, True)
+        pending = {"schema": "reference_trajectory_v0.1", "valid": False,
+                   "reason": "planning_pending"}
+        with self.assertRaises(Stop):
+            ctrl.step(pending, 0.21, 0.05, self.NOW+0.05, False)
+        self.assertEqual(ctrl.last_debug["reject_reason"], "overspeed")
+        self.assertEqual((ctrl.applied_drive, ctrl.applied_steer), (0.0, 0.0))
+
+    def test_fixed_start_still_stops_for_explicit_stop_and_dropout_deadline(self):
+        for explicit in (True, False):
+            with self.subTest(explicit=explicit):
+                ctrl = self.fixed_start_controller(reference_dropout_tolerance_s=0.15)
+                ctrl.step(straight_trajectory(speed=0.12), 0.0, 0.0, self.NOW, True)
+                if explicit:
+                    stop = dict(straight_trajectory(speed=0.12, stamp=self.NOW+0.05),
+                                stop_required=True, reason="planner_stop")
+                    with self.assertRaises(Stop):
+                        ctrl.step(stop, 0.0, 0.05, self.NOW+0.05, False)
+                    self.assertEqual(ctrl.last_debug["reject_reason"], "planner_stop")
+                else:
+                    pending = {"schema": "reference_trajectory_v0.1", "valid": False,
+                               "reason": "planning_pending"}
+                    for k in (1, 2, 3):
+                        ctrl.step(pending, 0.0, 0.05, self.NOW+k*0.05, False)
+                    with self.assertRaises(Stop):
+                        ctrl.step(pending, 0.0, 0.1, self.NOW+0.25, False)
+                self.assertEqual((ctrl.applied_drive, ctrl.applied_steer), (0.0, 0.0))
+
     def test_steady_drive_sits_above_the_deadband(self):
         self.assertAlmostEqual(Solver(Settings(), course_vehicle()).steady_drive(0.2), 0.004, places=6)
         self.assertAlmostEqual(Solver(Settings(), newcar()).steady_drive(0.2), 0.2967, places=3)

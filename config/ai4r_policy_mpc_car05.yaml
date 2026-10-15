@@ -1,26 +1,28 @@
-# Overlay: joint MPC on car 10.43.254.05, 2026-10-15, built WITHOUT any identification
-# run on this car (user-approved cross-car substitution, see MPC_PROGRESS_LOG.md).
+# Overlay: joint MPC on car 05 (10.43.254.18), 2026-10-15. A fixed-request straight
+# start was tested on this car; most model parameters remain cross-car substitutions.
 # Layer order:
 #   ai4r_policy.yaml -> ai4r_policy_newcar27.yaml -> ai4r_policy_mpc_newcar27.yaml
 #   -> ai4r_policy_mpc_centerline.yaml -> this file
 #
 # What is and isn't actually measured for car 05:
-#   - Drive response (deadband/motor_gain/drag/breakaway): car .27's 10-06 log fit,
-#     UNCHANGED from ai4r_policy_mpc_newcar27.yaml. Never measured on 05. If the car
-#     doesn't move, the deadband is too high for 05's battery/ESC; if it lurches, too low.
+#   - Deadband/motor_gain/drag/braking: still car .27's 10-06 log fit; not identified
+#     on 05. Fixed request 0.35 was tested on 05 at 17:06: reported applied 0.324,
+#     first wheel speed >0.05 at ~0.79 s, speed guard returned zero at ~0.17 m/s.
+#     This supports the start request only, not a validated 0.12 m/s tracking model.
 #   - Steering gain/offset/limits/rate: car .20's 2026-10-12 protractor measurement
 #     (offline/vehicle_identification/vehicle_params.py steering_gain_rad=-0.3142,
 #     i.e. 18 deg at full deflection, positive request turns right), NOT measured on 05.
 #   - Geometry (wheelbase/body extents): the course placeholder, which happens to equal
 #     .20's own measured geometry -- the one piece of overlap across the two substitutions.
-# None of this is "valid": true in the normal sense (nothing here was measured on THIS
-# car); it is set true anyway because the on-site decision was to accept the cross-car
-# risk rather than wait, overridden with mpc.v_exec_max_mps at a low speed below.
+# valid: true still admits an incomplete, cross-car model by the on-site decision;
+# the single start trial does not qualify steering, geometry or longitudinal tracking.
 /**/ai4r_policy:
   ros__parameters:
     vehicle:
       valid: true
-      source: "car05_20261015_cross_car_substitution_27drive_20steering_UNVERIFIED"
+      source: "car05_20261015_start035_27model_20steering_UNVERIFIED"
+      drive_breakaway: 0.35          # tested fixed request on THIS car; not applied telemetry
+      drive_max: 0.35                # preserve the previous hard request ceiling
       steering_gain_rad: -0.3142       # car .20, 2026-10-12 protractor measurement
       steering_offset_rad: 0.0         # not measured on either car; assumed centred
       steering_min_rad: -0.3142
@@ -33,3 +35,6 @@
       v_exec_max_mps: 0.12            # well below the car .27 fit's 0.35 m/s; raise only
                                        # after watching several shadow/slow runs on this car
       overspeed_margin_mps: 0.08
+      breakaway_ramp_per_s: 0.0      # start at the tested request; do not slowly ramp from 0.30
+      breakaway_timeout_s: 1.5       # unchanged: fixed 0.35 produced feedback at ~0.79 s
+      moving_speed_mps: 0.05         # unchanged: keep the existing tracking handover threshold
