@@ -2,6 +2,21 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-15（18:18）：死区 0.32 两次都超速停车，改 0.30、超速余量 0.10
+
+bag `car-evidence/car05-v2-db032-exec-20261015-181825`，V2 exec，1 m，`v_exec_max` 0.12。
+
+- 两次起步都正常：固定 0.35，约 1 s 出轮速，0.06 m/s 交接。规划有 `planning_pending`、`lattice_time_budget_exceeded`，
+  都被 `plan_hold` 接住，**不是规划问题**。
+- 交接后车速 0.06 → 0.20 m/s 只用了 0.6–0.8 s，两次都在约 0.20 m/s 触发 `overspeed`，分别走了约 0.14 m、0.11 m。
+- 原因：MPC 预测车速保持在约 0.12（`pred_v_end`），只把油门从 0.35 慢慢收到 0.318。车在动时 QP 的油门下限是
+  "死区 + 偏置"，约 0.318，MPC 给不出更低的油门。0.289 时车减速（17:53），0.32 时车加速，所以真实值在两者之间。
+- 第二次起步时车放偏了 11 cm，横向在慢慢收。
+
+改动：`config/ai4r_policy_mpc_car05.yaml` 的 `drive_deadband` 0.32 → **0.30**（`source` 改成 `db030`），
+`overspeed_margin_mps` 0.08 → **0.10**（超速停车线 0.22 m/s，用户同意）。新包 `.verification/car05-v2-db030-exec`
+（yaml `240712da…`，policy_node `8a0d64dd…` 没变）。离线 `test_mpc` + `test_mpc_real_frames` 109 个通过。
+
 ## 2026-10-15（17:53）：5 号车 MPC 第一次正常起步并跑完设定距离（V2，0.5 m）
 
 包：`car-evidence/car05-v2-startfix-exec-20261015-{175008,175148,175338}`，用 `tools/mpc_bag_timeline.py` 读。

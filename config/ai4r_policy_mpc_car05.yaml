@@ -5,9 +5,11 @@
 #   -> ai4r_policy_mpc_centerline.yaml -> this file
 #
 # What is and isn't actually measured for car 05:
-#   - Deadband: 0.32, from car 05's own 17:53 exec (car05-v2-startfix-exec-20261015-175338):
-#     at .27's 0.289 (applied ~0.256) car 05 decelerated from 0.18 to 0.06 m/s; the drive
-#     bias estimate had lifted the request to ~0.33 to recover ~0.1 m/s. One run only.
+#   - Deadband: 0.30, bracketed by two car 05 execs. 17:53 (car05-v2-startfix-exec-20261015-175338):
+#     at .27's 0.289 (applied ~0.256) car 05 decelerated from 0.18 to 0.06 m/s. 18:18
+#     (car05-v2-db032-exec-20261015-181825): at 0.32 the moving lower bound (deadband+bias
+#     ~0.318) kept car 05 accelerating to 0.20 m/s and both runs stopped on overspeed while
+#     the model predicted ~0.12 m/s. Midpoint, not identified.
 #   - Motor_gain/drag/braking: still car .27's 10-06 log fit; not identified
 #     on 05. Fixed request 0.35 was tested on 05 at 17:06: reported applied 0.324,
 #     first wheel speed >0.05 at ~0.79 s, speed guard returned zero at ~0.17 m/s.
@@ -23,10 +25,10 @@
   ros__parameters:
     vehicle:
       valid: true
-      source: "car05_20261015_start035_db032_27model_20steering_UNVERIFIED"
+      source: "car05_20261015_start035_db030_27model_20steering_UNVERIFIED"
       drive_breakaway: 0.35          # tested fixed request on THIS car; not applied telemetry
       drive_max: 0.35                # preserve the previous hard request ceiling
-      drive_deadband: 0.32           # car 05 17:53 exec, see header; bias +/-0.05 still applies
+      drive_deadband: 0.30           # between car 05's 17:53 (0.289 sags) and 18:18 (0.32 overspeeds) execs; bias +/-0.05 still applies
       steering_gain_rad: -0.3142       # car .20, 2026-10-12 protractor measurement
       steering_offset_rad: 0.0         # not measured on either car; assumed centred
       steering_min_rad: -0.3142
@@ -38,7 +40,7 @@
       # mpc-exec-centerline), not here: this overlay also applies in shadow mode.
       v_exec_max_mps: 0.12            # well below the car .27 fit's 0.35 m/s; raise only
                                        # after watching several shadow/slow runs on this car
-      overspeed_margin_mps: 0.08
+      overspeed_margin_mps: 0.10      # stop at 0.22 m/s; 0.08 tripped at the first handover (18:18)
       breakaway_ramp_per_s: 0.0      # start at the tested request; do not slowly ramp from 0.30
       breakaway_timeout_s: 1.5       # unchanged: fixed 0.35 produced feedback at ~0.79 s
       moving_speed_mps: 0.05         # unchanged: keep the existing tracking handover threshold
