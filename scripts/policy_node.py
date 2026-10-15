@@ -1514,6 +1514,213 @@ class LatticeCurve:
         a, b, c, d = coeffs
         return a+u*(b+u*(c+u*d)), b+u*(2*c+3*d*u), 2*c+6*d*u, 6*d
 
+    @staticmethod
+    def _roots(coeffs):
+        """Bounded polynomial roots; analytic linear/quadratic geometry cases."""
+        coeffs = list(coeffs)
+        while len(coeffs) > 1 and coeffs[-1] == 0:
+            coeffs.pop()
+        scale = max(map(abs, coeffs))
+        if not math.isfinite(scale):
+            raise ValueError("nonfinite_path_geometry")
+        if scale == 0 or len(coeffs) == 1:
+            return []
+        coeffs = [v/scale for v in coeffs]
+        if len(coeffs) == 2:
+            root = -coeffs[0]/coeffs[1]
+            return [root] if -1 <= root <= 1 else []
+        if len(coeffs) == 3:
+            a, b, c = coeffs[2], coeffs[1], coeffs[0]
+            discriminant = b*b-4*a*c
+            if discriminant < 0:
+                return []
+            q = -(b+math.copysign(math.sqrt(discriminant), b))/2
+            roots = [q/a, c/q] if q else [-b/(2*a)]
+            return sorted(set(v for v in roots if -1 <= v <= 1))
+        critical = LatticeCurve._roots(_lattice_derivative(coeffs))
+        knots = sorted(set([-1.0, *critical, 1.0]))
+        roots = [u for u in knots if abs(_control_poly_eval(coeffs, u)) <= 1e-12]
+        for low, high in zip(knots, knots[1:]):
+            fl, fh = _control_poly_eval(coeffs, low), _control_poly_eval(coeffs, high)
+            if (fl > 0) == (fh > 0) or fl == 0 or fh == 0:
+                continue
+            for _ in range(48):
+                mid = (low+high)/2
+                fm = _control_poly_eval(coeffs, mid)
+                if fm == 0:
+                    low = high = mid
+                    break
+                if (fl > 0) == (fm > 0):
+                    low, fl = mid, fm
+                else:
+                    high = mid
+            roots.append((low+high)/2)
+        return sorted(set(roots))
+
+    @staticmethod
+    def polynomial_range(coeffs, low, high):
+        """Range on a finite interval, including every polynomial extremum."""
+        mid, half = (low+high)/2, (high-low)/2
+        normalized = coeffs if low == -1.0 and high == 1.0 else [
+            sum(coeffs[j]*math.comb(j, i)*mid**(j-i)*half**i
+                for j in range(i, len(coeffs))) for i in range(len(coeffs))]
+        probes = [-1.0, 1.0, *LatticeCurve._roots(_lattice_derivative(normalized))]
+        values = [_control_poly_eval(normalized, u) for u in probes]
+        return min(values), max(values)
+
+    def derivative_bounds(self, low, high):
+        if low < self.xmin-1e-8 or high > self.xmax+1e-8:
+            raise ValueError("curve_range")
+        cache = self.__dict__.setdefault("_bounds_cache", {})
+        key = (low, high)
+        if key not in cache:
+            slopes, seconds, thirds = [], [], []
+            intervals = [(self.xmin, self.points[0][0], self.points[0][0], self.extension[2])]
+            intervals += [(a, b, a, c) for a, b, c in self.segments]
+            for a, b, origin, coeffs in intervals:
+                lo, hi = max(a, low)-origin, min(b, high)-origin
+                if hi < lo:
+                    continue
+                slopes.extend(self.polynomial_range(_lattice_derivative(coeffs), lo, hi))
+                seconds.extend(self.polynomial_range(_lattice_derivative(coeffs, 2), lo, hi))
+                thirds.append(abs(6*coeffs[3]))
+            cache[key] = (min(slopes), max(slopes), min(seconds), max(seconds), max(thirds))
+        return cache[key]
+
+    @staticmethod
+    def _curve_box_distance(px, py, box, best):
+        """Continuous polynomial-curve distance to a filled axis-aligned box.
+
+        Split at crossings of the four supporting lines. Within each interval,
+        squared distance is one fixed polynomial of degree at most six. Its
+        endpoints and derivative roots include every possible minimum.
+        """
+        xmin, xmax, ymin, ymax = box
+        def distance(u):
+            x, y = _control_poly_eval(px, u), _control_poly_eval(py, u)
+            return math.hypot(max(xmin-x, 0.0, x-xmax), max(ymin-y, 0.0, y-ymax))
+        if not any(px[2:]+py[2:]):
+            # Exact segment/rectangle distance, avoiding a polynomial solver for
+            # the common straight-boundary case (including a rotated car).
+            low, high = -1.0, 1.0
+            for origin, direction, lower, upper in ((px[0], px[1], xmin, xmax), (py[0], py[1], ymin, ymax)):
+                if direction == 0:
+                    if not lower <= origin <= upper:
+                        low, high = 1.0, -1.0
+                        break
+                else:
+                    a, b = (lower-origin)/direction, (upper-origin)/direction
+                    low, high = max(low, min(a, b)), min(high, max(a, b))
+            if low <= high:
+                return 0.0
+            best = min(best, distance(-1.0), distance(1.0))
+            norm = px[1]**2+py[1]**2
+            if norm:
+                for x in (xmin, xmax):
+                    for y in (ymin, ymax):
+                        u = min(1.0, max(-1.0, ((x-px[0])*px[1]+(y-py[0])*py[1])/norm))
+                        best = min(best, math.hypot(px[0]+u*px[1]-x, py[0]+u*py[1]-y))
+            return best
+        knots = [-1.0, 1.0]
+        for polynomial, edges in ((px, (xmin, xmax)), (py, (ymin, ymax))):
+            for edge in edges:
+                shifted = list(polynomial)
+                shifted[0] -= edge
+                knots.extend(LatticeCurve._roots(shifted))
+        knots = sorted(set(knots))
+        for u in knots:
+            best = min(best, distance(u))
+        if best == 0:
+            return 0.0
+        for low, high in zip(knots, knots[1:]):
+            mid = (low+high)/2
+            x, y = _control_poly_eval(px, mid), _control_poly_eval(py, mid)
+            active = []
+            for polynomial, value, lower, upper in ((px, x, xmin, xmax), (py, y, ymin, ymax)):
+                if value < lower or value > upper:
+                    shifted = list(polynomial)
+                    shifted[0] -= lower if value < lower else upper
+                    active.append(shifted)
+            if not active:
+                return 0.0
+            if len(active) == 1:
+                derivative = _lattice_derivative(active[0])
+            else:
+                derivative = [0.0]*6
+                for polynomial in active:
+                    for i, a in enumerate(polynomial):
+                        for j, b in enumerate(_lattice_derivative(polynomial)):
+                            derivative[i+j] += a*b
+            for u in LatticeCurve._roots(derivative):
+                if low < u < high:
+                    best = min(best, distance(u))
+        return best
+
+    def rectangle_distance(self, geom, model):
+        """Minimum Euclidean distance to the entire oriented, filled car body."""
+        c, s = math.cos(geom["heading"]), math.sin(geom["heading"])
+        box = (-model["rear_extent_m"], model["front_extent_m"], -model["width_m"]/2, model["width_m"]/2)
+        corners = [(geom["x"]+c*bx-s*by, geom["y"]+s*bx+c*by)
+                   for bx in box[:2] for by in box[2:]]
+        xmin, xmax = min(p[0] for p in corners), max(p[0] for p in corners)
+        ymin, ymax = min(p[1] for p in corners), max(p[1] for p in corners)
+        if xmin < self.xmin-1e-8 or xmax > self.xmax+1e-8:
+            raise ValueError("curve_range")
+        # Cache the existing continuous cubic pieces; do not refit boundaries.
+        if "_distance_pieces" not in self.__dict__:
+            intervals = [(self.xmin, self.points[0][0], self.points[0][0], self.extension[2])]
+            intervals += [(a, b, a, coeffs) for a, b, coeffs in self.segments]
+            pieces = []
+            for a, b, origin, coeffs in intervals:
+                if b <= a:
+                    continue
+                mid, half = (a+b)/2, (b-a)/2
+                u = mid-origin
+                py = [_control_poly_eval(coeffs, u), (coeffs[1]+u*(2*coeffs[2]+3*coeffs[3]*u))*half,
+                      (coeffs[2]+3*coeffs[3]*u)*half**2, coeffs[3]*half**3]
+                lo, hi = self.polynomial_range(py, -1.0, 1.0)
+                pieces.append((a, b, lo, hi, [mid, half, 0.0, 0.0], py))
+            self._distance_pieces = pieces
+        x = min(self.xmax, max(self.xmin, geom["x"]))
+        y = self.at_x(x)[0]
+        bx, by = c*(x-geom["x"])+s*(y-geom["y"]), -s*(x-geom["x"])+c*(y-geom["y"])
+        nx, ny = bx-min(box[1], max(box[0], bx)), by-min(box[3], max(box[2], by))
+        best = math.hypot(nx, ny)
+        if best == 0:
+            return 0.0
+        nx, ny = nx/best, ny/best
+        support = max(nx*box[0], nx*box[1])+max(ny*box[2], ny*box[3])
+        for a, b, lo, hi, px, py in sorted(self._distance_pieces, key=lambda p: abs((p[0]+p[1])/2-geom["x"])):
+            # Distance between bounding boxes is a lower bound, used only to
+            # skip pieces which cannot improve the already attained distance.
+            if math.hypot(max(xmin-b, 0.0, a-xmax), max(ymin-hi, 0.0, lo-ymax)) >= best:
+                continue
+            tx = [c*vx+s*vy for vx, vy in zip(px, py)]
+            ty = [-s*vx+c*vy for vx, vy in zip(px, py)]
+            tx[0] -= c*geom["x"]+s*geom["y"]
+            ty[0] -= -s*geom["x"]+c*geom["y"]
+            xlo, xhi = self.polynomial_range(tx, -1.0, 1.0)
+            ylo, yhi = self.polynomial_range(ty, -1.0, 1.0)
+            if math.hypot(max(box[0]-xhi, 0.0, xlo-box[1]), max(box[2]-yhi, 0.0, ylo-box[3])) >= best:
+                continue
+            if box[0] <= xlo <= xhi <= box[1]:
+                best = min(best, max(box[2]-yhi, 0.0, ylo-box[3]))
+                if best == 0:
+                    break
+                continue
+            if box[2] <= ylo <= yhi <= box[3]:
+                best = min(best, max(box[0]-xhi, 0.0, xlo-box[1]))
+                if best == 0:
+                    break
+                continue
+            projection = [nx*x+ny*y for x, y in zip(tx, ty)]
+            if self.polynomial_range(projection, -1.0, 1.0)[0]-support >= best:
+                continue
+            best = self._curve_box_distance(tx, ty, box, best)
+            if best == 0:
+                break
+        return best
+
     def at_s(self, s):
         if s in self._s_cache:
             return self._s_cache[s]
@@ -1657,26 +1864,29 @@ class FrenetLatticePlanner:
     def _clearance(self, geom, left, right, obstacles, model):
         cfg = self.cfg
         c, s = math.cos(geom["heading"]), math.sin(geom["heading"])
-        # Boundary signed vertical distances converted to local normal metres.
-        clearance = math.inf
-        body_length = model["rear_extent_m"]+model["front_extent_m"]
         radius = math.hypot(max(model["front_extent_m"], model["rear_extent_m"]), model["width_m"]/2)
-        sweep_guard = cfg.geometry_step_m*geom.get("q", 1.0)*(1+radius*abs(geom["curvature"]))/2
-        # Include longitudinal edge subdivisions, and reserve an interpolation
-        # sag bound for the curved boundaries between these footprint samples.
-        edge_guard = max(left.max_second, right.max_second)*(body_length/4)**2/8
-        for bx in [-model["rear_extent_m"]+body_length*i/4 for i in range(5)]:
-            for by in (-model["width_m"]/2, model["width_m"]/2):
-                x, y = geom["x"]+c*bx-s*by, geom["y"]+s*bx+c*by
-                yl, sl, _, _ = left.at_x(x)
-                yr, sr, _, _ = right.at_x(x)
-                extra = cfg.extension_margin_growth*max(0.0, max(left.points[0][0], right.points[0][0])-x)
-                clearance = min(clearance, (yl-y)/math.hypot(1, left.max_slope)-cfg.hard_margin_m-extra-edge_guard-sweep_guard,
-                                (y-yr)/math.hypot(1, right.max_slope)-cfg.hard_margin_m-extra-edge_guard-sweep_guard)
+        # Reject a body wholly outside the corridor as well as intersections.
+        # Otherwise the continuous boundary-to-filled-rectangle distance is the
+        # car's geometric clearance; no edge samples or derivative penalties.
+        side = min(left.at_x(geom["x"])[0]-geom["y"], geom["y"]-right.at_x(geom["x"])[0])
+        if side <= 0:
+            return side-cfg.hard_margin_m
+        distance = min(left.rectangle_distance(geom, model), right.rectangle_distance(geom, model))
+        body_xs = [geom["x"]+c*bx-s*by for bx in (-model["rear_extent_m"], model["front_extent_m"])
+                   for by in (-model["width_m"]/2, model["width_m"]/2)]
+        rear_x = min(body_xs)
+        geom["support_clearance_m"] = min(rear_x-max(left.xmin, right.xmin),
+                                           min(left.xmax, right.xmax)-max(body_xs))
+        # Preserve the explicit uncertainty allowance ONLY on assumed, unseen
+        # backward extension. It is zero on fully observed body support.
+        extra = cfg.extension_margin_growth*max(0.0, max(left.points[0][0], right.points[0][0])-rear_x)
+        clearance = distance-cfg.hard_margin_m-extra
+        if clearance < 0:
+            return clearance
         nearby = obstacles
         if isinstance(obstacles, dict):
             nearby = []
-            reach = radius+cfg.obstacle_margin_m+cfg.hard_margin_m+sweep_guard
+            reach = radius+cfg.obstacle_margin_m+cfg.hard_margin_m+clearance
             for ix in range(math.floor((geom["x"]-reach)/0.25), math.floor((geom["x"]+reach)/0.25)+1):
                 for iy in range(math.floor((geom["y"]-reach)/0.25), math.floor((geom["y"]+reach)/0.25)+1):
                     nearby.extend(obstacles.get((ix, iy), ()))
@@ -1685,8 +1895,85 @@ class FrenetLatticePlanner:
             bx, by = c*dx+s*dy, -s*dx+c*dy
             outside_x = max(-model["rear_extent_m"]-bx, bx-model["front_extent_m"], 0.0)
             outside_y = max(abs(by)-model["width_m"]/2, 0.0)
-            clearance = min(clearance, math.hypot(outside_x, outside_y)-cfg.obstacle_margin_m-cfg.hard_margin_m-sweep_guard)
+            clearance = min(clearance, math.hypot(outside_x, outside_y)-cfg.obstacle_margin_m-cfg.hard_margin_m)
         return clearance
+
+    def _body_motion_bound(self, curve, coeffs, length, target, origin, low, high, model):
+        """Upper bound on body-point travel per reference metre on this interval.
+
+        This bound controls subdivision, never subtracts from clearance. Arc
+        lookup is piecewise linear; dx/ds <= 1 for its Simpson arc lengths.
+        """
+        lo, hi = (low-origin)/length, (high-origin)/length
+        ranges = []
+        for order in range(3):
+            values = []
+            if lo < 1:
+                values.extend(curve.polynomial_range(_lattice_derivative(coeffs, order), lo, min(1.0, hi)))
+                values = [v/length**order for v in values]
+            if hi >= 1:
+                values.append(target if order == 0 else 0.0)
+            ranges.append((min(values), max(values)))
+        (dlo, dhi), dp, dd = ranges
+        dmax, dpmax, ddmax = max(abs(dlo), abs(dhi)), max(map(abs, dp)), max(map(abs, dd))
+        xlo, xhi = curve.at_s(low)[0], curve.at_s(high)[0]
+        sl, sh, kl, kh, third = curve.derivative_bounds(xlo, xhi)
+        slope_max = max(abs(sl), abs(sh))
+        slope_min = 0.0 if sl <= 0 <= sh else min(abs(sl), abs(sh))
+        nmin, nmax = math.hypot(1, slope_min), math.hypot(1, slope_max)
+        kvalues = [v/n**3 for v in (kl, kh) for n in (nmin, nmax)]
+        klo, khi = min(kvalues), max(kvalues)
+        products = [k*d for k in (klo, khi) for d in (dlo, dhi)]
+        amin, amax = 1-max(products), max(abs(1-min(products)), abs(1-max(products)))
+        if amin <= 0.2:
+            return math.inf
+        kmax = max(abs(klo), abs(khi))
+        dkmax = third/nmin**4+3*slope_max*max(abs(kl), abs(kh))**2/nmin**6
+        heading_rate = nmax*kmax+(amax*ddmax+dpmax*(nmax*dkmax*dmax+kmax*dpmax))/amin**2
+        radius = math.hypot(max(model["front_extent_m"], model["rear_extent_m"]), model["width_m"]/2)
+        return (math.hypot(nmax*amax, dpmax)+radius*heading_rate)*(1+self.cfg.extension_margin_growth)
+
+    def _check_body_interval(self, curve, left, right, obstacles, model, origin, coeffs, length, target, a, b, budget,
+                             cartesian_origin=None):
+        """Certify sampled-pose intervals or inspect additional actual poses.
+
+        Distance to a fixed boundary/obstacle is 1-Lipschitz under body motion.
+        Positive endpoint clearance therefore certifies an interval when the
+        bounded travel to its nearer endpoint is smaller. Narrow intervals are
+        subdivided; exhaustion rejects the candidate rather than hiding a gap.
+        """
+        pending, count = [(a, b)], 0
+        while pending:
+            budget()
+            a, b = pending.pop()
+            ds = b["s"]-a["s"]
+            if cartesian_origin is None:
+                rate = self._body_motion_bound(curve, coeffs, length, target, origin, a["s"], b["s"], model)
+            else:
+                low, high = (a["s"]-cartesian_origin)/length, (b["s"]-cartesian_origin)/length
+                slopes = [v/length for v in LatticeCurve.polynomial_range(_lattice_derivative(coeffs), low, high)]
+                second = max(abs(v)/length**2 for v in LatticeCurve.polynomial_range(
+                    _lattice_derivative(coeffs, 2), low, high))
+                minimum_slope = 0.0 if slopes[0] <= 0 <= slopes[1] else min(map(abs, slopes))
+                radius = math.hypot(max(model["front_extent_m"], model["rear_extent_m"]), model["width_m"]/2)
+                rate = (math.hypot(1, max(map(abs, slopes)))+radius*second/(1+minimum_slope**2))*(
+                    1+self.cfg.extension_margin_growth)
+            if min(a["clearance"], b["clearance"], a["support_clearance_m"], b["support_clearance_m"]) >= rate*ds/2:
+                continue
+            count += 1
+            if count > 128 or ds < 1e-8:
+                raise ValueError("continuous_body_check_unresolved")
+            parameter = (a["s"]+b["s"])/2
+            if cartesian_origin is None:
+                mid = _lattice_geometry(curve, origin, coeffs, length, target, parameter)
+            else:
+                u = (parameter-cartesian_origin)/length
+                mid = {"s": parameter, "x": parameter, "y": _control_poly_eval(coeffs, u),
+                       "heading": math.atan(_control_poly_eval(_lattice_derivative(coeffs), u)/length)}
+            mid["clearance"] = self._clearance(mid, left, right, obstacles, model)
+            if mid["clearance"] < 0:
+                raise ValueError("swept_body_boundary_or_obstacle_collision")
+            pending.extend(((a, mid), (mid, b)))
 
     def plan(self, road, state, obstacles, vehicle_limits, now_s, source_timeout_s=None, mvp=False,
              _stop_before_x=None, _started=None, collect_candidates=False, candidate_scorer=None):
@@ -1785,6 +2072,9 @@ class FrenetLatticePlanner:
                 ages["obstacles"] = age
                 deadlines.append(limit-age)
             ref["source_ages_s"] = ages
+            # A diagnostic large budget must not spend a fresh reference's
+            # lifetime searching after a feasible candidate already exists.
+            search_window = min(cfg.budget_s, self.settings.reference_lifetime_s, *deadlines)
             obstacle_index = {}
             for ox, oy in obstacle_points:
                 obstacle_index.setdefault((math.floor(ox/0.25), math.floor(oy/0.25)), []).append((ox, oy))
@@ -1874,16 +2164,22 @@ class FrenetLatticePlanner:
                 targets.append(d0)  # Preserve current offset as a real option.
             targets.sort(key=lambda target: (abs(target), target))
             search_truncated = False
+            candidate_started, candidate_work_s = None, 0.0
             for length in sorted(cfg.samples("transition_lengths_m"), reverse=True):
                 if search_truncated:
                     break
                 for target in targets:
                     # This is a deliberate search cutoff, NOT a total deadline
                     # overrun. Reserve 40% for ranking and output revalidation.
-                    if accepted and self.clock()-started >= cfg.budget_s*0.6:
+                    now = self.clock()
+                    if candidate_started is not None:
+                        candidate_work_s = max(candidate_work_s, now-candidate_started)
+                    if accepted and (now-started >= search_window*0.6 or
+                                     now-started+candidate_work_s >= search_window*0.9):
                         search_truncated = True
                         break
                     budget()
+                    candidate_started = self.clock()
                     row = {"length_m": length, "offset_m": target, "reason": None}
                     diag["candidates"].append(row)
                     if length > horizon+1e-8:
@@ -1908,6 +2204,9 @@ class FrenetLatticePlanner:
                                 raise ValueError("body_boundary_or_obstacle_collision")
                             if geometries and g["x"] <= geometries[-1]["x"]:
                                 raise ValueError("nonmonotonic_cartesian_path")
+                            if geometries:
+                                self._check_body_interval(curve, left, right, obstacle_index, model,
+                                    s0, coeffs, length, target, geometries[-1], g, budget)
                             g["distance"] = (geometries[-1]["distance"]+math.hypot(g["x"]-geometries[-1]["x"],
                                 g["y"]-geometries[-1]["y"])) if geometries else 0.0
                             geometries.append(g)
@@ -2233,6 +2532,7 @@ class FrenetLatticePlanner:
         path = {"type": "CARTESIAN_Y_OF_X", "independent_variable": "x_m", "origin": origin,
                 "scale": scale, "coeffs_low_to_high": c, "range": [origin, end]}
         errors = {"position_m": 0.0, "heading_rad": 0.0, "curvature_1pm": 0.0}
+        previous_fit = None
         for i, g in enumerate(geometries):
             if i % 8 == 0:
                 budget()
@@ -2256,8 +2556,14 @@ class FrenetLatticePlanner:
                 1+(model["wheelbase_m"]**2-model["rear_axle_from_cg_m"]**2)*curvature**2))
             if steering_rate > model["steering_rate_limit_radps"] or maximum_speed**2*abs(curvature) > model["lateral_acceleration_max_mps2"]:
                 raise ValueError("fit_motion_limit")
-            if self._clearance({**g, "y": y, "heading": heading}, left, right, obstacles, model) < 0:
+            fitted = {**g, "s": g["x"], "y": y, "heading": heading}
+            fitted["clearance"] = self._clearance(fitted, left, right, obstacles, model)
+            if fitted["clearance"] < 0:
                 raise ValueError("fit_collision")
+            if previous_fit is not None:
+                self._check_body_interval(None, left, right, obstacles, model, origin, c, scale,
+                    None, previous_fit, fitted, budget, cartesian_origin=origin)
+            previous_fit = fitted
         return path, errors
 
 

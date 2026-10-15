@@ -1,0 +1,974 @@
+{
+  "recorded_at_utc": "2026-10-15T01:39:51.446254+00:00",
+  "policy_source_sha256": "5097596157538c88f1b9214cc21bf58288ba6e85e96a413e63b50971b94270b8",
+  "planner_source_sha256": "023ba02201c32f6300e8e109a0fee42d483d5754239fbaf745a721b2ecccdeff",
+  "production_source_unchanged_since_geometry_verification": true,
+  "whole_road_goal_achieved": false,
+  "hardware_timing_qualified": false,
+  "coordinate_meaning": "reference_line_progress_m is road centerline station, not world x",
+  "original_initial_station_m": 0.40753073045658084,
+  "original_failure_station_m": 1.9393127468935583,
+  "original_failure_world_x_m": 1.9656559723917117,
+  "state_metrics": {
+    "raw_pose": [
+      1.9656559723917117,
+      -0.04423739268211667,
+      -0.07921464150821615,
+      0.049880967154036025,
+      -0.007948986198756093,
+      -0.0602195924148189,
+      -0.37912444247765614
+    ],
+    "longitudinal_speed_mps": 0.049880967154036025,
+    "planar_cg_speed_mps": 0.05051036790412475,
+    "cg_motion_angle_from_body_rad": -0.15803030052962697,
+    "body_yaw_rate_rps": -0.0602195924148189,
+    "yaw_over_longitudinal_per_m": -1.2072659342962708,
+    "yaw_over_planar_speed_per_m": -1.1922224072713847,
+    "kinematic_beta_from_steering_rad": -0.15803033256331325,
+    "kinematic_yaw_from_longitudinal_rps": -0.060219604827316774,
+    "steering_limit_rad": 0.7853981633974483
+  },
+  "road_context": {
+    "nearest_tuple": [
+      1.9183220824723977,
+      -0.15805974420963498,
+      0.12327215761131016,
+      1.0,
+      1.9393127468935583,
+      -0.3941015899181366,
+      9.0
+    ],
+    "curvature_per_m": [
+      -0.3262273669242859
+    ],
+    "initial_progress_m": 0.40753073045658084
+  },
+  "low_speed_queries": [
+    {
+      "label": "exact_failure_original",
+      "low_speed_counterfactual": false,
+      "valid": false,
+      "reason": "low_speed_yaw_inconsistent",
+      "planned_stop": null,
+      "wall_s": 0.0029903000104241073,
+      "initialization": {},
+      "rejections": {},
+      "contract_errors": []
+    },
+    {
+      "label": "exact_failure_low_speed_counterfactual",
+      "low_speed_counterfactual": true,
+      "valid": true,
+      "reason": "lattice_selected",
+      "planned_stop": false,
+      "wall_s": 0.08830639999359846,
+      "initialization": {
+        "s0": 0.4778057670087677,
+        "d0": 0.12327210654799309,
+        "dprime": 0.34545911676563007,
+        "dsecond": -0.8797834278284961,
+        "curvature_method": "yaw_over_speed",
+        "acceleration_method": "zero_start_assumption"
+      },
+      "rejections": {
+        "steering_limit": 10,
+        "geometry_feasible": 2,
+        "feasible": 6,
+        "unreachable_cg_curvature": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "label": "planar_speed_only",
+      "low_speed_counterfactual": false,
+      "valid": true,
+      "reason": "lattice_selected",
+      "planned_stop": false,
+      "wall_s": 0.09016469999914989,
+      "initialization": {
+        "s0": 0.4778057670087677,
+        "d0": 0.12327210654799309,
+        "dprime": 0.34545911676563007,
+        "dsecond": -0.86028489991289,
+        "curvature_method": "yaw_over_speed",
+        "acceleration_method": "zero_start_assumption"
+      },
+      "rejections": {
+        "steering_limit": 10,
+        "geometry_feasible": 2,
+        "feasible": 6,
+        "unreachable_cg_curvature": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "label": "constant_turn_speed_0.02",
+      "low_speed_counterfactual": false,
+      "valid": true,
+      "reason": "lattice_selected",
+      "planned_stop": false,
+      "wall_s": 0.11320820002583787,
+      "initialization": {
+        "s0": 0.4778057670087677,
+        "d0": 0.12327210654799309,
+        "dprime": 0.34545911676563007,
+        "dsecond": 0.6850031067717037,
+        "curvature_method": "low_speed_zero_assumption",
+        "acceleration_method": "zero_start_assumption"
+      },
+      "rejections": {
+        "steering_limit": 10,
+        "body_boundary_or_obstacle_collision": 1,
+        "geometry_feasible": 1,
+        "feasible": 2,
+        "steering_rate_limit": 1,
+        "unreachable_cg_curvature": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "label": "constant_turn_speed_0.04",
+      "low_speed_counterfactual": false,
+      "valid": true,
+      "reason": "lattice_selected",
+      "planned_stop": false,
+      "wall_s": 0.11445610004011542,
+      "initialization": {
+        "s0": 0.4778057670087677,
+        "d0": 0.12327210654799309,
+        "dprime": 0.34545911676563007,
+        "dsecond": 0.6850031067717037,
+        "curvature_method": "low_speed_zero_assumption",
+        "acceleration_method": "zero_start_assumption"
+      },
+      "rejections": {
+        "steering_limit": 10,
+        "body_boundary_or_obstacle_collision": 1,
+        "geometry_feasible": 1,
+        "feasible": 2,
+        "steering_rate_limit": 1,
+        "unreachable_cg_curvature": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "label": "constant_turn_speed_0.0499",
+      "low_speed_counterfactual": false,
+      "valid": false,
+      "reason": "low_speed_yaw_inconsistent",
+      "planned_stop": null,
+      "wall_s": 0.0026137999957427382,
+      "initialization": {},
+      "rejections": {},
+      "contract_errors": []
+    },
+    {
+      "label": "constant_turn_speed_0.05",
+      "low_speed_counterfactual": false,
+      "valid": true,
+      "reason": "lattice_selected",
+      "planned_stop": false,
+      "wall_s": 0.10676180000882596,
+      "initialization": {
+        "s0": 0.4778057670087677,
+        "d0": 0.12327210654799309,
+        "dprime": 0.34545911676563007,
+        "dsecond": -0.8797834278284961,
+        "curvature_method": "yaw_over_speed",
+        "acceleration_method": "zero_start_assumption"
+      },
+      "rejections": {
+        "steering_limit": 10,
+        "geometry_feasible": 2,
+        "feasible": 6,
+        "unreachable_cg_curvature": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "label": "constant_turn_speed_0.0501",
+      "low_speed_counterfactual": false,
+      "valid": true,
+      "reason": "lattice_selected",
+      "planned_stop": false,
+      "wall_s": 0.09194589999970049,
+      "initialization": {
+        "s0": 0.4778057670087677,
+        "d0": 0.12327210654799309,
+        "dprime": 0.34545911676563007,
+        "dsecond": -0.8797834278284961,
+        "curvature_method": "yaw_over_speed",
+        "acceleration_method": "zero_start_assumption"
+      },
+      "rejections": {
+        "steering_limit": 10,
+        "geometry_feasible": 2,
+        "feasible": 6,
+        "unreachable_cg_curvature": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "label": "constant_turn_speed_0.06",
+      "low_speed_counterfactual": false,
+      "valid": true,
+      "reason": "lattice_selected",
+      "planned_stop": false,
+      "wall_s": 0.09142700000666082,
+      "initialization": {
+        "s0": 0.4778057670087677,
+        "d0": 0.12327210654799309,
+        "dprime": 0.34545911676563007,
+        "dsecond": -0.8797834278284961,
+        "curvature_method": "yaw_over_speed",
+        "acceleration_method": "zero_start_assumption"
+      },
+      "rejections": {
+        "steering_limit": 10,
+        "geometry_feasible": 2,
+        "feasible": 6,
+        "unreachable_cg_curvature": 2
+      },
+      "contract_errors": []
+    }
+  ],
+  "timing": {
+    "planner_budget_s": 0.035,
+    "simulation_step_s": 0.05,
+    "clock": "time.perf_counter",
+    "originally_failed_query_outer_wall_s": 0.0368184999679178,
+    "repeated_fixed_input_count": 8,
+    "repeated_fixed_input_valid_count": 8,
+    "repeated_fixed_input_wall_min_s": 0.025778200011700392,
+    "repeated_fixed_input_wall_max_s": 0.0274218000122346,
+    "repeated_fixed_input_queries": [
+      {
+        "label": "wall_frame_True_0",
+        "low_speed_counterfactual": false,
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.026641400007065386,
+        "initialization": {
+          "s0": 0.4997546042096691,
+          "d0": -3.331574468689867e-05,
+          "dprime": 0.0033943111293747654,
+          "dsecond": 0.16779703972229842,
+          "curvature_method": "yaw_over_speed",
+          "acceleration_method": "zero_start_assumption"
+        },
+        "rejections": {
+          "geometry_feasible": 3,
+          "feasible": 6
+        },
+        "contract_errors": []
+      },
+      {
+        "label": "wall_frame_True_1",
+        "low_speed_counterfactual": false,
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.02678449999075383,
+        "initialization": {
+          "s0": 0.4997546042096691,
+          "d0": -3.331574468689867e-05,
+          "dprime": 0.0033943111293747654,
+          "dsecond": 0.16779703972229842,
+          "curvature_method": "yaw_over_speed",
+          "acceleration_method": "zero_start_assumption"
+        },
+        "rejections": {
+          "geometry_feasible": 3,
+          "feasible": 6
+        },
+        "contract_errors": []
+      },
+      {
+        "label": "wall_frame_True_2",
+        "low_speed_counterfactual": false,
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.025789399980567396,
+        "initialization": {
+          "s0": 0.4997546042096691,
+          "d0": -3.331574468689867e-05,
+          "dprime": 0.0033943111293747654,
+          "dsecond": 0.16779703972229842,
+          "curvature_method": "yaw_over_speed",
+          "acceleration_method": "zero_start_assumption"
+        },
+        "rejections": {
+          "geometry_feasible": 3,
+          "feasible": 6
+        },
+        "contract_errors": []
+      },
+      {
+        "label": "wall_frame_True_3",
+        "low_speed_counterfactual": false,
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.02646869997261092,
+        "initialization": {
+          "s0": 0.4997546042096691,
+          "d0": -3.331574468689867e-05,
+          "dprime": 0.0033943111293747654,
+          "dsecond": 0.16779703972229842,
+          "curvature_method": "yaw_over_speed",
+          "acceleration_method": "zero_start_assumption"
+        },
+        "rejections": {
+          "geometry_feasible": 3,
+          "feasible": 6
+        },
+        "contract_errors": []
+      },
+      {
+        "label": "wall_frame_True_4",
+        "low_speed_counterfactual": false,
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.026176399958785623,
+        "initialization": {
+          "s0": 0.4997546042096691,
+          "d0": -3.331574468689867e-05,
+          "dprime": 0.0033943111293747654,
+          "dsecond": 0.16779703972229842,
+          "curvature_method": "yaw_over_speed",
+          "acceleration_method": "zero_start_assumption"
+        },
+        "rejections": {
+          "geometry_feasible": 3,
+          "feasible": 6
+        },
+        "contract_errors": []
+      },
+      {
+        "label": "wall_frame_True_5",
+        "low_speed_counterfactual": false,
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.026744699978735298,
+        "initialization": {
+          "s0": 0.4997546042096691,
+          "d0": -3.331574468689867e-05,
+          "dprime": 0.0033943111293747654,
+          "dsecond": 0.16779703972229842,
+          "curvature_method": "yaw_over_speed",
+          "acceleration_method": "zero_start_assumption"
+        },
+        "rejections": {
+          "geometry_feasible": 3,
+          "feasible": 6
+        },
+        "contract_errors": []
+      },
+      {
+        "label": "wall_frame_True_6",
+        "low_speed_counterfactual": false,
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.025778200011700392,
+        "initialization": {
+          "s0": 0.4997546042096691,
+          "d0": -3.331574468689867e-05,
+          "dprime": 0.0033943111293747654,
+          "dsecond": 0.16779703972229842,
+          "curvature_method": "yaw_over_speed",
+          "acceleration_method": "zero_start_assumption"
+        },
+        "rejections": {
+          "geometry_feasible": 3,
+          "feasible": 6
+        },
+        "contract_errors": []
+      },
+      {
+        "label": "wall_frame_True_7",
+        "low_speed_counterfactual": false,
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.0274218000122346,
+        "initialization": {
+          "s0": 0.4997546042096691,
+          "d0": -3.331574468689867e-05,
+          "dprime": 0.0033943111293747654,
+          "dsecond": 0.16779703972229842,
+          "curvature_method": "yaw_over_speed",
+          "acceleration_method": "zero_start_assumption"
+        },
+        "rejections": {
+          "geometry_feasible": 3,
+          "feasible": 6
+        },
+        "contract_errors": []
+      }
+    ],
+    "geometry_isolation_freezes_planner_clock": true,
+    "cstar_wall_advances_simulation_clock": false,
+    "profile_note": "Cumulative profiling hotspot about 84% in continuous clearance; profiling overhead is not real-time evidence."
+  },
+  "exact_state_resume": {
+    "configuration": {
+      "road_input": "map_oracle",
+      "state_input": "plant_truth",
+      "map_lookahead_m": 2.0,
+      "initial_progress_m": 0.40753073045658084,
+      "initial_speed_mps": 0.0,
+      "require_cartesian_compatibility": false,
+      "clearance_bound_scope": "continuous_geometry",
+      "enforce_planner_wall_clock": false,
+      "lattice": {
+        "geometry_step_m": 0.015,
+        "horizon_m": 0.8,
+        "transition_lengths_m": "0.15,0.2,0.3,0.4,0.5,0.6,0.8",
+        "durations_s": "1.0",
+        "score_time_s": 1.0,
+        "terminal_speeds_mps": "0.05,0.1,0.2",
+        "terminal_offsets_m": "0.0",
+        "minimum_output_m": 0.15,
+        "max_candidates": 256
+      },
+      "diagnostic_override": "finite_speed_curvature_down_to_1e-6_mps_in_memory_only",
+      "resume_source": "continuous-body/run-parameters/trace.jsonl",
+      "resume_global_step": 359
+    },
+    "initial_progress_m": 1.9393127468935583,
+    "final_progress_m": 1.9468641174873125,
+    "goal_progress_m": 4.736799508178038,
+    "steps": 3,
+    "valid_path_count": 3,
+    "path_contract_error_count": 0,
+    "completed": false,
+    "fault": "planning:no_feasible_lattice_trajectory",
+    "wall_s": 2.351645099988673,
+    "planner_source_sha256": "023ba02201c32f6300e8e109a0fee42d483d5754239fbaf745a721b2ecccdeff",
+    "planner_wall_clock_enforced": false,
+    "state_replay_max_absolute_error": 0.0,
+    "diagnostic_initialization_override": true,
+    "production_success_evidence": false,
+    "control_note": "C* refreshed on resume; original interval is .5 s; previous control and path restored."
+  },
+  "followup_failure_state": {
+    "pose": [
+      1.9735415797165332,
+      -0.04574264874473696,
+      -0.0856301490842804,
+      0.05883612527461094,
+      -0.003400685033014675,
+      -0.025762765401626336,
+      -0.14350499345842166
+    ],
+    "progress_m": 1.9468641174873125,
+    "signed_offset_m": 0.12491987758722568,
+    "road_heading_rad": -0.3965650498867035,
+    "plant_road_curvature_per_m": -0.3262273669242859
+  },
+  "unchanged_native_parameter_queries": [
+    {
+      "horizon_m": 0.4,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.025353899982292205,
+      "planned_stop": null,
+      "selected": null,
+      "rejections": {
+        "transition_exceeds_common_horizon": 30,
+        "steering_limit": 9,
+        "body_boundary_or_obstacle_collision": 2,
+        "unreachable_cg_curvature": 1
+      },
+      "contract_errors": [],
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 0.4,
+          "transition_lengths_m": ".3,.4,.5,.6,.8,1.0,1.2",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      }
+    },
+    {
+      "horizon_m": 0.6,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.12004350003553554,
+      "planned_stop": null,
+      "selected": null,
+      "rejections": {
+        "transition_exceeds_common_horizon": 18,
+        "steering_limit": 17,
+        "swept_body_boundary_or_obstacle_collision": 2,
+        "body_boundary_or_obstacle_collision": 4,
+        "unreachable_cg_curvature": 1
+      },
+      "contract_errors": [],
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 0.6,
+          "transition_lengths_m": ".3,.4,.5,.6,.8,1.0,1.2",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      }
+    },
+    {
+      "horizon_m": 0.8,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.15826759999617934,
+      "planned_stop": null,
+      "selected": null,
+      "rejections": {
+        "transition_exceeds_common_horizon": 12,
+        "body_boundary_or_obstacle_collision": 8,
+        "steering_limit": 19,
+        "swept_body_boundary_or_obstacle_collision": 2,
+        "unreachable_cg_curvature": 1
+      },
+      "contract_errors": [],
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 0.8,
+          "transition_lengths_m": ".3,.4,.5,.6,.8,1.0,1.2",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      }
+    },
+    {
+      "horizon_m": 1.0,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.19824570004129782,
+      "planned_stop": null,
+      "selected": null,
+      "rejections": {
+        "transition_exceeds_common_horizon": 6,
+        "body_boundary_or_obstacle_collision": 14,
+        "steering_limit": 19,
+        "swept_body_boundary_or_obstacle_collision": 2,
+        "unreachable_cg_curvature": 1
+      },
+      "contract_errors": [],
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 1.0,
+          "transition_lengths_m": ".3,.4,.5,.6,.8,1.0,1.2",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      }
+    },
+    {
+      "horizon_m": 1.2,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.2503214000025764,
+      "planned_stop": null,
+      "selected": null,
+      "rejections": {
+        "transition_exceeds_common_horizon": 6,
+        "body_boundary_or_obstacle_collision": 14,
+        "steering_limit": 19,
+        "swept_body_boundary_or_obstacle_collision": 2,
+        "unreachable_cg_curvature": 1
+      },
+      "contract_errors": [],
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 1.2,
+          "transition_lengths_m": ".3,.4,.5,.6,.8,1.0,1.2",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      }
+    }
+  ],
+  "prefix_counterfactual_queries": [
+    {
+      "diagnostic_override": "allow_checked_prefix_of_longer_transition",
+      "horizon_m": 0.3,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.24128560000099242,
+      "planned_stop": null,
+      "selected": null,
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 0.3,
+          "transition_lengths_m": ".5,.6,.8,1.0,1.2,1.5",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      },
+      "rejections": {
+        "body_boundary_or_obstacle_collision": 24,
+        "steering_limit": 10,
+        "swept_body_boundary_or_obstacle_collision": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "diagnostic_override": "allow_checked_prefix_of_longer_transition",
+      "horizon_m": 0.4,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.26626040000701323,
+      "planned_stop": null,
+      "selected": null,
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 0.4,
+          "transition_lengths_m": ".5,.6,.8,1.0,1.2,1.5",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      },
+      "rejections": {
+        "body_boundary_or_obstacle_collision": 24,
+        "steering_limit": 10,
+        "swept_body_boundary_or_obstacle_collision": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "diagnostic_override": "allow_checked_prefix_of_longer_transition",
+      "horizon_m": 0.5,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.321361500013154,
+      "planned_stop": null,
+      "selected": null,
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 0.5,
+          "transition_lengths_m": ".5,.6,.8,1.0,1.2,1.5",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      },
+      "rejections": {
+        "body_boundary_or_obstacle_collision": 24,
+        "steering_limit": 10,
+        "swept_body_boundary_or_obstacle_collision": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "diagnostic_override": "allow_checked_prefix_of_longer_transition",
+      "horizon_m": 0.6,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.23848759999964386,
+      "planned_stop": null,
+      "selected": null,
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 0.6,
+          "transition_lengths_m": ".5,.6,.8,1.0,1.2,1.5",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      },
+      "rejections": {
+        "body_boundary_or_obstacle_collision": 24,
+        "steering_limit": 10,
+        "swept_body_boundary_or_obstacle_collision": 2
+      },
+      "contract_errors": []
+    },
+    {
+      "diagnostic_override": "allow_checked_prefix_of_longer_transition",
+      "horizon_m": 0.8,
+      "valid": false,
+      "reason": "no_feasible_lattice_trajectory",
+      "wall_s": 0.2670979999820702,
+      "planned_stop": null,
+      "selected": null,
+      "configuration": {
+        "road_input": "map_oracle",
+        "state_input": "plant_truth",
+        "map_lookahead_m": 2.0,
+        "initial_progress_m": 0.40753073045658084,
+        "initial_speed_mps": 0.0,
+        "require_cartesian_compatibility": false,
+        "clearance_bound_scope": "continuous_geometry",
+        "enforce_planner_wall_clock": false,
+        "lattice": {
+          "geometry_step_m": 0.015,
+          "horizon_m": 0.8,
+          "transition_lengths_m": ".5,.6,.8,1.0,1.2,1.5",
+          "durations_s": "1.0",
+          "score_time_s": 1.0,
+          "terminal_speeds_mps": "0.05,0.1,0.2",
+          "terminal_offsets_m": "-.25,-.125,0.0,.125,.25",
+          "minimum_output_m": 0.15,
+          "max_candidates": 256
+        }
+      },
+      "rejections": {
+        "body_boundary_or_obstacle_collision": 24,
+        "steering_limit": 10,
+        "swept_body_boundary_or_obstacle_collision": 2
+      },
+      "contract_errors": []
+    }
+  ],
+  "cold_station_queries": [
+    {
+      "progress_m": 0.5,
+      "valid": true,
+      "reason": "lattice_selected",
+      "wall_s": 0.10803820000728592,
+      "contract_errors": []
+    },
+    {
+      "progress_m": 1.0,
+      "valid": true,
+      "reason": "lattice_selected",
+      "wall_s": 0.17027079995023087,
+      "contract_errors": []
+    },
+    {
+      "progress_m": 1.5,
+      "valid": true,
+      "reason": "lattice_selected",
+      "wall_s": 0.16754880000371486,
+      "contract_errors": []
+    },
+    {
+      "progress_m": 2.0,
+      "valid": true,
+      "reason": "lattice_selected",
+      "wall_s": 0.28003839997109026,
+      "contract_errors": []
+    },
+    {
+      "progress_m": 2.5,
+      "valid": true,
+      "reason": "lattice_selected",
+      "wall_s": 0.272710699995514,
+      "contract_errors": []
+    },
+    {
+      "progress_m": 3.0,
+      "valid": true,
+      "reason": "lattice_selected",
+      "wall_s": 0.4132473000208847,
+      "contract_errors": []
+    },
+    {
+      "progress_m": 3.5,
+      "valid": true,
+      "reason": "lattice_selected",
+      "wall_s": 0.28799129999242723,
+      "contract_errors": []
+    },
+    {
+      "progress_m": 4.0,
+      "valid": true,
+      "reason": "lattice_selected",
+      "wall_s": 0.1830439000041224,
+      "contract_errors": []
+    },
+    {
+      "progress_m": 4.5,
+      "valid": true,
+      "reason": "lattice_selected",
+      "wall_s": 0.06588180002290756,
+      "contract_errors": []
+    }
+  ],
+  "fresh_native_clock_isolated_run": {
+    "configuration": {
+      "road_input": "map_oracle",
+      "state_input": "plant_truth",
+      "map_lookahead_m": 2.0,
+      "initial_progress_m": 0.40753073045658084,
+      "initial_speed_mps": 0.0,
+      "require_cartesian_compatibility": false,
+      "clearance_bound_scope": "continuous_geometry",
+      "enforce_planner_wall_clock": false,
+      "lattice": {
+        "geometry_step_m": 0.05,
+        "horizon_m": 0.8,
+        "minimum_output_m": 0.15,
+        "transition_lengths_m": "0.15,0.3,0.6,0.8",
+        "terminal_offsets_m": "0.0",
+        "durations_s": "3.0",
+        "score_time_s": 3.0,
+        "terminal_speeds_mps": "0.1,0.2"
+      }
+    },
+    "initial_progress_m": 0.40753073045658084,
+    "final_progress_m": 1.9468461494154332,
+    "goal_progress_m": 4.736799508178038,
+    "steps": 312,
+    "valid_path_count": 312,
+    "path_contract_error_count": 0,
+    "completed": false,
+    "fault": "planning:no_feasible_lattice_trajectory",
+    "wall_s": 176.20991909998702,
+    "planner_source_sha256": "023ba02201c32f6300e8e109a0fee42d483d5754239fbaf745a721b2ecccdeff",
+    "planner_wall_clock_enforced": false,
+    "diagnostic_planner_override": false,
+    "failure_pose": [
+      1.9662081512609817,
+      -0.0632071839800134,
+      -0.12315596086738055,
+      0.15232265134201778,
+      -0.001506115617228734,
+      -0.011409966797187344,
+      -0.024714274705885123
+    ],
+    "failure_initialization": {
+      "s0": 0.498312533414346,
+      "d0": 0.10597700161160317,
+      "dprime": 0.3057605625700468,
+      "dsecond": 0.9919577429266411,
+      "curvature_method": "yaw_over_speed",
+      "acceleration_method": "zero_start_assumption"
+    },
+    "rejection_counts": {
+      "steering_limit": 4,
+      "geometry_feasible": 2,
+      "steering_rate_limit": 4,
+      "stop_trajectory_accelerates": 2,
+      "unreachable_cg_curvature": 2
+    }
+  },
+  "limitations": [
+    "Cold station checks do not establish continuous execution.",
+    "Fixed-input repetition does not prove host worst-case or target-hardware timing.",
+    "In-memory counterfactuals do not modify or qualify the production planner.",
+    "Changing the speed convention alone is not an established fix.",
+    "The oracle local_curvature_1pm metadata used segment index 9 instead of actual curvature; native lattice computes its own curve and does not read this metadata.",
+    "A from-start finite-speed counterfactual was interrupted; its partial output is not completion evidence."
+  ]
+}

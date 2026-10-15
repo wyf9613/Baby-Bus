@@ -1,5 +1,15 @@
 # Lattice policy 的完整训练管线
 
+2026-10-15：[实车锥桶道路的 native 理想输入诊断](NATIVE_REPLAY_CN.md) 已记录。
+直接 Frenet 输出、20 Hz查询及现有C*执行下，原生基线仍不能完整通过重建道路；
+该实验用于定位planner问题，未修改训练模型或实际部署。
+后续已将净空检查替换为[连续边界与完整车身几何](CONTINUOUS_BODY_CN.md)，保留5 cm
+硬余量；原失败帧恢复，整路闭环仍未通过。[入弯与计时复核](REMAINING_DIAGNOSIS_CN.md)
+进一步区分低速硬阈值、主机计时中止，以及隔离计时后仍存在的入弯候选/运动限制失败。
+
+实际 policy 接线见[模型接入 native planner 指南](INTEGRATION_CN.md)：模型加载、
+实时 observation、`candidate_scorer` 回调、节点插入位置和当前 ROS 打包条件。
+
 可随仓库获取的[当前模型、训练曲线和结果记录](artifacts/2026-10-11-augmented-sigmoid/README.md)
 已保留，包含扩充前的对照模型。大型冻结数据及原始仿真 trace 仍位于本地 `.verification/`。
 

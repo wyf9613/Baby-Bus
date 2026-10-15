@@ -31,6 +31,128 @@ def planner(**kwargs):
 
 
 class LatticeChecks(unittest.TestCase):
+    def test_continuous_body_clearance_is_physical_distance_without_grid_penalties(self):
+        active = planner()
+        model = active._model({})
+        left = ns["LatticeCurve"]([(-1, 0.5), (0, 0.5), (1, 0.5)], 0, 0.025)
+        right = ns["LatticeCurve"]([(-1, -0.5), (0, -0.5), (1, -0.5)], 0, 0.025)
+        for step in (0.01, 0.025, 0.05):
+            active.cfg.geometry_step_m = step
+            g = dict(x=0.0, y=0.0, heading=0.0, curvature=2.0, q=3.0)
+            self.assertAlmostEqual(active._clearance(g, left, right, [], model), 0.325, places=12)
+        # Being entirely outside a boundary must not become a positive unsigned distance.
+        self.assertLess(active._clearance(dict(g, y=0.8), left, right, [], model), 0)
+
+    def test_continuous_body_finds_narrowing_and_intrusion_between_old_edge_samples(self):
+        active = planner()
+        model = active._model({})
+        spacing = (model["front_extent_m"]+model["rear_extent_m"])/4
+        vertex = -model["rear_extent_m"]+spacing/2
+        right = ns["LatticeCurve"]([(-0.5, -0.5), (0, -0.5), (0.5, -0.5)], 0, 0.025)
+        for minimum_y, expected in ((0.165, -0.01), (0.10, -0.05)):
+            coefficient = (0.25-minimum_y)/(spacing/2)**2
+            left = ns["LatticeCurve"]([(x, minimum_y+coefficient*(x-vertex)**2)
+                                     for x in (-0.5, -0.25, 0, 0.25, 0.5)], 0, 0.025)
+            old_points = [-model["rear_extent_m"]+spacing*i for i in range(5)]
+            self.assertTrue(all(left.at_x(x)[0]-model["width_m"]/2 > 0.05 for x in old_points))
+            g = dict(x=0.0, y=0.0, heading=0.0, curvature=0.0, q=1.0)
+            self.assertAlmostEqual(active._clearance(g, left, right, [], model), expected, places=10)
+
+    def test_continuous_body_distance_handles_rotation_and_oblique_nearest_corner(self):
+        active = planner()
+        model = active._model({})
+        left = ns["LatticeCurve"]([(-1, 0.3), (0, 0.3), (1, 0.3)], 0, 0.025)
+        right = ns["LatticeCurve"]([(-1, -0.3), (0, -0.3), (1, -0.3)], 0, 0.025)
+        g = dict(x=0.0, y=0.0, heading=math.pi/4, curvature=0.0, q=1.0)
+        expected = 0.3-(model["front_extent_m"]+model["width_m"]/2)/math.sqrt(2)-0.05
+        self.assertAlmostEqual(active._clearance(g, left, right, [], model), expected, places=12)
+        sloped = ns["LatticeCurve"]([(-1, -0.2), (0, 0.8), (1, 1.8)], 0, 0.025)
+        expected = (0.8-model["rear_extent_m"]-model["width_m"]/2)/math.sqrt(2)
+        self.assertAlmostEqual(sloped.rectangle_distance(dict(g, heading=0.0), model), expected, places=12)
+
+    def test_continuous_curve_box_minima_match_independent_dense_curve_evaluation(self):
+        active = planner()
+        model = active._model({})
+        cases = ((0.1, 0.4, -0.7, 0.0, 0.2), (-0.2, -0.3, 0.6, 0.0, -0.1),
+                 (0.8, 0.1, -0.2, 0.0, 0.3), (0.7, 0.2, -0.25, 0.13, -0.35),
+                 (-0.6, -0.3, 0.15, -0.2, 0.45), (0.15, 0.3, -0.4, 0.2, -0.2))
+        for a, b, c, d, heading in cases:
+            curve = ns["LatticeCurve"]([(x, a+b*x+c*x*x+d*x**3) for x in (-1, -0.5, 0, 0.5, 1)], 0, 0.025)
+            g = dict(x=0.0, y=0.0, heading=heading)
+            actual = curve.rectangle_distance(g, model)
+            ca, sa = math.cos(heading), math.sin(heading)
+            dense = math.inf
+            for i in range(20001):
+                x = -1+i/10000
+                y = curve.at_x(x)[0]
+                bx, by = ca*x+sa*y, -sa*x+ca*y
+                dense = min(dense, math.hypot(max(-model["rear_extent_m"]-bx, 0, bx-model["front_extent_m"]),
+                                              max(abs(by)-model["width_m"]/2, 0)))
+            self.assertLessEqual(actual, dense+1e-10)
+            self.assertLess(dense-actual, 2e-4)
+
+    def test_continuous_body_travel_bound_covers_rotating_frenet_motion(self):
+        active = planner()
+        model = active._model({})
+        curve = ns["LatticeCurve"]([(x, 0.2*x*x+0.05*x**3) for x in (-0.5, 0, 0.5, 1, 1.5, 2)], 0, 0.025)
+        origin = curve.project_origin()[0]
+        coeffs = ns["_lattice_lateral"](-0.03, 0.04, 0.05, 0.1, 0.8)
+        corners = [(x, y) for x in (-model["rear_extent_m"], model["front_extent_m"])
+                   for y in (-model["width_m"]/2, model["width_m"]/2)]
+        for lo, hi in ((0.1, 0.2), (0.7, 0.9), (1.0, 1.2)):
+            rate = active._body_motion_bound(curve, coeffs, 0.8, 0.1, origin, origin+lo, origin+hi, model)
+            self.assertTrue(math.isfinite(rate))
+            previous = None
+            ds = (hi-lo)/1000
+            for i in range(1001):
+                g = ns["_lattice_geometry"](curve, origin, coeffs, 0.8, 0.1, origin+lo+i*ds)
+                c, s = math.cos(g["heading"]), math.sin(g["heading"])
+                body = [(g["x"]+c*x-s*y, g["y"]+s*x+c*y) for x, y in corners]
+                if previous is not None:
+                    observed = max(math.hypot(b[0]-a[0], b[1]-a[1])/ds for a, b in zip(previous, body))
+                    self.assertLessEqual(observed, rate*(1+1e-6))
+                previous = body
+
+    def test_continuous_body_requires_full_boundary_support(self):
+        active = planner()
+        curve = ns["LatticeCurve"]([(0, 0.5), (0.5, 0.5), (1, 0.5)], 0, 0.025)
+        with self.assertRaisesRegex(ValueError, "curve_range"):
+            curve.rectangle_distance(dict(x=0.0, y=0.0, heading=0.0), active._model({}))
+
+    def test_continuous_interval_finds_boundary_and_obstacle_collision_between_safe_poses(self):
+        active = planner()
+        model = active._model({})
+        curve = ns["LatticeCurve"]([(-0.5, 0), (0, 0), (1.5, 0)], 0, 0.025)
+        right = ns["LatticeCurve"]([(-0.5, -0.5), (0, -0.5), (1.5, -0.5)], 0, 0.025)
+        origin = curve.project_origin()[0]
+        coeffs = ns["_lattice_lateral"](0, 0, 0, 0, 1.5)
+        straight_left = ns["LatticeCurve"]([(-0.5, 0.5), (0, 0.5), (1.5, 0.5)], 0, 0.025)
+        narrowing = ns["LatticeCurve"]([(x, 0.1+20*(x-0.45)**2) for x in (-0.5, 0, 0.45, 0.8, 1.5)], 0, 0.025)
+        for left, obstacles in ((straight_left, [(0.4, 0.0)]), (narrowing, [])):
+            ends = [ns["_lattice_geometry"](curve, origin, coeffs, 1.5, 0, origin+s) for s in (0.0, 0.8)]
+            for g in ends:
+                g["clearance"] = active._clearance(g, left, right, obstacles, model)
+                self.assertGreater(g["clearance"], 0)
+            with self.assertRaisesRegex(ValueError, "swept_body_boundary_or_obstacle_collision"):
+                active._check_body_interval(curve, left, right, obstacles, model,
+                    origin, coeffs, 1.5, 0, *ends, lambda: None)
+
+    def test_continuous_interval_also_checks_cartesian_compatibility_curve(self):
+        active = planner()
+        model = active._model({})
+        left = ns["LatticeCurve"]([(-1, 0.5), (0, 0.5), (2, 0.5)], 0, 0.025)
+        right = ns["LatticeCurve"]([(-1, -0.5), (0, -0.5), (2, -0.5)], 0, 0.025)
+        # Both endpoint poses are straight and centered; the actual quartic
+        # rises into the left boundary between them.
+        coeffs = [0.0, 0.0, 6.4, -12.8, 6.4]
+        ends = [dict(s=x, x=x, y=0.0, heading=0.0) for x in (0.0, 0.8)]
+        for g in ends:
+            g["clearance"] = active._clearance(g, left, right, [], model)
+            self.assertGreater(g["clearance"], 0)
+        with self.assertRaisesRegex(ValueError, "swept_body_boundary_or_obstacle_collision"):
+            active._check_body_interval(None, left, right, [], model, 0.0, coeffs, 0.8, None,
+                *ends, lambda: None, cartesian_origin=0.0)
+
     def test_candidate_collection_keeps_default_rule_selection(self):
         original, collecting = planner(), planner()
         original.clock = collecting.clock = lambda: 0.0

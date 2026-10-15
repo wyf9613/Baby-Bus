@@ -1,0 +1,26 @@
+{
+  "estimation": {
+    "motion_max_interval_s": 0.4,
+    "road_forward_max_m": 1.5,
+    "road_max_abs_slope": 3.0,
+    "huber_delta_m": 0.08,
+    "min_cone_confidence": 0.75,
+    "road_min_coverage_m": 0.2
+  },
+  "lattice": {
+    "transition_lengths_m": "0.3,0.4,0.5,0.6",
+    "terminal_offsets_m": "-0.05,0.0,0.05",
+    "terminal_speeds_mps": "0.1,0.2",
+    "horizon_m": 0.6,
+    "blind_lateral_change_m": 0.08,
+    "minimum_output_m": 0.15,
+    "max_candidates": 81,
+    "durations_s": "1.0",
+    "score_time_s": 1.0
+  },
+  "initial_progress_m": 0.4,
+  "road_input": "map_oracle",
+  "map_lookahead_m": 1.1,
+  "goal_progress_m": 4.633799508178038,
+  "state_input": "plant_truth"
+}

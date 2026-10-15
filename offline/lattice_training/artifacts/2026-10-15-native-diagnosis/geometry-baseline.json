@@ -1,0 +1,10 @@
+{
+  "road_input": "map_oracle",
+  "state_input": "plant_truth",
+  "map_lookahead_m": 2.0,
+  "initial_progress_m": 0.40753073045658084,
+  "initial_speed_mps": 0.0,
+  "require_cartesian_compatibility": false,
+  "clearance_bound_scope": "native_global",
+  "enforce_planner_wall_clock": false
+}

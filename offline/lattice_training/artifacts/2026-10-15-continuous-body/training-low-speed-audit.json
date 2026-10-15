@@ -1,0 +1,447 @@
+{
+  "historical_data_modified": false,
+  "reports": [
+    {
+      "batch": ".verification\\eight-road-collection-20261011",
+      "decisions": 150,
+      "candidates": 3544,
+      "sequences": 32,
+      "road_goal_reached": 0,
+      "terminal_counts": {
+        "planned_stop_reference_complete": 7,
+        "planning_failure": 25
+      },
+      "fault_counts": {
+        "invalid_estimates_or_boundaries": 15,
+        "no_feasible_lattice_trajectory": 7,
+        "insufficient_body_supported_horizon": 3
+      },
+      "records_sha256": "e8de0bf1b6b4d14df9969c2c16acf21c9455b914aaa1357cf2de6c772c2e1020",
+      "planner_source_sha256_counts": {
+        "9fd8d7b67b72caf8da20dab461cf16a10ad74b4fc7b45e2edd6a77b35e781805": 150
+      },
+      "labeled_decision_count": 150,
+      "split_decisions": {
+        "train": 78,
+        "validation": 37,
+        "test": 35
+      },
+      "labeled_speed_min_mps": 0.09238074708240573,
+      "labeled_speed_max_mps": 0.3000000119209289,
+      "labeled_low_speed_count": 0,
+      "labeled_low_speed_high_yaw_count": 0,
+      "labeled_low_speed_cases": [],
+      "combined_condition_cases": [],
+      "within_sequence_planner_query_interval_count": 120,
+      "within_sequence_planner_query_interval_min_s": 6.450000000000003,
+      "within_sequence_planner_query_interval_median_s": 9.675000000000002,
+      "within_sequence_planner_query_interval_max_s": 20.400000000000002,
+      "planner_failure_states": [
+        {
+          "episode_id": "randomized:0:initial:0:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.0999795257543772,
+          "yaw_rate_rps": 0.01527804455169895
+        },
+        {
+          "episode_id": "randomized:0:initial:1:lattice:standard",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.09999768819624116,
+          "yaw_rate_rps": 0.005116605478264943
+        },
+        {
+          "episode_id": "randomized:0:initial:1:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.09999791861619704,
+          "yaw_rate_rps": 0.004904722916706028
+        },
+        {
+          "episode_id": "randomized:1:initial:0:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.29994482051532523,
+          "yaw_rate_rps": -0.04376257825355722
+        },
+        {
+          "episode_id": "randomized:1:initial:0:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.29994470180575417,
+          "yaw_rate_rps": -0.043113773635158816
+        },
+        {
+          "episode_id": "randomized:1:initial:1:lattice:standard",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.09998103480540688,
+          "yaw_rate_rps": -0.014682130657272377
+        },
+        {
+          "episode_id": "randomized:1:initial:1:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.09998756151584948,
+          "yaw_rate_rps": -0.011916220415408452
+        },
+        {
+          "episode_id": "randomized:2:initial:0:lattice:standard",
+          "reason": "insufficient_body_supported_horizon",
+          "speed_mps": 0.09998505837635924,
+          "yaw_rate_rps": 0.013030988817908169
+        },
+        {
+          "episode_id": "randomized:2:initial:0:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.19996123971663007,
+          "yaw_rate_rps": 0.0297063814912208
+        },
+        {
+          "episode_id": "randomized:2:initial:1:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.206672265776649,
+          "yaw_rate_rps": 0.0
+        },
+        {
+          "episode_id": "randomized:2:initial:1:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.206672265776649,
+          "yaw_rate_rps": 0.0
+        },
+        {
+          "episode_id": "randomized:3:initial:0:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.09999979647248425,
+          "yaw_rate_rps": -0.001467796705765273
+        },
+        {
+          "episode_id": "randomized:3:initial:1:lattice:standard",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.19992377157994615,
+          "yaw_rate_rps": 0.03481369679378524
+        },
+        {
+          "episode_id": "randomized:3:initial:1:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.1000000014901161,
+          "yaw_rate_rps": -0.00013146003128238908
+        },
+        {
+          "episode_id": "randomized:100:initial:0:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.09999407053614295,
+          "yaw_rate_rps": 0.008223177990232384
+        },
+        {
+          "episode_id": "randomized:100:initial:1:lattice:standard",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.09996874340882914,
+          "yaw_rate_rps": 0.018847679118753968
+        },
+        {
+          "episode_id": "randomized:100:initial:1:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.09997181763285316,
+          "yaw_rate_rps": 0.017928033300459754
+        },
+        {
+          "episode_id": "randomized:101:initial:0:lattice:standard",
+          "reason": "insufficient_body_supported_horizon",
+          "speed_mps": 0.29999999355138196,
+          "yaw_rate_rps": -0.0003276389233459793
+        },
+        {
+          "episode_id": "randomized:101:initial:0:lattice:wide",
+          "reason": "insufficient_body_supported_horizon",
+          "speed_mps": 0.29999996399959394,
+          "yaw_rate_rps": -0.0005966787940691798
+        },
+        {
+          "episode_id": "randomized:101:initial:1:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.19999995979904156,
+          "yaw_rate_rps": -0.0009935292905712248
+        },
+        {
+          "episode_id": "randomized:101:initial:1:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.09998551120527624,
+          "yaw_rate_rps": 0.012824347756349922
+        },
+        {
+          "episode_id": "randomized:200:initial:1:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.19998729503367008,
+          "yaw_rate_rps": 0.016923035115862052
+        },
+        {
+          "episode_id": "randomized:201:initial:0:lattice:standard",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.19995117520723057,
+          "yaw_rate_rps": -0.03310140738154606
+        },
+        {
+          "episode_id": "randomized:201:initial:0:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.19995323777304505,
+          "yaw_rate_rps": -0.032492012388757104
+        },
+        {
+          "episode_id": "randomized:201:initial:1:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.29993596442763487,
+          "yaw_rate_rps": -0.04600195249018761
+        }
+      ],
+      "pipeline_settings": {
+        "kinds": [
+          "randomized"
+        ],
+        "train_seeds": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "validation_seeds": [
+          100,
+          101
+        ],
+        "test_seeds": [
+          200,
+          201
+        ],
+        "decisions": 3,
+        "until_road_end": true,
+        "max_segments": 100,
+        "starts_per_road": 2,
+        "planner_profiles": [
+          "standard",
+          "wide"
+        ],
+        "segment_resampling_attempts": 6,
+        "trials": 2,
+        "evaluation_steps": 60,
+        "max_near_gap_m": 1.2,
+        "max_extension_m": 1.6,
+        "allow_unobserved_origin": true,
+        "require_cartesian_compatibility": false
+      }
+    },
+    {
+      "batch": ".verification\\train-augmentation-20261011\\addition",
+      "decisions": 67,
+      "candidates": 1392,
+      "sequences": 32,
+      "road_goal_reached": 0,
+      "terminal_counts": {
+        "planned_stop_reference_complete": 7,
+        "planning_failure": 25
+      },
+      "fault_counts": {
+        "no_feasible_lattice_trajectory": 13,
+        "invalid_estimates_or_boundaries": 5,
+        "insufficient_body_supported_horizon": 3,
+        "insufficient_lattice_coverage": 4
+      },
+      "records_sha256": "121f8fabe87912fd28a4d36c24a21a1dc6219fdb5248c67f6abe71489e7187a7",
+      "planner_source_sha256_counts": {
+        "9fd8d7b67b72caf8da20dab461cf16a10ad74b4fc7b45e2edd6a77b35e781805": 67
+      },
+      "labeled_decision_count": 67,
+      "split_decisions": {
+        "train": 67
+      },
+      "labeled_speed_min_mps": 0.09993122704629624,
+      "labeled_speed_max_mps": 0.3000000119209289,
+      "labeled_low_speed_count": 0,
+      "labeled_low_speed_high_yaw_count": 0,
+      "labeled_low_speed_cases": [],
+      "combined_condition_cases": [],
+      "within_sequence_planner_query_interval_count": 42,
+      "within_sequence_planner_query_interval_min_s": 6.699999999999999,
+      "within_sequence_planner_query_interval_median_s": 9.325000000000001,
+      "within_sequence_planner_query_interval_max_s": 19.45,
+      "planner_failure_states": [
+        {
+          "episode_id": "randomized:4:initial:0:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.09992214423587072,
+          "yaw_rate_rps": 0.00032778798084704834
+        },
+        {
+          "episode_id": "randomized:4:initial:1:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.2999383537585648,
+          "yaw_rate_rps": -0.04558706015087195
+        },
+        {
+          "episode_id": "randomized:5:initial:0:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.09996773200781624,
+          "yaw_rate_rps": -0.019176098345555923
+        },
+        {
+          "episode_id": "randomized:5:initial:0:lattice:wide",
+          "reason": "insufficient_body_supported_horizon",
+          "speed_mps": 0.299907161865432,
+          "yaw_rate_rps": -0.05593761428331684
+        },
+        {
+          "episode_id": "randomized:5:initial:1:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.09997004996008972,
+          "yaw_rate_rps": 0.01839867114129754
+        },
+        {
+          "episode_id": "randomized:5:initial:1:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.19994192278031878,
+          "yaw_rate_rps": 0.03604576050918613
+        },
+        {
+          "episode_id": "randomized:6:initial:0:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.2999997377358948,
+          "yaw_rate_rps": 0.0016374211778252537
+        },
+        {
+          "episode_id": "randomized:6:initial:0:lattice:wide",
+          "reason": "insufficient_body_supported_horizon",
+          "speed_mps": 0.19999994323432427,
+          "yaw_rate_rps": -0.0011482741454531347
+        },
+        {
+          "episode_id": "randomized:7:initial:0:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.09999116375942664,
+          "yaw_rate_rps": -0.010107786945686443
+        },
+        {
+          "episode_id": "randomized:7:initial:1:lattice:standard",
+          "reason": "insufficient_body_supported_horizon",
+          "speed_mps": 0.1000000014901161,
+          "yaw_rate_rps": -6.76568319174682e-08
+        },
+        {
+          "episode_id": "randomized:7:initial:1:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.3000000119209281,
+          "yaw_rate_rps": -2.204211776070034e-08
+        },
+        {
+          "episode_id": "randomized:8:initial:0:lattice:standard",
+          "reason": "insufficient_lattice_coverage",
+          "speed_mps": 0.10435542107890024,
+          "yaw_rate_rps": 0.0
+        },
+        {
+          "episode_id": "randomized:8:initial:0:lattice:wide",
+          "reason": "insufficient_lattice_coverage",
+          "speed_mps": 0.10435542107890024,
+          "yaw_rate_rps": 0.0
+        },
+        {
+          "episode_id": "randomized:8:initial:1:lattice:standard",
+          "reason": "insufficient_lattice_coverage",
+          "speed_mps": 0.10857586264635338,
+          "yaw_rate_rps": 0.0
+        },
+        {
+          "episode_id": "randomized:8:initial:1:lattice:wide",
+          "reason": "insufficient_lattice_coverage",
+          "speed_mps": 0.10857586264635338,
+          "yaw_rate_rps": 0.0
+        },
+        {
+          "episode_id": "randomized:9:initial:1:lattice:standard",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.0999650237676903,
+          "yaw_rate_rps": -0.019998278873180862
+        },
+        {
+          "episode_id": "randomized:9:initial:1:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.09996041679784902,
+          "yaw_rate_rps": -0.02119145363334076
+        },
+        {
+          "episode_id": "randomized:10:initial:0:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.19998519408187673,
+          "yaw_rate_rps": 0.018191870101107437
+        },
+        {
+          "episode_id": "randomized:10:initial:0:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.09999242697864756,
+          "yaw_rate_rps": 0.009303683662613594
+        },
+        {
+          "episode_id": "randomized:10:initial:1:lattice:standard",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.300000011920709,
+          "yaw_rate_rps": 4.01371686313037e-06
+        },
+        {
+          "episode_id": "randomized:10:initial:1:lattice:wide",
+          "reason": "invalid_estimates_or_boundaries",
+          "speed_mps": 0.1000000014901161,
+          "yaw_rate_rps": 2.4023189535027075e-07
+        },
+        {
+          "episode_id": "randomized:11:initial:0:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.10318742067905491,
+          "yaw_rate_rps": 0.0
+        },
+        {
+          "episode_id": "randomized:11:initial:0:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.09999998972632249,
+          "yaw_rate_rps": -0.00032675277814051684
+        },
+        {
+          "episode_id": "randomized:11:initial:1:lattice:standard",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.08110852347698748,
+          "yaw_rate_rps": 0.0
+        },
+        {
+          "episode_id": "randomized:11:initial:1:lattice:wide",
+          "reason": "no_feasible_lattice_trajectory",
+          "speed_mps": 0.08110852347698748,
+          "yaw_rate_rps": 0.0
+        }
+      ],
+      "pipeline_settings": {
+        "kinds": [
+          "randomized"
+        ],
+        "train_seeds": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "validation_seeds": [],
+        "test_seeds": [],
+        "decisions": 3,
+        "until_road_end": true,
+        "max_segments": 100,
+        "starts_per_road": 2,
+        "planner_profiles": [
+          "standard",
+          "wide"
+        ],
+        "segment_resampling_attempts": 6,
+        "trials": 2,
+        "evaluation_steps": 60,
+        "max_near_gap_m": 1.2,
+        "max_extension_m": 1.6,
+        "allow_unobserved_origin": true,
+        "require_cartesian_compatibility": false,
+        "train_only": true
+      }
+    }
+  ]
+}

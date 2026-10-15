@@ -1,12 +1,85 @@
 # AI4R policy acceptance
 
-Last full training/integration suite result: 53 checks passed on 2026-10-10.
+Last full training/integration suite result: 53 checks passed on 2026-10-15.
 Later offline option changes are covered by the recorded experiments below.
 The run and collect commands share one pipeline
 and one training test file. Eight-road collection has the incomplete-road
 coverage described below. C* is a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
 Historical V2/controller/physical evidence below remains separate.
+
+## Continuous boundary / full body clearance, 2026-10-15
+
+Replaced the native planner's ten footprint samples, global slope conversion,
+edge_guard and subtracted sweep_guard with continuous cubic-boundary distance
+to the full oriented filled rectangle, corridor containment and support checks.
+The configured .05 m hard margin and vehicle/motion limits remain unchanged.
+Unseen backward extension retains its existing uncertainty allowance; it is zero
+on observed body support. Static-point obstacle margins remain unchanged.
+
+Intervals between path poses use body travel bounds to certify clearance or
+subdivide and check actual intermediate poses. Bounded unresolved intervals,
+collisions and timeouts reject the candidate. The Cartesian compatibility route
+also checks intervals on its actual fitted polynomial; recorded-road experiments
+continue to use direct Frenet export. This is numerical geometric validation,
+not a formal or physical safety qualification.
+
+All three recorded failure poses admit native paths with unchanged ideal input.
+The original default-sampling geometric run reached 1.815711 m (281 valid paths),
+and the prior parameter candidate reached 1.939313 m (359 valid paths), then
+failed low_speed_yaw_inconsistent at .049881 m/s and -.060220 rad/s. No run
+completed the 4.736800 m goal. Default 35 ms execution and a shorter/coarser
+sampling experiment still observed lattice_time_budget_exceeded; isolated
+successful frame timing does not establish whole-road real-time execution.
+
+42 lattice checks, 53 training/integration checks, 53 estimation checks, 18 legacy
+planning checks and 21 control checks pass (187 total). The final full pipeline
+suite completed in 624.207 seconds. Results and source fingerprints are recorded in
+offline/lattice_training/artifacts/2026-10-15-continuous-body/verification.json.
+The ROS fast gate was retried through WSL and stops before building because its
+pinned dream_interfaces checkout is absent. No deployment or hardware test.
+Details: offline/lattice_training/CONTINUOUS_BODY_CN.md.
+
+Follow-up diagnosis separates centerline progress from world x and wall time from
+simulation time. At s=1.939313 m, x=1.965656 m, the low-speed gate rejects a turn
+consistent with the pinned bicycle model. A process-local initialization
+counterfactual resumes the exact state but fails again after three valid paths.
+The former timed-out input passes eight isolated repetitions in 25.778–27.422 ms;
+this is neither whole-road nor target-hardware timing qualification. A fresh native
+run of the short-range parameter group with wall-clock isolation, and unchanged
+low-speed logic, produces 312 paths and fails at s=1.946846 m on steering/motion
+constraints. No planner source or physical threshold changed in this diagnosis.
+Details: offline/lattice_training/REMAINING_DIAGNOSIS_CN.md.
+
+## Native planner ideal-input diagnosis before geometry change, 2026-10-15
+
+Recorded cone logs were extracted byte-for-byte from fix/newcar-control commit
+5e8d1b8e4bec54d1306f769315e57246f9fff496. The Car 15 end-straight1 recording
+contains 270 cone frames. Parameter readback is a 20 Hz policy timer; measured
+camera acquisition interval/latency medians are .099986/.192415 seconds.
+The reconstructed common bilateral corridor is 4.234 m, with a separately
+declared unobserved 1 m entry buffer. Raw gyro sign is inferred from cone-map
+consistency, not surveyed mounting calibration.
+
+The offline runner uses direct native Frenet export (Cartesian fitting disabled),
+ideal mapped road input, optional exact plant state, and the existing C* solver.
+Native paths are queried at 20 Hz. C* is updated every .5 simulated seconds;
+solver wall time does not advance the simulated clock. This does not qualify
+the complete system for real-time execution or establish a perception pass.
+
+The geometric baseline from rest still failed after 107 valid paths at .739 m,
+with no_feasible_lattice_trajectory. Its wall-budget counterpart also observed
+lattice_time_budget_exceeded. A local derivative-bound counterfactual admits a
+path on the original failure frame; it has not changed production source.
+Separate shorter-range/time-window settings reached 1.334/1.512 m before motion
+or supported-transition rejection. No experiment completed the road. Thus the
+condition for attributing the issue solely to an environment mismatch is unmet.
+
+Existing test_lattice.py:34 passed; test_lattice_training.py:53 passed. The
+hardware-free ROS fast gate was attempted in WSL but its pinned dream_interfaces
+checkout is absent, so the gate did not run. No hardware or deployed configuration
+was changed. Commands, limits and preserved evidence are in
+offline/lattice_training/NATIVE_REPLAY_CN.md and its compact artifact directory.
 
 ## Retraining on expanded Train, 2026-10-11
 

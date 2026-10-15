@@ -1,0 +1,592 @@
+{
+  "date": "2026-10-15",
+  "conclusion": "No whole-road solution demonstrated using the tested planner parameters.",
+  "native_source_unchanged": true,
+  "native_source_sha256": "7d1d19896ec63864417ed3359cf66694765c826dd3eabb94150c0d651b668849",
+  "planner_source_sha256": "9fd8d7b67b72caf8da20dab461cf16a10ad74b4fc7b45e2edd6a77b35e781805",
+  "fixed_observations_canonical_sha256": "0ad8f5ea86b82dc98de99d11bb79d822a57310303bc59669aa060822ebc7ec8e",
+  "scan_sha256": "f63a208d51cf8bdb6b5f92548c9809727e03bce110085707641cedd4a1070d4e",
+  "fixed_conditions": {
+    "road_input": "map_oracle",
+    "map_lookahead_m": 2.0,
+    "state_input": "plant_truth",
+    "simulation_step_s": 0.05,
+    "controller_unchanged": true,
+    "vehicle_dimensions_and_hard_constraints_unchanged": true,
+    "hard_margin_m": 0.05,
+    "native_global_derivative_guard": true,
+    "cartesian_compatibility_checks": false,
+    "planner_wall_clock_enforced": false,
+    "runtime_qualified": false,
+    "score_weights_unchanged": true
+  },
+  "scan": {
+    "configurations": 180,
+    "cases": 11,
+    "queries": 1980,
+    "wall_s": 18.235764599987306,
+    "results_by_case": [
+      {
+        "case": "final-geometry-baseline",
+        "moving_valid_configurations": 120,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision",
+          "feasible",
+          "geometry_feasible",
+          "longitudinal_exceeds_support",
+          "steering_limit",
+          "transition_exceeds_common_horizon",
+          "unreachable_cg_curvature",
+          "visibility_stopping_limit"
+        ]
+      },
+      {
+        "case": "run-ideal-05",
+        "moving_valid_configurations": 0,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision",
+          "transition_exceeds_common_horizon"
+        ]
+      },
+      {
+        "case": "run-ideal-06",
+        "moving_valid_configurations": 80,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision",
+          "feasible",
+          "geometry_feasible",
+          "longitudinal_exceeds_support",
+          "steering_limit",
+          "steering_rate_limit",
+          "stop_trajectory_accelerates",
+          "transition_exceeds_common_horizon",
+          "unreachable_cg_curvature",
+          "visibility_stopping_limit"
+        ]
+      },
+      {
+        "case": "cold:0.40753073045658084",
+        "moving_valid_configurations": 156,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision",
+          "curve_range",
+          "feasible",
+          "geometry_feasible",
+          "longitudinal_exceeds_support",
+          "steering_limit",
+          "transition_exceeds_common_horizon",
+          "unreachable_cg_curvature"
+        ]
+      },
+      {
+        "case": "cold:1.0",
+        "moving_valid_configurations": 0,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision",
+          "transition_exceeds_common_horizon"
+        ]
+      },
+      {
+        "case": "cold:1.5",
+        "moving_valid_configurations": 0,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision",
+          "steering_limit",
+          "transition_exceeds_common_horizon",
+          "unreachable_cg_curvature"
+        ]
+      },
+      {
+        "case": "cold:2.0",
+        "moving_valid_configurations": 0,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision",
+          "transition_exceeds_common_horizon"
+        ]
+      },
+      {
+        "case": "cold:2.5",
+        "moving_valid_configurations": 0,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision",
+          "transition_exceeds_common_horizon"
+        ]
+      },
+      {
+        "case": "cold:3.0",
+        "moving_valid_configurations": 156,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "feasible",
+          "geometry_feasible",
+          "longitudinal_exceeds_support",
+          "steering_limit",
+          "transition_exceeds_common_horizon",
+          "unreachable_cg_curvature",
+          "visibility_stopping_limit"
+        ]
+      },
+      {
+        "case": "cold:4.0",
+        "moving_valid_configurations": 156,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "feasible",
+          "geometry_feasible",
+          "longitudinal_exceeds_support",
+          "steering_limit",
+          "transition_exceeds_common_horizon",
+          "unreachable_cg_curvature"
+        ]
+      },
+      {
+        "case": "cold:4.6",
+        "moving_valid_configurations": 60,
+        "valid_output_contract_errors": 0,
+        "rejection_reasons": [
+          "feasible",
+          "geometry_feasible",
+          "longitudinal_exceeds_support",
+          "steering_limit",
+          "transition_exceeds_common_horizon",
+          "unreachable_cg_curvature"
+        ]
+      }
+    ],
+    "parameter_ranges": {
+      "geometry_step_m": [
+        0.025,
+        0.015,
+        0.01
+      ],
+      "horizon_m": [
+        0.3,
+        0.5,
+        0.8,
+        1.2,
+        2.0
+      ],
+      "transition_lengths_m": [
+        [
+          0.15,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.8
+        ],
+        [
+          0.3,
+          0.5,
+          0.7,
+          0.9,
+          1.1,
+          1.3
+        ],
+        [
+          0.6,
+          1.0,
+          1.5
+        ]
+      ],
+      "duration_and_score_time_s": [
+        1.0,
+        3.0
+      ],
+      "terminal_offsets_m": [
+        [
+          0.0
+        ],
+        [
+          -0.1,
+          0.0,
+          0.1
+        ]
+      ],
+      "terminal_speeds_mps_all_configurations": [
+        0.05,
+        0.1,
+        0.2
+      ],
+      "minimum_output_m": 0.15,
+      "max_candidates": 256
+    },
+    "ranking": "recorded_states_passed then all_states_passed; first tied row chosen",
+    "first_ranked_configuration": {
+      "road_input": "map_oracle",
+      "state_input": "plant_truth",
+      "map_lookahead_m": 2.0,
+      "initial_progress_m": 0.40753073045658084,
+      "initial_speed_mps": 0.0,
+      "require_cartesian_compatibility": false,
+      "clearance_bound_scope": "native_global",
+      "enforce_planner_wall_clock": false,
+      "lattice": {
+        "geometry_step_m": 0.015,
+        "horizon_m": 0.8,
+        "transition_lengths_m": "0.15,0.2,0.3,0.4,0.5,0.6,0.8",
+        "durations_s": "1.0",
+        "score_time_s": 1.0,
+        "terminal_speeds_mps": "0.05,0.1,0.2",
+        "terminal_offsets_m": "0.0",
+        "minimum_output_m": 0.15,
+        "max_candidates": 256
+      }
+    },
+    "first_ranked_results": [
+      {
+        "case": "final-geometry-baseline",
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.014068099961150438,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "feasible",
+          "geometry_feasible"
+        ]
+      },
+      {
+        "case": "run-ideal-05",
+        "valid": false,
+        "reason": "no_feasible_lattice_trajectory",
+        "planned_stop": null,
+        "wall_s": 0.003055600041989237,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision"
+        ]
+      },
+      {
+        "case": "run-ideal-06",
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.00962289999006316,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision",
+          "feasible",
+          "geometry_feasible",
+          "steering_limit"
+        ]
+      },
+      {
+        "case": "cold:0.40753073045658084",
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.015114400011952966,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "feasible",
+          "geometry_feasible"
+        ]
+      },
+      {
+        "case": "cold:1.0",
+        "valid": false,
+        "reason": "no_feasible_lattice_trajectory",
+        "planned_stop": null,
+        "wall_s": 0.004231199971400201,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision"
+        ]
+      },
+      {
+        "case": "cold:1.5",
+        "valid": false,
+        "reason": "no_feasible_lattice_trajectory",
+        "planned_stop": null,
+        "wall_s": 0.0032168999896384776,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision"
+        ]
+      },
+      {
+        "case": "cold:2.0",
+        "valid": false,
+        "reason": "no_feasible_lattice_trajectory",
+        "planned_stop": null,
+        "wall_s": 0.003284799982793629,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision"
+        ]
+      },
+      {
+        "case": "cold:2.5",
+        "valid": false,
+        "reason": "no_feasible_lattice_trajectory",
+        "planned_stop": null,
+        "wall_s": 0.0034761999850161374,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "body_boundary_or_obstacle_collision"
+        ]
+      },
+      {
+        "case": "cold:3.0",
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.014361399982590228,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "feasible",
+          "geometry_feasible"
+        ]
+      },
+      {
+        "case": "cold:4.0",
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.0341795000131242,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "feasible",
+          "geometry_feasible"
+        ]
+      },
+      {
+        "case": "cold:4.6",
+        "valid": true,
+        "reason": "lattice_selected",
+        "planned_stop": false,
+        "wall_s": 0.004051500000059605,
+        "contract_errors": [],
+        "rejection_reasons": [
+          "feasible",
+          "geometry_feasible",
+          "transition_exceeds_common_horizon"
+        ]
+      }
+    ]
+  },
+  "closed_loop": {
+    "configuration": {
+      "road_input": "map_oracle",
+      "state_input": "plant_truth",
+      "map_lookahead_m": 2.0,
+      "initial_progress_m": 0.40753073045658084,
+      "initial_speed_mps": 0.0,
+      "require_cartesian_compatibility": false,
+      "clearance_bound_scope": "native_global",
+      "enforce_planner_wall_clock": false,
+      "lattice": {
+        "geometry_step_m": 0.015,
+        "horizon_m": 0.8,
+        "transition_lengths_m": "0.15,0.2,0.3,0.4,0.5,0.6,0.8",
+        "durations_s": "1.0",
+        "score_time_s": 1.0,
+        "terminal_speeds_mps": "0.05,0.1,0.2",
+        "terminal_offsets_m": "0.0",
+        "minimum_output_m": 0.15,
+        "max_candidates": 256
+      }
+    },
+    "initial_progress_m": 0.40753073045658084,
+    "goal_progress_m": 4.736799508178038,
+    "final_progress_m": 0.7415877640261571,
+    "steps": 83,
+    "valid_path_count": 83,
+    "invalid_path_count": 1,
+    "path_contract_error_count": 0,
+    "fault": "planning:no_feasible_lattice_trajectory",
+    "completed": false,
+    "policy_rate_hz": 20.0,
+    "control_period_s": 0.5,
+    "cstar_solves": 9,
+    "wall_s": 56.628896999987774,
+    "planner_wall_clock_enforced": false,
+    "all_planner_wall_max_s": 0.0525525999837555,
+    "runtime_qualified": false
+  },
+  "initial_clearance_upper_bound": [
+    {
+      "case": "final-geometry-baseline",
+      "initial_clearance_m": 0.0034977327850783807,
+      "zero_sweep_clearance_upper_bound_m": 0.015997794826377518,
+      "start_is_rejected_even_with_zero_sweep": false,
+      "global_max_slope": [
+        0.8909010706968278,
+        1.6286430481832304
+      ],
+      "global_max_second": [
+        11.541812209586183,
+        59.53603004685782
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "run-ideal-05",
+      "initial_clearance_m": -0.01710229395352548,
+      "zero_sweep_clearance_upper_bound_m": -0.004531318990236571,
+      "start_is_rejected_even_with_zero_sweep": true,
+      "global_max_slope": [
+        0.9486434677561566,
+        2.128007471533552
+      ],
+      "global_max_second": [
+        8.116300852476517,
+        55.33790172681802
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "run-ideal-06",
+      "initial_clearance_m": 0.0003360510210607612,
+      "zero_sweep_clearance_upper_bound_m": 0.012836586156543659,
+      "start_is_rejected_even_with_zero_sweep": false,
+      "global_max_slope": [
+        1.1422280794388742,
+        1.9974144709105992
+      ],
+      "global_max_second": [
+        7.332784786511459,
+        51.46714051547803
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "cold:0.40753073045658084",
+      "initial_clearance_m": 0.06193290653218504,
+      "zero_sweep_clearance_upper_bound_m": 0.07443290653168504,
+      "start_is_rejected_even_with_zero_sweep": false,
+      "global_max_slope": [
+        0.42107517086914653,
+        1.1072349464091553
+      ],
+      "global_max_second": [
+        4.685586172816446,
+        55.42326324633574
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "cold:1.0",
+      "initial_clearance_m": -0.04882848923170931,
+      "zero_sweep_clearance_upper_bound_m": -0.03632848923220931,
+      "start_is_rejected_even_with_zero_sweep": true,
+      "global_max_slope": [
+        0.9116001205882291,
+        2.417328712329106
+      ],
+      "global_max_second": [
+        6.513887886553371,
+        61.540234362448615
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "cold:1.5",
+      "initial_clearance_m": -0.006436603813475012,
+      "zero_sweep_clearance_upper_bound_m": 0.006063396186024988,
+      "start_is_rejected_even_with_zero_sweep": false,
+      "global_max_slope": [
+        0.9864905144897593,
+        1.672826400814716
+      ],
+      "global_max_second": [
+        5.628230458349772,
+        62.545842834321284
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "cold:2.0",
+      "initial_clearance_m": -0.025638853477952323,
+      "zero_sweep_clearance_upper_bound_m": -0.013138853478452322,
+      "start_is_rejected_even_with_zero_sweep": true,
+      "global_max_slope": [
+        0.5607747080889199,
+        1.1641706740358282
+      ],
+      "global_max_second": [
+        6.315667435979901,
+        86.04138089979187
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "cold:2.5",
+      "initial_clearance_m": -0.36531366325947967,
+      "zero_sweep_clearance_upper_bound_m": -0.35281366325997965,
+      "start_is_rejected_even_with_zero_sweep": true,
+      "global_max_slope": [
+        0.23566729132531225,
+        4.19632618858186
+      ],
+      "global_max_second": [
+        6.3536027072570604,
+        193.6573682708779
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "cold:3.0",
+      "initial_clearance_m": 0.2054533632418502,
+      "zero_sweep_clearance_upper_bound_m": 0.21795336324135023,
+      "start_is_rejected_even_with_zero_sweep": false,
+      "global_max_slope": [
+        0.2960034523353608,
+        0.4752849009434643
+      ],
+      "global_max_second": [
+        6.297393326157678,
+        7.514342621135299
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "cold:4.0",
+      "initial_clearance_m": 0.1937371651106667,
+      "zero_sweep_clearance_upper_bound_m": 0.2062371651101667,
+      "start_is_rejected_even_with_zero_sweep": false,
+      "global_max_slope": [
+        0.3021118857634159,
+        0.30872140192002284
+      ],
+      "global_max_second": [
+        6.113297791416793,
+        6.050006614391518
+      ],
+      "hard_margin_m": 0.05
+    },
+    {
+      "case": "cold:4.6",
+      "initial_clearance_m": 0.201385867081628,
+      "zero_sweep_clearance_upper_bound_m": 0.21388586708112803,
+      "start_is_rejected_even_with_zero_sweep": false,
+      "global_max_slope": [
+        0.23206625590804603,
+        0.2131990414238192
+      ],
+      "global_max_second": [
+        5.680522797349111,
+        5.128041825120528
+      ],
+      "hard_margin_m": 0.05
+    }
+  ],
+  "limitations": [
+    "Finite scan is not an exhaustive impossibility proof.",
+    "Only the first ranked sampling configuration received whole-road closed-loop validation.",
+    "Weights cannot admit hard-rejected candidates at a fixed state; earlier trajectory changes remain possible.",
+    "Zero sweep is diagnostic only; no weakened guard was used in the closed loop.",
+    "Recorded-map input is reconstructed and not a surveyed or perception-qualified road.",
+    "Wall-clock enforcement is disabled for geometry isolation; 20 Hz real-time behavior is not qualified."
+  ]
+}

@@ -1,0 +1,981 @@
+{
+  "format": "recorded_cone_road_v1",
+  "source_sha256": "a091a5784e2f2bada0c915461a0e02c5460a6dccf2b271fd3713710581ad5fec",
+  "parameters": {
+    "control.enabled": true,
+    "control.mode": "mvp",
+    "control.max_distance_m": 0.0,
+    "control.max_run_time_s": 0.0,
+    "control.end_straight_distance_m": 0.3,
+    "control.end_straight_drive_normalized": 0.3,
+    "control.end_straight_max_time_s": 3.0,
+    "planning.cruise_speed_mps": 0.2,
+    "control.drive_max": 0.35,
+    "control.steering_max_normalized": 1.0,
+    "control.mvp_lateral_kp": 2.5,
+    "control.mvp_heading_kp": 1.0,
+    "control.mvp_steering_slew_rate_per_s": 2.0,
+    "control.mvp_drive_feedforward": 0.3,
+    "control.mvp_steering_direction": -1.0,
+    "control.speed_kp": 0.35,
+    "control.speed_ki": 0.08,
+    "estimation.left_colour": 1,
+    "estimation.right_colour": 2,
+    "planning.algorithm": "road_centerline",
+    "estimation.road_width_min_m": 0.15,
+    "estimation.road_forward_max_m": 4.0,
+    "estimation.road_max_abs_slope": 3.0,
+    "estimation.huber_delta_m": 0.2,
+    "estimation.single_side_from_learned_width": true,
+    "visualization.enabled": true,
+    "policy_update_mode": "timer",
+    "policy_update_rate_hz": 20.0,
+    "required_sensors": [
+      "cone_detections",
+      "wheel_speed",
+      "imu_angular_velocity"
+    ]
+  },
+  "source_time_span_s": [
+    1791957742.1014612,
+    1791957769.0747936
+  ],
+  "recorded_policy_rate_hz": 20.0,
+  "camera_period_median_s": 0.09998631477355957,
+  "camera_latency_median_s": 0.192414805,
+  "odometry": {
+    "start_time_s": 1791957743.12068,
+    "gyro_bias_rps": 0.0,
+    "raw_gyro_to_map_yaw_sign": -1.0,
+    "gyro_sign_source": "offline inference: raw logged sensor z has opposite sign to observed clockwise bend; mounting TF absent from log",
+    "wheel_gap_max_s": 0.1334536075592041,
+    "gyro_gap_max_s": 0.14014720916748047,
+    "method": "trapezoidal_wheel_gyro_planar_no_slip",
+    "interpolation": "linear_offline",
+    "independent_pose_truth": false
+  },
+  "road_spec": {
+    "defaults": {
+      "speed_limit_kph": 3.6
+    },
+    "cone_paths": {},
+    "elements": [
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 1.0
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9378792271061204,
+              "end": 0.9378792271061204
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.1977422047318337,
+          "sweep_angle_deg": 1.1586573285508326
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9378792271061204,
+              "end": 0.9562880848418402
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.33933421949547393,
+          "sweep_angle_deg": 1.9953187122153555
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9562880848418402,
+              "end": 0.9679093803817875
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.3607035160933889,
+          "sweep_angle_deg": 2.128592114693145
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9679093803817875,
+              "end": 0.9620494347404344
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.29329456721606884,
+          "sweep_angle_deg": 1.743296883335132
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9620494347404344,
+              "end": 0.9618557352533252
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.08538309400886453,
+          "sweep_angle_deg": 0.5090715685009046
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9618557352533252,
+              "end": 0.9529814210781161
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.7882942205968223,
+          "sweep_angle_deg": 4.701581200746259
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9529814210781161,
+              "end": 0.9229120440349841
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -1.0531717301773624,
+          "sweep_angle_deg": 6.573871526305145
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9229120440349841,
+              "end": 0.8957848587652775
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.3004052266755778,
+          "sweep_angle_deg": 1.9331680204198405
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8957848587652775,
+              "end": 0.9063842596832288
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.3262273540733423,
+          "sweep_angle_deg": 2.0949355849911795
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9063842596832288,
+              "end": 0.9282631875407648
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -1.5151413628911792,
+          "sweep_angle_deg": 10.109184723461807
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9282631875407648,
+              "end": 0.8636263052146491
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.9778672611877108,
+          "sweep_angle_deg": 7.865212856402673
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8636263052146491,
+              "end": 0.8408328088787449
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.37175841322899555,
+          "sweep_angle_deg": 3.120348059627435
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8408328088787449,
+              "end": 0.8566561523484008
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.5851913081015838,
+          "sweep_angle_deg": 5.272067276071671
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8566561523484008,
+              "end": 0.8330669835067617
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.30004168969516937,
+          "sweep_angle_deg": 3.140051464831782
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8330669835067617,
+              "end": 0.842490626041767
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.027557056417186074,
+          "sweep_angle_deg": 0.2903990216557682
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.842490626041767,
+              "end": 0.8982204288040134
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.13201794066872008,
+          "sweep_angle_deg": 1.4027883360881845
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8982204288040134,
+              "end": 0.9666241737828689
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.1788573645321602,
+          "sweep_angle_deg": 1.7525010572586066
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9666241737828689,
+              "end": 1.001278084435135
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.17059116748257958,
+          "sweep_angle_deg": 1.6667010149835235
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 1.001278084435135,
+              "end": 1.024038352692901
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.16084596400732618,
+          "sweep_angle_deg": 1.4602978187718731
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 1.024038352692901,
+              "end": 0.99325274286189
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.1748494284703283,
+          "sweep_angle_deg": 1.6051851590888344
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.99325274286189,
+              "end": 0.9666234176125047
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.12781424206735112,
+          "sweep_angle_deg": 1.0866797138022504
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9666234176125047,
+              "end": 0.9325378055260284
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.016940655757771497,
+          "sweep_angle_deg": 0.14913967894289587
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9325378055260284,
+              "end": 0.8706245448986084
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.016135546722394336,
+          "sweep_angle_deg": 0.1379698715404803
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8706245448986084,
+              "end": 0.8286343974792562
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.01641280905407885,
+          "sweep_angle_deg": 0.14373530870124226
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8286343974792562,
+              "end": 0.8089002961291091
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.0432415590983363,
+          "sweep_angle_deg": 0.37178299366662937
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8089002961291091,
+              "end": 0.8191505891774882
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.010115000754919645,
+          "sweep_angle_deg": 0.08733952910951388
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8191505891774882,
+              "end": 0.8265643363896045
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.0344378304410196,
+          "sweep_angle_deg": 0.2951155956414987
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8265643363896045,
+              "end": 0.8461580542717219
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.040603298135207924,
+          "sweep_angle_deg": 0.3467394210755908
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8461580542717219,
+              "end": 0.8730595856426538
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.07574044767627566,
+          "sweep_angle_deg": 0.6575507796149596
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.8730595856426538,
+              "end": 0.9024354183697301
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.02539719586582342,
+          "sweep_angle_deg": 0.22239943061700973
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 0.9024354183697301,
+              "end": 0.9354739980883922
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {}
+      }
+    ],
+    "obstacles": []
+  },
+  "cones": [
+    {
+      "x_m": 1.0529293294407887,
+      "y_m": 0.47255948301188266,
+      "colour": 1,
+      "observations": 44,
+      "vertical_mad_m": 0.003965281589626057
+    },
+    {
+      "x_m": 1.2675413044773252,
+      "y_m": 0.49633724631293735,
+      "colour": 1,
+      "observations": 29,
+      "vertical_mad_m": 0.0012931346157908363
+    },
+    {
+      "x_m": 1.411319811734962,
+      "y_m": 0.45086990668065435,
+      "colour": 1,
+      "observations": 12,
+      "vertical_mad_m": 0.003085255387630964
+    },
+    {
+      "x_m": 1.4932270506962415,
+      "y_m": 0.4408921784669223,
+      "colour": 1,
+      "observations": 48,
+      "vertical_mad_m": 0.0034408676283199935
+    },
+    {
+      "x_m": 1.641848768417034,
+      "y_m": 0.41283807676473494,
+      "colour": 1,
+      "observations": 51,
+      "vertical_mad_m": 0.002092404008414317
+    },
+    {
+      "x_m": 1.8158229256286458,
+      "y_m": 0.3680155342961422,
+      "colour": 1,
+      "observations": 54,
+      "vertical_mad_m": 0.0022725191979574844
+    },
+    {
+      "x_m": 1.9935396879630765,
+      "y_m": 0.32961856034066495,
+      "colour": 1,
+      "observations": 67,
+      "vertical_mad_m": 0.004279860955217041
+    },
+    {
+      "x_m": 2.1519326085622703,
+      "y_m": 0.26232778034268545,
+      "colour": 1,
+      "observations": 60,
+      "vertical_mad_m": 0.003126853988522582
+    },
+    {
+      "x_m": 2.2980774453162525,
+      "y_m": 0.2026762406155706,
+      "colour": 1,
+      "observations": 63,
+      "vertical_mad_m": 0.006001200428296161
+    },
+    {
+      "x_m": 2.4357053822366543,
+      "y_m": 0.09397339104632475,
+      "colour": 1,
+      "observations": 95,
+      "vertical_mad_m": 0.012011361554665832
+    },
+    {
+      "x_m": 2.5945161241391705,
+      "y_m": -0.05536938936880595,
+      "colour": 1,
+      "observations": 66,
+      "vertical_mad_m": 0.15742715299710272
+    },
+    {
+      "x_m": 2.7603468485479548,
+      "y_m": -0.22966546174362956,
+      "colour": 1,
+      "observations": 165,
+      "vertical_mad_m": 0.14509534015628062
+    },
+    {
+      "x_m": 2.9335266423631374,
+      "y_m": -0.46762964642342586,
+      "colour": 1,
+      "observations": 246,
+      "vertical_mad_m": 0.15706613304935815
+    },
+    {
+      "x_m": 3.0940508739221295,
+      "y_m": -0.7237458737057045,
+      "colour": 1,
+      "observations": 236,
+      "vertical_mad_m": 0.1332962589552491
+    },
+    {
+      "x_m": 3.238850786308859,
+      "y_m": -0.91162208154771,
+      "colour": 1,
+      "observations": 104,
+      "vertical_mad_m": 0.11361043988508712
+    },
+    {
+      "x_m": 3.3811142456357297,
+      "y_m": -1.0778041107029943,
+      "colour": 1,
+      "observations": 78,
+      "vertical_mad_m": 0.06388392807886512
+    },
+    {
+      "x_m": 3.5740472584182594,
+      "y_m": -1.2897854159557909,
+      "colour": 1,
+      "observations": 90,
+      "vertical_mad_m": 0.0803835788952536
+    },
+    {
+      "x_m": 3.724654448164939,
+      "y_m": -1.4293434547287664,
+      "colour": 1,
+      "observations": 102,
+      "vertical_mad_m": 0.07383642058866213
+    },
+    {
+      "x_m": 3.8952611233374324,
+      "y_m": -1.5775361892908175,
+      "colour": 1,
+      "observations": 63,
+      "vertical_mad_m": 0.0844974482289036
+    },
+    {
+      "x_m": 4.050132976850473,
+      "y_m": -1.6686980963277074,
+      "colour": 1,
+      "observations": 57,
+      "vertical_mad_m": 0.04791247801928811
+    },
+    {
+      "x_m": 1.0309174274842983,
+      "y_m": -0.4622745562358655,
+      "colour": 2,
+      "observations": 41,
+      "vertical_mad_m": 0.011460333741034723
+    },
+    {
+      "x_m": 1.168387006656608,
+      "y_m": -0.4936989805870432,
+      "colour": 2,
+      "observations": 11,
+      "vertical_mad_m": 0.0029284462239228537
+    },
+    {
+      "x_m": 1.258636553953345,
+      "y_m": -0.4935129081756313,
+      "colour": 2,
+      "observations": 33,
+      "vertical_mad_m": 0.002224945068359352
+    },
+    {
+      "x_m": 1.4439497146772338,
+      "y_m": -0.5044382145598959,
+      "colour": 2,
+      "observations": 25,
+      "vertical_mad_m": 0.0005135713587908208
+    },
+    {
+      "x_m": 1.6295457169253869,
+      "y_m": -0.5502328113718371,
+      "colour": 2,
+      "observations": 22,
+      "vertical_mad_m": 0.0038254146741434347
+    },
+    {
+      "x_m": 1.7153772542191366,
+      "y_m": -0.5510102369343157,
+      "colour": 2,
+      "observations": 35,
+      "vertical_mad_m": 0.004160949707031181
+    },
+    {
+      "x_m": 1.8784775172098545,
+      "y_m": -0.612493137300428,
+      "colour": 2,
+      "observations": 35,
+      "vertical_mad_m": 0.010252412465325378
+    },
+    {
+      "x_m": 2.073013428204967,
+      "y_m": -0.738639996633027,
+      "colour": 2,
+      "observations": 54,
+      "vertical_mad_m": 0.00792170269429765
+    },
+    {
+      "x_m": 2.2155030616315265,
+      "y_m": -0.9345012294233237,
+      "colour": 2,
+      "observations": 56,
+      "vertical_mad_m": 0.058717842159077493
+    },
+    {
+      "x_m": 2.38440891347249,
+      "y_m": -1.1342747608791042,
+      "colour": 2,
+      "observations": 68,
+      "vertical_mad_m": 0.06445531828468254
+    },
+    {
+      "x_m": 2.6367446145207927,
+      "y_m": -1.6469601410881423,
+      "colour": 2,
+      "observations": 78,
+      "vertical_mad_m": 0.01701950484159931
+    },
+    {
+      "x_m": 2.8050293090982183,
+      "y_m": -1.837797864423261,
+      "colour": 2,
+      "observations": 61,
+      "vertical_mad_m": 0.01047904565211577
+    },
+    {
+      "x_m": 2.86128850679976,
+      "y_m": -1.956352054650701,
+      "colour": 2,
+      "observations": 30,
+      "vertical_mad_m": 0.009763743222989785
+    },
+    {
+      "x_m": 3.0773647879834396,
+      "y_m": -2.103310733539864,
+      "colour": 2,
+      "observations": 78,
+      "vertical_mad_m": 0.014083586771289847
+    },
+    {
+      "x_m": 3.284901098997226,
+      "y_m": -2.1957356533090957,
+      "colour": 2,
+      "observations": 84,
+      "vertical_mad_m": 0.010611094579414893
+    },
+    {
+      "x_m": 3.420909470255567,
+      "y_m": -2.3079921203689744,
+      "colour": 2,
+      "observations": 100,
+      "vertical_mad_m": 0.017212991811905942
+    },
+    {
+      "x_m": 3.558212311942016,
+      "y_m": -2.4209748835358464,
+      "colour": 2,
+      "observations": 112,
+      "vertical_mad_m": 0.034499722502731034
+    },
+    {
+      "x_m": 3.7145016948249636,
+      "y_m": -2.5385585162155326,
+      "colour": 2,
+      "observations": 126,
+      "vertical_mad_m": 0.04413572631965246
+    },
+    {
+      "x_m": 3.8696171415981175,
+      "y_m": -2.6583597813600672,
+      "colour": 2,
+      "observations": 135,
+      "vertical_mad_m": 0.05225010013862885
+    },
+    {
+      "x_m": 4.018898009462882,
+      "y_m": -2.9080623398169463,
+      "colour": 2,
+      "observations": 15,
+      "vertical_mad_m": 0.053552783506034096
+    },
+    {
+      "x_m": 4.188101835379332,
+      "y_m": -3.0780186849100835,
+      "colour": 2,
+      "observations": 12,
+      "vertical_mad_m": 0.04020074914732952
+    },
+    {
+      "x_m": 4.279703896203111,
+      "y_m": -3.1654927013575747,
+      "colour": 2,
+      "observations": 9,
+      "vertical_mad_m": 6.794600930781769e-07
+    }
+  ],
+  "road_length_m": 5.233799508178038,
+  "observed_corridor_length_m": 4.233799508178038,
+  "first_bilateral_observed_station_m": 1.0,
+  "entry_buffer_m": 1.0,
+  "entry_buffer_observed": false,
+  "road_fit_max_error_m": 0.007944609573118855,
+  "road_fit_rms_error_m": 0.003232359401611548,
+  "original_initial_pose_local_xy": [
+    0.40753073045658084,
+    -0.03878730237819043
+  ],
+  "original_initial_progress_m": 0.40753073045658084,
+  "log_complete": true,
+  "surveyed_road_complete": false,
+  "unseen_end_extended": false,
+  "reconstruction_settings": {
+    "confidence_min": 0.75,
+    "body_x_m": [
+      0.25,
+      3.0
+    ],
+    "bin_m": 0.15,
+    "min_bin_observations": 6,
+    "smoothing_half_window_m": 0.6
+  },
+  "limitations": [
+    "wheel/gyro map has unmeasured scale/slip/depth error",
+    "fused boundary bins do not prove individual cone identity",
+    "road end is last shared observed boundary, not a surveyed physical finish",
+    "entry buffer extrapolates first boundary tangent and width; native controlled clear-start checks still apply"
+  ]
+}

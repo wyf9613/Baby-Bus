@@ -1,0 +1,20 @@
+{
+  "road_input": "map_oracle",
+  "state_input": "plant_truth",
+  "map_lookahead_m": 2.0,
+  "initial_progress_m": 0.40753073045658084,
+  "initial_speed_mps": 0.0,
+  "require_cartesian_compatibility": false,
+  "clearance_bound_scope": "continuous_geometry",
+  "enforce_planner_wall_clock": true,
+  "lattice": {
+    "geometry_step_m": 0.05,
+    "horizon_m": 0.8,
+    "minimum_output_m": 0.15,
+    "transition_lengths_m": "0.15,0.3,0.6,0.8",
+    "terminal_offsets_m": "0.0",
+    "durations_s": "3.0",
+    "score_time_s": 3.0,
+    "terminal_speeds_mps": "0.1,0.2"
+  }
+}
