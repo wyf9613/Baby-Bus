@@ -73,7 +73,7 @@ else:
     from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
     from sensor_msgs.msg import Imu, LaserScan
     from geometry_msgs.msg import PoseStamped
-    from nav_msgs.msg import Path
+    from nav_msgs.msg import Path as TrajectoryPath   # pathlib.Path stays the planner worker's
     from std_msgs.msg import Float32, Int8, String, UInt16
     from dream_interfaces.msg import (ConeDetection, ConeDetections, DriveAndSteer,
                                       FiducialDetections)
@@ -5766,12 +5766,12 @@ class PolicyNode(Node):
         # line, shared by the MVP/PID path and the MPC path below.
         self.declare_parameter("visualization.enabled", True, ParameterDescriptor(read_only=True))
         self.trajectory_enabled = self.get_parameter("visualization.enabled").value
-        self.trajectory_publisher = self.create_publisher(Path, "policy_trajectory", 1)
+        self.trajectory_publisher = self.create_publisher(TrajectoryPath, "policy_trajectory", 1)
         self._trajectory_reference = None
         self._trajectory_last_publish_s = -math.inf
         # New 2026-10-15: the MPC's own predicted horizon, separate from the
         # accepted reference above so Foxglove can show both at once.
-        self.mpc_prediction_publisher = self.create_publisher(Path, "mpc_prediction", 1)
+        self.mpc_prediction_publisher = self.create_publisher(TrajectoryPath, "mpc_prediction", 1)
         self._publish_trajectory(self.get_clock().now().nanoseconds, force=True)
         self._publish_mpc_prediction(self.get_clock().now().nanoseconds, None)
 
@@ -6988,7 +6988,7 @@ class PolicyNode(Node):
         now = self._monotonic()
         if not force and now-self._trajectory_last_publish_s < 0.1:
             return
-        message = Path()
+        message = TrajectoryPath()
         message.header.frame_id = self.policy_frame_id
         message.header.stamp = Time(nanoseconds=ros_now_ns).to_msg()
         try:
@@ -7034,7 +7034,7 @@ class PolicyNode(Node):
         control, and published every MPC step rather than throttled to 10 Hz
         because it changes every step. None/empty clears the line.
         """
-        message = Path()
+        message = TrajectoryPath()
         message.header.frame_id = self.policy_frame_id
         message.header.stamp = Time(nanoseconds=ros_now_ns).to_msg()
         try:

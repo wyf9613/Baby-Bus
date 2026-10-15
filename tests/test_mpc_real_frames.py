@@ -227,5 +227,22 @@ class OrderedCenterlineAdapterChecks(unittest.TestCase):
                     self.assertAlmostEqual(points[-1]["s_m"], total_s, places=6)
 
 
+class ImportShadowingChecks(unittest.TestCase):
+    """2026-10-15 regression: `from nav_msgs.msg import Path` (ROS branch only)
+    rebound the module's `from pathlib import Path`, so AsyncLatticePlanner's
+    Path(__file__) crashed at startup. Only the ROS gate saw it; this checks the
+    source offline: no imported name may be bound by two different imports."""
+    def test_no_import_rebinds_a_name(self):
+        bound = {}
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                origin = node.module if isinstance(node, ast.ImportFrom) else None
+                for alias in node.names:
+                    name = alias.asname or alias.name.split(".")[0]
+                    source = f"{origin}.{alias.name}" if origin else alias.name
+                    self.assertEqual(bound.setdefault(name, source), source,
+                                     f"{name!r} imported from both {bound[name]} and {source}")
+
+
 if __name__ == "__main__":
     unittest.main()
