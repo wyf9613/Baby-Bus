@@ -1,0 +1,35 @@
+# Overlay: joint MPC on car 10.43.254.05, 2026-10-15, built WITHOUT any identification
+# run on this car (user-approved cross-car substitution, see MPC_PROGRESS_LOG.md).
+# Layer order:
+#   ai4r_policy.yaml -> ai4r_policy_newcar27.yaml -> ai4r_policy_mpc_newcar27.yaml
+#   -> ai4r_policy_mpc_centerline.yaml -> this file
+#
+# What is and isn't actually measured for car 05:
+#   - Drive response (deadband/motor_gain/drag/breakaway): car .27's 10-06 log fit,
+#     UNCHANGED from ai4r_policy_mpc_newcar27.yaml. Never measured on 05. If the car
+#     doesn't move, the deadband is too high for 05's battery/ESC; if it lurches, too low.
+#   - Steering gain/offset/limits/rate: car .20's 2026-10-12 protractor measurement
+#     (offline/vehicle_identification/vehicle_params.py steering_gain_rad=-0.3142,
+#     i.e. 18 deg at full deflection, positive request turns right), NOT measured on 05.
+#   - Geometry (wheelbase/body extents): the course placeholder, which happens to equal
+#     .20's own measured geometry -- the one piece of overlap across the two substitutions.
+# None of this is "valid": true in the normal sense (nothing here was measured on THIS
+# car); it is set true anyway because the on-site decision was to accept the cross-car
+# risk rather than wait, overridden with mpc.v_exec_max_mps at a low speed below.
+/**/ai4r_policy:
+  ros__parameters:
+    vehicle:
+      valid: true
+      source: "car05_20261015_cross_car_substitution_27drive_20steering_UNVERIFIED"
+      steering_gain_rad: -0.3142       # car .20, 2026-10-12 protractor measurement
+      steering_offset_rad: 0.0         # not measured on either car; assumed centred
+      steering_min_rad: -0.3142
+      steering_max_rad: 0.3142
+      steering_rate_limit_rad_s: 1.21
+      steering_delay_s: 0.03
+    mpc:
+      # shadow/exec itself is still set by --mode (mpc-shadow-centerline vs
+      # mpc-exec-centerline), not here: this overlay also applies in shadow mode.
+      v_exec_max_mps: 0.12            # well below the car .27 fit's 0.35 m/s; raise only
+                                       # after watching several shadow/slow runs on this car
+      overspeed_margin_mps: 0.08

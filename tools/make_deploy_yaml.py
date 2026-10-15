@@ -61,7 +61,7 @@ def arc_test(drive):
 CONE_LAYOUTS = {"blue-left": (2, 1), "yellow-left": (1, 2)}
 
 
-def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", road_age_s=None):
+def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", road_age_s=None, car="27"):
     is_shadow = mode in ("mpc-shadow", "mpc-shadow-centerline")
     is_exec = mode in ("mpc-exec", "mpc-exec-centerline")
     is_centerline = mode in ("mpc-shadow-centerline", "mpc-exec-centerline")
@@ -72,6 +72,10 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", roa
         # 2026-10-15: main's ordered_xy estimation + road_centerline planning,
         # right-angle/S-bend capable (see docs/right-angle-bend memory note).
         layers.append("ai4r_policy_mpc_centerline.yaml")
+    if car != "27" and mode not in ("mvp", "steer-arc"):
+        # Cross-car vehicle.* substitution (never identified on this car); see
+        # that overlay file's header and docs/MPC_PROGRESS_LOG.md 2026-10-15.
+        layers.append(f"ai4r_policy_mpc_car{car}.yaml")
     base = yaml.safe_load((ROOT / "config" / layers[0]).read_text(encoding="utf-8"))
     for layer in layers[1:]:
         merge(base, yaml.safe_load((ROOT / "config" / layer).read_text(encoding="utf-8")))
@@ -138,6 +142,10 @@ def main():
                         help="which colour is on the LEFT of the road; required except for steer-arc")
     parser.add_argument("--road-age-s", type=float,
                         help="camera age budget for Planning, in (0.4, 0.6]; default unchanged (0.4)")
+    parser.add_argument("--car", default="27", choices=["27", "05"],
+                        help="05: cross-car vehicle.* substitution, never identified on that car "
+                             "(see config/ai4r_policy_mpc_car05.yaml); only meaningful for mpc-shadow* "
+                             "/mpc-exec* modes")
     parser.add_argument("--out", type=Path, default=ROOT / ".verification" / "car-deploy")
     args = parser.parse_args()
     if args.cones is None:
@@ -155,7 +163,7 @@ def main():
     if not 0 < args.v_exec_max <= 0.2:
         parser.error("--v-exec-max must be in (0, 0.2]")
     params, layers = build(args.mode, args.distance, args.arc_drive, args.v_exec_max,
-                           args.cones, args.road_age_s)
+                           args.cones, args.road_age_s, args.car)
     args.out.mkdir(parents=True, exist_ok=True)
     yaml_path, node_path = args.out / "ai4r_policy.yaml", args.out / "policy_node.py"
     yaml_path.write_bytes(yaml.safe_dump(params, sort_keys=False).encode("utf-8"))
