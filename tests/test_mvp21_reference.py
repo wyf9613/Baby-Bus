@@ -183,7 +183,7 @@ class LatticeReferenceChecks(unittest.TestCase):
         road=json.loads(DEFAULT_ROAD.read_text())
         with tempfile.TemporaryDirectory(dir=ROOT/'.verification',prefix='mvp21-late-delivery-') as directory:
             output=Path(directory)/'run'
-            summary=run(road,output,path_source='lattice',
+            summary=run(road,output,
                 road_input='map',delivery_delay_s=.3,handoff_budget_s=.1,max_steps=60)
             self.assertEqual(summary['fault'],'lattice_reference_expired_or_clock_reversed')
             self.assertEqual(summary['delivery']['accepted'],1)

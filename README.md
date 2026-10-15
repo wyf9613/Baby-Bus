@@ -2,6 +2,8 @@
 
 当前实现位于 [mvp21_policy/](mvp21_policy/README.md)，两个 script 名称均进入同一套
 最新 MVP2.1 模块。重建道路与 1 Hz 规划 / 20 Hz 控制的独立仿真继续使用原车辆环境。
+离线仿真入口默认执行 native planner 自选路径，暂不接入学习 policy；
+`--path-source perception` 保留原感知中线对照。
 
 学习 policy 只读取 **当前状态、当前道路与障碍、候选轨迹**，使用 C* 真实执行结果训练
 候选评分。[训练入口](offline/lattice_training/README.md)与[输入协议](offline/lattice_training/POLICY_INPUT.md)

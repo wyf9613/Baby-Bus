@@ -1,4 +1,4 @@
-"""20 Hz offline MVP2.1 perception/planning/control and independent shadow probe."""
+"""Offline native lattice at 1 Hz with cached paths for 20 Hz control."""
 import argparse
 from collections import Counter
 import json
@@ -19,7 +19,7 @@ DEFAULT_ROAD = ROOT/'offline/lattice_training/artifacts/2026-10-15-native-diagno
 
 def run(road, output, *, road_input='perception', max_steps=1200, seed=0, progress=None,
         initial_speed=0., latency_steps=4, steering_sign=-1., shadow_enabled=True,
-        path_source='perception', lattice_cadence='cached', lattice_prefix_rate_hz=None,
+        path_source='lattice', lattice_cadence='cached', lattice_prefix_rate_hz=None,
         delivery_delay_s=.1, measured_delay=False, handoff_budget_s=None,
         lattice_coverage='generated', lattice_length_m=1.3):
     if path_source == 'lattice' and lattice_cadence == 'cached':
@@ -202,8 +202,8 @@ def main():
     parser.add_argument('--road',type=Path,default=DEFAULT_ROAD)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--road-input',choices=('perception','map'),default='perception')
-    parser.add_argument('--path-source',choices=('perception','lattice'),default='perception',
-        help='Offline experiment: send selected lattice geometry to the unchanged controller')
+    parser.add_argument('--path-source',choices=('perception','lattice'),default='lattice',
+        help='Default: native lattice selection; perception: historical centerline baseline')
     parser.add_argument('--lattice-cadence',choices=('control','upstream','cached'),default='cached',
         help='control: fresh 20 Hz; upstream: literal handoff; cached: 1 Hz with motion alignment and delayed delivery')
     parser.add_argument('--delivery-delay-s',type=float,default=.1)
@@ -221,7 +221,8 @@ def main():
     parser.add_argument('--initial-speed',type=float,default=0.)
     parser.add_argument('--latency-steps',type=int,default=4)
     parser.add_argument('--steering-sign',type=float,choices=(-1.,1.),default=-1.)
-    parser.add_argument('--no-shadow',action='store_true')
+    parser.add_argument('--no-shadow',action='store_true',
+        help='Disable the diagnostic planner in the --path-source perception baseline')
     args = parser.parse_args()
     if args.max_steps<1 or args.latency_steps<0 or args.initial_speed<0:
         parser.error('Positive max_steps and nonnegative latency/speed required')

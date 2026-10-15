@@ -23,17 +23,20 @@ policy 输入接口，相关源码/配置/文档的原始哈希单列于 `author
 ```mermaid
 flowchart LR
     P[原Dream Gym车辆和虚拟传感器] --> E[MVP2.1 EstimationPipeline]
-    E --> R[MVP2.1 RoadCenterlinePlanner]
-    R --> C[MVP2.1 PolicyController]
+    E --> R[RoadCenterlinePlanner 输入准入]
+    E --> S[native lattice 1 Hz 自选路径]
+    S --> H[路径缓存与运动对齐 20 Hz]
+    R -.-> H
+    H --> C[MVP2.1 PolicyController]
     C --> A[显式动作符号转换]
     A --> P
-    E --> S[MVP2.1 ShadowLatticePlanner旁路记录]
 ```
 
-这版主控制是20 Hz有序中线/PID；影子lattice按原配置1 Hz抽查，只记录结果，
-不参与选路或控制。任务提交与forward_geometry选择使用上游实际`_shadow_offer`
-方法；计算在离线进程中同步完成，没有模拟ROS异步队列/发布延迟。
-旧Frenet lattice、C*训练管线与学习policy均保留，本实验不调用其评分模型或C*控制。
+当前离线默认执行 native lattice 选中的路径：1 Hz 规划、20 Hz 缓存控制，
+使用之前跑通的生成路径检查和 1.3 m 路径长度下限。计算结果按离散事件延迟交付，
+默认固定 100 ms；详见 [1 Hz 闭环](ONE_HZ_CONTROL.md)。学习 policy 不加载、不参与选路。
+控制沿用 MVP2.1 控制器。任务提交与 forward_geometry 选择使用实际 `_shadow_offer`。
+`--path-source perception` 显式复现原中线控制和 lattice 旁路记录。
 
 `MVP21SimulationEnv`继承原环境，只在首次观测前选择新估计器，reset/fork/restore
 继续使用原框架。车辆动力学、RK4、原notebook配置、42个重建锥桶及10 Hz相机/
@@ -60,14 +63,14 @@ PyYAML6.0.2，用于读取原YAML；没有升级Dream Gym、NumPy等原依赖。
 输出目录必须尚不存在，以保留历史证据。`trace.jsonl`包含每个50 ms周期的实际
 参考、控制诊断、动作、决策坐标原点、执行位置/速度和plant车角边界距离；
 `shadow.jsonl`单独记录影子候选；`summary.json`记录来源、参数、结果及限制。
-`--no-shadow`可检查旁路隔离。还支持`--road`、`--seed`、`--progress`、
+`--path-source perception --no-shadow`可检查中线对照的旁路隔离。还支持`--road`、`--seed`、`--progress`、
 `--initial-speed`、`--latency-steps`、`--max-steps`。
 
 命令退出0仅表示到达既定道路目标且未遇到模块/执行拒绝；速度跟踪、末端停车、
 连续车身扫掠、ROS协议和车载实时性各自需要验证，不能由这个退出码推断通过。
 这里没有改变`use_sim_time`、启动ROS、Enable、Run或发布硬件动作。
 
-## 本次结果
+## 初始中线对照结果（历史记录）
 
 | 输入 | 有效参考 | 最后中心线进度 | 目标进度 | 模块/执行拒绝 |
 |---|---:|---:|---:|---|
@@ -107,7 +110,7 @@ plant四角到道路的最小诊断距离分别为0.130085/0.213147 m；这个�
 `--path-source lattice`默认选择该模式；见[1 Hz闭环结果与命令](ONE_HZ_CONTROL.md)。
 下述为接入前的历史对照，复现每周期重算需显式加`--lattice-cadence control`。
 
-新增显式离线开关`--path-source lattice`，默认入口仍直接跟踪感知中线。
+当时新增显式离线开关`--path-source lattice`；当前它已是默认路径来源。
 保留planner原参数、每控制周期重新生成选中路径时，感知/理想道路两组均跑完；
 原1 Hz直接交付存在坐标时间不一致，20 Hz同步计算则超过当前机器的周期预算。
 调度与碰撞/评分前瞻共用`rate_hz`的参数耦合也会导致不同闭环结果。

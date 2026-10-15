@@ -1,0 +1,116 @@
+{
+  "format": "native_direct_default_verification_v1",
+  "date": "2026-10-16",
+  "snapshot_commit": "ea19128",
+  "checks": {
+    "module_reference_simulation_passed": 23
+  },
+  "commands": [
+    "python -B -m offline.mvp21_sim --output .verification/native-direct-20261016/perception",
+    "python -B -m offline.mvp21_sim --road-input map --output .verification/native-direct-20261016/map"
+  ],
+  "source_sha256_lf": {
+    "offline/mvp21_sim/__main__.py": "df2ad4674de758cb50c8af82ca97bcd625a64ddf70cfe7e9bc9808acd7215490",
+    "offline/mvp21_sim/one_hz.py": "66ccf6486b7a38a690241ddc106319214fe3bb3814feea48fb76917a91701aa1",
+    "mvp21_policy/lattice.py": "6ee85987421b3d8d8e1aef3e58e2406df16398a17ecae906a3782a2a3adfac29",
+    "mvp21_policy/reference.py": "293436711c9a399739e5593865f0b8684d962d59861218de3042b52341f1c387"
+  },
+  "runs": {
+    "perception": {
+      "road_input": "perception",
+      "path_source": "lattice",
+      "lattice_cadence": "cached",
+      "lattice_generation_rate_hz": 1.0,
+      "completed": true,
+      "fault": null,
+      "steps": 151,
+      "valid_reference_count": 149,
+      "zero_action_startup_cycles": 2,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.747474205459224,
+      "goal_progress_m": 4.736799508178038,
+      "minimum_plant_corner_road_margin_m": 0.15994025804431958,
+      "learned_scorer_used": false,
+      "real_time_qualified": false,
+      "hardware_tested": false,
+      "deployed": false,
+      "speed_tracking_qualified": false,
+      "maximum_executed_speed_mps": 0.7766867288009575,
+      "target_speed_mps": 0.2,
+      "control_rate_hz": 20.0,
+      "delivery": {
+        "mode": "fixed_simulated_delay",
+        "delay_s": 0.1,
+        "initial_handoff_budget_s": 0.1,
+        "final_handoff_estimate_s": 0.10000000000000053,
+        "submission_times_s": [
+          1.3,
+          2.3,
+          3.3000000000000003,
+          4.300000000000001,
+          5.3,
+          6.300000000000001,
+          7.300000000000001,
+          8.3
+        ],
+        "submitted": 8,
+        "accepted": 8,
+        "maximum_round_trip_s": 0.10000000000000053
+      },
+      "native_status_counts": {
+        "VALID": 8
+      },
+      "reference_versions": [
+        "mvp21_lattice_cached"
+      ]
+    },
+    "map": {
+      "road_input": "map",
+      "path_source": "lattice",
+      "lattice_cadence": "cached",
+      "lattice_generation_rate_hz": 1.0,
+      "completed": true,
+      "fault": null,
+      "steps": 149,
+      "valid_reference_count": 147,
+      "zero_action_startup_cycles": 2,
+      "initial_progress_m": 0.40753073045658084,
+      "final_progress_m": 4.737975733562654,
+      "goal_progress_m": 4.736799508178038,
+      "minimum_plant_corner_road_margin_m": 0.18551747830932946,
+      "learned_scorer_used": false,
+      "real_time_qualified": false,
+      "hardware_tested": false,
+      "deployed": false,
+      "speed_tracking_qualified": false,
+      "maximum_executed_speed_mps": 0.7783530257601058,
+      "target_speed_mps": 0.2,
+      "control_rate_hz": 20.0,
+      "delivery": {
+        "mode": "fixed_simulated_delay",
+        "delay_s": 0.1,
+        "initial_handoff_budget_s": 0.1,
+        "final_handoff_estimate_s": 0.10000000000000053,
+        "submission_times_s": [
+          1.3,
+          2.3,
+          3.3000000000000003,
+          4.300000000000001,
+          5.3,
+          6.300000000000001,
+          7.300000000000001,
+          8.3
+        ],
+        "submitted": 8,
+        "accepted": 8,
+        "maximum_round_trip_s": 0.10000000000000053
+      },
+      "native_status_counts": {
+        "VALID": 8
+      },
+      "reference_versions": [
+        "mvp21_lattice_cached"
+      ]
+    }
+  }
+}

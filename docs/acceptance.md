@@ -7,6 +7,21 @@ C* remains a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
 Historical planner/controller/physical evidence below remains separate.
 
+## Native planner default, 2026-10-16
+
+The offline `offline.mvp21_sim` entry now defaults to native lattice selection
+at 1 Hz with cached, motion-aligned paths for 20 Hz control. No learned scorer
+is connected. The historical centerline baseline requires
+`--path-source perception`; ROS configuration remains shadow-only.
+
+Twenty-three module/reference/simulation checks pass. Both CLI runs without a
+path-source override complete with fixed 100 ms delivery: perception 151 cycles
+and 4.747474 m, ideal map 149 cycles and 4.737976 m, versus the 4.736800 m goal.
+Each accepts eight VALID native results. These runs retain the previously
+documented speed-tracking limitation. The ROS gate remains unavailable because
+the pinned dream_interfaces checkout is absent.
+See [run evidence](../offline/mvp21_sim/artifacts/2026-10-16/native-direct.json).
+
 ## Three-input learned policy, 2026-10-15
 
 The scorer now reads only current state, current road/obstacles and candidate

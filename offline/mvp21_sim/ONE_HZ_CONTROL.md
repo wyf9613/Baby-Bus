@@ -4,9 +4,9 @@
 运动对齐后的缓存路径；计算和交付期间车辆继续运动。感知道路与理想道路均到达
 既定目标，无规划、控制或plant车角越界拒绝。启动等待首条结果期间保持零动作。
 
-默认中线入口不变。`--path-source lattice`现在默认选择`cached`的1 Hz模式；
-历史每周期重算的对照需要显式加`--lattice-cadence control`。ROS节点仍保持shadow，
-本轮没有切换launch、部署或修改原训练policy、模型和配置。
+离线入口现在默认使用 `--path-source lattice --lattice-cadence cached`，即 native planner
+自行选路的 1 Hz 模式，学习 policy 暂不接入。中线对照需要显式加 `--path-source perception`，
+历史每周期重算对照需要加 `--lattice-cadence control`。ROS节点仍保持shadow，未部署。
 
 ## 模块修改
 

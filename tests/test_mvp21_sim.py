@@ -83,8 +83,8 @@ class MVP21IntegrationChecks(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=ROOT/'.verification',prefix='mvp21-test-') as directory:
             directory=Path(directory)
             self.assertTrue(directory.resolve().is_relative_to((ROOT/'.verification').resolve()))
-            on=run(road,directory/'on',max_steps=4,shadow_enabled=True)
-            off=run(road,directory/'off',max_steps=4,shadow_enabled=False)
+            on=run(road,directory/'on',max_steps=4,shadow_enabled=True,path_source='perception')
+            off=run(road,directory/'off',max_steps=4,shadow_enabled=False,path_source='perception')
             left=[json.loads(line) for line in (directory/'on/trace.jsonl').read_text().splitlines()]
             right=[json.loads(line) for line in (directory/'off/trace.jsonl').read_text().splitlines()]
             self.assertEqual([r['plant_action'] for r in left],[r['plant_action'] for r in right])
