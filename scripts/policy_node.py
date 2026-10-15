@@ -3848,6 +3848,9 @@ class MPCSettings:
     r_ddrive: float = 2.0
     terminal_scale: float = 5.0
     max_backward_extension_m: float = 0.6
+    # ORDERED_CENTERLINE only: length of path start fitted for the straight lead-in
+    # to the car (reference_trajectory_from_planning). Not used by V1/V2 paths.
+    ordered_lead_in_fit_m: float = 1.0
     reference_spacing_m: float = 0.05
     max_step_time_s: float = 0.05
     solver_time_limit_s: float = 0.03
@@ -3889,7 +3892,7 @@ class MPCSettings:
         if not 2 <= self.horizon_n <= 50 or not 1 <= self.sqp_iterations <= 5:
             raise ValueError("mpc.horizon_n must be in [2, 50] and mpc.sqp_iterations in [1, 5]")
         positive = ("dt_pred_s", "dt_max_s", "q_ey", "q_epsi", "q_v", "r_delta", "r_ddelta", "r_drive",
-                    "r_ddrive", "terminal_scale", "overspeed_margin_mps", "max_backward_extension_m",
+                    "r_ddrive", "terminal_scale", "overspeed_margin_mps", "max_backward_extension_m", "ordered_lead_in_fit_m",
                     "reference_spacing_m", "max_step_time_s", "solver_time_limit_s", "solver_max_iter",
                     "constraint_tolerance", "bypass_target_speed_mps", "bypass_max_curvature_1pm",
                     "bypass_max_fit_error_m", "bypass_min_forward_m", "bypass_fit_max_x_m",
@@ -3919,7 +3922,43 @@ def mpc_vehicle_params(cfg, vehicle):
     return vehicle if vehicle is not None else VehicleParamsSettings()
 
 
-def reference_trajectory_from_planning(ref, spacing_m=0.05):
+def _ordered_lead_in(raw, fit_m):
+    """Smoothed start (x, y, heading) of a resampled ORDERED_CENTERLINE, or None.
+
+    raw: [(s, x, y, yaw)] from s=0 (the end nearest the car). A quadratic in the
+    principal-axis frame of the first fit_m of path, evaluated at s=0: unlike
+    the first 5 cm tangent it does not multiply one sample's noise by the gap to
+    the car, and unlike a line it keeps straights and bends of any radius exact
+    (a line gives a gentle bend its chord heading: 0.1 rad on R 5 m).
+    Replay of car 05's 2026-10-15 bags: |e_y - cone-pair centre| p95 0.105 ->
+    0.075, 0.175 -> 0.141, 0.039 -> 0.016 m. A smooth tilt the road estimate
+    itself carries (one misplaced near cone, 18:18) is only partly removed
+    (0.12 -> 0.08 m there): geometry alone cannot tell it from a real bend.
+    """
+    window = [r for r in raw if r[0] <= min(fit_m, raw[-1][0])+1e-9]
+    if len(window) < 3 or window[-1][0]-window[0][0] < 0.3:
+        return None
+    mx, my = sum(r[1] for r in window)/len(window), sum(r[2] for r in window)/len(window)
+    sxx = sum((r[1]-mx)**2 for r in window)
+    syy = sum((r[2]-my)**2 for r in window)
+    sxy = sum((r[1]-mx)*(r[2]-my) for r in window)
+    axis = 0.5*math.atan2(2*sxy, sxx-syy)
+    ux, uy = math.cos(axis), math.sin(axis)
+    if ux*(window[-1][1]-window[0][1])+uy*(window[-1][2]-window[0][2]) < 0:
+        axis, ux, uy = wrap_angle(axis+math.pi), -ux, -uy
+    along = [(r[1]-mx)*ux+(r[2]-my)*uy for r in window]
+    across = [-(r[1]-mx)*uy+(r[2]-my)*ux for r in window]
+    moments = [sum(t**k for t in along) for k in range(5)]
+    c = _estimation_solve([[moments[i+j] for j in range(3)] for i in range(3)],
+                          [sum(e*t**i for t, e in zip(along, across)) for i in range(3)])
+    if c is None:
+        return None
+    t0 = along[0]
+    e0, slope = c[0]+c[1]*t0+c[2]*t0*t0, c[1]+2*c[2]*t0
+    return mx+t0*ux-e0*uy, my+t0*uy+e0*ux, wrap_angle(axis+math.atan(slope))
+
+
+def reference_trajectory_from_planning(ref, spacing_m=0.05, lead_in_fit_m=1.0, max_lead_in_m=0.6):
     """Planning V1/V2 reference -> ReferenceTrajectory v0.1 point list (base_link).
 
     The original timestamp, lifetime and source ages are passed through unchanged;
@@ -3927,6 +3966,8 @@ def reference_trajectory_from_planning(ref, spacing_m=0.05):
     V2 CARTESIAN_SAMPLES are copied without refitting or resampling. V2
     CARTESIAN_Y_OF_X polynomials are evaluated at their own origin and scale.
     A V2 speed_profile is retained for time-based MPC shadow evaluation.
+    ORDERED_CENTERLINE paths that start ahead of the car get a straight lead-in
+    (lead_in_fit_m, max_lead_in_m; see that branch).
     """
     out = {"schema": "reference_trajectory_v0.1", "frame_id": None, "timestamp_s": None,
            "valid_for_s": 0.0, "valid": False, "stop_required": True, "status": None,
@@ -4029,6 +4070,22 @@ def reference_trajectory_from_planning(ref, spacing_m=0.05):
                 break
         if len(raw) < 2:
             return reject("path_too_short")
+        # Lead-in (2026-10-15, car 05 18:18 replay): the path often starts
+        # 0.4-0.75 m ahead (near field unobserved) and mpc_path_projector would
+        # extend its FIRST 5 cm segment back to the body; see _ordered_lead_in.
+        # Only when the gap fits in max_lead_in_m (mpc.max_backward_extension_m);
+        # otherwise the projector's extension applies as before. Paths starting
+        # at or behind the body are unchanged.
+        start = _ordered_lead_in(raw, lead_in_fit_m)
+        if start is not None:
+            x0, y0, theta = start
+            hx, hy = math.cos(theta), math.sin(theta)
+            gap = x0*hx+y0*hy                       # path start ahead of the car's projection
+            if spacing_m < gap <= max_lead_in_m:
+                lead = [(0.0, x0-k*spacing_m*hx, y0-k*spacing_m*hy, theta)
+                        for k in range(math.ceil(gap/spacing_m)+1, 0, -1)]
+                s_all = _path_lengths([(r[1], r[2]) for r in lead+raw])
+                raw = [(s_all[i], r[1], r[2], r[3]) for i, r in enumerate(lead+raw)]
         # Curvature from the heading change over the resampled spacing (central
         # difference; one-sided at the ends), clipped as a safety net against
         # cone noise. It is only a steering feedforward term, not a constraint.
@@ -6713,7 +6770,9 @@ class PolicyNode(Node):
             if mpc_settings.reference_source == "estimation_centerline":
                 traj = reference_trajectory_from_road(estimates["road"], state, mpc_settings)
             else:
-                traj = reference_trajectory_from_planning(planning_ref, mpc_settings.reference_spacing_m)
+                traj = reference_trajectory_from_planning(planning_ref, mpc_settings.reference_spacing_m,
+                                                          mpc_settings.ordered_lead_in_fit_m,
+                                                          mpc_settings.max_backward_extension_m)
             speed = state["speed_mps"] if state.get("speed_valid") else None
             try:
                 mpc_result = self.mpc_controller.step(traj, speed, dt, state["timestamp_s"], is_first_policy_step)

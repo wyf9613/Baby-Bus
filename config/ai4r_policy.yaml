@@ -384,6 +384,10 @@
       r_ddrive: 2.0
       terminal_scale: 5.0
       max_backward_extension_m: 0.6
+      # road_centerline (ORDERED_CENTERLINE) only: a path starting ahead of the car gets a
+      # straight lead-in along the tangent, at its start, of a quadratic fitted to its first
+      # ordered_lead_in_fit_m (instead of extending the first 5 cm segment).
+      ordered_lead_in_fit_m: 1.0
       reference_spacing_m: 0.05
       max_step_time_s: 0.05
       solver_time_limit_s: 0.03

@@ -29,7 +29,7 @@ namespace = planning_api["api"]["namespace"]
 SOURCE = ROOT / "scripts" / "policy_node.py"
 NAMES = {"wrap_angle", "MPCStop", "VehicleParamsSettings", "course_simulation_vehicle_params",
          "course_model_step", "MPCSettings", "mpc_vehicle_params", "reference_trajectory_from_planning",
-         "reference_trajectory_from_road", "mpc_reference_errors", "mpc_path_projector",
+         "_ordered_lead_in", "_estimation_solve", "reference_trajectory_from_road", "mpc_reference_errors", "mpc_path_projector",
          "VehicleModelMPC", "MPCController", "mpc_debug_json", "transport_control_reference",
          "_control_sample_points", "mpc_planning_reference", "ControlReferenceManager"}
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))

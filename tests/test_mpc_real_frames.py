@@ -40,7 +40,7 @@ NAMES = {
     # MPC.
     "ControlReferenceManager", "MPCStop", "VehicleParamsSettings",
     "course_simulation_vehicle_params", "course_model_step", "MPCSettings",
-    "mpc_vehicle_params", "reference_trajectory_from_planning", "mpc_reference_errors",
+    "mpc_vehicle_params", "reference_trajectory_from_planning", "_ordered_lead_in", "mpc_reference_errors",
     "mpc_path_projector", "VehicleModelMPC", "MPCController", "mpc_debug_json",
 }
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
@@ -225,6 +225,64 @@ class OrderedCenterlineAdapterChecks(unittest.TestCase):
                         self.assertGreater(math.hypot(b["x_m"]-a["x_m"], b["y_m"]-a["y_m"]), 1e-6)
                         self.assertGreater(b["s_m"], a["s_m"])
                     self.assertAlmostEqual(points[-1]["s_m"], total_s, places=6)
+
+
+def ordered_reference(points):
+    reference = ordered_centerline_reference(1.0)
+    reference["path"]["samples_xy"] = [list(p) for p in points]
+    return reference
+
+
+def errors_at_car(traj, max_extension=0.6):
+    """(e_y, e_psi) of a car at the base_link origin, heading +x: car minus path."""
+    px, py, heading, *_ = namespace["mpc_path_projector"](traj["points"], max_extension)(0.0, 0.0)
+    return -(-px*math.sin(heading)+py*math.cos(heading)), -heading
+
+
+def arc(start_x, radius, count=60, spacing=0.05):
+    return [(start_x+radius*math.sin(i*spacing/radius), radius*(1-math.cos(i*spacing/radius)))
+            for i in range(count)]
+
+
+class OrderedLeadInChecks(unittest.TestCase):
+    """2026-10-15, car 05 18:18 replay: the ordered centerline started 0.58 m
+    ahead (near field unobserved) and the projector extended its first 5 cm
+    segment to the car, multiplying that segment's heading noise by the gap.
+    The adapter now adds a lead-in on the start tangent of a quadratic fit."""
+    def test_one_noisy_first_sample_is_not_multiplied_by_the_gap(self):
+        points = [(0.58+0.05*i, 0.0) for i in range(50)]
+        points[0] = (0.58, -0.015)        # first sample 1.5 cm off: a 0.3 rad first segment
+        old = errors_at_car(adapt(ordered_reference(points), 0.05, lead_in_fit_m=0.0, max_lead_in_m=0.6))
+        new = errors_at_car(adapt(ordered_reference(points), 0.05, lead_in_fit_m=1.0, max_lead_in_m=0.6))
+        self.assertGreater(abs(old[0]), 0.1)
+        self.assertLess(abs(new[0]), 0.025)     # the fit still weighs the noisy sample
+        self.assertLess(abs(new[1]), 0.03)
+
+    def test_straight_offset_and_bends_of_any_radius_stay_exact(self):
+        cases = {"offset_straight": ([(0.58+0.05*i, 0.05) for i in range(50)], (-0.05, 0.0))}
+        for radius in (1.0, 1.5, 3.0, 5.0):
+            for start_x in (0.1, 0.3, 0.58):
+                cases[f"R{radius}_from_{start_x}"] = (arc(start_x, radius), (0.0, 0.0))
+        for name, (points, (e_y, e_psi)) in cases.items():
+            with self.subTest(name):
+                traj = adapt(ordered_reference(points), 0.05, lead_in_fit_m=1.0, max_lead_in_m=0.6)
+                self.assertTrue(traj["valid"], traj["reason"])
+                got = errors_at_car(traj)
+                self.assertAlmostEqual(got[0], e_y, delta=0.02)
+                self.assertAlmostEqual(got[1], e_psi, delta=0.035)
+                for a, b in zip(traj["points"], traj["points"][1:]):
+                    self.assertGreater(b["s_m"], a["s_m"])
+                    self.assertGreater(math.hypot(b["x_m"]-a["x_m"], b["y_m"]-a["y_m"]), 1e-6)
+
+    def test_paths_at_or_behind_the_car_or_beyond_the_cap_are_unchanged(self):
+        for name, points, cap in (("behind", [(-0.2+0.05*i, 0.01*i) for i in range(40)], 0.6),
+                                  ("at_body", [(0.03+0.05*i, 0.0) for i in range(40)], 0.6),
+                                  ("beyond_cap", [(0.9+0.05*i, 0.0) for i in range(40)], 0.6)):
+            with self.subTest(name):
+                reference = ordered_reference(points)
+                old = adapt(deepcopy(reference), 0.05, lead_in_fit_m=0.0, max_lead_in_m=cap)
+                new = adapt(deepcopy(reference), 0.05, lead_in_fit_m=1.0, max_lead_in_m=cap)
+                self.assertEqual(old["points"], new["points"])
 
 
 class ImportShadowingChecks(unittest.TestCase):

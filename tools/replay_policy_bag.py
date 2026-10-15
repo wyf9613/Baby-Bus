@@ -174,7 +174,7 @@ def snapshot(node, now_s, ros_ns):
     return values, ages, stamps
 
 
-def replay(api, params, path, imu_mount):
+def replay(api, params, path, imu_mount, full_path=False):
     messages, topics = read_bag(path)
     node = make_node(api, params)
     stops = (api["MPCStop"], api["PolicyStopRequest"])
@@ -229,6 +229,8 @@ def replay(api, params, path, imu_mount):
                                                 for a, b in zip(xy, xy[1:])), 3),
                            path_end_xy=[round(xy[-1][0], 3), round(xy[-1][1], 3)],
                            path_head_xy=[[round(v, 3) for v in p[:2]] for p in xy[:4]])
+                if full_path:
+                    row["path_xy"] = [[round(v, 4) for v in p[:2]] for p in xy]
             if len(node.debug) > before:
                 d = node.debug[-1]
                 row.update(branch=d.get("branch"), reject=d.get("reject_reason"),
@@ -269,6 +271,7 @@ def main():
     parser.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE")
     parser.add_argument("--imu-mount", type=float, nargs=4, default=IMU_MOUNT_XYZW, metavar=("X", "Y", "Z", "W"))
     parser.add_argument("--json-out", type=Path, help="write per-bag results, including every frame")
+    parser.add_argument("--full-path", action="store_true", help="also write every frame's planned path points")
     args = parser.parse_args()
     try:
         from dream_interfaces.msg import ConeDetection
@@ -284,7 +287,7 @@ def main():
           f" | planning {algorithm}" + (" (in-line; no async delay or MPC hold)" if algorithm == "lattice_v2" else ""))
     results = []
     for path in args.bags:
-        r = replay(api, deepcopy(params), path, tuple(args.imu_mount))
+        r = replay(api, deepcopy(params), path, tuple(args.imu_mount), args.full_path)
         results.append(r)
         n = r["steps"]
         print(f"\n== {r['bag']}: {n} steps")
