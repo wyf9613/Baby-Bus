@@ -1,0 +1,41 @@
+{
+ "name": "car15_v4",
+ "source": "docs\\experiments\\2026-10-14\\evidence\\car15\\visualization4\\run.jsonl",
+ "path_length_m": 4.394,
+ "elements": [
+  {
+   "geometry": {
+    "type": "circular_arc",
+    "curvature_per_m": 0.4152,
+    "sweep_angle_deg": 59.85
+   }
+  },
+  {
+   "geometry": {
+    "type": "straight",
+    "length_m": 0.445
+   }
+  },
+  {
+   "geometry": {
+    "type": "circular_arc",
+    "curvature_per_m": -0.3241,
+    "sweep_angle_deg": 12.87
+   }
+  },
+  {
+   "geometry": {
+    "type": "straight",
+    "length_m": 0.673
+   }
+  }
+ ],
+ "lane_width_m": 0.926,
+ "lane_width_samples": 237,
+ "cone_spacing_m": 0.177,
+ "cone_spacing_samples": 3156,
+ "element_types": {
+  "circular_arc": 2,
+  "straight": 2
+ }
+}

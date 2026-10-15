@@ -2,6 +2,43 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-15：把 main 的 ordered_xy 估计和 road_centerline 规划接入 MPC
+
+分支 `mpc-car-run-port-main`（基于 `mpc-car-run` 的 `c01aa9b`，周四部署版本已打 tag
+`mpc-car-run-v2-20261015` 存档）。origin/main（`0c8593a`）已经用 `estimation.road_geometry:
+ordered_xy` + `planning.algorithm: road_centerline` 在车上跑通直角弯和 S 弯（右角弯备忘录
+`right-angle-bend-is-own-goal` 据此更新）；这次把这两块整块移植进 MPC 分支，V1/V2 lattice 和
+MVP/PID 保持不变（新增兼容检查：`ordered_xy` 要求 `road_centerline`；`lattice_v2` 要求
+`y_of_x`）。MPC 侧新代码：`reference_trajectory_from_planning` 新增 ORDERED_CENTERLINE 适配
+（按弧长重采样，曲率用航向差分并限幅）；`mpc_path_projector` 加了防跳支路（先试朝向车头 ±105°
+以内的段，全部排除才退回全量搜索）；`VehicleModelMPC`/`MPCController` 把预测轨迹传到
+`mpc_debug.pred_xy`。Foxglove：MPC 复用 main 的 `/car/policy_trajectory`（和 PID 共用绿线），
+新增 `/car/mpc_prediction`（预测线）。
+
+**验证**：`tests/test_estimation`（65/65）、`test_planning`（18/18）、`test_lattice`（45/45）、
+`test_mpc`（95/95）、`test_control`（43/43）全部不变；新增 `tests/test_mpc_real_frames.py`
+直接用 main 的 car05（5 号车实测直角弯链）两个 ordered_xy fixture 跑通 Estimation →
+RoadCenterlinePlanner → MPC 适配 → shadow 求解全链路。`car_readiness.py` 整套矩阵（V2/MVP，
+`--workers 6`）结果和存档逐字节一致，证明移植未影响现有线路。
+
+**新增工具**：`tools/replay_run_jsonl.py`（真车 car15 的 3 条完整 run.jsonl 开环回放 MPC
+shadow，`offline/mpc_gym/results/replay_car15_run_jsonl.md`）；`offline/mpc_gym/real_track.py`
+（用 run.jsonl 的轮速/陀螺仪重建道路几何和锥桶统计，生成 Gym road_spec）；
+`offline/mpc_gym/car_readiness_centerline.py`（road_centerline 版本的 car-readiness 矩阵，
+只测 MPC——这个分支自己的 PID 不认 ORDERED_CENTERLINE，会报
+`unsupported_path_encoding`，PID 对照需要用 main 自己的代码跑，这次没做）。
+
+**车 .27 条件下 Gym 矩阵全 0/10**（`car_readiness_centerline.md`）：近处盲区持续
+`near_field_unobserved`/`near_field_requires_both_boundaries` 太久，在真正观测到双侧之前
+就先撞上 `estimation.motion_max_interval_s`（0.4 s）。关掉噪声/丢帧后同样配置能跑完整条
+3 m 直道，且这个现象和真车 `replay_car15_run_jsonl.md` 的回放结果一致（约 85% 的帧也在这两个
+状态里）——是 Estimation 层在这颗摄像头的时延/丢帧预算下的已知限制，不是这次 MPC 移植的问题。
+
+这次矩阵测试本身也抓到一个真的 MPC 适配器 bug：ORDERED_CENTERLINE 重采样的强制终点
+（s=total_s）即使和上一个点几乎重合也照样追加，产生长度≈0 的末段，被 `mpc_reference_errors`
+按 `repeated_point` 拒绝；改成重合时替换掉上一个点。回归测试：
+`tests/test_mpc_real_frames.py::OrderedCenterlineAdapterChecks`。
+
 ## 2026-10-14：周四前补丁 —— 锥桶颜色可配置、一个校验 bug、现场核对项
 
 来源：盘点其它分支 10-12 到 10-14 的提交（`feature/road-estimation-v2`、`mvp2.0`、`fix/newcar-control`、`feature/vehicle-identification`）。

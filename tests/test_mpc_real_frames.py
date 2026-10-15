@@ -194,5 +194,38 @@ class RealFrameMpcChecks(unittest.TestCase):
                     self.assertEqual(len(debug["pred_xy"]), MPCSettings().horizon_n)
 
 
+def ordered_centerline_reference(total_s, spacing_m=0.1, speed=0.2, n=41):
+    """A straight ORDERED_CENTERLINE reference of exactly total_s length, for
+    sweeping total_s against the adapter's resampling spacing."""
+    points = [[i*total_s/(n-1), 0.0] for i in range(n)]
+    path = {"type": "ORDERED_CENTERLINE", "independent_variable": "s_m",
+            "samples_xy": points, "range": [0.0, total_s]}
+    return {"frame_id": "base_link", "timestamp_s": 10.0, "valid_for_s": 0.2, "valid": True,
+            "status": "TRACK", "reason": None, "path_id": 1, "simulation_only": False,
+            "source_ages_s": {}, "path": path, "target_speed_mps": speed,
+            "stop_requested": False, "planned_stop": False, "stop_at_path_m": None}
+
+
+class OrderedCenterlineAdapterChecks(unittest.TestCase):
+    """2026-10-15 regression: the forced final resample point (s=total_s) used to
+    always be appended even when within 0.25*spacing_m of the previous point,
+    producing a near-zero-length final segment that mpc_reference_errors
+    rejects as "repeated_point" (first caught by a Gym run under
+    car_readiness_centerline.py, not by a single-frame fixture)."""
+    def test_lengths_near_a_spacing_multiple_do_not_create_a_repeated_point(self):
+        spacing_m = 0.1
+        for k in range(3, 20):
+            for epsilon in (-1e-4, -1e-9, 0.0, 1e-9, 1e-4):
+                total_s = k*spacing_m + epsilon
+                with self.subTest(total_s=total_s):
+                    traj = adapt(ordered_centerline_reference(total_s, spacing_m), spacing_m=spacing_m)
+                    self.assertTrue(traj["valid"], traj["reason"])
+                    points = traj["points"]
+                    for a, b in zip(points, points[1:]):
+                        self.assertGreater(math.hypot(b["x_m"]-a["x_m"], b["y_m"]-a["y_m"]), 1e-6)
+                        self.assertGreater(b["s_m"], a["s_m"])
+                    self.assertAlmostEqual(points[-1]["s_m"], total_s, places=6)
+
+
 if __name__ == "__main__":
     unittest.main()

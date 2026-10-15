@@ -118,12 +118,61 @@ def load_policy():
                                   "ConeDetection": SimpleNamespace(COLOR_BLUE=2, COLOR_YELLOW=1)})
 
 
+REAL_TRACKS_DIR = Path(__file__).resolve().parent / "real_tracks"
+# Right-angle/U-turn: both boundaries throughout, R 1.0/1.5 m (the two radii the
+# right-angle-bend-is-own-goal memory note tracks), straight run-in/run-out so the
+# cone history is built before the turn. Not required by the assessment; see that
+# memory note and docs/UPSTREAM_FIXES_FOR_CAR_CN.md section 7 (single-sided bends).
+SYNTHETIC_BENDS = {
+    "right_angle_r1": (1.0, 90.0), "right_angle_r1_5": (1.5, 90.0), "u_turn": (1.0, 180.0)}
+
+
 def road_spec(road="straight"):
     """straight; gentle_arc (2 m, R 5 m 45 deg, 4 m, cones on both sides); course (the
     notebook CONE_ROAD_SPEC unchanged: its R 5 m bend has LEFT cones only and the
-    following straight has sparse, displaced right cones); s_bend (R 3 m, +-60 deg)."""
+    following straight has sparse, displaced right cones); s_bend (R 3 m, +-60 deg);
+    right_angle_r1, right_angle_r1_5, u_turn (both boundaries, synthetic); or a name
+    under real_tracks/ (built by real_track.py from a recorded run.jsonl's own
+    dead-reckoned path and measured cone spacing -- see that tool's docstring for
+    why this is a geometry/statistics fit, not the real cones placed literally)."""
     if road in ("straight", "s_bend"):
         return tune.road_spec(road)
+    if road in SYNTHETIC_BENDS:
+        radius_m, sweep_deg = SYNTHETIC_BENDS[road]
+        spec = deepcopy(tune.CONFIG["CONE_ROAD_SPEC"])
+        start, bend = deepcopy(spec["elements"][0]), deepcopy(spec["elements"][1])
+        start["geometry"]["length_m"] = 2.0
+        bend["geometry"] = {"type": "circular_arc", "curvature_per_m": 1.0/radius_m, "sweep_angle_deg": sweep_deg}
+        bend["active_cone_paths"] = {"left_boundary": "regular", "right_boundary": "regular"}
+        end = deepcopy(start)
+        end["geometry"]["length_m"] = 2.0
+        spec["elements"] = [start, bend, end]
+        return spec
+    track_file = REAL_TRACKS_DIR / f"{road}.json"
+    if track_file.exists():
+        track = json.loads(track_file.read_text(encoding="utf-8"))
+        spec = deepcopy(tune.CONFIG["CONE_ROAD_SPEC"])
+        elements = []
+        for i, element in enumerate(track["elements"]):
+            # The first element must carry "lanes" (nothing precedes it to inherit
+            # from); later elements can use either template, "lanes" absent means
+            # the cross-section continues unchanged (cross_section_width_interpolation).
+            straight_template = i == 0 or element["geometry"]["type"] == "straight"
+            base = deepcopy(spec["elements"][0] if straight_template else spec["elements"][1])
+            base["geometry"] = element["geometry"]
+            base["active_cone_paths"] = {"left_boundary": "regular", "right_boundary": "regular"}
+            elements.append(base)
+        spec["elements"] = elements
+        if track.get("lane_width_m"):
+            for element in spec["elements"]:
+                if "lanes" in element:   # only the first element carries it; cross-
+                    element["lanes"]["reference_lane"]["width_m"] = {    # section width
+                        "start": track["lane_width_m"], "end": track["lane_width_m"]}  # is constant after
+        if track.get("cone_spacing_m"):
+            for path in spec["cone_paths"].values():
+                path["profiles"]["regular"]["inter_cone_spacing"] = {
+                    "distribution": "fixed", "value_m": track["cone_spacing_m"]}
+        return spec
     spec = deepcopy(tune.CONFIG["CONE_ROAD_SPEC"])
     if road == "gentle_arc":
         start, bend = deepcopy(spec["elements"][0]), deepcopy(spec["elements"][1])

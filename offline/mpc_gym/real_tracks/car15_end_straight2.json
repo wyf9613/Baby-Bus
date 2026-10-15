@@ -1,0 +1,55 @@
+{
+ "name": "car15_end_straight2",
+ "source": "docs\\experiments\\2026-10-14\\evidence\\car15\\end-straight2-1m\\run.jsonl",
+ "path_length_m": 5.542,
+ "elements": [
+  {
+   "geometry": {
+    "type": "circular_arc",
+    "curvature_per_m": 0.3435,
+    "sweep_angle_deg": 13.77
+   }
+  },
+  {
+   "geometry": {
+    "type": "circular_arc",
+    "curvature_per_m": 0.47,
+    "sweep_angle_deg": 48.99
+   }
+  },
+  {
+   "geometry": {
+    "type": "straight",
+    "length_m": 0.487
+   }
+  },
+  {
+   "geometry": {
+    "type": "circular_arc",
+    "curvature_per_m": -0.289,
+    "sweep_angle_deg": 13.12
+   }
+  },
+  {
+   "geometry": {
+    "type": "circular_arc",
+    "curvature_per_m": 0.1368,
+    "sweep_angle_deg": 7.32
+   }
+  },
+  {
+   "geometry": {
+    "type": "straight",
+    "length_m": 0.685
+   }
+  }
+ ],
+ "lane_width_m": 0.919,
+ "lane_width_samples": 211,
+ "cone_spacing_m": 0.18,
+ "cone_spacing_samples": 2848,
+ "element_types": {
+  "circular_arc": 4,
+  "straight": 2
+ }
+}

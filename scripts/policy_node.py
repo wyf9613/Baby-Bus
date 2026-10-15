@@ -4014,9 +4014,17 @@ def reference_trajectory_from_planning(ref, spacing_m=0.05):
             s = min(total_s, i*spacing_m)
             px, py = _path_sample(xy, lengths, s)
             tx, ty = _path_tangent(xy, lengths, s)
-            if raw and s-raw[-1][0] < 0.25*spacing_m and s < total_s:
+            near_duplicate = raw and s-raw[-1][0] < 0.25*spacing_m
+            if near_duplicate and s < total_s:
                 continue
-            raw.append((s, px, py, math.atan2(ty, tx)))
+            if near_duplicate:
+                # The forced final point (s=total_s) must still be appended even
+                # when close to the previous one: replace it rather than adding a
+                # near-duplicate, which mpc_reference_errors rejects as a zero-
+                # length segment (repeated_point).
+                raw[-1] = (s, px, py, math.atan2(ty, tx))
+            else:
+                raw.append((s, px, py, math.atan2(ty, tx)))
             if s >= total_s:
                 break
         if len(raw) < 2:
