@@ -6852,6 +6852,35 @@ class PolicyNode(Node):
                                  "control or the MPC on the Planning reference")
             self.async_planner = AsyncLatticePlanner()
 
+        # MVP2.1 lattice (ported from origin/mvp2.1). shadow.* runs the planner in a
+        # separate low-priority process, display/diagnostics only. planner_control
+        # additionally lets the MPC track its selected path, falling back to this
+        # tick's road_centerline reference. Both are off by default.
+        shadow_values = {}
+        for name, default in vars(ShadowSettings()).items():
+            parameter_name = f"shadow.{name}"
+            self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
+            shadow_values[name] = self.get_parameter(parameter_name).value
+        self.shadow_settings = ShadowSettings(**shadow_values)
+        planner_control_values = {}
+        for name, default in vars(PlannerControlSettings()).items():
+            parameter_name = f"planner_control.{name}"
+            self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
+            planner_control_values[name] = self.get_parameter(parameter_name).value
+        self.planner_control_settings = PlannerControlSettings(**planner_control_values)
+        # mpc-car-run adaptation: mvp2.1 requires the MVP PID as the consumer; this
+        # branch's PID cannot read ORDERED_CENTERLINE, so the MPC is the consumer.
+        if self.planner_control_settings.enabled and (
+                not self.shadow_settings.enabled or not self._mpc_uses_planning()
+                or self.planning_settings.algorithm != "road_centerline"
+                or self.policy_update_mode != "timer"):
+            raise ValueError("Planner control requires shadow, timer updates and the MPC on "
+                             "road_centerline Planning")
+        self.planner_preview_m = self._planner_preview_m()
+        self.planner_execution = PlannerExecutionManager(self.policy_frame_id)
+        self._last_execution_mode = None
+        self._mpc_trajectory = None
+
         self.fsm_state = FSM_STATE_PUBLISHING_ZERO_ACTIONS
         self.state_reason = "Startup: waiting for an explicit policy request"
         self.observations = {name: None for name in SENSORS}
@@ -6889,6 +6918,30 @@ class PolicyNode(Node):
         self.mpc_prediction_publisher = self.create_publisher(TrajectoryPath, "mpc_prediction", 1)
         self._publish_trajectory(self.get_clock().now().nanoseconds, force=True)
         self._publish_mpc_prediction(self.get_clock().now().nanoseconds, None)
+        # MVP2.1 shadow lattice state, publishers and worker (as on mvp2.1).
+        self.shadow_generation = self.shadow_job_id = 0
+        self.shadow_last_submit_s = -math.inf
+        self.shadow_handoff_estimate_s = self.shadow_settings.handoff_allowance_s
+        self.shadow_last_result_s = None
+        self.shadow_road_history = []
+        self.shadow_pose = [0.0, 0.0, 0.0]
+        self.shadow_pose_stamp_s = None
+        self.shadow_odometry_epoch = 0
+        self.shadow_previous_reference = None
+        self.shadow_collection_events = []
+        self.shadow_collection_reset_id = 0
+        self.shadow_worker = None
+        self.shadow_timer = None
+        if self.shadow_settings.enabled:
+            self.shadow_path_publisher = self.create_publisher(TrajectoryPath, "shadow_trajectory", 1)
+            self.shadow_prefix_publisher = self.create_publisher(TrajectoryPath, "shadow_checked_prefix", 1)
+            self.shadow_reference_publisher = self.create_publisher(TrajectoryPath, "shadow_reference", 1)
+            self.shadow_diagnostics_publisher = self.create_publisher(String, "shadow_planning", 1)
+            self.shadow_worker = ShadowWorker(__file__)
+            self.shadow_timer = self.create_timer(1/self.supervision_rate_hz, self._shadow_poll)
+            self._shadow_clear()
+        if self.planner_control_settings.enabled:
+            self.planner_execution_publisher = self.create_publisher(String, "planner_execution", 1)
 
         self.create_subscription(ConeDetections, "cone_detections",
                                  self.cone_detection_callback, reliable_one)
@@ -7348,6 +7401,15 @@ class PolicyNode(Node):
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
         self._publish_actions(drive, steer, pan)
+        if hasattr(self, "planner_execution_publisher"):
+            self._publish_planner_execution()
+        # Offer AFTER the baseline action, never on its calculation/exception path.
+        # This is a diagnostic side channel; failures cannot change the action/FSM.
+        if getattr(self, "shadow_worker", None) is not None:
+            try:
+                self._shadow_offer()
+            except Exception as error:
+                self._warn("shadow_submit", f"Shadow submission unavailable: {error}")
         if hasattr(self, "trajectory_publisher"):
             self._publish_trajectory(ros_now)
         if debug1 is not None:
@@ -7796,6 +7858,12 @@ class PolicyNode(Node):
                 planning_ref, self.mpc_held_reference, held_age = mpc_planning_reference(
                     self.planning_output, getattr(self, "mpc_held_reference", None),
                     self.motion_history, state["timestamp_s"])
+            # MVP2.1 lattice (planner_control.enabled): its aligned, cropped path
+            # replaces this tick's road_centerline reference when it passes the
+            # execution checks; otherwise the baseline above is used unchanged.
+            planner_control = getattr(self, "planner_control_settings", None)
+            planner_requested = planner_control is not None and planner_control.enabled
+            planner_traj = self._select_mpc_planner_trajectory(estimates) if planner_requested else None
             # Same bounded priming as the MVP: delayed camera data may predate the
             # motion history reset at start. Only BEFORE the first accepted MPC step.
             # With async planning, also wait out the worker's first result and a
@@ -7803,14 +7871,16 @@ class PolicyNode(Node):
             grace = getattr(self, "control_settings", ControlSettings()).startup_grace_s
             priming = not mpc_settings.shadow and not getattr(self, "mpc_has_run", False) and policy_elapsed_s < grace
             async_planning = getattr(self, "async_planner", None) is not None
-            if priming and (
+            if priming and planner_traj is None and (
                     (not planning_ref["valid"] and state["valid"]
                      and (estimates["road"]["status"] == "missing_motion_history"
                           or async_planning
                           and planning_ref.get("reason") in ControlReferenceManager.SOFT_REASONS))
                     or async_planning and estimates["road"].get("degraded")):
                 return 0.0, 0.0, None, None, None
-            if mpc_settings.reference_source == "estimation_centerline":
+            if planner_traj is not None:
+                traj = planner_traj
+            elif mpc_settings.reference_source == "estimation_centerline":
                 traj = reference_trajectory_from_road(estimates["road"], state, mpc_settings)
             else:
                 traj = reference_trajectory_from_planning(planning_ref, mpc_settings.reference_spacing_m,
@@ -7822,6 +7892,10 @@ class PolicyNode(Node):
             finally:
                 self.mpc_controller.last_debug.update(reference_held=held_age is not None,
                                                       reference_held_age_s=held_age)
+                if planner_requested:
+                    self.mpc_controller.last_debug.update(
+                        reference_selection=self.planner_execution.diagnostics.get("mode"),
+                        reference_selection_reason=self.planner_execution.diagnostics.get("reason"))
                 publisher = getattr(self, "mpc_debug_publisher", None)
                 if publisher is not None:
                     publisher.publish(String(data=mpc_debug_json(self.mpc_controller.last_debug)))
@@ -7830,6 +7904,8 @@ class PolicyNode(Node):
             if debug["branch"] in ("solved", "shadow", "zero_target"):
                 self.mpc_has_run = True
             debug1, debug2 = debug["e_y_m"], debug["candidate_delta_rad"]
+            if planner_requested:
+                self._mpc_trajectory = traj
             # Ported 2026-10-15: reuse main's green-line publisher for the MPC's
             # own adapted reference (traj), and publish the predicted horizon
             # on a separate topic. Both are visualization only.
@@ -7966,6 +8042,308 @@ class PolicyNode(Node):
             self.last_planning_submit_s = now
         return selected_estimates
 
+    # ---- MVP2.1 lattice: MPC consumer and shadow side channel ------------------
+    # Shadow methods below are verbatim from origin/mvp2.1 3652e9b except where
+    # marked "mpc-car-run adaptation". The consumer methods are new: mvp2.1 feeds
+    # the MVP PID, this branch feeds the MPC.
+    def _planner_preview_m(self):
+        """Path length the selected lattice must still cover ahead of the car.
+
+        mpc-car-run adaptation: mvp2.1 sizes this by the MVP PID's preview point.
+        The MPC tracks its whole horizon, so take the larger of planning.preview_m
+        and the horizon travel at the execution cap (cruise speed in shadow),
+        including the actuator delay replayed before the first prediction step.
+        """
+        mpc = self.mpc_settings
+        vehicle = mpc_vehicle_params(mpc, getattr(self, "vehicle_settings", None))
+        speed = mpc.v_exec_max_mps if mpc.v_exec_max_mps > 0 else self.planning_settings.cruise_speed_mps
+        delay = max(vehicle.drive_delay_s, vehicle.steering_delay_s)
+        return max(self.planning_settings.preview_m, speed*(mpc.horizon_n*mpc.dt_pred_s+delay))
+
+    def _select_planner_reference(self, estimates):
+        """Opt-in adapter faults return THIS tick's baseline, never Stop."""
+        try:
+            road = estimates.get("road") or {}
+            if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
+                road = road.get("forward_geometry") or {}
+            state = estimates["state"]
+            # In planner mode advance the same short-interval odometry before
+            # execution. The post-action offer is idempotent at this timestamp.
+            self._shadow_collect_road(road, state["timestamp_s"])
+            if self.planning_output.get("valid") and self.planning_output.get("stop_requested"):
+                self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
+                    "reason": "baseline_stop_request", "requested_source": "planner"}
+                return None
+            # mpc-car-run adaptation: see PlannerControlSettings.require_valid_baseline.
+            if (self.planner_control_settings.require_valid_baseline
+                    and self.planning_output.get("valid") is not True):
+                self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
+                    "reason": "baseline_invalid: "+str(self.planning_output.get("reason")),
+                    "requested_source": "planner"}
+                return None
+            period = 1/self.policy_update_rate_hz
+            # mpc-car-run adaptation: MPC preview distance and dt limit, not the PID's.
+            return self.planner_execution.select(road, state, self.shadow_pose, self.shadow_odometry_epoch,
+                self.shadow_settings, self.planner_preview_m, self.planning_settings.cruise_speed_mps,
+                period, self.mpc_settings.dt_max_s+period)
+        except Exception as error:
+            self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
+                "requested_source": "planner", "reason": "execution_exception: "+str(error)}
+            return None
+
+    def _select_mpc_planner_trajectory(self, estimates):
+        """The lattice as an MPC trajectory, or None to use this tick's baseline.
+
+        Checked with the pure adapter and the horizon projection BEFORE
+        MPCController.step: step advances its clock, command history, bias and
+        held plan, and runs once per tick. So unlike mvp2.1's PID (which is
+        restored and re-run on the baseline), a path the solver itself then
+        rejects is an ordinary tolerable MPC dropout, not a same-tick retry.
+        """
+        cfg = self.mpc_settings
+        reference = self._select_planner_reference(estimates)
+        if reference is None:
+            return None
+        try:
+            traj = reference_trajectory_from_planning(reference, cfg.reference_spacing_m,
+                                                      cfg.ordered_lead_in_fit_m, cfg.max_backward_extension_m)
+            reason = traj.get("reason")
+            if traj.get("valid") is True and not traj.get("stop_required"):
+                speed = estimates["state"].get("speed_mps")
+                speed = speed if finite_number(speed) and speed > 0 else 0.0
+                cap = cfg.v_exec_max_mps if cfg.v_exec_max_mps > 0 else self.planning_settings.cruise_speed_mps
+                info, reason = mpc_reference_errors(traj, cfg.horizon_n, cfg.dt_pred_s, max(speed, cap),
+                                                    cfg.max_backward_extension_m)
+                if info is not None:
+                    self.planner_execution.diagnostics.update(mpc_e_y_m=info["e_y_m"],
+                        mpc_e_psi_rad=info["e_psi_rad"], mpc_path_remaining_m=info["path_remaining_m"])
+                    return traj
+        except (ValueError, TypeError, ArithmeticError, KeyError) as error:
+            reason = "exception: "+str(error)
+        self.planner_execution.diagnostics.update(mode="baseline", fallback=True,
+                                                  reason="mpc_reference_rejected: "+str(reason))
+        return None
+
+    def _publish_planner_execution(self):
+        """Record every executed control tick; transport faults cannot stop it."""
+        try:
+            info = dict(self.planner_execution.diagnostics)
+            # mpc-car-run adaptation: report the MPC's step instead of the PID's.
+            traj = getattr(self, "_mpc_trajectory", None) or {}
+            mpc = getattr(getattr(self, "mpc_controller", None), "last_debug", None) or {}
+            info.update(timestamp_s=traj.get("timestamp_s"), generation=self.shadow_generation,
+                path_id=traj.get("path_id"),
+                baseline_valid=bool(self.planning_output and self.planning_output.get("valid")),
+                baseline_reason=(self.planning_output or {}).get("reason"),
+                speed_mps=(self.estimation_output or {}).get("state", {}).get("speed_mps"),
+                mpc_branch=mpc.get("branch"), mpc_reject_reason=mpc.get("reject_reason"),
+                e_y_m=mpc.get("e_y_m"), e_psi_rad=mpc.get("e_psi_rad"),
+                candidate_steer_action=mpc.get("candidate_steer_action"),
+                applied_steer_action=mpc.get("applied_steer_action"),
+                applied_drive=mpc.get("applied_drive"),
+                reference_valid_for_s=traj.get("valid_for_s"))
+            if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
+                info.update(mode="idle", fallback=False, reason=self.state_reason)
+            self.planner_execution_publisher.publish(String(data=json.dumps(info, allow_nan=False)))
+            mode = (info.get("mode"), info.get("reason"))
+            if mode != self._last_execution_mode:
+                self.get_logger().info("Reference selection: "+json.dumps(info, separators=(",", ":")))
+                self._last_execution_mode = mode
+        except Exception as error:
+            self._warn("planner_execution_diagnostics", "Execution diagnostics unavailable: "+str(error))
+
+    def _shadow_clear(self):
+        """Clear shadow displays on every run boundary; old results are fenced."""
+        if hasattr(self, "planner_execution"):
+            self.planner_execution.clear()
+        try:
+            stamp = self.get_clock().now().nanoseconds/1e9
+            for publisher in (self.shadow_path_publisher, self.shadow_prefix_publisher,
+                              self.shadow_reference_publisher):
+                self._shadow_publish_path(publisher, [], stamp)
+            self.shadow_diagnostics_publisher.publish(String(data=json.dumps({
+                "status": "IDLE", "generation": self.shadow_generation,
+                "shadow_only": not bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False))})))
+        except Exception as error:
+            self._warn("shadow_clear", f"Shadow display clearing unavailable: {error}")
+
+    def _shadow_collect_road(self, road, stamp):
+        """Bounded 20 Hz collection; planner execution also calls before control.
+
+        Accumulate short read-only motion intervals; no per-frame fitting and no
+        changes to the estimator's motion history. Alignment faults clear only
+        shadow memory. Original source epochs are not renewed by reconstruction.
+        """
+        previous = getattr(self, "shadow_pose_stamp_s", None)
+        pose = getattr(self, "shadow_pose", [0.0, 0.0, 0.0])
+        epoch = getattr(self, "shadow_odometry_epoch", 0)
+        history = getattr(self, "shadow_road_history", [])
+        reason, reset = ("bootstrap" if previous is None else "aligned"), False
+        if previous is not None and stamp != previous:
+            try:
+                motion, motion_reason = self.motion_history.pose_between(previous, stamp)
+            except Exception as error:
+                motion, motion_reason = None, "motion_exception: "+str(error)
+            if motion is None:
+                history, pose, epoch = [], [0.0, 0.0, 0.0], epoch+1
+                self.shadow_previous_reference = None
+                reason, reset = motion_reason, True
+                self.shadow_collection_reset_id = getattr(self, "shadow_collection_reset_id", 0)+1
+                events = getattr(self, "shadow_collection_events", [])
+                events.append({"id": self.shadow_collection_reset_id, "stamp_s": stamp,
+                               "reason": motion_reason, "odometry_epoch": epoch})
+                self.shadow_collection_events = events[-64:]
+                self._warn("shadow_alignment", "Shadow temporal history reset: "+str(motion_reason))
+            else:
+                c, s = math.cos(pose[2]), math.sin(pose[2])
+                pose = [pose[0]+c*motion["dx_m"]-s*motion["dy_m"],
+                        pose[1]+s*motion["dx_m"]+c*motion["dy_m"], pose[2]+motion["yaw_rad"]]
+        measurement = road.get("measurement_timestamp_s")
+        key = measurement if finite_number(measurement) else stamp
+        history = [h for h in history if stamp-h["stamp_s"] <= self.shadow_settings.fusion_window_s
+                   and h.get("measurement_key") != key]
+        keys = ("centerline_xy", "left_boundary_xy", "right_boundary_xy", "boundary_source",
+                "lane_width_m", "lane_width_source", "inward_offset_m", "status", "visibility",
+                "timestamp_s", "measurement_timestamp_s", "time_aligned", "degraded", "frame_id")
+        snapshot = {"road": {key: deepcopy(road.get(key)) for key in keys}, "stamp_s": stamp,
+                    "pose": list(pose), "odometry_epoch": epoch, "measurement_key": key}
+        state = (getattr(self, "estimation_output", None) or {}).get("state") or {}
+        snapshot["state"] = {key: state.get(key) for key in
+            ("timestamp_s", "frame_id", "speed_mps", "yaw_rate_rps", "speed_valid", "yaw_rate_valid")}
+        history.append(snapshot)
+        self.shadow_road_history = history[-self.shadow_settings.fusion_max_samples:]
+        self.shadow_pose, self.shadow_pose_stamp_s, self.shadow_odometry_epoch = pose, stamp, epoch
+        self.shadow_collection_diagnostics = {"status": "RESET" if reset else "BOOTSTRAP" if previous is None else "ALIGNED",
+            "reason": reason, "reset": reset, "buffer_samples": len(self.shadow_road_history), "odometry_epoch": epoch,
+            "events": deepcopy(getattr(self, "shadow_collection_events", [])),
+            "reset_events_total": getattr(self, "shadow_collection_reset_id", 0)}
+        return snapshot["road"]
+
+    def _shadow_offer(self):
+        now = self._monotonic()
+        estimates = self.estimation_output
+        if not estimates:
+            return
+        road = estimates.get("road") or {}
+        forward = road.get("forward_geometry") or {}
+        if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
+            road = forward
+        stamp = estimates.get("state", {}).get("timestamp_s")
+        stamp = stamp if finite_number(stamp) else self.get_clock().now().nanoseconds/1e9
+        if self.shadow_settings.fusion_enabled or getattr(getattr(self, "planner_control_settings", None), "enabled", False):
+            road = self._shadow_collect_road(road, stamp)
+        if now-self.shadow_last_submit_s < 1/self.shadow_settings.rate_hz:
+            return
+        self.shadow_job_id += 1
+        job = {"settings": vars(self.shadow_settings).copy(),
+            "road": deepcopy(road),
+            "state": {key: estimates.get("state", {}).get(key) for key in
+                      ("speed_mps", "yaw_rate_rps", "timestamp_s", "speed_valid", "yaw_rate_valid")},
+            "stamp_s": stamp,
+            "generation": self.shadow_generation, "job_id": self.shadow_job_id,
+            "submitted_monotonic_s": now, "preview_m": self.planner_preview_m,  # mpc-car-run adaptation
+            "handoff_estimate_s": self.shadow_handoff_estimate_s,
+            "shadow_pose": list(getattr(self, "shadow_pose", [0.0, 0.0, 0.0])),
+            "shadow_odometry_epoch": getattr(self, "shadow_odometry_epoch", 0),
+            "planner_control_enabled": bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False)),
+            "shadow_only": not bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False))}
+        if self.shadow_settings.fusion_enabled:
+            job.update(road_history=deepcopy(getattr(self, "shadow_road_history", [])),
+                shadow_pose=list(getattr(self, "shadow_pose", [0.0, 0.0, 0.0])),
+                shadow_odometry_epoch=getattr(self, "shadow_odometry_epoch", 0),
+                temporal_collection=getattr(self, "shadow_collection_diagnostics", None),
+                previous_reference=deepcopy(getattr(self, "shadow_previous_reference", None)))
+        self.shadow_worker.submit(job)
+        self.shadow_last_submit_s = now
+
+    def _shadow_publish_path(self, publisher, points, stamp_s):
+        message = TrajectoryPath()  # mpc-car-run adaptation: nav_msgs Path alias
+        message.header.frame_id = self.policy_frame_id
+        message.header.stamp = Time(nanoseconds=round(stamp_s*1e9)).to_msg()
+        for point in points:
+            pose = PoseStamped(header=message.header)
+            pose.pose.position.x, pose.pose.position.y = float(point[0]), float(point[1])
+            heading = point[2] if len(point) > 2 else 0.0
+            pose.pose.orientation.z = math.sin(heading/2)
+            pose.pose.orientation.w = math.cos(heading/2)
+            message.poses.append(pose)
+        publisher.publish(message)
+
+    def _shadow_poll(self):
+        try:
+            result = self.shadow_worker.poll()
+            if result is None:
+                return
+            if result.get("status") == "TRANSPORT_ERROR":
+                self._warn("shadow_worker", "Shadow worker failed: "+result.get("error", "unknown"))
+                self._shadow_clear()
+                if getattr(getattr(self, "planner_control_settings", None), "enabled", False):
+                    self.planner_execution.accept(result)
+                self.shadow_diagnostics_publisher.publish(String(data=json.dumps(result)))
+                self.shadow_worker.close()
+                self.shadow_worker = ShadowWorker(__file__)
+                return
+            if (self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION
+                    or result.get("generation") != self.shadow_generation):
+                return
+            if getattr(getattr(self, "planner_control_settings", None), "enabled", False):
+                self.planner_execution.accept(result)
+            guide = (result.get("fusion") or {}).get("guide")
+            if (result.get("status") == "VALID" and guide
+                    and guide.get("odometry_epoch") == getattr(self, "shadow_odometry_epoch", 0)):
+                self.shadow_previous_reference = guide
+            round_trip = self._monotonic()-result.get("submitted_monotonic_s", self._monotonic())
+            self.shadow_handoff_estimate_s = max(self.shadow_handoff_estimate_s, round_trip)
+            received = self._monotonic()
+            previous = getattr(self, "shadow_last_result_s", None)
+            interval = received-previous if previous is not None else None
+            self.shadow_last_result_s = received
+            transport = {"round_trip_s": round_trip, "completed_interval_s": interval,
+                "completed_rate_hz": 1/interval if interval is not None and interval > 0 else None,
+                "handoff_exceeded_estimate": round_trip > result.get("handoff_estimate_s", round_trip)}
+            # Header is the INPUT frame time, never the completion/publication time.
+            stamp = result.get("input_stamp_s")
+            stamp = stamp if finite_number(stamp) else self.get_clock().now().nanoseconds/1e9
+            selected = result.get("selected")
+            safe = result.get("status") == "VALID"
+            path = selected["path"] if selected and safe else []
+            prefix = []
+            if path:
+                arc = _shadow_lengths([p[:2] for p in path])
+                end = min(result["check_length_m"], arc[-1])
+                prefix = [p for p, s in zip(path, arc) if s <= end]
+                if end > 0:
+                    p = _shadow_at([p[:2] for p in path], arc, end)
+                    prefix.append((*p, prefix[-1][2]))
+            self._shadow_publish_path(self.shadow_path_publisher, path, stamp)
+            self._shadow_publish_path(self.shadow_prefix_publisher, prefix, stamp)
+            self._shadow_publish_path(self.shadow_reference_publisher, result.get("reference", []), stamp)
+            wire = result.get("wire_json") or json.dumps(result)
+            # The large candidate JSON was encoded off the executor. Append only
+            # small transport metadata here, instead of re-encoding all points.
+            self.shadow_diagnostics_publisher.publish(String(data=wire[:-1]+',"transport":'+json.dumps(transport)+'}'))
+            # Retain pending faults until a diagnostic carrying them was published.
+            acknowledged = ((result.get("fusion") or {}).get("collection") or {}).get("events") or []
+            if acknowledged:
+                reset_id = max(event.get("id", 0) for event in acknowledged)
+                self.shadow_collection_events = [event for event in getattr(self, "shadow_collection_events", [])
+                                                 if event.get("id", 0) > reset_id]
+            summary = {key: result.get(key) for key in ("status", "job_id", "candidate_count", "feasible_count",
+                "speed_mps", "hold_time_s", "check_length_m", "score_length_m", "elapsed_s", "late_for_requested_period", "timing_s")}
+            summary.update(selected_id=selected.get("id") if selected else None,
+                selected_family=selected.get("family") if selected else None,
+                result_age_s=self.get_clock().now().nanoseconds/1e9-stamp,
+                **transport)
+            if result.get("fusion"):
+                summary["fusion"] = {k: result["fusion"].get(k) for k in
+                    ("status", "reason", "degraded", "raw_fallback_used", "selected_source",
+                     "fused_status", "raw_status", "history_frames", "prior_used", "removed_guidance_loops", "reference_crop", "collection")}
+            if result.get("error"):
+                summary["error"] = result["error"]
+            self.get_logger().info("Shadow planning: "+json.dumps(summary, separators=(",", ":")))
+        except Exception as error:
+            self._warn("shadow_publish", f"Shadow diagnostics unavailable: {error}")
+
     # ---- Bounded reference recovery and control execution ---------------------
     def _robust_control_enabled(self):
         cfg = self.control_settings
@@ -8069,6 +8447,23 @@ class PolicyNode(Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        # MVP2.1 lattice: fence every result and odometry epoch of the previous run.
+        if hasattr(self, "planner_execution"):
+            self.planner_execution.clear()
+            self._last_execution_mode = None
+        self._mpc_trajectory = None
+        if getattr(self, "shadow_worker", None) is not None:
+            self.shadow_generation += 1
+            self.shadow_last_submit_s = -math.inf
+            self.shadow_handoff_estimate_s = self.shadow_settings.handoff_allowance_s
+            self.shadow_last_result_s = None
+            self.shadow_road_history = []
+            self.shadow_pose_stamp_s = None
+            self.shadow_pose = [0.0, 0.0, 0.0]
+            self.shadow_odometry_epoch = getattr(self, "shadow_odometry_epoch", 0)+1
+            self.shadow_previous_reference = None
+            self.shadow_collection_events = []
+            self.shadow_collection_reset_id = 0
         if state == FSM_STATE_PUBLISHING_POLICY_ACTION:
             wheel = self.observations.get("wheel_speed")
             speed = wheel.value if wheel is not None else None
@@ -8087,6 +8482,11 @@ class PolicyNode(Node):
             self._trajectory_last_publish_s = -math.inf
         if hasattr(self, "mpc_prediction_publisher"):
             self._publish_mpc_prediction(self.get_clock().now().nanoseconds, None)
+        # Baseline state/zero publications have priority over shadow diagnostics.
+        if getattr(self, "shadow_worker", None) is not None:
+            self._shadow_clear()
+        if hasattr(self, "planner_execution_publisher"):
+            self._publish_planner_execution()
 
     def _budgets_active(self):
         """Distance/time budgets guard every controller that can issue drive."""
@@ -8232,11 +8632,15 @@ class PolicyNode(Node):
         # publication; process loss is handled by the independent vehicle node.
         if self.fsm_state != FSM_STATE_NOT_PUBLISHING_ACTIONS and self.context.ok():
             self.publish_zero_actions()
+        if getattr(self, "shadow_worker", None) is not None:
+            self.shadow_worker.close()
 
     def destroy_node(self):
         if getattr(self, "async_planner", None) is not None:
             self.async_planner.close()
             self.async_planner = None
+        if getattr(self, "shadow_worker", None) is not None:
+            self.shadow_worker.close()
         return super().destroy_node()
 
 
