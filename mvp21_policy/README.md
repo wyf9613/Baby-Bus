@@ -7,7 +7,7 @@
 
 | 文件 | 负责内容 |
 |---|---|
-| `contracts.py` | 观测记录、传感器与状态常量 |
+| `contracts.py` | 观测记录、传感器与状态常量、共同传感器准入 |
 | `geometry.py` | 坐标/四元数、折线投影与弧长工具 |
 | `frenet.py` | 有序参考线的共享 Frenet 坐标图，不生成候选 |
 | `candidates.py` | policy 的 Frenet 候选输入契约及新版导出适配 |
@@ -15,8 +15,7 @@
 | `estimation.py` | 道路、状态和障碍估计，历史锥桶与道路支持 |
 | `planning.py` | 中线路径、原V1兼容规划、参考准入与有效期 |
 | `control.py` | PID、控制参考管理、距离限制与标定记录 |
-| `reference.py` | lattice有序折线缓存、跨周期运动对齐、任务隔离与有效期 |
-| `execution.py` | 上游新增的可选 ROS 路径执行适配及当前中线降级；本地 ROS 开关默认关闭 |
+| `execution.py` | 唯一执行管理器：锚点对齐、弧长裁剪、滚动检查、任务隔离、共同 PID 计算与回退 |
 | `lattice.py` | ShadowSettings、道路时序融合、候选生成、边界碰撞和评分选择 |
 | `transport.py` | 20 Hz 道路历史采集、纯规划任务提交、最新任务队列和后台子进程 |
 | `worker.py` | 无ROS的逐行JSON规划协议 |
@@ -26,33 +25,28 @@
 
 算法模块不导入ROS，也不会在导入时创建线程或进程。跨模块继续使用原来的字典
 数据结构、字段、坐标系、单位和有效期。`node.py`独占ROS消息转换与生命周期，
-`ShadowWorker`显式启动时才创建后台执行。ROS入口默认仍为shadow。
-后续离线实验已使用`reference.py`实现1 Hz规划、20 Hz控制；执行模式显式使用
-完整生成路径检查/评分与实验长度参数，原shadow的prefix默认行为保留。
-接线与结果见[1 Hz闭环实验](../offline/mvp21_sim/ONE_HZ_CONTROL.md)。
+`ShadowWorker`显式启动时才创建后台执行。ROS 与仿真使用同一 `execution.py`；
+原本地 `reference.py` 及其独立执行入口已删除。共同 YAML 选择 planner，保留上游回退。
+默认检查/评分范围与 1.0 m 长度沿用实车 MVP2.1，全长检查、全长评分和 1.3 m 仅显式实验使用。
+接线与结果见[统一执行说明](../offline/mvp21_sim/SHARED_EXECUTION_CN.md)。
 
 ```mermaid
 flowchart LR
-    N[node: ROS 接线] --> E[estimation]
-    E --> M[motion]
-    N --> P[planning]
-    N --> C[control]
-    C --> P
-    N --> T[transport]
-    T --> W[worker]
-    W --> L[lattice]
-    S[offline.mvp21_sim] --> E
-    S --> P
-    S --> C
-    S --> L
+    N[node: ROS 端口] --> E[estimation]
+    S[simulation runtime 端口] --> E
+    E --> L[lattice / worker]
+    E --> P[planning 中线参考]
+    L --> X[共同 execution]
+    P --> X
+    X --> C[control PID]
 ```
 
 按用户要求，旧 V2 planner 已移除，两个 script 名称均进入同一套 MVP2.1 模块；
-`config/ai4r_policy.yaml` 同步最新融合参数，保留本地 `planner_control.enabled: false`。
+`config/ai4r_policy.yaml` 为 ROS/仿真共同参数源，`planner_control.enabled: true`。
 旧模型/数据和上游来源快照保留。
 训练通过[三组输入协议](../offline/lattice_training/POLICY_INPUT.md)读取当前状态、道路/障碍和候选轨迹，
 不读取 native 评分或上一条路径；旧模型/候选兼容代码已删除。
-ROS 的候选评分尚未启用；本次没有部署。节点停止发布与`INSERT POLICY CODE`标记保持。
+学习评分尚未启用；本次没有部署。节点停止发布与`INSERT POLICY CODE`标记保持。
 
 ## 仿真与打包
 

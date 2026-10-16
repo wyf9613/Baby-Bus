@@ -9,10 +9,12 @@ import yaml
 PACKAGE = Path(__file__).resolve().parent
 ROOT = PACKAGE.parents[1]
 SOURCE = PACKAGE / 'upstream/3652e9b/scripts/policy_node.py'
-CONFIG = PACKAGE / 'upstream/3652e9b/config/ai4r_policy.yaml'
+UPSTREAM_CONFIG = PACKAGE / 'upstream/3652e9b/config/ai4r_policy.yaml'
+CONFIG = ROOT / 'config/ai4r_policy.yaml'
 UPSTREAM_COMMIT = '3652e9ba6f42180cb28f27c02299d5b7a0ec77b0'
 SOURCE_SHA256 = '9f18ff37612b29a9e1d6f0baaf9d4cfb5c3e99604b26a7bab616953215a5f5dc'
-CONFIG_SHA256 = '2e51dfcf5d51e78203043188904e866ccaecc5ec28b7a9fd0e5339bae60e809c'
+UPSTREAM_CONFIG_SHA256 = '2e51dfcf5d51e78203043188904e866ccaecc5ec28b7a9fd0e5339bae60e809c'
+CONFIG_SHA256 = hashlib.sha256(CONFIG.read_bytes().replace(b'\r\n', b'\n')).hexdigest()
 
 
 def checked_bytes(path, expected):
@@ -37,6 +39,7 @@ def runtime_provenance():
 
 
 def parameters():
+    checked_bytes(UPSTREAM_CONFIG, UPSTREAM_CONFIG_SHA256)
     return yaml.safe_load(checked_bytes(CONFIG, CONFIG_SHA256))['/**/ai4r_policy']['ros__parameters']
 
 

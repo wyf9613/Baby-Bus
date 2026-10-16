@@ -8,6 +8,7 @@ import signal
 import time
 import traceback
 from .contracts import (
+    required_sensor_problem,
     FIDUCIAL_DICTIONARY_SIZES,
     FSM_STATE_NOT_PUBLISHING_ACTIONS,
     FSM_STATE_PUBLISHING_POLICY_ACTION,
@@ -58,7 +59,7 @@ from .transport import (
     ShadowJobSource,
     ShadowWorker,
 )
-from .execution import PlannerControlSettings, PlannerExecutionManager
+from .execution import PlannerControlSettings, PlannerExecutionManager, calculate_selected_control, priming_motion_history
 import rclpy
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
@@ -377,15 +378,10 @@ class PolicyNode(ShadowJobSource, Node):
                 and self._age(observation, monotonic_now, ros_now_ns) < self.sensor_timeout_s[name])
 
     def health_problem(self, monotonic_now, ros_now_ns):
-        for name in self.required_sensors:
-            if not self._fresh(name, monotonic_now, ros_now_ns):
-                return f"Required sensor {name} is missing or stale"
-        if "cone_detections" in self.required_sensors:
-            if (self.last_nonempty_cones is None or
-                    self._age(self.last_nonempty_cones, monotonic_now, ros_now_ns)
-                    >= self.cone_empty_timeout_s):
-                return "No recent nonempty cone detections"
-        return None
+        age = None if self.last_nonempty_cones is None else self._age(self.last_nonempty_cones, monotonic_now, ros_now_ns)
+        return required_sensor_problem(self.required_sensors,
+            {name: self._fresh(name, monotonic_now, ros_now_ns) for name in self.required_sensors},
+            age, self.cone_empty_timeout_s)
 
     def _warn(self, key, message):
         # One message per cause per three seconds, so a 50 Hz error does not
@@ -1055,10 +1051,8 @@ class PolicyNode(ShadowJobSource, Node):
             # Delayed camera data may predate the reset motion history at start.
             # Bounded neutral priming is allowed only BEFORE the first valid
             # control step; any fault after tracking requires explicit resume.
-            if (planner_reference is None and not self.planning_output["valid"] and not self.control_has_run
-                    and estimates["state"]["valid"]
-                    and estimates["road"]["status"] == "missing_motion_history"
-                    and policy_elapsed_s < control.startup_grace_s):
+            if planner_reference is None and priming_motion_history(
+                    self.planning_output, estimates, self.control_has_run, policy_elapsed_s, control):
                 self.control_diagnostics = {"valid": False, "stop_requested": False,
                                             "reason": "priming_motion_history"}
                 return 0.0, 0.0, None, None, None
@@ -1102,29 +1096,13 @@ class PolicyNode(ShadowJobSource, Node):
                     "planning_diagnostics": self.planning_diagnostics,
                 }))
                 raise PolicyStopRequest(reason)
-            # Only the selected path reaches the PID. Save its previous state
-            # so a malformed planner reference cannot reset the baseline PID.
-            previous_controller = deepcopy(self.controller) if planner_reference is not None else None
-            try:
-                drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
-                    selected_reference, estimates["state"], estimates["vehicle_params"],
-                    self.get_clock().now().nanoseconds/1e9, dt)
-            except Exception as error:
-                if planner_reference is None:
-                    raise
-                self.control_diagnostics = {"valid": False, "stop_requested": True,
-                    "reason": "planner_controller_exception: "+str(error)}
-            if planner_reference is not None and (
-                    not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]):
-                self.controller = previous_controller
-                self.planner_execution.diagnostics.update(mode="baseline", fallback=True,
-                    reason="planner_control_rejected: "+str(self.control_diagnostics.get("reason")))
-                selected_reference = self.planning_output
-                if self._robust_control_enabled():
-                    selected_reference = self._select_control_reference(estimates)
-                drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
-                    selected_reference, estimates["state"], estimates["vehicle_params"],
-                    self.get_clock().now().nanoseconds/1e9, dt)
+            baseline = selected_reference if planner_reference is None else self.planning_output
+            baseline_provider = (lambda: self._select_control_reference(estimates)) if self._robust_control_enabled() else None
+            (self.controller, drive_action, steering_action, self.control_diagnostics,
+             selected_reference) = calculate_selected_control(self.controller, baseline,
+                planner_reference, estimates["state"], estimates["vehicle_params"],
+                self.get_clock().now().nanoseconds/1e9, dt,
+                self.planner_execution if planner_requested else None, baseline_provider)
             if not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]:
                 reason = "Control: " + self.control_diagnostics["reason"]
                 raise PolicyStopRequest(reason)
@@ -1134,11 +1112,6 @@ class PolicyNode(ShadowJobSource, Node):
                 selected_reference["timestamp_s"]+selected_reference["valid_for_s"])
             if self._robust_control_enabled() and selected_reference.get("planner_version") != "lattice_execution":
                 self._report_control_status()
-            if planner_requested:
-                self.control_diagnostics["reference_source"] = self.planner_execution.diagnostics.get("mode")
-                self.control_diagnostics["reference_selection_reason"] = self.planner_execution.diagnostics.get("reason")
-                self.planner_execution.diagnostics.update(drive_action=drive_action,
-                    steering_action=steering_action, control_dt_s=dt)
             # Existing debug topics: lateral error (m), per-run distance (m).
             # The existing state string reports planning/control stop reasons.
             debug1 = self.control_diagnostics["path_error_m"]
@@ -1185,27 +1158,8 @@ class PolicyNode(ShadowJobSource, Node):
 
     # ---- Control-only reference recovery; upstream algorithms stay unchanged --
     def _select_planner_reference(self, estimates):
-        """Opt-in adapter faults return THIS tick's baseline, never Stop."""
-        try:
-            road = estimates.get("road") or {}
-            if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
-                road = road.get("forward_geometry") or {}
-            state = estimates["state"]
-            # In planner mode advance the same short-interval odometry before
-            # execution. The post-action offer is idempotent at this timestamp.
-            self._shadow_collect_road(road, state["timestamp_s"])
-            if self.planning_output.get("valid") and self.planning_output.get("stop_requested"):
-                self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
-                    "reason": "baseline_stop_request", "requested_source": "planner"}
-                return None
-            period = 1/self.policy_update_rate_hz
-            return self.planner_execution.select(road, state, self.shadow_pose, self.shadow_odometry_epoch,
-                self.shadow_settings, self.planning_settings.preview_m, self.planning_settings.cruise_speed_mps,
-                period, self.control_settings.max_dt_s+period)
-        except Exception as error:
-            self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
-                "requested_source": "planner", "reason": "execution_exception: "+str(error)}
-            return None
+        return self.planner_execution.prepare(estimates, self.planning_output, self,
+            self.shadow_settings, self.planning_settings, self.control_settings, self.policy_update_rate_hz)
 
     def _publish_planner_execution(self):
         """Record every executed control tick; transport faults cannot stop it."""
@@ -1369,7 +1323,7 @@ class PolicyNode(ShadowJobSource, Node):
     def _shadow_clear(self):
         """Clear shadow displays on every run boundary; old results are fenced."""
         if hasattr(self, "planner_execution"):
-            self.planner_execution.clear()
+            self.planner_execution.clear(generation=self.shadow_generation)
         try:
             stamp = self.get_clock().now().nanoseconds/1e9
             for publisher in (self.shadow_path_publisher, self.shadow_prefix_publisher,
@@ -1413,8 +1367,8 @@ class PolicyNode(ShadowJobSource, Node):
             if (self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION
                     or result.get("generation") != self.shadow_generation):
                 return
-            if getattr(getattr(self, "planner_control_settings", None), "enabled", False):
-                self.planner_execution.accept(result)
+            if hasattr(self, "planner_execution") and not self.planner_execution.accept(result):
+                return
             guide = (result.get("fusion") or {}).get("guide")
             if (result.get("status") == "VALID" and guide
                     and guide.get("odometry_epoch") == getattr(self, "shadow_odometry_epoch", 0)):

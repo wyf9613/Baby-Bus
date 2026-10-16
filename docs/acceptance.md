@@ -7,6 +7,36 @@ C* remains a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
 Historical planner/controller/physical evidence below remains separate.
 
+## Shared execution merge, 2026-10-16
+
+This supersedes the dual-adapter state at acc5324. ROS and simulation now share
+PlannerExecutionManager.prepare/select and calculate_selected_control. The local
+bounded-reference adapter and literal handoff paths were removed. The shared
+YAML enables planner execution and retains MVP2.1 1.0 m/prefix defaults, partial
+road support, boundary provenance and same-tick baseline fallback. Local run/job/
+timestamp fencing is checked before replacing a path. Collision and ranking
+coverage are independent explicit experiment options.
+
+All 299 final portable checks pass, including six paired compatibility checks
+against immutable 3652e9b source. Twenty recorded planner inputs keep status,
+selected candidate, path and hard boundaries; edge input and execution matrices
+show no added rejection. This evidence is bounded to the tested inputs, not a
+universal real-car or ROS compatibility proof. Old cache-specific tests were
+retired with that implementation; current motion/delivery and execution tests remain.
+The real-C* CLI collection/training/save/load/evaluation smoke check also passes
+after freezing the final configuration. No persistent production model was trained.
+
+With fixed 100 ms delivery, default perception/map runs complete in 147/148
+cycles, using planner for 141/143 and baseline for 6/5 cycles. Two baseline
+cycles are startup; the other 4/3 are preview exhaustion. Native-only acceptance
+fails in both runs. Explicit 1.3 m/full-check/full-score perception has 147 planner
+cycles and two startup baseline cycles, also failing strict native-only acceptance.
+The centerline control remains 152 cycles. The strict acceptance switch changes
+only exit status and was checked to return failure on a completed fallback run.
+ROS gate still stops before build on the absent pinned dream_interfaces checkout.
+No hardware or deployment occurred; learned scoring is disconnected.
+See [shared execution](../offline/mvp21_sim/SHARED_EXECUTION_CN.md).
+
 ## Upstream module sync, 2026-10-16
 
 Synced MVP2.1 `3652e9b` temporal guidance, bounded 20 Hz collection, worker

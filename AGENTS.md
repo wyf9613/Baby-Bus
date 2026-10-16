@@ -16,6 +16,13 @@ preferences. Ordinary implementation requests authorize in-scope edits/checks.
   trajectory. The user authorized removing legacy feature/model/data readers
   and planner-cost/history inputs. Preserve historical model/data artifacts and
   the immutable upstream source snapshot; do not add compatibility loaders.
+- User authorized a compatibility-floor merge with MVP2.1 3652e9b. ROS and
+  simulation share execution.py selection and PID fallback. Do not restore the
+  retired reference.py/one_hz.py execution path. Preserve MVP2.1 partial-road,
+  boundary-provenance and fallback behavior; do not add a source-path TTL or
+  require baseline centerline success. Use the common config/ai4r_policy.yaml;
+  full-path collision/ranking and 1.3 m length remain explicit experiments.
+  Record actual planner/baseline use; fallback completion is not native-only success.
 - Keep one selected trigger, explicit resume, per-field IMU validity and
   freshness, zero publication independent of sensor callbacks, and pan hold.
 - The policy never enables the vehicle. DREAM owns hardware services,

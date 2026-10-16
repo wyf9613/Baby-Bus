@@ -1,5 +1,8 @@
 # 2026-10-16 分支与模块同步
 
+> 本文记录 `acc5324` 的中间状态。随后按用户批准的兼容性边界完成统一执行合并；
+> 当前状态见 [SHARED_EXECUTION_CN.md](SHARED_EXECUTION_CN.md)。
+
 在 `feature/mvp21-sim-integration-20261015` 的 `0443bf6` 上同步，已 fetch 全部远端分支。
 完整远端提交号及验证结果见 [upstream-sync.json](artifacts/2026-10-16/upstream-sync.json)。
 

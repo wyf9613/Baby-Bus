@@ -234,7 +234,7 @@
     # planner failure/unusable coverage falls back to this tick's baseline.
     # Change this file, rebuild and restart policy. No automatic vehicle Enable.
     planner_control:
-      enabled: false
+      enabled: true
 
     # Independent planner process; control selection is configured above.
     # All fields are startup-only. Edit rate_hz and restart POLICY for 1/2/5/10 Hz.
@@ -243,6 +243,10 @@
     shadow:
       enabled: true
       rate_hz: 1.0
+      # Keep real-car MVP2.1 defaults. Full generation checks/ranking are
+      # separate opt-in experiments; execution rechecks current known walls.
+      collision_coverage: prefix
+      score_coverage: prefix
       # Road snapshots are collected at the baseline tick rate; same-camera
       # epochs are deduplicated. Fusion runs in the shadow process only.
       fusion_enabled: true

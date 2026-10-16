@@ -120,7 +120,7 @@ class GeometryExecutionChecks(unittest.TestCase):
         manager=Manager(); manager.accept(result())
         self.assertIsNone(self.select(manager,epoch=2))
         self.assertEqual(manager.diagnostics['reason'],'motion_epoch_changed')
-        manager.accept({**result(),'execution_anchor':None})
+        manager.accept({**result(job_id=2),'execution_anchor':None})
         self.assertIsNone(self.select(manager))
         self.assertEqual(manager.diagnostics['reason'],'planner_invalid_execution_payload')
 
@@ -163,8 +163,11 @@ class RuntimeExecutionChecks(unittest.TestCase):
         self.assertGreater(node.action_publisher.messages[-1].drive,0)
 
     def accept(self,node,y=0.):
-        node.planner_execution.accept(result(stamp=node.test_clock.ros_ns/1e9,
-            epoch=node.shadow_odometry_epoch,pose=node.shadow_pose,y=y))
+        value=result(stamp=node.test_clock.ros_ns/1e9,
+            epoch=node.shadow_odometry_epoch,pose=node.shadow_pose,y=y,
+            job_id=(node.planner_execution.last_job_id or 0)+1)
+        value['generation']=node.shadow_generation
+        self.assertTrue(node.planner_execution.accept(value))
 
     def test_default_actions_match_existing_baseline_even_with_valid_planner_result(self):
         baseline,helper=self.node(enabled=False)
@@ -184,7 +187,7 @@ class RuntimeExecutionChecks(unittest.TestCase):
         self.assertEqual(node._trajectory_reference['planner_version'],'lattice_execution')
         self.assertEqual(node.planner_execution.diagnostics['mode'],'planner')
         self.assertGreater(node.control_diagnostics['preview_x_m'],0.)
-        node.planner_execution.accept(dict(status='ALL_COLLIDE',job_id=2))
+        node.planner_execution.accept(dict(status='ALL_COLLIDE',job_id=2,generation=node.shadow_generation))
         self.tick(node,helper)
         self.assertEqual(node._trajectory_reference['planner_version'],'road_centerline')
         self.assertEqual(node.planner_execution.diagnostics['reason'],'planner_all_collide')
@@ -197,8 +200,8 @@ class RuntimeExecutionChecks(unittest.TestCase):
         with patch.object(node.planner_execution,'select',side_effect=RuntimeError('injected')):
             self.tick(node,helper)
         self.assertIn('execution_exception',node.planner_execution.diagnostics['reason'])
-        node.planner_execution.accept(result(stamp=node.test_clock.ros_ns/1e9,length=.1,
-            epoch=node.shadow_odometry_epoch,pose=node.shadow_pose))
+        node.planner_execution.accept({**result(stamp=node.test_clock.ros_ns/1e9,length=.1,
+            epoch=node.shadow_odometry_epoch,pose=node.shadow_pose,job_id=2), 'generation':node.shadow_generation})
         self.tick(node,helper)
         self.assertEqual(node.planner_execution.diagnostics['reason'],'preview_coverage_exhausted')
         self.assertEqual(node._trajectory_reference['planner_version'],'road_centerline')

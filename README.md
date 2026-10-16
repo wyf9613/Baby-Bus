@@ -1,11 +1,11 @@
 # Baby Bus · ai4r_policy
 
 当前实现位于 [mvp21_policy/](mvp21_policy/README.md)，两个 script 名称均进入同一套
-最新 MVP2.1 模块。重建道路与 1 Hz 规划 / 20 Hz 控制的独立仿真继续使用原车辆环境。
-离线仿真入口默认执行 native planner 自选路径，暂不接入学习 policy；
-`--path-source perception` 保留原感知中线对照。
-模块已同步 `mvp2.1@3652e9b` 的时序融合及可选路径执行适配，并同步道路配对参数；
-各分支取舍与回归结果见[同步记录](offline/mvp21_sim/UPSTREAM_SYNC_20261016.md)。
+最新 MVP2.1 模块。ROS 与原虚拟车辆环境共用同一执行管理器、PID 回退函数和
+`config/ai4r_policy.yaml`。默认 native 规划 1 Hz、控制 20 Hz，暂不接入学习 policy。
+保留 MVP2.1 的部分道路、边界来源、滚动检查与中线降级行为；本地补入结果顺序隔离。
+每周期记录实际参考来源，到达终点与 native-only 验收分别报告。
+合并边界和结果见[统一执行说明](offline/mvp21_sim/SHARED_EXECUTION_CN.md)。
 
 学习 policy 只读取 **当前状态、当前道路与障碍、候选轨迹**，使用 C* 真实执行结果训练
 候选评分。[训练入口](offline/lattice_training/README.md)与[输入协议](offline/lattice_training/POLICY_INPUT.md)
@@ -13,7 +13,7 @@
 历史权重、数据与上游来源快照保留作档案，当前入口不加载它们。
 
 模块源码、单文件打包和虚拟环境分别见上述模块说明、[打包工具](tools/BUNDLE_PYTHON.md)、
-[1 Hz 回放](offline/mvp21_sim/ONE_HZ_CONTROL.md)。ROS lattice 仍为 shadow，未部署学习评分。
+[统一回放](offline/mvp21_sim/README.md)。本地配置已选择 planner，尚未部署。
 以下为课程 ROS 包使用说明。
 
 Student ROS 2 policy package for the DREAM robot, targeting Ubuntu 24.04 and

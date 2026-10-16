@@ -1,4 +1,14 @@
-"""MVP2.1 contracts; relocated from pinned f11428b, without algorithm tuning."""
+"""MVP2.1 observation contracts and shared required-sensor admission."""
+
+
+def required_sensor_problem(required_sensors, fresh, last_nonempty_age_s, cone_empty_timeout_s):
+    for name in required_sensors:
+        if not fresh.get(name, False):
+            return f"Required sensor {name} is missing or stale"
+    if "cone_detections" in required_sensors:
+        if last_nonempty_age_s is None or last_nonempty_age_s >= cone_empty_timeout_s:
+            return "No recent nonempty cone detections"
+    return None
 
 from dataclasses import dataclass
 

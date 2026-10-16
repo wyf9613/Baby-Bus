@@ -1,4 +1,5 @@
-"""Upstream 3652e9b optional runtime path selection; ROS defaults remain local."""
+"""Shared ROS/simulation execution with MVP2.1 geometry and baseline fallback."""
+from copy import deepcopy
 from dataclasses import dataclass
 import math
 import time
@@ -30,28 +31,53 @@ class PlannerExecutionManager:
     source age is retained separately and cannot be renewed by reception.
     Only the selected path is checked, without a controller rollout or cost.
     """
-    def __init__(self, frame_id="base_link"):
+    def __init__(self, frame_id="base_link", generation=None):
         self.frame_id = frame_id
-        self.clear()
+        self.clear(generation=generation)
 
-    def clear(self, reason="waiting_for_planner"):
+    def clear(self, reason="waiting_for_planner", generation=None):
+        self.generation = generation
         self.active = None
         self.reason = reason
         self.last_job_id = None
         self.last_result_stamp_s = None
         self.last_result_status = None
         self.diagnostics = {}
+        self.latest_input_stamp_s = None
+        self.last_rejected_result = None
 
     def accept(self, result):
+        # Reject obsolete transport results before touching the current path.
+        # This does not add a road/geometry admission condition.
+        identifier, stamp = result.get("job_id"), result.get("input_stamp_s")
+        reason = None
+        transport_failure = result.get("status") == "TRANSPORT_ERROR"
+        if not transport_failure and self.generation is not None and result.get("generation") != self.generation:
+            reason = "old_generation"
+        elif identifier is not None and (type(identifier) is not int or identifier < 0):
+            reason = "invalid_job_id"
+        elif identifier is not None and self.last_job_id is not None and identifier <= self.last_job_id:
+            reason = "old_job"
+        elif (finite_number(stamp) and finite_number(self.latest_input_stamp_s)
+                and stamp < self.latest_input_stamp_s):
+            reason = "old_input_stamp"
+        if reason:
+            self.last_rejected_result = dict(reason=reason, generation=result.get("generation"), job_id=identifier)
+            return False
+        if self.generation is None and result.get("generation") is not None:
+            self.generation = result["generation"]
+        if finite_number(stamp):
+            self.latest_input_stamp_s = stamp
         # A completed planning failure immediately selects baseline, rather
         # than silently continuing the previous successful trajectory.
         self.active = None
-        self.last_job_id = result.get("job_id")
+        if identifier is not None:
+            self.last_job_id = identifier
         self.last_result_stamp_s = result.get("input_stamp_s")
         self.last_result_status = result.get("status")
         self.reason = "planner_"+str(result.get("status", "missing_status")).lower()
         if result.get("status") != "VALID":
-            return
+            return True
         anchor = result.get("execution_anchor") or {}
         pose = anchor.get("pose")
         selected = result.get("selected") or {}
@@ -66,11 +92,32 @@ class PlannerExecutionManager:
                 or any(math.hypot(b[0]-a[0], b[1]-a[1]) <= 1e-9
                        for a, b in zip(path, path[1:]))):
             self.reason = "planner_invalid_execution_payload"
-            return
+            return True
         self.active = {"path": [tuple(p) for p in path], "pose": list(pose),
             "epoch": anchor["odometry_epoch"], "stamp_s": self.last_result_stamp_s,
             "measurement_stamp_s": result.get("measurement_stamp_s"), "progress_m": 0.0}
         self.reason = "planner_ready"
+        return True
+
+    def prepare(self, estimates, baseline, source, cfg, planning, control, update_rate_hz):
+        """Same path selection for both callers; baseline geometry is not a gate."""
+        try:
+            road = estimates.get("road") or {}
+            if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
+                road = road.get("forward_geometry") or {}
+            state = estimates["state"]
+            source._shadow_collect_road(road, state["timestamp_s"])
+            if baseline.get("valid") and baseline.get("stop_requested"):
+                self.diagnostics = dict(mode="baseline", fallback=True,
+                    reason="baseline_stop_request", requested_source="planner")
+                return None
+            period = 1/update_rate_hz
+            return self.select(road, state, source.shadow_pose, source.shadow_odometry_epoch,
+                cfg, planning.preview_m, planning.cruise_speed_mps, period, control.max_dt_s+period)
+        except Exception as error:
+            self.diagnostics = dict(mode="baseline", fallback=True, requested_source="planner",
+                reason="execution_exception: "+str(error))
+            return None
 
     def select(self, road, state, pose, epoch, cfg, preview_m, target_speed_mps,
                control_period_s, execution_lifetime_s):
@@ -174,3 +221,33 @@ class PlannerExecutionManager:
             "valid": True, "status": "VALID", "reason": "planner_tracking", "path": path,
             "target_speed_mps": target_speed_mps, "stop_requested": False, "stop_reason": None,
             "simulation_only": False, "original_input_stamp_s": active["stamp_s"]}
+
+
+def priming_motion_history(baseline, estimates, has_control, elapsed_s, control):
+    """Preserve the upstream bounded neutral start before the first control step."""
+    return (not baseline['valid'] and not has_control and estimates['state']['valid']
+        and estimates['road']['status'] == 'missing_motion_history' and elapsed_s < control.startup_grace_s)
+
+
+def calculate_selected_control(controller, baseline, planner_reference, state, vehicle_params,
+                               now_s, dt, execution=None, baseline_provider=None):
+    """Run the existing PID with MVP2.1 same-tick rollback/fallback semantics."""
+    reference = planner_reference if planner_reference is not None else baseline
+    previous = deepcopy(controller) if planner_reference is not None else None
+    try:
+        drive, steer, diagnostics = controller.calculate(reference, state, vehicle_params, now_s, dt)
+    except Exception as error:
+        if planner_reference is None:
+            raise
+        diagnostics = dict(valid=False, stop_requested=True, reason="planner_controller_exception: "+str(error))
+    if planner_reference is not None and (not diagnostics["valid"] or diagnostics["stop_requested"]):
+        controller = previous
+        execution.diagnostics.update(mode="baseline", fallback=True,
+            reason="planner_control_rejected: "+str(diagnostics.get("reason")))
+        reference = baseline_provider() if baseline_provider is not None else baseline
+        drive, steer, diagnostics = controller.calculate(reference, state, vehicle_params, now_s, dt)
+    if execution is not None:
+        diagnostics["reference_source"] = execution.diagnostics.get("mode")
+        diagnostics["reference_selection_reason"] = execution.diagnostics.get("reason")
+        execution.diagnostics.update(drive_action=drive, steering_action=steer, control_dt_s=dt)
+    return controller, drive, steer, diagnostics, reference

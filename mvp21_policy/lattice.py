@@ -43,11 +43,13 @@ class ShadowSettings:
     fusion_memory_weight: float = 1.0
     fusion_rear_support_m: float = 0.30
 
-    coverage_mode: str = 'prefix'
+    collision_coverage: str = 'prefix'
+    score_coverage: str = 'prefix'
 
     def __post_init__(self):
-        if self.coverage_mode not in ('prefix', 'generated'):
-            raise ValueError('shadow.coverage_mode must be prefix or generated')
+        for name in ('collision_coverage', 'score_coverage'):
+            if getattr(self, name) not in ('prefix', 'generated'):
+                raise ValueError('shadow.'+name+' must be prefix or generated')
         if not isinstance(self.enabled, bool):
             raise ValueError("shadow.enabled must be boolean")
         if not isinstance(self.fusion_enabled, bool):
@@ -57,7 +59,7 @@ class ShadowSettings:
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
             raise ValueError("shadow.sample_count must be an integer >=8")
         for name, value in vars(self).items():
-            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "coverage_mode"):
+            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "collision_coverage", "score_coverage"):
                 continue
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
@@ -554,8 +556,10 @@ class ShadowLatticePlanner:
         preview = preview if finite_number(preview) and preview > 0 else cfg.score_min_length_m
         horizon = max(cfg.length_m, score_length, check+preview)
         control_read_length = check+preview
-        if cfg.coverage_mode == 'generated':
-            check = score_length = horizon
+        if cfg.collision_coverage == 'generated':
+            check = horizon
+        if cfg.score_coverage == 'generated':
+            score_length = horizon
         points = _shadow_points(road.get("centerline_xy"))
         left, right = (_shadow_points(road.get(side+"_boundary_xy")) for side in ("left", "right"))
         width = road.get("lane_width_m")

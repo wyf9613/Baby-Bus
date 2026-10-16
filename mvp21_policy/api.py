@@ -78,4 +78,4 @@ from .transport import (
     ShadowJobSource,
 )
 
-from .execution import PlannerControlSettings, PlannerExecutionManager
+from .execution import PlannerControlSettings, PlannerExecutionManager, calculate_selected_control, priming_motion_history

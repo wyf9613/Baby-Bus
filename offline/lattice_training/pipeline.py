@@ -176,7 +176,7 @@ def make_planner(profile="standard", *, cruise_speed=.2):
     if profile not in variants:raise ValueError("Unknown latest lattice profile")
     return PolicyCandidatePlanner(PlanningSettings(algorithm="road_centerline",allow_forward_only=True,
         max_source_age_s=1.5,reference_lifetime_s=.2,cruise_speed_mps=cruise_speed),
-        ShadowSettings(enabled=True,coverage_mode="generated",length_m=1.5,**variants[profile]))
+        ShadowSettings(enabled=True,collision_coverage="generated",score_coverage="generated",length_m=1.5,**variants[profile]))
 
 
 

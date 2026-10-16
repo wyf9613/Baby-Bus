@@ -1,119 +1,48 @@
-# MVP2.1 模块与原仿真框架的独立接入
+# MVP2.1 统一模块执行与原虚拟环境
 
-当前状态先保存为`feature/native-road-checkpoint-20261015`，提交`d6d1b5c`。
-本接入位于`feature/mvp21-sim-integration-20261015`，从该快照继续，保留原虚拟环境、
-重建道路与训练框架。没有整分支合并或覆盖policy子模块。
+当前分支将实车 MVP2.1 的执行机制与本地结果隔离、Frenet 导出合并。
+ROS 与仿真共用 `mvp21_policy/execution.py`；单文件仅为来源快照。
+原课程车辆、RK4、重建的 42 个锥桶、10 Hz 相机与 0.20 s 感知延迟保留。
 
-当前上游固定为 `mvp2.1` 的 `3652e9ba6f42180cb28f27c02299d5b7a0ec77b0`。
-`upstream/3652e9b/` 内的 script 和 config 是该提交的原样副本，
-加载时检查Git源文件SHA256。它们是离线来源快照；当前两个 script 入口已按用户要求
-统一为最新模块，YAML 已同步融合参数，本地 ROS 执行开关仍关闭。原 `f11428b` 快照保留。
-同步范围见[分支与模块审计](UPSTREAM_SYNC_20261016.md)，本次未部署。
+运行链路为：估计、时序融合与 native 规划 → 共同执行器 → 原 PID → 车辆端口。
+保留中线作为 MVP2.1 的降级参考；每周期记录实际来源。学习 policy 暂不接入。
 
-## 保留范围与接线
+详细合并边界、兼容性检查与结果见 [SHARED_EXECUTION_CN.md](SHARED_EXECUTION_CN.md)。
 
-`preserved-files.json`最初固定74个原有文件。随后用户授权移除旧 V2 planner 并迁移
-policy 输入接口，相关源码/配置/文档的原始哈希单列于 `authorized_migrations`，不再声称
-这些源码保持不变。其余模型、数据、车辆环境、C* 求解器及历史证据继续逐文件检查。
-已有训练数据与完整日志留在`.verification/`，未重算或覆盖。
+## 共同配置
 
-`source.py`通过正常Python导入加载[mvp21_policy](../../mvp21_policy/README.md)中的
-实际算法，不导入ROS、不实例化`PolicyNode`，不执行`calculate_policy_actions()`。
-上游单文件和YAML保留为来源快照，并额外记录实际模块源码指纹。接线为：
+ROS 与仿真均读取仓库 `config/ai4r_policy.yaml`。默认 planner 1 Hz、控制 20 Hz、
+路径长度 1.0 m、前缀碰撞检查/评分、滚动执行检查、原中线降级。
+`source.py` 校验上游快照并记录当前配置指纹；快照 YAML 不再控制仿真。
 
-```mermaid
-flowchart LR
-    P[原Dream Gym车辆和虚拟传感器] --> E[MVP2.1 EstimationPipeline]
-    E --> R[RoadCenterlinePlanner 输入准入]
-    E --> S[native lattice 1 Hz 自选路径]
-    S --> H[路径缓存与运动对齐 20 Hz]
-    R -.-> H
-    H --> C[MVP2.1 PolicyController]
-    C --> A[显式动作符号转换]
-    A --> P
-```
-
-当前离线默认执行 native lattice 选中的路径：1 Hz 规划、20 Hz 缓存控制，
-使用之前跑通的生成路径检查和 1.3 m 路径长度下限。计算结果按离散事件延迟交付，
-默认固定 100 ms；详见 [1 Hz 闭环](ONE_HZ_CONTROL.md)。学习 policy 不加载、不参与选路。
-最新时序融合在每个控制周期收集道路样本，仅在规划时拟合引导线，当前硬边界保持原样。
-控制沿用 MVP2.1 控制器。任务提交与 forward_geometry 选择使用实际 `_shadow_offer`。
-`--path-source perception` 显式复现原中线控制和 lattice 旁路记录。
-
-`MVP21SimulationEnv`继承原环境，只在首次观测前选择新估计器，reset/fork/restore
-继续使用原框架。车辆动力学、RK4、原notebook配置、42个重建锥桶及10 Hz相机/
-0.20 s观测延迟沿用快照。感知输入默认来自虚拟传感器；`--road-input map`将道路
-替换为原2 m理想地图输入，速度/偏航仍使用新估计器的测量输出。
-沿用原重建回放的初始化：首个规划周期前以零动作运行延迟步数+2，默认6步/
-0.30 s，用于填充传感器与运动历史。零速时起始位置保持；这未覆盖ROS启动状态机。
-
-实车参数规定正转向请求向右，课程plant正前轮角向左。适配层显式使用
-`plant_steer=-upstream_steer`，保持原增益、限幅、驱动请求和前馈不变。
-`--steering-sign`可显式选择另一种执行器符号；没有暗中调参或重标定车辆。
+`--path-source perception` 可显式做中线对照。`--collision-coverage`、
+`--score-coverage`、`--lattice-length-m`、`--planner-rate-hz` 仅作显式参数实验，
+使用相同执行实现。没有 `cached/control/upstream` 三套接线模式。
 
 ## 运行
 
-在`Baby-Bus-lattice-training`根目录，继续使用现有解释器。唯一补装依赖为
-PyYAML6.0.2，用于读取原YAML；没有升级Dream Gym、NumPy等原依赖。
-另一台机器的完整依赖见`requirements.txt`。默认使用快照中可移植的重建道路fixture。
+在仓库根目录，使用原虚拟环境，输出目录必须尚不存在：
 
 ```powershell
-../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --output .verification/mvp21-new-perception
-../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --road-input map --output .verification/mvp21-new-map
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --output .verification/shared-native-new
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --road-input map --output .verification/shared-map-new
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source perception --output .verification/shared-baseline-new
 ```
 
-输出目录必须尚不存在，以保留历史证据。`trace.jsonl`包含每个50 ms周期的实际
-参考、控制诊断、动作、决策坐标原点、执行位置/速度和plant车角边界距离；
-`shadow.jsonl`单独记录影子候选；`summary.json`记录来源、参数、结果及限制。
-`--path-source perception --no-shadow`可检查中线对照的旁路隔离。还支持`--road`、`--seed`、`--progress`、
-`--initial-speed`、`--latency-steps`、`--max-steps`。
+`trace.jsonl` 保存参考、实际动作、执行来源及原因；`shadow.jsonl` 保存 native 候选和
+延迟交付；`summary.json` 分开报告到达目标和严格 native-only 验收。当前默认两组
+均到达目标，但存在中线周期，所以 native-only 未通过。
 
-命令退出0仅表示到达既定道路目标且未遇到模块/执行拒绝；速度跟踪、末端停车、
-连续车身扫掠、ROS协议和车载实时性各自需要验证，不能由这个退出码推断通过。
-这里没有改变`use_sim_time`、启动ROS、Enable、Run或发布硬件动作。
+`--require-native-only` 仅改变退出验收：任何中线周期（包括启动等待）均返回失败。
+它不会改变回退行为。`--no-shadow` 仅用于中线旁路隔离对照。
 
-## 初始中线对照结果（历史记录）
+## 来源与限制
 
-| 输入 | 有效参考 | 最后中心线进度 | 目标进度 | 模块/执行拒绝 |
-|---|---:|---:|---:|---|
-| 新感知输出 | 152 | 4.742971 m | 4.736800 m | 无 |
-| 理想地图输入 | 148 | 4.744388 m | 4.736800 m | 无 |
-| 新感知、关闭影子 | 152 | 4.742971 m | 4.736800 m | 无 |
+上游固定 `mvp2.1@3652e9b`，版本化原样快照在 `upstream/3652e9b/`；
+最初 `f11428b` 快照继续保留。本地保护清单核对历史模型、数据、车辆和 C* 求解器。
 
-两组开启影子的实验各运行8次影子规划，均为VALID。开启/关闭影子的完整152帧
-动作序列逐项相同。VALID仅按上游定义表示已知边界上的指定短段没有检测到碰撞，
-不是影子控制通过；影子车身假设为0.30 m宽，与课程plant的0.25 m不同。
+[原接入同步记录](UPSTREAM_SYNC_20261016.md)、[旧 1 Hz 缓存实验](ONE_HZ_CONTROL.md)
+为历史证据，其独立执行代码与接线选项已经删除。
 
-**速度跟踪没有通过。**保留实车0.30驱动前馈时，课程车辆最高速度分别为
-0.776718/0.777113 m/s，目标为0.2 m/s；平均绝对速度误差约0.387/0.384 m/s。
-实车需要的维持油门与当前理想力模型不同，没有为了得到漂亮结果改写控制参数。
-plant四角到道路的最小诊断距离分别为0.130085/0.213147 m；这个指标不是连续
-完整车身扫掠证明。目标前方仍保留原管线的车身/道路余长，未测试末端停车。
-
-![回放轨迹与速度](artifacts/2026-10-15/comparison.png)
-
-实际上游纯源测试：估计97、规划17、控制33、中心线41、影子22，合计210项通过。
-本适配新增6项检查全部通过，覆盖来源/保留范围、估计器reset/fork/restore、
-原forward_geometry任务提交、动作符号、重建道路与影子动作隔离，共216项。
-上游测试在`.verification/mvp21-integration-20261015/upstream/`的原样源副本上运行，
-没有用新版本测试覆盖当前`tests/`。ROS fast gate仍缺固定dream_interfaces checkout，
-本轮未重跑；没有把纯模块测试计为ROS或实车验收。
-
-```powershell
-../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B tests/test_mvp21_sim.py -v
-```
-
-精简结果与指纹见[verification.json](artifacts/2026-10-15/verification.json)，
-完整三组trace及测试日志在`.verification/mvp21-integration-20261015/`。
-
-## 将 lattice 路径接给控制器
-
-后续已按模块实现1 Hz规划与20 Hz缓存控制，感知/理想道路两组在延迟交付下通过。
-`--path-source lattice`默认选择该模式；见[1 Hz闭环结果与命令](ONE_HZ_CONTROL.md)。
-下述为接入前的历史对照，复现每周期重算需显式加`--lattice-cadence control`。
-
-当时新增显式离线开关`--path-source lattice`；当前它已是默认路径来源。
-保留planner原参数、每控制周期重新生成选中路径时，感知/理想道路两组均跑完；
-原1 Hz直接交付存在坐标时间不一致，20 Hz同步计算则超过当前机器的周期预算。
-调度与碰撞/评分前瞻共用`rate_hz`的参数耦合也会导致不同闭环结果。
-接线、全部对照与复现命令见[planner控制实验](PLANNER_CONTROL_EXPERIMENT.md)。
+仿真延迟是因果服务模型；没有启动 ROS、部署或连接车辆。速度跟踪、物理停车和
+完整车身动态避碰仍未验收。ROS fast gate 缺固定 dream_interfaces 依赖。
