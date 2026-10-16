@@ -6,6 +6,7 @@ The installed ROS gate separately runs test_policy_node with real rclpy peers.
 """
 import ast
 from copy import deepcopy
+import json
 import math
 from pathlib import Path
 import runpy
@@ -20,6 +21,7 @@ tree = ast.parse(api["SOURCE"].read_text(encoding="utf-8"))
 subject = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
 method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn", "run_policy_step",
                 "_robust_control_enabled", "_control_health_problem", "_select_control_reference", "_report_control_status",
+                "_select_planner_reference", "_publish_planner_execution",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
                 "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
@@ -33,7 +35,7 @@ class DriveMessage(SimpleNamespace):
     UNITS_NORMALIZED = 1
 
 
-ns.update(Float32=SimpleNamespace, Int8=SimpleNamespace, String=SimpleNamespace,
+ns.update(json=json, Float32=SimpleNamespace, Int8=SimpleNamespace, String=SimpleNamespace,
           DriveAndSteer=DriveMessage, traceback=traceback)
 exec(compile(ast.fix_missing_locations(ast.Module(body=constants+[node_class], type_ignores=[])),
              str(api["SOURCE"]), "exec"), ns)

@@ -8,11 +8,11 @@ import yaml
 
 PACKAGE = Path(__file__).resolve().parent
 ROOT = PACKAGE.parents[1]
-SOURCE = PACKAGE / 'upstream/scripts/policy_node.py'
-CONFIG = PACKAGE / 'upstream/config/ai4r_policy.yaml'
-UPSTREAM_COMMIT = 'f11428b5444ac4c714a95e86e71662086b3187bd'
-SOURCE_SHA256 = '524ffcb244a85e98d5993c273e0ff684629f44be6128a102e5ff31096ef26edd'
-CONFIG_SHA256 = 'f9690e39ca898fb878c9ffa6780c1824b805c3d1f5cab912220d9ff5e48dacf0'
+SOURCE = PACKAGE / 'upstream/3652e9b/scripts/policy_node.py'
+CONFIG = PACKAGE / 'upstream/3652e9b/config/ai4r_policy.yaml'
+UPSTREAM_COMMIT = '3652e9ba6f42180cb28f27c02299d5b7a0ec77b0'
+SOURCE_SHA256 = '9f18ff37612b29a9e1d6f0baaf9d4cfb5c3e99604b26a7bab616953215a5f5dc'
+CONFIG_SHA256 = '2e51dfcf5d51e78203043188904e866ccaecc5ec28b7a9fd0e5339bae60e809c'
 
 
 def checked_bytes(path, expected):

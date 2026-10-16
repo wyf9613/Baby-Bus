@@ -58,6 +58,7 @@ def run(road, output, *, road_input='perception', max_steps=1200, seed=0, progre
     shadow = active.ShadowLatticePlanner(shadow_cfg)
     jobs = []
     offer = active.ShadowJobSource()
+    offer.planner_control_settings = active.PlannerControlSettings(enabled=path_source=='lattice')
     offer.shadow_settings, offer.planning_settings = shadow_cfg, planner.settings
     offer.shadow_last_submit_s, offer.shadow_handoff_estimate_s = -math.inf, 0.
     offer.shadow_generation, offer.shadow_job_id = 1, 0
@@ -82,6 +83,10 @@ def run(road, output, *, road_input='perception', max_steps=1200, seed=0, progre
         except Exception as error:
             result = dict(status='ERROR', error=type(error).__name__+':'+str(error))
         statuses[result['status']] += 1
+        guide = (result.get('fusion') or {}).get('guide')
+        if (result.get('status') == 'VALID' and guide
+                and guide.get('odometry_epoch') == getattr(offer,'shadow_odometry_epoch',0)):
+            offer.shadow_previous_reference = guide
         shadow_count += 1
         stream.write(json.dumps(json_safe(dict(step=step,result=result,
             decision_pose=list(env._backend.car._state_values()[:3]))),allow_nan=False)+'\n')
@@ -92,6 +97,7 @@ def run(road, output, *, road_input='perception', max_steps=1200, seed=0, progre
         if not math.isclose(env.dt_s, 1/config['policy_update_rate_hz'], abs_tol=1e-12):
             raise ValueError('Plant step and upstream policy frequency differ')
         checker = NativePrediction(env, SolverSettings(safety_margin_m=0.))
+        offer.motion_history = env.estimator.motion
         initial = float(env._info['evaluation']['ground_truth']['reference_line_progress_m'])
         goal = road_goal_progress(env)
         source_timeouts = dict(road=min(config['estimation']['max_source_age_s'],config['sensor_timeout_s']['cone_detections']),

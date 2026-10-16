@@ -63,6 +63,9 @@ class EstimationSettings:
     # Ordered XY curves support vertical and returning road segments. The
     # legacy y(x) estimator remains selectable for the archived workshop run.
     road_geometry: str = "y_of_x"
+    # Opposite-boundary arc backtrack allowed during ordered pairing. The
+    # default retains the existing 3 cm rule; source: mpc-car-run d155a80.
+    ordered_pairing_backtrack_m: float = 0.03
     # Imported mpc-car-run switches (docs/ESTIMATION_V1_CN.md); defaults keep
     # the original behaviour. "continuous" moves the cone history to every
     # policy step with short wheel/gyro intervals, so a camera gap no longer
@@ -118,6 +121,9 @@ class EstimationSettings:
             elif name == "single_side_offset_fraction":
                 if not 0.0 < value < 1.0:
                     raise ValueError("single-side offset fraction must be in (0, 1)")
+            elif name == "ordered_pairing_backtrack_m":
+                if not 0.0 <= value <= 0.3:
+                    raise ValueError("estimation.ordered_pairing_backtrack_m must be in [0, 0.3]")
             elif name == "history_merge_radius_m":
                 if value < 0.0:
                     raise ValueError("estimation.history_merge_radius_m must be >= 0")
@@ -892,7 +898,8 @@ class EstimationPipeline:
                         pairing_conflict = True
                     other_s = other["lengths"][j]+min(1.0, max(0.0, u))*length
                     if (cfg.road_width_min_m <= width <= cfg.road_width_max_m
-                            and -1e-6 <= u <= 1+1e-6 and other_s >= previous_other_s-0.03):
+                            and -1e-6 <= u <= 1+1e-6
+                            and other_s >= previous_other_s-cfg.ordered_pairing_backtrack_m):
                         # Prefer the expected width once measured, otherwise
                         # the first inward boundary crossing on this branch.
                         expected = self._learned_lane_width_m

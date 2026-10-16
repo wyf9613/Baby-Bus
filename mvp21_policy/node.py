@@ -1,4 +1,4 @@
-"""MVP2.1 node; relocated from pinned f11428b, without algorithm tuning."""
+"""MVP2.1 node; synced from upstream 3652e9b into the modular implementation."""
 
 from numbers import Real
 from copy import deepcopy
@@ -58,6 +58,7 @@ from .transport import (
     ShadowJobSource,
     ShadowWorker,
 )
+from .execution import PlannerControlSettings, PlannerExecutionManager
 import rclpy
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
@@ -158,6 +159,18 @@ class PolicyNode(ShadowJobSource, Node):
             self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
             shadow_values[name] = self.get_parameter(parameter_name).value
         self.shadow_settings = ShadowSettings(**shadow_values)
+        self.declare_parameter("planner_control.enabled", False, ParameterDescriptor(read_only=True))
+        self.planner_control_settings = PlannerControlSettings(
+            enabled=self.get_parameter("planner_control.enabled").value)
+        if self.planner_control_settings.enabled and (
+                not self.shadow_settings.enabled or not self.control_settings.enabled
+                or self.control_settings.mode != "mvp"
+                or self.planning_settings.algorithm != "road_centerline"
+                or self.policy_update_mode != "timer"):
+            raise ValueError("Planner control requires shadow, timer updates and MVP road_centerline control")
+        self.planner_execution = PlannerExecutionManager(self.policy_frame_id)
+        self.planner_execution_publisher = self.create_publisher(String, "planner_execution", 1)
+        self._last_execution_mode = None
         if self.control_settings.enabled:
             if (self.estimation_settings.road_geometry == "ordered_xy"
                     and self.planning_settings.algorithm != "road_centerline"):
@@ -220,6 +233,13 @@ class PolicyNode(ShadowJobSource, Node):
         self.shadow_last_submit_s = -math.inf
         self.shadow_handoff_estimate_s = self.shadow_settings.handoff_allowance_s
         self.shadow_last_result_s = None
+        self.shadow_road_history = []
+        self.shadow_pose = [0.0, 0.0, 0.0]
+        self.shadow_pose_stamp_s = None
+        self.shadow_odometry_epoch = 0
+        self.shadow_previous_reference = None
+        self.shadow_collection_events = []
+        self.shadow_collection_reset_id = 0
         self.shadow_worker = None
         self.shadow_timer = None
         if self.shadow_settings.enabled:
@@ -693,6 +713,8 @@ class PolicyNode(ShadowJobSource, Node):
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
         self._publish_actions(drive, steer, pan)
+        if hasattr(self, "planner_execution_publisher"):
+            self._publish_planner_execution()
         # Offer AFTER the baseline action, never on its calculation/exception path.
         # This is a diagnostic side channel; failures cannot change the action/FSM.
         if getattr(self, "shadow_worker", None) is not None:
@@ -1028,18 +1050,22 @@ class PolicyNode(ShadowJobSource, Node):
             if is_first_policy_step or not hasattr(self, "controller"):
                 self.controller = PolicyController(control, self.policy_frame_id)
                 self.control_has_run = False
+            planner_requested = bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False))
+            planner_reference = self._select_planner_reference(estimates) if planner_requested else None
             # Delayed camera data may predate the reset motion history at start.
             # Bounded neutral priming is allowed only BEFORE the first valid
             # control step; any fault after tracking requires explicit resume.
-            if (not self.planning_output["valid"] and not self.control_has_run
+            if (planner_reference is None and not self.planning_output["valid"] and not self.control_has_run
                     and estimates["state"]["valid"]
                     and estimates["road"]["status"] == "missing_motion_history"
                     and policy_elapsed_s < control.startup_grace_s):
                 self.control_diagnostics = {"valid": False, "stop_requested": False,
                                             "reason": "priming_motion_history"}
                 return 0.0, 0.0, None, None, None
-            selected_reference = self.planning_output
-            if self._robust_control_enabled():
+            selected_reference = planner_reference if planner_reference is not None else self.planning_output
+            if planner_reference is not None and hasattr(self, "control_reference_manager"):
+                self.control_reference_manager.clear()
+            if planner_reference is None and self._robust_control_enabled():
                 try:
                     selected_reference = self._select_control_reference(estimates)
                 except (ValueError, TypeError, ArithmeticError) as error:
@@ -1076,9 +1102,29 @@ class PolicyNode(ShadowJobSource, Node):
                     "planning_diagnostics": self.planning_diagnostics,
                 }))
                 raise PolicyStopRequest(reason)
-            drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
-                selected_reference, estimates["state"], estimates["vehicle_params"],
-                self.get_clock().now().nanoseconds/1e9, dt)
+            # Only the selected path reaches the PID. Save its previous state
+            # so a malformed planner reference cannot reset the baseline PID.
+            previous_controller = deepcopy(self.controller) if planner_reference is not None else None
+            try:
+                drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
+                    selected_reference, estimates["state"], estimates["vehicle_params"],
+                    self.get_clock().now().nanoseconds/1e9, dt)
+            except Exception as error:
+                if planner_reference is None:
+                    raise
+                self.control_diagnostics = {"valid": False, "stop_requested": True,
+                    "reason": "planner_controller_exception: "+str(error)}
+            if planner_reference is not None and (
+                    not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]):
+                self.controller = previous_controller
+                self.planner_execution.diagnostics.update(mode="baseline", fallback=True,
+                    reason="planner_control_rejected: "+str(self.control_diagnostics.get("reason")))
+                selected_reference = self.planning_output
+                if self._robust_control_enabled():
+                    selected_reference = self._select_control_reference(estimates)
+                drive_action, steering_action, self.control_diagnostics = self.controller.calculate(
+                    selected_reference, estimates["state"], estimates["vehicle_params"],
+                    self.get_clock().now().nanoseconds/1e9, dt)
             if not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]:
                 reason = "Control: " + self.control_diagnostics["reason"]
                 raise PolicyStopRequest(reason)
@@ -1086,8 +1132,13 @@ class PolicyNode(ShadowJobSource, Node):
             self._trajectory_reference = selected_reference
             self.last_control_reference_deadline_s = (
                 selected_reference["timestamp_s"]+selected_reference["valid_for_s"])
-            if self._robust_control_enabled():
+            if self._robust_control_enabled() and selected_reference.get("planner_version") != "lattice_execution":
                 self._report_control_status()
+            if planner_requested:
+                self.control_diagnostics["reference_source"] = self.planner_execution.diagnostics.get("mode")
+                self.control_diagnostics["reference_selection_reason"] = self.planner_execution.diagnostics.get("reason")
+                self.planner_execution.diagnostics.update(drive_action=drive_action,
+                    steering_action=steering_action, control_dt_s=dt)
             # Existing debug topics: lateral error (m), per-run distance (m).
             # The existing state string reports planning/control stop reasons.
             debug1 = self.control_diagnostics["path_error_m"]
@@ -1133,6 +1184,58 @@ class PolicyNode(ShadowJobSource, Node):
         return drive_action, steering_action, camera_pan_action, debug1, debug2
 
     # ---- Control-only reference recovery; upstream algorithms stay unchanged --
+    def _select_planner_reference(self, estimates):
+        """Opt-in adapter faults return THIS tick's baseline, never Stop."""
+        try:
+            road = estimates.get("road") or {}
+            if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
+                road = road.get("forward_geometry") or {}
+            state = estimates["state"]
+            # In planner mode advance the same short-interval odometry before
+            # execution. The post-action offer is idempotent at this timestamp.
+            self._shadow_collect_road(road, state["timestamp_s"])
+            if self.planning_output.get("valid") and self.planning_output.get("stop_requested"):
+                self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
+                    "reason": "baseline_stop_request", "requested_source": "planner"}
+                return None
+            period = 1/self.policy_update_rate_hz
+            return self.planner_execution.select(road, state, self.shadow_pose, self.shadow_odometry_epoch,
+                self.shadow_settings, self.planning_settings.preview_m, self.planning_settings.cruise_speed_mps,
+                period, self.control_settings.max_dt_s+period)
+        except Exception as error:
+            self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
+                "requested_source": "planner", "reason": "execution_exception: "+str(error)}
+            return None
+
+    def _publish_planner_execution(self):
+        """Record every executed control tick; transport faults cannot stop it."""
+        try:
+            enabled = self.planner_control_settings.enabled
+            info = dict(self.planner_execution.diagnostics) if enabled else {
+                "requested_source": "baseline", "mode": "baseline", "fallback": False,
+                "reason": "baseline_selected"}
+            ref = getattr(self, "_trajectory_reference", None) or {}
+            control = self.control_diagnostics or {}
+            info.update(timestamp_s=ref.get("timestamp_s"), generation=self.shadow_generation,
+                reference_version=ref.get("planner_version"),
+                baseline_valid=bool(self.planning_output and self.planning_output.get("valid")),
+                baseline_reason=(self.planning_output or {}).get("reason"),
+                speed_mps=(self.estimation_output or {}).get("state", {}).get("speed_mps"),
+                preview_xy_m=[control.get("preview_x_m"), control.get("preview_y_m")],
+                heading_error_rad=control.get("heading_error_rad"),
+                steer_before_slew=control.get("steer_before_slew"),
+                steer_after_slew=info.get("steering_action"),
+                reference_valid_for_s=ref.get("valid_for_s"))
+            if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
+                info.update(mode="idle", fallback=False, reason=self.state_reason)
+            self.planner_execution_publisher.publish(String(data=json.dumps(info, allow_nan=False)))
+            mode = (info["mode"], info["reason"])
+            if mode != self._last_execution_mode:
+                self.get_logger().info("Reference selection: "+json.dumps(info, separators=(",", ":")))
+                self._last_execution_mode = mode
+        except Exception as error:
+            self._warn("planner_execution_diagnostics", "Execution diagnostics unavailable: "+str(error))
+
     def _robust_control_enabled(self):
         cfg = self.control_settings
         return cfg.enabled and cfg.mode == "mvp" and cfg.robustness_enabled
@@ -1226,6 +1329,9 @@ class PolicyNode(ShadowJobSource, Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        if hasattr(self, "planner_execution"):
+            self.planner_execution.clear()
+            self._last_execution_mode = None
         self._end_straight_start_distance_m = None
         self._end_straight_started_at_s = None
         if getattr(self, "shadow_worker", None) is not None:
@@ -1233,6 +1339,13 @@ class PolicyNode(ShadowJobSource, Node):
             self.shadow_last_submit_s = -math.inf
             self.shadow_handoff_estimate_s = self.shadow_settings.handoff_allowance_s
             self.shadow_last_result_s = None
+            self.shadow_road_history = []
+            self.shadow_pose_stamp_s = None
+            self.shadow_pose = [0.0, 0.0, 0.0]
+            self.shadow_odometry_epoch = getattr(self, "shadow_odometry_epoch", 0)+1
+            self.shadow_previous_reference = None
+            self.shadow_collection_events = []
+            self.shadow_collection_reset_id = 0
         if state == FSM_STATE_PUBLISHING_POLICY_ACTION:
             wheel = self.observations.get("wheel_speed")
             speed = wheel.value if wheel is not None else None
@@ -1250,18 +1363,24 @@ class PolicyNode(ShadowJobSource, Node):
         # Baseline state/zero publications have priority over shadow diagnostics.
         if getattr(self, "shadow_worker", None) is not None:
             self._shadow_clear()
+        if hasattr(self, "planner_execution_publisher"):
+            self._publish_planner_execution()
 
     def _shadow_clear(self):
         """Clear shadow displays on every run boundary; old results are fenced."""
+        if hasattr(self, "planner_execution"):
+            self.planner_execution.clear()
         try:
             stamp = self.get_clock().now().nanoseconds/1e9
             for publisher in (self.shadow_path_publisher, self.shadow_prefix_publisher,
                               self.shadow_reference_publisher):
                 self._shadow_publish_path(publisher, [], stamp)
             self.shadow_diagnostics_publisher.publish(String(data=json.dumps({
-                "status": "IDLE", "generation": self.shadow_generation, "shadow_only": True})))
+                "status": "IDLE", "generation": self.shadow_generation,
+                "shadow_only": not bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False))})))
         except Exception as error:
             self._warn("shadow_clear", f"Shadow display clearing unavailable: {error}")
+
 
 
     def _shadow_publish_path(self, publisher, points, stamp_s):
@@ -1285,6 +1404,8 @@ class PolicyNode(ShadowJobSource, Node):
             if result.get("status") == "TRANSPORT_ERROR":
                 self._warn("shadow_worker", "Shadow worker failed: "+result.get("error", "unknown"))
                 self._shadow_clear()
+                if getattr(getattr(self, "planner_control_settings", None), "enabled", False):
+                    self.planner_execution.accept(result)
                 self.shadow_diagnostics_publisher.publish(String(data=json.dumps(result)))
                 self.shadow_worker.close()
                 self.shadow_worker = ShadowWorker()
@@ -1292,6 +1413,12 @@ class PolicyNode(ShadowJobSource, Node):
             if (self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION
                     or result.get("generation") != self.shadow_generation):
                 return
+            if getattr(getattr(self, "planner_control_settings", None), "enabled", False):
+                self.planner_execution.accept(result)
+            guide = (result.get("fusion") or {}).get("guide")
+            if (result.get("status") == "VALID" and guide
+                    and guide.get("odometry_epoch") == getattr(self, "shadow_odometry_epoch", 0)):
+                self.shadow_previous_reference = guide
             round_trip = self._monotonic()-result.get("submitted_monotonic_s", self._monotonic())
             self.shadow_handoff_estimate_s = max(self.shadow_handoff_estimate_s, round_trip)
             received = self._monotonic()
@@ -1322,12 +1449,22 @@ class PolicyNode(ShadowJobSource, Node):
             # The large candidate JSON was encoded off the executor. Append only
             # small transport metadata here, instead of re-encoding all points.
             self.shadow_diagnostics_publisher.publish(String(data=wire[:-1]+',"transport":'+json.dumps(transport)+'}'))
+            # Retain pending faults until a diagnostic carrying them was published.
+            acknowledged = ((result.get("fusion") or {}).get("collection") or {}).get("events") or []
+            if acknowledged:
+                reset_id = max(event.get("id", 0) for event in acknowledged)
+                self.shadow_collection_events = [event for event in getattr(self, "shadow_collection_events", [])
+                                                 if event.get("id", 0) > reset_id]
             summary = {key: result.get(key) for key in ("status", "job_id", "candidate_count", "feasible_count",
                 "speed_mps", "hold_time_s", "check_length_m", "score_length_m", "elapsed_s", "late_for_requested_period", "timing_s")}
             summary.update(selected_id=selected.get("id") if selected else None,
                 selected_family=selected.get("family") if selected else None,
                 result_age_s=self.get_clock().now().nanoseconds/1e9-stamp,
                 **transport)
+            if result.get("fusion"):
+                summary["fusion"] = {k: result["fusion"].get(k) for k in
+                    ("status", "reason", "degraded", "raw_fallback_used", "selected_source",
+                     "fused_status", "raw_status", "history_frames", "prior_used", "removed_guidance_loops", "reference_crop", "collection")}
             if result.get("error"):
                 summary["error"] = result["error"]
             self.get_logger().info("Shadow planning: "+json.dumps(summary, separators=(",", ":")))

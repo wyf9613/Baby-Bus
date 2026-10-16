@@ -77,3 +77,5 @@ from .lattice import (
 from .transport import (
     ShadowJobSource,
 )
+
+from .execution import PlannerControlSettings, PlannerExecutionManager

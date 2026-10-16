@@ -22,8 +22,8 @@ from unittest.mock import patch
 api = runpy.run_path(str(Path(__file__).with_name("test_estimation.py")))
 ns = dict(api["namespace"])
 source = api["SOURCE"]
-from mvp21_policy import lattice,transport
-ns.update(vars(lattice));ns.update(vars(transport))
+from mvp21_policy import lattice,transport,execution
+ns.update(vars(lattice));ns.update(vars(transport));ns.update(vars(execution))
 tree=ast.parse(source.read_text(encoding='utf-8'))
 worker_source=Path(__file__).resolve().parents[1]/'scripts/mvp21_policy_node.py'
 Settings, Planner = ns["ShadowSettings"], ns["ShadowLatticePlanner"]
@@ -200,6 +200,221 @@ class ShadowChecks(unittest.TestCase):
         self.assertFalse(worker.thread.is_alive())
 
 
+class ShadowTemporalChecks(unittest.TestCase):
+    def record(self):
+        record = job(center=0.05)
+        record.update(shadow_pose=[0.0, 0.0, 0.0], shadow_odometry_epoch=7,
+            road_history=[{"road": deepcopy(record["road"]), "stamp_s": record["stamp_s"],
+                "pose": [0.0, 0.0, 0.0], "odometry_epoch": 7}])
+        return record
+
+    def test_fit_preserves_hard_boundaries_and_does_not_mutate_inputs(self):
+        record = self.record()
+        before = deepcopy(record)
+        result = plan(record)
+        self.assertEqual(record, before)
+        self.assertEqual(result["status"], "VALID")
+        self.assertEqual(result["fusion"]["status"], "FUSED")
+        self.assertEqual(result["planning_input"]["road"]["left_boundary_xy"], record["road"]["left_boundary_xy"])
+        self.assertEqual(result["planning_input"]["road"]["right_boundary_xy"], record["road"]["right_boundary_xy"])
+        self.assertEqual(result["planning_input"]["road"]["boundary_source"], record["road"]["boundary_source"])
+        self.assertIsNone(result["reference_observed_range_s_m"])
+        self.assertFalse(result["fusion"]["reference_is_observed_boundary"])
+        timing = result["timing_s"]
+        self.assertAlmostEqual(sum(v for k, v in timing.items() if k != "total"), timing["total"], places=6)
+
+    def test_fusion_exception_retries_exact_raw_planner_and_reports_reason(self):
+        record = self.record()
+        expected = Planner(Settings(**record["settings"]))._plan_geometry(record)
+        with patch.object(lattice, "_shadow_fuse_road", lambda *_: (_ for _ in ()).throw(RuntimeError("injected fit fault"))):
+            result = plan(record)
+        self.assertEqual(result["selected"], expected["selected"])
+        self.assertEqual(result["status"], "VALID")
+        self.assertTrue(result["fusion"]["raw_fallback_used"])
+        self.assertEqual(result["fusion"]["reason"], "fusion_error")
+        self.assertIn("injected fit fault", result["fusion"]["error"])
+        json.dumps(result, allow_nan=False)
+
+    def test_reference_crop_stays_local_across_repeated_forward_motion(self):
+        record = self.record()
+        record["road"]["centerline_xy"] = [(0., 0.), (1., 0.)]
+        record["previous_reference"] = {"points": [(-5., 0.), (0., 0.), (1., 0.)],
+            "pose": [0., 0., 0.], "stamp_s": 99.5, "odometry_epoch": 7}
+        for step in range(8):
+            record.update(stamp_s=100.+step*.2, shadow_pose=[step*.2, 0., 0.])
+            record["road"]["measurement_timestamp_s"] = record["stamp_s"]-.05
+            record["road_history"] = [{"road": deepcopy(record["road"]),
+                "stamp_s": record["stamp_s"], "pose": record["shadow_pose"][:], "odometry_epoch": 7}]
+            result = plan(record)
+            self.assertEqual(result["status"], "VALID")
+            fusion = result["fusion"]
+            self.assertEqual(fusion["status"], "FUSED")
+            crop, points = fusion["reference_crop"], fusion["guide"]["points"]
+            self.assertAlmostEqual(crop["retained_rear_m"], .3, places=6)
+            self.assertGreaterEqual(points[0][0], -.300001)
+            self.assertAlmostEqual(points[-1][0], 1., places=6)
+            self.assertLessEqual(crop["output_length_m"], 1.300001)
+            for field in ("left_boundary_xy", "right_boundary_xy", "boundary_source"):
+                self.assertEqual(result["planning_input"]["road"][field], record["road"][field])
+            if step == 0:
+                self.assertAlmostEqual(crop["trimmed_rear_m"], 4.7, places=6)
+            record["previous_reference"] = fusion["guide"]
+
+    def test_reference_crop_preserves_future_returning_leg(self):
+        record = self.record()
+        returning = [(0.,0.),(.25,0.),(.4,.15),(.25,.3),(-.2,.3)]
+        record["road"].update(centerline_xy=returning, left_boundary_xy=None, right_boundary_xy=None)
+        record["road_history"][0]["road"] = deepcopy(record["road"])
+        record["previous_reference"] = {"points": [(-5.,0.)]+returning,
+            "pose": [0.,0.,0.], "stamp_s": 99.5, "odometry_epoch": 7}
+        result = plan(record)
+        self.assertEqual(result["status"], "VALID")
+        fusion = result["fusion"]
+        self.assertGreater(fusion["reference_crop"]["trimmed_rear_m"], 4.)
+        end = fusion["guide"]["points"][-1]
+        self.assertLess(end[0], -.15)
+        self.assertGreater(end[1], .25)
+
+    def test_reference_crop_keeps_inferred_connection_to_short_far_support(self):
+        record = self.record()
+        record["road"].update(centerline_xy=[(.6,0.),(.62,0.)],
+                              left_boundary_xy=None, right_boundary_xy=None)
+        record["road_history"][0]["road"] = deepcopy(record["road"])
+        result = plan(record)
+        self.assertEqual(result["status"], "VALID")
+        self.assertEqual(result["fusion"]["status"], "FUSED")
+        self.assertLess(result["fusion"]["reference_crop"]["window_s_m"][0], 0.)
+        self.assertAlmostEqual(result["fusion"]["guide"]["points"][0][0], 0., places=6)
+
+    def test_infeasible_or_faulting_fused_plan_cannot_remove_raw_success(self):
+        record = self.record()
+        original = Planner._plan_geometry
+        forced_road = {**record["road"], "injected_fused_road": True}
+        for status in ("ALL_COLLIDE", "NO_ROAD", "exception"):
+            def calculate(subject, data):
+                if data["road"].get("injected_fused_road"):
+                    if status == "exception":
+                        raise RuntimeError("injected candidate failure")
+                    return {"status": status, "selected": None, "candidate_count": 12, "feasible_count": 0}
+                return original(subject, data)
+            with self.subTest(status=status), patch.object(lattice, "_shadow_fuse_road", lambda *_:
+                    (forced_road, {"status": "FUSED"})), patch.object(Planner, "_plan_geometry", calculate):
+                result = plan(record)
+            self.assertEqual(result["status"], "VALID")
+            self.assertEqual(result["fusion"]["status"], "RAW_FALLBACK")
+            self.assertEqual(result["fusion"]["raw_status"], "VALID")
+            self.assertTrue(result["fusion"]["raw_fallback_used"])
+            self.assertNotIn("guide", result["fusion"])
+            timing = result["timing_s"]
+            self.assertAlmostEqual(sum(v for k, v in timing.items() if k != "total"), timing["total"], places=6)
+            if status != "exception":
+                self.assertEqual(result["fusion"]["failed_fused_attempt"]["feasible_count"], 0)
+
+    def test_alignment_reset_uses_raw_and_serializes_fault_events(self):
+        record = self.record()
+        record["temporal_collection"] = {"reset": True, "reason": "motion_history_gap",
+            "events": [{"id": 1, "stamp_s": 100.0, "reason": "motion_history_gap"}]}
+        with patch.object(lattice, "_shadow_fuse_road", lambda *_: self.fail("fusion must not use unaligned history")):
+            result = plan(record)
+        self.assertEqual(result["status"], "VALID")
+        self.assertEqual(result["fusion"]["reason"], "motion_alignment_reset")
+        self.assertEqual(result["fusion"]["collection"]["events"][0]["reason"], "motion_history_gap")
+        self.assertIn("road_history", result["temporal_input"])
+
+    def test_measurement_epoch_dedup_and_original_age_are_retained(self):
+        record = self.record()
+        record["road"]["measurement_timestamp_s"] = 99.5
+        record["road_history"] = [{"road": deepcopy(record["road"]), "stamp_s": 99.6+i*.02,
+            "pose": [0.0, 0.0, 0.0], "odometry_epoch": 7} for i in range(21)]
+        result = plan(record)
+        self.assertEqual(result["fusion"]["history_frames"], 1)
+        self.assertEqual(result["fusion"]["measurement_epochs"], 1)
+        self.assertAlmostEqual(result["fusion"]["oldest_measurement_age_s"], .5)
+
+    def test_cold_short_boundary_only_and_single_point_keep_raw_availability(self):
+        for center in ([(.6,.1)], [], [(0,.1),(.02,.1)]):
+            record = self.record()
+            record["road"].update(centerline_xy=center, left_boundary_xy=[(.6,.5)],
+                                  right_boundary_xy=None, boundary_source={"left": "observed", "right": "absent"})
+            record["road_history"][0]["road"] = deepcopy(record["road"])
+            result = plan(record)
+            self.assertEqual(result["status"], "VALID")
+            self.assertEqual(result["candidate_count"], 12)
+
+    def test_self_crossing_guidance_is_repaired_but_real_u_bend_is_retained(self):
+        broken = [(0.,0.),(.5,.5),(0.,.5),(.5,0.),(1.,0.)]
+        repaired, count = ns["_shadow_erase_reference_loops"](broken)
+        self.assertGreater(count, 0)
+        self.assertEqual(repaired[0], broken[0])
+        self.assertEqual(repaired[-1], broken[-1])
+        returning = [(0.,0.),(.5,0.),(.7,.2),(.5,.4),(0.,.4)]
+        self.assertEqual(ns["_shadow_erase_reference_loops"](returning), (returning, 0))
+        record = self.record()
+        record["road"].update(centerline_xy=returning, left_boundary_xy=None, right_boundary_xy=None)
+        record["road_history"][0]["road"] = deepcopy(record["road"])
+        self.assertEqual(plan(record)["status"], "VALID")
+
+    def test_disabled_and_absent_history_always_publish_explicit_mode(self):
+        record = job()
+        a = plan(record)
+        b = plan(record, fusion_enabled=False)
+        self.assertEqual(a["selected"], b["selected"])
+        self.assertEqual(a["fusion"]["reason"], "history_unavailable")
+        self.assertEqual(b["fusion"]["status"], "DISABLED")
+        self.assertFalse(b["fusion"]["degraded"])
+
+    def test_actual_worker_carries_temporal_input_and_diagnostics(self):
+        record = self.record()
+        process = subprocess.run([sys.executable, str(worker_source), "--shadow-worker"],
+            input=json.dumps(record)+"\n", capture_output=True, text=True, timeout=15)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        result = json.loads(process.stdout)
+        self.assertEqual(result["status"], "VALID")
+        self.assertEqual(result["fusion"]["status"], "FUSED")
+        self.assertEqual(len(result["temporal_input"]["road_history"]), 1)
+        self.assertEqual(result["generation"], record["generation"])
+
+    def test_malformed_history_does_not_poison_raw_planning(self):
+        record = self.record()
+        record["road_history"][0]["pose"] = [0.0, 0.0]
+        result = plan(record)
+        self.assertEqual(result["status"], "VALID")
+        self.assertEqual(result["fusion"]["reason"], "no_aligned_history")
+        self.assertTrue(result["fusion"]["raw_fallback_used"])
+        json.dumps(result, allow_nan=False)
+
+    def test_fusion_settings_bound_memory_without_road_admission_thresholds(self):
+        for options in ({"fusion_enabled": 1}, {"fusion_max_samples": 0}, {"fusion_max_samples": 129},
+                        {"fusion_max_samples": 2.0}, {"fusion_window_s": 0}, {"fusion_spacing_m": 0},
+                        {"fusion_rear_support_m": -0.1}):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                Settings(**options)
+
+    def test_recorded_20_inputs_preserve_success_and_improve_aggregate_continuity(self):
+        root = Path(__file__).resolve().parents[1]
+        replay = runpy.run_path(str(root/"offline/shadow_lattice/replay_temporal.py"))
+        fixture = json.loads((root/"tests/fixtures/shadow_temporal_recorded_run.json").read_text())
+        results = replay["evaluate"](ns, fixture)
+        before, after = (replay["metrics"](ns, results, mode)["summary"] for mode in ("raw", "fused"))
+        self.assertEqual((before["valid"], after["valid"]), (20, 20))
+        self.assertLess(after["continuity_rms_m"]["mean"], before["continuity_rms_m"]["mean"])
+        self.assertLess(after["shape_rms_m"]["mean"], before["shape_rms_m"]["mean"])
+        self.assertTrue(all(not r["fused"]["fusion"]["raw_fallback_used"] for r in results))
+
+    def test_all_20_recorded_inputs_keep_original_paths_under_fusion_failure(self):
+        fixture = json.loads((Path(__file__).parent/"fixtures/shadow_temporal_recorded_run.json").read_text())
+        def fail(*_):
+            raise RuntimeError("injected fusion failure across recorded inputs")
+        with patch.object(lattice, "_shadow_fuse_road", fail):
+            for frame in fixture["frames"]:
+                result = plan(frame["job"])
+                self.assertEqual(result["status"], "VALID")
+                self.assertTrue(result["fusion"]["raw_fallback_used"])
+                self.assertEqual(result["selected"]["id"], frame["recorded_selected"]["id"])
+                self.assertLess(max(abs(a-b) for p,q in zip(result["selected"]["path"],
+                    frame["recorded_selected"]["path"]) for a,b in zip(p,q)), 1e-12)
+
+
 control = runpy.run_path(str(Path(__file__).with_name("test_control.py")))
 node_definition = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "PolicyNode")
 methods = [n for n in node_definition.body if isinstance(n, ast.FunctionDef)
@@ -208,6 +423,7 @@ method_ns = {**ns, "json": json, "String": SimpleNamespace, "FSM_STATE_PUBLISHIN
              "FSM_STATE_NOT_PUBLISHING_ACTIONS": 1}
 exec(compile(ast.Module(body=methods, type_ignores=[]), str(source), "exec"), method_ns)
 method_ns["_shadow_offer"]=transport.ShadowJobSource._shadow_offer
+method_ns["_shadow_collect_road"]=transport.ShadowJobSource._shadow_collect_road
 
 
 class ShadowIntegrationChecks(unittest.TestCase):
@@ -224,7 +440,7 @@ class ShadowIntegrationChecks(unittest.TestCase):
         node._shadow_publish_path = lambda pub, points, stamp: node.shadow_displays.append((pub, points, stamp))
         for name in ("path", "prefix", "reference", "diagnostics"):
             setattr(node, "shadow_"+name+"_publisher", control["Recorder"]())
-        for name in ("_shadow_offer", "_shadow_poll", "_shadow_clear", "stop_before_shutdown"):
+        for name in ("_shadow_collect_road", "_shadow_offer", "_shadow_poll", "_shadow_clear", "stop_before_shutdown"):
             setattr(node, name, method_ns[name].__get__(node))
         return node
 
@@ -304,6 +520,99 @@ class ShadowIntegrationChecks(unittest.TestCase):
         self.assertEqual(node.controller._mvp_previous_steer, 0.0)
         node.estimation_output["road"]["centerline_xy"][0] = (9.0, 9.0)
         self.assertEqual(submitted[-1]["road"]["centerline_xy"][0], (0.0, 0.0))
+
+    def test_20hz_collection_uses_incremental_motion_and_deduplicates_camera_epochs(self):
+        node = self.node()
+        node.estimation_output = {"road": job()["road"], "state": {"speed_mps": .2}}
+        submitted = []
+        node.shadow_worker.submit = submitted.append
+        for tick in range(21):
+            if tick:
+                node.test_clock.advance(.05)
+            stamp = node.test_clock.ros_ns
+            node._store("wheel_speed", .2, None, node.test_clock.monotonic, stamp)
+            node._store("imu_angular_velocity", (0.,0.,0.), stamp, node.test_clock.monotonic, stamp)
+            node.estimation_output["state"]["timestamp_s"] = stamp/1e9
+            node.estimation_output["road"]["measurement_timestamp_s"] = 9.8+(tick//2)*.1
+            before = deepcopy(node.motion_history.samples)
+            node._shadow_offer()
+            self.assertEqual(before, node.motion_history.samples)
+        self.assertEqual(len(submitted), 2)
+        self.assertLessEqual(len(node.shadow_road_history), 11)
+        self.assertAlmostEqual(node.shadow_pose[0], .2, places=6)
+        self.assertAlmostEqual(node.shadow_pose[1], 0.)
+        self.assertTrue(all(h["odometry_epoch"] == node.shadow_odometry_epoch for h in node.shadow_road_history))
+        node.estimation_output["road"]["centerline_xy"][0] = (8.,8.)
+        self.assertNotEqual(submitted[-1]["road_history"][-1]["road"]["centerline_xy"][0], (8.,8.))
+
+    def test_alignment_events_survive_rate_gate_and_ack_only_completed_jobs(self):
+        node = self.node()
+        node.fsm_state = 3
+        node.estimation_output = {"road": job()["road"], "state": {"timestamp_s": 10., "speed_mps": .2}}
+        submitted = []
+        node.shadow_worker.submit = submitted.append
+        node._shadow_offer()
+        node.test_clock.advance(.05)
+        node.estimation_output["state"]["timestamp_s"] = 10.05
+        node.motion_history.pose_between = lambda *_: (None, "injected_gap")
+        node._shadow_offer()
+        self.assertEqual(len(submitted), 1)
+        self.assertEqual(node.shadow_collection_events[0]["reason"], "injected_gap")
+        node.motion_history.pose_between = lambda *_: ({"dx_m": 0., "dy_m": 0., "yaw_rad": 0.}, None)
+        node.test_clock.advance(1.)
+        node.estimation_output["state"]["timestamp_s"] = 11.05
+        node._shadow_offer()
+        self.assertEqual(len(submitted), 2)
+        pending = submitted[-1]
+        self.assertEqual(pending["temporal_collection"]["events"][0]["id"], 1)
+        result = Planner(node.shadow_settings).plan(pending)
+        result["generation"] = pending["generation"]
+        result["submitted_monotonic_s"] = pending["submitted_monotonic_s"]
+        self.assertTrue(result["fusion"]["degraded"])
+        node.test_clock.advance(.05)
+        node.estimation_output["state"]["timestamp_s"] = 11.10
+        node.motion_history.pose_between = lambda *_: (None, "new_gap")
+        node._shadow_offer()
+        self.assertEqual([e["id"] for e in node.shadow_collection_events], [1,2])
+        node.shadow_worker.poll = lambda: result
+        node._shadow_poll()
+        self.assertEqual([e["id"] for e in node.shadow_collection_events], [2])
+        wire = node.shadow_diagnostics_publisher.messages[-1].data
+        self.assertEqual(json.loads(wire)["fusion"]["collection"]["events"][0]["reason"], "injected_gap")
+
+    def test_failed_diagnostic_publication_does_not_acknowledge_faults(self):
+        node = self.node()
+        node.fsm_state = 3
+        event = {"id": 1, "stamp_s": 100., "reason": "injected_gap"}
+        node.shadow_collection_events = [event]
+        record = job()
+        record["temporal_collection"] = {"reset": True, "events": [event]}
+        result = plan(record)
+        result["generation"] = node.shadow_generation
+        node.shadow_worker.poll = lambda: result
+        node.shadow_diagnostics_publisher.publish = lambda _: (_ for _ in ()).throw(RuntimeError("injected publication failure"))
+        node._shadow_poll()
+        self.assertEqual(node.shadow_collection_events, [event])
+
+    def test_stop_clears_temporal_history_and_prior_without_late_resurrection(self):
+        node = self.node()
+        control["feed"](node)
+        control["start"](node)
+        node.run_policy_step()
+        self.assertTrue(node.shadow_road_history)
+        node.shadow_previous_reference = {"points": [(0.,0.),(1.,0.)]}
+        generation = node.shadow_generation
+        node.fsm_transition_request_callback(SimpleNamespace(data=2))
+        self.assertGreater(node.shadow_generation, generation)
+        self.assertEqual(node.shadow_road_history, [])
+        self.assertIsNone(node.shadow_previous_reference)
+        self.assertIsNone(node.shadow_pose_stamp_s)
+        result = plan(job())
+        result["generation"] = generation
+        result["fusion"] = {"guide": {"points": [(0.,0.),(1.,0.)], "odometry_epoch": node.shadow_odometry_epoch}}
+        node.shadow_worker.poll = lambda: result
+        node._shadow_poll()
+        self.assertIsNone(node.shadow_previous_reference)
 
     def test_stop_generation_fences_old_output_and_all_collision_clears_selected_line(self):
         node = self.node()

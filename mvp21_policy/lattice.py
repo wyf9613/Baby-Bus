@@ -1,4 +1,4 @@
-"""MVP2.1 lattice; relocated from pinned f11428b, without algorithm tuning."""
+"""MVP2.1 lattice; synced from 3652e9b with the local generated-path execution profile."""
 
 from dataclasses import dataclass
 import math
@@ -36,8 +36,13 @@ class ShadowSettings:
     weight_heading: float = 1.5
     weight_progress: float = 2.0
     weight_smoothness: float = 0.04
-    # A control consumer can hold/read beyond the diagnostic prefix. Opt-in
-    # execution profile evaluates the entire generated path, including preview.
+    fusion_enabled: bool = True
+    fusion_window_s: float = 1.0
+    fusion_max_samples: int = 21
+    fusion_spacing_m: float = 0.10
+    fusion_memory_weight: float = 1.0
+    fusion_rear_support_m: float = 0.30
+
     coverage_mode: str = 'prefix'
 
     def __post_init__(self):
@@ -45,16 +50,20 @@ class ShadowSettings:
             raise ValueError('shadow.coverage_mode must be prefix or generated')
         if not isinstance(self.enabled, bool):
             raise ValueError("shadow.enabled must be boolean")
+        if not isinstance(self.fusion_enabled, bool):
+            raise ValueError("shadow.fusion_enabled must be boolean")
+        if type(self.fusion_max_samples) is not int or not 1 <= self.fusion_max_samples <= 128:
+            raise ValueError("shadow.fusion_max_samples must be an integer in [1,128]")
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
             raise ValueError("shadow.sample_count must be an integer >=8")
         for name, value in vars(self).items():
-            if name in ("enabled", "sample_count", "coverage_mode"):
+            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "coverage_mode"):
                 continue
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
         for name in ("rate_hz", "length_m", "path_spacing_m", "score_min_length_m",
                      "search_half_width_m", "body_front_m", "body_rear_m", "body_width_m",
-                     "sweep_translation_step_m", "sweep_rotation_step_rad"):
+                     "sweep_translation_step_m", "sweep_rotation_step_rad", "fusion_window_s", "fusion_spacing_m"):
             if getattr(self, name) == 0:
                 raise ValueError("shadow."+name+" must be positive")
 
@@ -170,6 +179,284 @@ def _shadow_collision(path, check_length, boundaries, cfg):
     return None
 
 
+def _shadow_pose_points(points, source_pose, target_pose):
+    """Road samples already aligned to their state times -> current body frame."""
+    if (len(source_pose) != 3 or len(target_pose) != 3
+            or not all(finite_number(v) for v in (*source_pose, *target_pose))):
+        raise ValueError("invalid shadow odometry pose")
+    x, y, angle = source_pose
+    tx, ty, target_angle = target_pose
+    c, s = math.cos(angle), math.sin(angle)
+    rc, rs = math.cos(target_angle), math.sin(target_angle)
+    result = []
+    for px, py in _shadow_points(points):
+        wx, wy = x+c*px-s*py-tx, y+s*px+c*py-ty
+        result.append((rc*wx+rs*wy, -rs*wx+rc*wy))
+    return result
+
+
+def _shadow_normal_match(points, p, tangent, normal, expected=0.0, first_segment=0):
+    """Match ordered, agreeing road branches; no body-x/curvature admission gate."""
+    matches = []
+    for index in range(max(0, first_segment-1), len(points)-1):
+        a, b = points[index:index+2]
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        length = math.hypot(dx, dy)
+        denominator = normal[0]*dy-normal[1]*dx
+        if length < 1e-9 or abs(denominator) < 1e-9:
+            continue
+        agreement = (dx*tangent[0]+dy*tangent[1])/length
+        if agreement <= 0:
+            continue  # Opposite U-turn leg is not the same ordered road branch.
+        ax, ay = a[0]-p[0], a[1]-p[1]
+        d = (ax*dy-ay*dx)/denominator
+        u = (ax*normal[1]-ay*normal[0])/denominator
+        if -1e-8 <= u <= 1+1e-8:
+            matches.append((abs(d-expected), d, agreement, index))
+    if not matches:
+        return None
+    _, d, agreement, index = min(matches)
+    return d, agreement, index
+
+
+def _shadow_reference_spline(points, spacing):
+    """Arc-parameter Hermite fit; preserve vertical and returning road branches."""
+    points = _shadow_points(points)
+    if len(points) < 3:
+        return points
+    arc = _shadow_lengths(points)
+    derivatives = []
+    for i in range(len(points)):
+        lo, hi = max(0, i-1), min(len(points)-1, i+1)
+        ds = max(1e-9, arc[hi]-arc[lo])
+        derivatives.append(tuple((points[hi][k]-points[lo][k])/ds for k in (0, 1)))
+    result = [points[0]]
+    for i, (a, b) in enumerate(zip(points, points[1:])):
+        ds = arc[i+1]-arc[i]
+        count = max(1, math.ceil(ds/spacing))
+        for j in range(1, count+1):
+            u = j/count
+            h = (2*u**3-3*u*u+1, u**3-2*u*u+u, -2*u**3+3*u*u, u**3-u*u)
+            result.append(tuple(h[0]*a[k]+h[1]*ds*derivatives[i][k]+h[2]*b[k]
+                                +h[3]*ds*derivatives[i+1][k] for k in (0, 1)))
+    return _shadow_points(result)
+
+
+def _shadow_erase_reference_loops(points):
+    """Remove self-intersecting excursions in guidance, never observed boundaries.
+
+    No negative-x or large-turn filter: an ordinary U bend has no self-crossing.
+    Degenerate fits are returned to the caller's raw-planning fallback.
+    """
+    points, removed = list(points), 0
+    for _ in range(8):
+        crossing = None
+        for i in range(len(points)-3):
+            for j in range(i+2, len(points)-1):
+                if math.dist(points[i], points[j+1]) < 1e-8:
+                    continue  # Preserve genuinely closed route support.
+                if _shadow_segment_hit(points[i], points[i+1], points[j], points[j+1]):
+                    crossing = (i, j)
+                    break
+            if crossing:
+                break
+        if crossing is None:
+            break
+        i, j = crossing
+        points = points[:i+1]+points[j+1:]
+        removed += 1
+    return points, removed
+
+
+def _shadow_simplify_reference(points, tolerance):
+    """Bound geometric approximation error, avoiding dense Frenet projection cost."""
+    if len(points) < 3:
+        return points
+    keep, pending = {0, len(points)-1}, [(0, len(points)-1)]
+    while pending:
+        lo, hi = pending.pop()
+        a, b = points[lo], points[hi]
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        norm2 = dx*dx+dy*dy
+        farthest, maximum = None, tolerance*tolerance
+        for i in range(lo+1, hi):
+            p = points[i]
+            u = max(0.0, min(1.0, ((p[0]-a[0])*dx+(p[1]-a[1])*dy)/norm2)) if norm2 > 1e-12 else 0.0
+            distance2 = (p[0]-a[0]-u*dx)**2+(p[1]-a[1]-u*dy)**2
+            if distance2 > maximum:
+                farthest, maximum = i, distance2
+        if farthest is not None:
+            keep.add(farthest)
+            pending.extend(((lo, farthest), (farthest, hi)))
+    return [points[i] for i in sorted(keep)]
+
+
+def _shadow_fuse_road(job, cfg):
+    """Robust local road guidance from deduplicated, motion-aligned snapshots.
+
+    Real boundary samples supply normal intersections against a stable guide,
+    avoiding the folding of a large offset around noisy boundary corners.
+    Fused/inferred guidance NEVER replaces the current hard collision boundaries.
+    """
+    now, target_pose = job.get("stamp_s"), job.get("shadow_pose")
+    if not finite_number(now) or not target_pose or len(target_pose) != 3:
+        return None, {"status": "RAW_ONLY", "reason": "no_shadow_pose"}
+    epoch = job.get("shadow_odometry_epoch")
+    frames, seen = [], set()
+    for snapshot in reversed(job.get("road_history") or []):
+        stamp, pose = snapshot.get("stamp_s"), snapshot.get("pose")
+        if (not finite_number(stamp) or not pose or len(pose) != 3
+                or snapshot.get("odometry_epoch") != epoch or not 0 <= now-stamp <= cfg.fusion_window_s+1e-6):
+            continue
+        road = snapshot.get("road") or {}
+        measurement = road.get("measurement_timestamp_s")
+        key = measurement if finite_number(measurement) else stamp
+        if key in seen:
+            continue
+        seen.add(key)
+        transformed = dict(road)
+        for field in ("centerline_xy", "left_boundary_xy", "right_boundary_xy"):
+            transformed[field] = _shadow_pose_points(road.get(field), pose, target_pose)
+        transformed["age_s"] = max(0.0, now-measurement) if finite_number(measurement) else now-stamp
+        frames.append(transformed)
+        if len(frames) >= cfg.fusion_max_samples:
+            break
+    raw = job.get("road") or {}
+    if not frames:
+        return None, {"status": "RAW_ONLY", "reason": "no_aligned_history"}
+    prior = job.get("previous_reference") or {}
+    prior_age = now-prior.get("stamp_s", now)
+    prior_points = []
+    if (prior.get("odometry_epoch") == epoch and prior.get("pose")
+            and 0 <= prior_age <= cfg.fusion_window_s+2/cfg.rate_hz):
+        prior_points = _shadow_pose_points(prior.get("points"), prior["pose"], target_pose)
+    guide = prior_points
+    if not guide:
+        # Prefer the freshest actually two-sided reference for branch association.
+        reliable = [r for r in frames if r.get("visibility") == "both" and r.get("centerline_xy")]
+        guide = (reliable[0] if reliable else frames[0]).get("centerline_xy") or []
+    if len(guide) < 2:
+        return None, {"status": "RAW_ONLY", "reason": "insufficient_fit_support"}
+    guide, removed = _shadow_erase_reference_loops(guide)
+    if len(guide) < 2:
+        return None, {"status": "RAW_ONLY", "reason": "degenerate_reference"}
+    base = ShadowFrame(guide)
+    # Append new measured support only on the same ordered, agreeing branch.
+    for point in _shadow_points(raw.get("centerline_xy")):
+        s, d = base.project(point)
+        if s > base.end+cfg.fusion_spacing_m and abs(d) < cfg.search_half_width_m:
+            guide.append(point)
+            base = ShadowFrame(guide)
+    s0, _ = base.project((0.0, 0.0))
+    # Roll the fit window forward along ROAD ARC, retaining only local rear
+    # support. A negative s0 means support starts ahead: keep the inferred
+    # connection to the car rather than introducing a short-road gate.
+    lo = max(0.0, s0-cfg.fusion_rear_support_m) if s0 >= 0 else s0
+    hi = min(base.end, s0+1.5*max(cfg.length_m, cfg.score_min_length_m))
+    hi = max(hi, lo+cfg.fusion_spacing_m)
+    count = min(64, max(2, math.ceil((hi-lo)/cfg.fusion_spacing_m)))
+    width = raw.get("lane_width_m")
+    width = width if finite_number(width) and width > 0 else None
+    scale = max(2*cfg.path_spacing_m, (width or 2*cfg.search_half_width_m)*0.10)
+    last_segments = {}
+    offsets, strengths, supports, locations = [], [], [], []
+    for i in range(count+1):
+        s = lo+(hi-lo)*i/count
+        p, tangent, normal = base.at(s)
+        observations = []
+        if prior_points and 0 <= s <= base.end:
+            observations.append((0.0, cfg.fusion_memory_weight*math.exp(-prior_age/cfg.fusion_window_s)))
+        supported = False
+        for index, road in enumerate(frames):
+            weight = math.exp(-road["age_s"]/(cfg.fusion_window_s/2))
+            w = road.get("lane_width_m")
+            w = w if finite_number(w) and w > 0 else width
+            sides = {}
+            sources = road.get("boundary_source") or {}
+            for side, sign in (("left", 1), ("right", -1)):
+                if sources.get(side) not in ("observed", "observed_with_history"):
+                    continue
+                key = (index, side)
+                match = _shadow_normal_match(road[side+"_boundary_xy"], p, tangent, normal,
+                    sign*(w or 2*cfg.search_half_width_m)/2, last_segments.get(key, 0))
+                if match:
+                    sides[side] = match
+                    last_segments[key] = match[2]
+            if len(sides) == 2:
+                a, b = sides["left"], sides["right"]
+                d, quality = (a[0]+b[0])/2, min(a[1], b[1])**2
+                if a[0] <= b[0]:
+                    quality *= 0.1  # Conflicting evidence is weak, not a planning veto.
+            elif sides and w:
+                side, match = next(iter(sides.items()))
+                d = match[0]+(-1 if side == "left" else 1)*w/2
+                quality = 0.65*match[1]**2
+            else:
+                key = (index, "center")
+                match = _shadow_normal_match(road.get("centerline_xy") or [], p, tangent, normal,
+                                             0.0, last_segments.get(key, 0))
+                if match is None:
+                    continue
+                last_segments[key] = match[2]
+                d, quality = match[0], 0.4*match[1]**2
+            # Only finite observations participate; no resulting road is rejected.
+            if finite_number(d) and quality > 0:
+                observations.append((d, weight*quality))
+                supported = True
+        # Cap repeated spatial evidence: history-backed copies do not become
+        # independent votes merely because the estimator runs at 20 Hz.
+        clusters = {}
+        for value, weight in observations:
+            key = round(value/scale)
+            accumulated, total_weight, maximum_weight = clusters.get(key, (0.0, 0.0, 0.0))
+            clusters[key] = (accumulated+value*weight, total_weight+weight, max(maximum_weight, weight))
+        observations = sorted((value/total, maximum) for value, total, maximum in clusters.values() if total > 0)
+        if observations:
+            total = sum(w for _, w in observations)
+            cumulative = 0.0
+            middle = observations[-1][0]
+            for value, weight in observations:
+                cumulative += weight
+                if cumulative >= total/2:
+                    middle = value
+                    break
+            robust = [(v, w*min(1.0, scale/max(abs(v-middle), 1e-9))) for v, w in observations]
+            strength = sum(w for _, w in robust)
+            offset = sum(v*w for v, w in robust)/strength
+        else:
+            offset, strength = 0.0, 0.0
+        offsets.append(offset)
+        strengths.append(strength)
+        supports.append(supported)
+        locations.append((p, normal))
+    # Small spatial regularisation of noisy offsets, not a curvature/steering cap.
+    fitted = offsets[:]
+    for _ in range(3):
+        fitted = [fitted[0]]+[(strengths[i]*offsets[i]+0.25*(fitted[i-1]+fitted[i+1]))
+            /(strengths[i]+0.5) for i in range(1, len(fitted)-1)]+[fitted[-1]]
+    points = [(p[0]+d*n[0], p[1]+d*n[1]) for (p, n), d in zip(locations, fitted)]
+    points, extra = _shadow_erase_reference_loops(points)
+    points = _shadow_reference_spline(points, cfg.fusion_spacing_m/2)
+    points = _shadow_simplify_reference(points, cfg.path_spacing_m/4)
+    points, after_fit_loops = _shadow_erase_reference_loops(points)
+    if len(points) < 2:
+        return None, {"status": "RAW_ONLY", "reason": "empty_fit"}
+    road = dict(raw)
+    road.update(centerline_xy=points, centerline_source="shadow_temporal_fusion",
+                shadow_reference_is_inferred=True)
+    # Current boundaries and their provenance are copied verbatim from raw.
+    reference = {"points": points, "pose": list(target_pose), "stamp_s": now, "odometry_epoch": epoch}
+    return road, {"status": "FUSED", "history_frames": len(frames), "measurement_epochs": len(seen),
+        "prior_used": bool(prior_points), "supported_fit_samples": sum(supports), "fit_samples": len(supports),
+        "removed_guidance_loops": removed+extra+after_fit_loops, "guide": reference,
+        "oldest_measurement_age_s": max(r["age_s"] for r in frames),
+        "source_age_is_not_refreshed": True,
+        "reference_crop": {"source_length_m": base.end, "origin_s_m": s0,
+            "window_s_m": [lo, hi], "trimmed_rear_m": max(0.0, min(lo, base.end)),
+            "retained_rear_m": max(0.0, s0-lo), "output_length_m": _shadow_lengths(points)[-1]},
+        "hard_boundaries": "unchanged_current_input", "reference_is_observed_boundary": False}
+
+
 class ShadowLatticePlanner:
     """Fresh bounded sampler / prefix ranker, deliberately permissive about road.
 
@@ -182,6 +469,74 @@ class ShadowLatticePlanner:
         self.cfg = settings
 
     def plan(self, job):
+        """Fusion cannot reduce raw planner availability: retry raw on any failure."""
+        collection = job.get("temporal_collection")
+        collection = collection if isinstance(collection, dict) else {}
+        if not self.cfg.fusion_enabled or not job.get("road_history") or collection.get("reset"):
+            result = self._plan_geometry(job)
+            reason = "motion_alignment_reset" if collection.get("reset") else "history_unavailable"
+            result["fusion"] = {"status": "RAW_FALLBACK" if collection.get("reset") else "RAW_ONLY" if self.cfg.fusion_enabled else "DISABLED",
+                "reason": reason if self.cfg.fusion_enabled else "fusion_disabled",
+                "degraded": bool(self.cfg.fusion_enabled), "raw_fallback_used": bool(self.cfg.fusion_enabled),
+                "selected_source": "raw", "raw_status": result["status"], "fused_status": None,
+                "collection": collection}
+            if self.cfg.fusion_enabled:
+                result["temporal_input"] = {key: job.get(key) for key in
+                    ("road_history", "shadow_pose", "shadow_odometry_epoch", "previous_reference", "temporal_collection")}
+            return result
+        started = time.perf_counter()
+        road, fusion, attempt_s = None, {}, 0.0
+        try:
+            road, fusion = _shadow_fuse_road(job, self.cfg)
+        except Exception as error:
+            fusion = {"status": "RAW_FALLBACK", "reason": "fusion_error", "error": str(error)}
+        fusion_s = time.perf_counter()-started
+        result = None
+        if road is not None:
+            attempt_started = time.perf_counter()
+            try:
+                result = self._plan_geometry({**job, "road": road})
+            except Exception as error:
+                fusion.update(reason="fused_planning_error", error=str(error))
+            fusion["fused_status"] = result.get("status") if result else "ERROR"
+            if result is None or result.get("status") != "VALID":
+                attempt_s = time.perf_counter()-attempt_started
+                fusion.update(status="RAW_FALLBACK", fused_status=result.get("status") if result else "ERROR")
+                fusion.setdefault("reason", "no_feasible_fused_candidate")
+                if result:
+                    fusion["failed_fused_attempt"] = {"reference": road.get("centerline_xy"),
+                        "candidate_count": result.get("candidate_count"), "feasible_count": result.get("feasible_count"),
+                        "selected": result.get("selected"), "elapsed_s": result.get("elapsed_s")}
+                result = None
+        if result is None:
+            result = self._plan_geometry(job)
+            fusion.pop("guide", None)
+            fusion.update(raw_fallback_used=True, selected_source="raw", raw_status=result["status"])
+        else:
+            fusion.update(raw_fallback_used=False, selected_source="fused", raw_status=None)
+        fusion.setdefault("reason", "temporal_reference")
+        fusion["collection"] = collection
+        fusion["degraded"] = fusion.get("status") != "FUSED" or bool(collection.get("events"))
+        result["fusion"] = fusion
+        result["temporal_input"] = {key: job.get(key) for key in
+            ("road_history", "shadow_pose", "shadow_odometry_epoch", "previous_reference", "temporal_collection")}
+        result["raw_planning_input"] = {"road": job.get("road"), "state": job.get("state")}
+        if fusion.get("status") == "FUSED":
+            result["reference_support_kind"] = "fused_guidance_not_observed_boundary"
+            result["reference_observed_range_s_m"] = None
+            result["observed_centerline_length_m"] = _shadow_lengths(_shadow_points(
+                (job.get("road") or {}).get("centerline_xy")))[-1] if _shadow_points(
+                (job.get("road") or {}).get("centerline_xy")) else 0.0
+        elapsed = time.perf_counter()-started
+        timing = result["timing_s"]
+        old_total = timing.pop("total")
+        timing.update(temporal_fusion=fusion_s, discarded_fused_plan=attempt_s)
+        timing["overhead"] += max(0.0, elapsed-old_total-fusion_s-attempt_s)
+        timing["total"] = elapsed
+        result.update(elapsed_s=elapsed, late_for_requested_period=elapsed > 1/self.cfg.rate_hz)
+        return result
+
+    def _plan_geometry(self, job):
         started = time.perf_counter()
         timing = {key: 0.0 for key in ("input", "frenet", "sampling", "generation",
                                        "collision", "scoring", "selection", "assembly")}

@@ -34,7 +34,9 @@ class SimulatedPlannerWorker:
             result = dict(status='WORKER_ERROR',error=str(error),selected=None)
         wall = time.perf_counter()-started
         service = wall+self.delay_s if self.measured else self.delay_s
-        result.update(generation=job['generation'],job_id=job['job_id'],shadow_only=True,
+        result.update(generation=job['generation'],job_id=job['job_id'],
+            execution_anchor=dict(pose=job.get('shadow_pose'),odometry_epoch=job.get('shadow_odometry_epoch')),
+            shadow_only=not bool(job.get('planner_control_enabled')),
             submitted_monotonic_s=job['submitted_monotonic_s'])
         self.pending = dict(result=result,job=job,ready_s=start_s+service,
             started_s=start_s,service_s=service,planner_wall_s=wall)

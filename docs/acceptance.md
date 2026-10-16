@@ -7,6 +7,24 @@ C* remains a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
 Historical planner/controller/physical evidence below remains separate.
 
+## Upstream module sync, 2026-10-16
+
+Synced MVP2.1 `3652e9b` temporal guidance, bounded 20 Hz collection, worker
+execution anchors, and its opt-in ROS execution adapter into the existing modules.
+The ROS switch stays off locally. Offline native execution keeps its generated
+path coverage, 1.3 m minimum length, bounded reference cache and zero-action
+failure behavior. Synced `mpc-car-run` `d155a80` ordered-pairing configuration
+with the existing 0.03 m default. No MPC controller or learned scorer is active.
+
+All 302 selected portable checks pass, including 20 added temporal cases,
+18 execution cases, five ordered-pairing cases, and policy input checks.
+Final native perception/map runs reach 4.756241/4.754804 m in 151/150 cycles,
+each accepting eight VALID fused results.
+The centerline baseline still completes in 152 cycles at 4.742971 m.
+The final ROS gate stops before build because its pinned dream_interfaces
+checkout is absent. No deployment occurred; speed tracking remains unqualified.
+See [sync details](../offline/mvp21_sim/UPSTREAM_SYNC_20261016.md).
+
 ## Native planner default, 2026-10-16
 
 The offline `offline.mvp21_sim` entry now defaults to native lattice selection

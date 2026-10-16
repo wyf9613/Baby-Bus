@@ -6,6 +6,7 @@ from pathlib import Path
 import time
 
 from mvp21_policy.control import PolicyController, ControlSettings
+from mvp21_policy.execution import PlannerControlSettings
 from mvp21_policy.lattice import ShadowSettings
 from mvp21_policy.planning import RoadCenterlinePlanner, PlanningSettings
 from mvp21_policy.reference import LatticeReferenceManager
@@ -42,6 +43,7 @@ def run_cached(road, output, *, road_input='perception', max_steps=1200, seed=0,
     manager = LatticeReferenceManager(max_source_age_s=config['planning']['max_source_age_s'])
     worker = SimulatedPlannerWorker(delay_s=delivery_delay_s,measured=measured_delay)
     offer = ShadowJobSource()
+    offer.planner_control_settings = PlannerControlSettings(enabled=True)
     offer.shadow_settings, offer.planning_settings = settings,planner.settings
     offer.shadow_last_submit_s = -math.inf
     offer.shadow_generation, offer.shadow_job_id = 1,0
@@ -60,6 +62,7 @@ def run_cached(road, output, *, road_input='perception', max_steps=1200, seed=0,
         budget = handoff_budget_s if handoff_budget_s is not None else math.ceil(delivery_delay_s/env.dt_s-1e-9)*env.dt_s
         offer.shadow_handoff_estimate_s = max(settings.handoff_allowance_s,budget)
         checker = NativePrediction(env,SolverSettings(safety_margin_m=0.))
+        offer.motion_history = env.estimator.motion
         initial = float(env._info['evaluation']['ground_truth']['reference_line_progress_m'])
         goal = road_goal_progress(env)
         source_timeouts = dict(road=min(config['estimation']['max_source_age_s'],config['sensor_timeout_s']['cone_detections']),
@@ -88,6 +91,10 @@ def run_cached(road, output, *, road_input='perception', max_steps=1200, seed=0,
                             delivery={k:v for k,v in packet.items() if k not in ('job','result')},
                             decision_pose=list(env._backend.car._state_values()[:3]))),allow_nan=False)+'\n')
                         accepted += manager.accept(result,now,env.estimator.motion)
+                        guide = (result.get('fusion') or {}).get('guide')
+                        if (result.get('status') == 'VALID' and guide
+                                and guide.get('odometry_epoch') == getattr(offer,'shadow_odometry_epoch',0)):
+                            offer.shadow_previous_reference = guide
                         offer.shadow_handoff_estimate_s = max(offer.shadow_handoff_estimate_s,packet['round_trip_s'])
                     worker.now_s = now
                     offer.estimation_output = estimates

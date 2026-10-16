@@ -1,0 +1,238 @@
+{
+  "format": "upstream_module_sync_v1",
+  "date": "2026-10-16",
+  "base_commit": "0443bf64d7b6c5faecd18d80a39b90653e496f05",
+  "sources": {
+    "mvp21": "3652e9ba6f42180cb28f27c02299d5b7a0ec77b0",
+    "ordered_pairing": "d155a803fd8dfa672d738a4992389c42dce6015a"
+  },
+  "branches": [
+    {
+      "branch": "origin/feature/mvp21-sim-integration-20261015",
+      "commit": "0443bf64d7b6c5faecd18d80a39b90653e496f05",
+      "date": "2026-10-16 09:18:47 +1100",
+      "subject": "feat: default offline simulation to native planner output"
+    },
+    {
+      "branch": "origin/mpc-car-run",
+      "commit": "92135762152ab897a8ac89db27fb96611c05d9b3",
+      "date": "2026-10-15 19:14:41 +1100",
+      "subject": "docs + Gym: car 05 centerline run checklist, H/C results, rerun centerline matrix"
+    },
+    {
+      "branch": "origin/mvp2.1",
+      "commit": "3652e9ba6f42180cb28f27c02299d5b7a0ec77b0",
+      "date": "2026-10-15 18:03:02 +1100",
+      "subject": "feat: add temporal fusion and selectable lattice control"
+    },
+    {
+      "branch": "origin/mpc-car-run-port-main",
+      "commit": "02c89c0484fdf58eb797d90fb720fd4a67317b2f",
+      "date": "2026-10-15 14:04:08 +1100",
+      "subject": "docs: record the deploy sequence for the centerline MPC modes"
+    },
+    {
+      "branch": "origin/mvp2.0",
+      "commit": "05d031a8a31ebde3557f3c30ed8f0e9796272c92",
+      "date": "2026-10-15 00:03:02 +1100",
+      "subject": "feat: preserve MVP2 lattice startup and warmstart improvements"
+    },
+    {
+      "branch": "origin/main",
+      "commit": "0c8593a087f8f26229f9aa7277459285ff1c3521",
+      "date": "2026-10-14 23:10:16 +1100",
+      "subject": "Merge pull request #4 from wyf9613/integration/newcar-main-record"
+    },
+    {
+      "branch": "origin/feature/newcar-turn-fsm-experiment",
+      "commit": "3aa06e8bbd219f1d957e9ae82406d67457721467",
+      "date": "2026-10-14 23:05:02 +1100",
+      "subject": "feat: archive experimental turn state machine and undeployed corner fixes"
+    },
+    {
+      "branch": "origin/feature/road-estimation-v2",
+      "commit": "655203328ec06d0b59268c26fbe833ad8c203cc2",
+      "date": "2026-10-12 21:37:14 +1100",
+      "subject": "feat: relax road continuity thresholds and align camera age budgets"
+    },
+    {
+      "branch": "origin/feature/vehicle-identification",
+      "commit": "18d225a42bff5d51b9e300427228fd931eff5419",
+      "date": "2026-10-12 18:37:20 +1100",
+      "subject": "feat: document vehicle parameters and real-car identification results"
+    },
+    {
+      "branch": "origin/control-mpc-v0",
+      "commit": "d843fc447917c2253c759a3e73b50b7e27f2a048",
+      "date": "2026-10-12 16:04:10 +1100",
+      "subject": "docs: G2 bags replayed on Planning V2 - validity unchanged, fusion unexercised"
+    },
+    {
+      "branch": "origin/ying/planning-v2-mpc-integration",
+      "commit": "488dc91e2f4c926713cfb443394d3b6374010595",
+      "date": "2026-10-11 17:33:23 +0800",
+      "subject": "Integrate Planning V2 and MPC candidate for review"
+    },
+    {
+      "branch": "origin/ying/mpc-planning-v2-adapter",
+      "commit": "28c0b82570ead15fb5def2eca721d6edcb99b189",
+      "date": "2026-10-11 17:00:36 +0800",
+      "subject": "feat: adapt Planning V2 references for MPC shadow replay"
+    },
+    {
+      "branch": "origin/feature/lattice-training-pipeline",
+      "commit": "f1a6c20f30e275ed32422607287913656d2475fb",
+      "date": "2026-10-11 17:33:18 +1100",
+      "subject": "feat: add C-star lattice policy training pipeline and model snapshots"
+    },
+    {
+      "branch": "origin/feature/rule-lattice-planner",
+      "commit": "5068e9b16a426a89f05c519bd045a589b983c7ac",
+      "date": "2026-10-09 11:51:00 +1100",
+      "subject": "feat: connect robust control to fused-road V2 lattice planning"
+    },
+    {
+      "branch": "origin/feature/state-road-estimation",
+      "commit": "db312ab2651372978b938e6f136b9912b2d11b96",
+      "date": "2026-10-08 19:30:36 +1100",
+      "subject": "fix: preserve observed near-road support and bridge brief detection failures"
+    },
+    {
+      "branch": "origin/feature/python-single-file-bundler",
+      "commit": "66eaea923a7b040de4908975ffecda118795f393",
+      "date": "2026-10-08 17:47:06 +1100",
+      "subject": "add bundle script"
+    },
+    {
+      "branch": "origin/feature/planner-simulation-env",
+      "commit": "832cc457187cd683e2dc97fd3bc3e171e34dbc23",
+      "date": "2026-10-08 00:01:23 +1100",
+      "subject": "build simulation env for planning policy training"
+    },
+    {
+      "branch": "origin/feature/mpc-prediction-model",
+      "commit": "c80ae64196ae37e3baf047371ff200232a74e959",
+      "date": "2026-10-05 20:19:25 +1100",
+      "subject": "Add MPC prediction model tests and validation results"
+    }
+  ],
+  "source_checks": {
+    "temporal_functions_identical": true,
+    "execution_classes_identical": true,
+    "local_generated_geometry_and_frenet_export_preserved": true,
+    "upstream_planning_pid_settings_identical": true,
+    "local_segmented_motion_preserved": true,
+    "new_estimation_method_matches_mpc_branch": true,
+    "protected_checkpoint": {
+      "checkpoint_commit": "d6d1b5c19ca5cb1676253f7acd4deadbc6bf1d0a",
+      "checked_files": 57,
+      "unchanged": true,
+      "authorized_migrations": 17,
+      "migration_reason": "User authorized retiring V2 and replacing policy input with current state, current road/obstacles and candidate trajectory; legacy model/data readers and planner-score/history features removed. Historical artifacts, plant and C* solver remain protected."
+    }
+  },
+  "portable_tests": {
+    "passed": 302,
+    "failed": 0,
+    "skipped": 0,
+    "log_sha256": "4f9005d265d6e2a22c53062f744e6a9f3a17612e1cb41036c1c77aa3b23eea3c"
+  },
+  "runs": {
+    "final-perception": {
+      "road_input": "perception",
+      "path_source": "lattice",
+      "lattice_cadence": "cached",
+      "lattice_generation_rate_hz": 1.0,
+      "completed": true,
+      "fault": null,
+      "steps": 151,
+      "valid_reference_count": 149,
+      "final_progress_m": 4.756240757298792,
+      "goal_progress_m": 4.736799508178038,
+      "minimum_plant_corner_road_margin_m": 0.18525336807641157,
+      "learned_scorer_used": false,
+      "maximum_executed_speed_mps": 0.7766382672046235,
+      "target_speed_mps": 0.2,
+      "speed_tracking_qualified": false,
+      "native_status_counts": {
+        "VALID": 8
+      },
+      "fusion_status_counts": {
+        "FUSED": 8
+      }
+    },
+    "final-map": {
+      "road_input": "map",
+      "path_source": "lattice",
+      "lattice_cadence": "cached",
+      "lattice_generation_rate_hz": 1.0,
+      "completed": true,
+      "fault": null,
+      "steps": 150,
+      "valid_reference_count": 148,
+      "final_progress_m": 4.754804087942547,
+      "goal_progress_m": 4.736799508178038,
+      "minimum_plant_corner_road_margin_m": 0.1552781556235427,
+      "learned_scorer_used": false,
+      "maximum_executed_speed_mps": 0.7781277871542901,
+      "target_speed_mps": 0.2,
+      "speed_tracking_qualified": false,
+      "native_status_counts": {
+        "VALID": 8
+      },
+      "fusion_status_counts": {
+        "FUSED": 8
+      }
+    },
+    "centerline": {
+      "road_input": "perception",
+      "path_source": "perception",
+      "lattice_cadence": null,
+      "lattice_generation_rate_hz": null,
+      "completed": true,
+      "fault": null,
+      "steps": 152,
+      "valid_reference_count": 152,
+      "final_progress_m": 4.742970643494541,
+      "goal_progress_m": 4.736799508178038,
+      "minimum_plant_corner_road_margin_m": 0.13008478499774423,
+      "learned_scorer_used": false,
+      "maximum_executed_speed_mps": 0.7767181154220482,
+      "target_speed_mps": 0.2,
+      "native_status_counts": {
+        "VALID": 8
+      },
+      "fusion_status_counts": {
+        "FUSED": 8
+      }
+    }
+  },
+  "ros_gate": {
+    "passed": false,
+    "reason": "Pinned .verification/dependencies/dream_interfaces checkout is absent; gate stopped before build."
+  },
+  "runtime_modules": {
+    "format": "mvp21_modules_sha256_v1",
+    "sha256": "f3c692168bfdbf69a9cb5194b6f6303b53d5ad962a31c7a33d36248406cf90fe",
+    "files": {
+      "__init__.py": "caa980464c44a9bc69e8667df083f5d76cd4140098388f2a363171ef52ddd53e",
+      "__main__.py": "3051d19225dc0a7054f63da7c726b15cc9259cbcc980eafcd27a0780863d65d1",
+      "api.py": "8073b364a0bdfa700f6baaff454185e9fff420a4573647e23454365a30255359",
+      "candidates.py": "aebb4559814462921224610a8327c7bf0ff052533a813e4911237ca0c1307cb0",
+      "contracts.py": "40b87e61fda2385f1cbeb3eb76a3c05ef60d5d49a058687bdccc8b271fbef7b4",
+      "control.py": "99f3a9079a4abc797b5d0db878dffe4ac6de7d690ce2e1010010dff99b62f0f9",
+      "estimation.py": "58d32c83f6033c2f25e90820b7c55cb81c5e321ff6baf98d924ed76b29c38141",
+      "execution.py": "d0a76236befb9e5ada487c2d41f0922fb29b55a626e01205da385ef3a0dbfd6d",
+      "frenet.py": "363bd2eee26075f57cb70cd30987af643cd2086cd24729a9d465fdd74ffee89c",
+      "geometry.py": "6a3fb3d04b0e4211deca5199621f665e98fa3918f09d278ab69381cddc1cd8c6",
+      "lattice.py": "76e60fca1a785326239f5f732f65029389d95350c1b964d833f1ab1665f59f4c",
+      "motion.py": "daca37206a81ec0e4d10680b1ebd7d28c9c63a30a90c6561a97463800a56b889",
+      "node.py": "71f86ca26158ce6a6570d58296b5dff277cea3d5a0be964f75ce55c5782da627",
+      "planning.py": "f6dbcd6e2f52df08046df1bfe20deaaf87f1be183067b001a1299e11f701d68a",
+      "provenance.py": "3ca8499a79ab11799bda43f17a90d878fb8bbcf7742e51a08bde114eceffb265",
+      "reference.py": "293436711c9a399739e5593865f0b8684d962d59861218de3042b52341f1c387",
+      "transport.py": "f57f0e418c70fe636c836cbbec2a66e21416a0c983356d220c36bc5de4320397",
+      "worker.py": "17e8d9a17f1c8c4136458717880ad656923763fae36e7c4c537e61626cf32e4a"
+    }
+  }
+}

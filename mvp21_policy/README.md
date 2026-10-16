@@ -1,8 +1,8 @@
 # MVP2.1 模块开发入口
 
-本目录是当前仿真使用的可编辑实现。来源为`mvp2.1`的
-`f11428b5444ac4c714a95e86e71662086b3187bd`，原文件保留在
-`offline/mvp21_sim/upstream/`作为来源快照。仿真通过正常Python导入使用本目录，
+本目录是当前仿真使用的可编辑实现。当前同步到 `mvp2.1` 的 `3652e9b`，另同步
+`mpc-car-run` 的 `d155a80` 感知道路配对参数。两个版本的原始 MVP2.1 文件分别保留在
+`offline/mvp21_sim/upstream/` 和其 `3652e9b/` 子目录。仿真通过正常Python导入使用本目录，
 以后应修改对应模块，不再从单文件动态提取算法。
 
 | 文件 | 负责内容 |
@@ -16,8 +16,9 @@
 | `planning.py` | 中线路径、原V1兼容规划、参考准入与有效期 |
 | `control.py` | PID、控制参考管理、距离限制与标定记录 |
 | `reference.py` | lattice有序折线缓存、跨周期运动对齐、任务隔离与有效期 |
-| `lattice.py` | ShadowSettings、候选生成、边界碰撞和评分选择 |
-| `transport.py` | 纯规划任务提交、最新任务队列和后台子进程 |
+| `execution.py` | 上游新增的可选 ROS 路径执行适配及当前中线降级；本地 ROS 开关默认关闭 |
+| `lattice.py` | ShadowSettings、道路时序融合、候选生成、边界碰撞和评分选择 |
+| `transport.py` | 20 Hz 道路历史采集、纯规划任务提交、最新任务队列和后台子进程 |
 | `worker.py` | 无ROS的逐行JSON规划协议 |
 | `node.py` | ROS输入输出、状态机、主循环与学生插入代码 |
 | `api.py` | 仿真兼容导出面；新代码优先直接导入所属模块 |
@@ -25,7 +26,7 @@
 
 算法模块不导入ROS，也不会在导入时创建线程或进程。跨模块继续使用原来的字典
 数据结构、字段、坐标系、单位和有效期。`node.py`独占ROS消息转换与生命周期，
-`ShadowWorker`显式启动时才创建后台执行。ROS入口的lattice仍为shadow。
+`ShadowWorker`显式启动时才创建后台执行。ROS入口默认仍为shadow。
 后续离线实验已使用`reference.py`实现1 Hz规划、20 Hz控制；执行模式显式使用
 完整生成路径检查/评分与实验长度参数，原shadow的prefix默认行为保留。
 接线与结果见[1 Hz闭环实验](../offline/mvp21_sim/ONE_HZ_CONTROL.md)。
@@ -47,7 +48,8 @@ flowchart LR
 ```
 
 按用户要求，旧 V2 planner 已移除，两个 script 名称均进入同一套 MVP2.1 模块；
-`config/ai4r_policy.yaml` 与固定的 MVP2.1 参数对齐。旧模型/数据和上游来源快照保留。
+`config/ai4r_policy.yaml` 同步最新融合参数，保留本地 `planner_control.enabled: false`。
+旧模型/数据和上游来源快照保留。
 训练通过[三组输入协议](../offline/lattice_training/POLICY_INPUT.md)读取当前状态、道路/障碍和候选轨迹，
 不读取 native 评分或上一条路径；旧模型/候选兼容代码已删除。
 ROS 的候选评分尚未启用；本次没有部署。节点停止发布与`INSERT POLICY CODE`标记保持。
@@ -57,7 +59,7 @@ ROS 的候选评分尚未启用；本次没有部署。节点停止发布与`INS
 从仓库根目录使用现有虚拟环境，输出目录必须不存在：
 
 ```powershell
-../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --output .verification/modular-centerline-new
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source perception --output .verification/modular-centerline-new
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --output .verification/modular-one-hz-new
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B tools/bundle_python.py scripts/mvp21_policy_node.py --root . --output build/mvp21_policy_single.py
 ```
@@ -103,3 +105,6 @@ ROS fast gate已尝试，构建前因缺少固定dream_interfaces checkout而停
 
 精简证据见[modularization.json](../offline/mvp21_sim/artifacts/2026-10-15/modularization.json)，
 完整审计与两组回放位于`.verification/mvp21-modularize-20261015/`。
+
+当前分支同步范围、两种执行适配的区别和验证见
+[2026-10-16 模块同步记录](../offline/mvp21_sim/UPSTREAM_SYNC_20261016.md)。

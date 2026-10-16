@@ -4,10 +4,11 @@
 本接入位于`feature/mvp21-sim-integration-20261015`，从该快照继续，保留原虚拟环境、
 重建道路与训练框架。没有整分支合并或覆盖policy子模块。
 
-上游固定为`mvp2.1`的`f11428b5444ac4c714a95e86e71662086b3187bd`。
-`upstream/scripts/policy_node.py`和`upstream/config/ai4r_policy.yaml`是该提交的原样副本，
+当前上游固定为 `mvp2.1` 的 `3652e9ba6f42180cb28f27c02299d5b7a0ec77b0`。
+`upstream/3652e9b/` 内的 script 和 config 是该提交的原样副本，
 加载时检查Git源文件SHA256。它们是离线来源快照；当前两个 script 入口已按用户要求
-统一为最新模块，YAML 已与 MVP2.1 对齐，本次未部署。
+统一为最新模块，YAML 已同步融合参数，本地 ROS 执行开关仍关闭。原 `f11428b` 快照保留。
+同步范围见[分支与模块审计](UPSTREAM_SYNC_20261016.md)，本次未部署。
 
 ## 保留范围与接线
 
@@ -35,6 +36,7 @@ flowchart LR
 当前离线默认执行 native lattice 选中的路径：1 Hz 规划、20 Hz 缓存控制，
 使用之前跑通的生成路径检查和 1.3 m 路径长度下限。计算结果按离散事件延迟交付，
 默认固定 100 ms；详见 [1 Hz 闭环](ONE_HZ_CONTROL.md)。学习 policy 不加载、不参与选路。
+最新时序融合在每个控制周期收集道路样本，仅在规划时拟合引导线，当前硬边界保持原样。
 控制沿用 MVP2.1 控制器。任务提交与 forward_geometry 选择使用实际 `_shadow_offer`。
 `--path-source perception` 显式复现原中线控制和 lattice 旁路记录。
 

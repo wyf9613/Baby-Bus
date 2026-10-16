@@ -44,7 +44,9 @@ def run_worker():
         result['job_id'] = None if job is None else job.get('job_id')
         result['source_sha256'] = source_sha256
         result['source_sha256_format'] = 'mvp21_worker_geometry_lattice_v2'
-        result['shadow_only'] = True
+        result['execution_anchor'] = None if job is None else dict(
+            pose=job.get('shadow_pose'), odometry_epoch=job.get('shadow_odometry_epoch'))
+        result['shadow_only'] = not bool(job and job.get('planner_control_enabled'))
         encode_started = time.perf_counter()
         encoded = json.dumps(result, allow_nan=False, separators=(',', ':'))
         wire_timing = dict(json_decode_s=decode_s, json_encode_s=time.perf_counter()-encode_started)
