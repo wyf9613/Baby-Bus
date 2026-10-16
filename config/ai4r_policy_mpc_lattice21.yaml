@@ -1,0 +1,55 @@
+# Overlay: the MVP2.1 lattice (origin/mvp2.1 3652e9b) feeding the MPC. Layer order:
+#   ai4r_policy.yaml -> ai4r_policy_newcar27.yaml -> ai4r_policy_mpc_newcar27.yaml
+#   -> ai4r_policy_mpc_centerline.yaml -> this file (-> ai4r_policy_mpc_car05.yaml)
+# Build it with tools/make_deploy_yaml.py --mode mpc-shadow-lattice21; it is MPC SHADOW
+# only (zero actions). road_centerline stays the 20 Hz baseline and the same-tick
+# fallback; the lattice runs at 1 Hz in a separate low-priority process.
+# Every field is startup-only: edit, rebuild and restart the policy.
+/**/ai4r_policy:
+  ros__parameters:
+    # true: the MPC tracks the selected lattice path, aligned to the current body
+    # frame each tick and cropped by travelled arc, when it passes the rolling
+    # known-boundary and coverage checks; otherwise this tick's road_centerline
+    # reference. Record /car/planner_execution and /car/mpc_debug
+    # (reference_selection, reference_selection_reason) to see which was used.
+    planner_control:
+      enabled: true
+      # Use the lattice only while road_centerline itself is valid. false is
+      # mvp2.1's behaviour: the (deliberately permissive) lattice keeps driving
+      # through baseline rejections. Keep true until shadow data says otherwise.
+      require_valid_baseline: true
+
+    # Values as shipped on origin/mvp2.1 (config/ai4r_policy.yaml there).
+    shadow:
+      enabled: true
+      rate_hz: 1.0
+      # Road snapshots are collected at the baseline tick rate; same-camera
+      # epochs are deduplicated. Fusion runs in the shadow process only.
+      fusion_enabled: true
+      fusion_window_s: 1.0
+      fusion_max_samples: 21
+      fusion_spacing_m: 0.10
+      fusion_memory_weight: 1.0
+      fusion_rear_support_m: 0.30
+      length_m: 1.0
+      sample_count: 48
+      path_spacing_m: 0.025
+      # Hypothetical time before the next reference: 1/rate + handoff allowance.
+      # Check distance uses actual |wheel speed|, not the advised cruise speed.
+      handoff_allowance_s: 0.10
+      score_min_length_m: 0.2
+      search_half_width_m: 0.45
+      preparation_width_fraction: 0.15
+      # PROVISIONAL rectangle at CG, metres; replace with this car's measurements.
+      # Width 0.30 follows the operator's car report; front/rear are assumptions.
+      # No extra clearance. Only observed/observed_with_history boundaries count.
+      body_front_m: 0.25
+      body_rear_m: 0.25
+      body_width_m: 0.30
+      # Numerical sweep resolution, not additional padding or a physical guarantee.
+      sweep_translation_step_m: 0.01
+      sweep_rotation_step_rad: 0.025
+      weight_lateral: 6.0
+      weight_heading: 1.5
+      weight_progress: 2.0
+      weight_smoothness: 0.04

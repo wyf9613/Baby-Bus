@@ -310,5 +310,39 @@ class PreviewDistanceChecks(unittest.TestCase):
         self.assertGreater(method_ns["_planner_preview_m"](stand_in), node.planning_settings.preview_m)
 
 
+class DeployProfileChecks(unittest.TestCase):
+    MODES = ("mvp", "mpc-shadow", "mpc-exec", "mpc-shadow-centerline", "mpc-exec-centerline",
+             "mpc-shadow-lattice21")
+
+    def test_only_the_lattice21_profile_enables_the_lattice(self):
+        for car in ("27", "05"):
+            for mode in self.MODES:
+                with self.subTest(mode=mode, car=car):
+                    try:
+                        params = deploy["build"](mode, 1.0, cones="yellow-left", car=car)[0]
+                    except AssertionError:
+                        continue      # mpc-exec* refused while vehicle.valid is false (car 27)
+                    p = params["/**/ai4r_policy"]["ros__parameters"]
+                    on = mode == "mpc-shadow-lattice21"
+                    self.assertIs(p.get("shadow", {}).get("enabled", False), on)
+                    self.assertIs(p.get("planner_control", {}).get("enabled", False), on)
+
+    def test_lattice21_profile_is_mpc_shadow_on_road_centerline_with_mvp21_values(self):
+        p = deployed("mpc-shadow-lattice21")
+        self.assertTrue(p["mpc"]["enabled"] and p["mpc"]["shadow"])
+        self.assertFalse(p["control"]["enabled"])
+        self.assertEqual(p["planning"]["algorithm"], "road_centerline")
+        self.assertEqual(p["planner_control"], vars(PlannerControl(enabled=True)))
+        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
+        ShadowSettings(**p["shadow"])
+
+    def test_lattice21_profile_selects_the_lattice_on_the_stand_in_node(self):
+        node = make_node(shadow_enabled=True, planner=True, mode="mpc-shadow-lattice21")
+        records = run(node, 30)
+        self.assertEqual(records[-1]["reference_selection"], "planner")
+        self.assertEqual(records[-1]["branch"], "shadow")
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
