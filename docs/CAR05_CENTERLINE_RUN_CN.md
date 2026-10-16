@@ -26,14 +26,21 @@
 .verification\car05-cl-exec       yaml 496f4ffe…  policy_node 72f2ccbd…
 ```
 
-生成命令（代码或 yaml 一改就要重新生成，并重新核对哈希）：
+**这两个包必须从 tag `mpc-car-run-cl-20261015`（`9213576`）生成，不要从分支最新代码生成。**
+2026-10-16 起，分支上已经合入 MVP2.1 lattice（默认关闭，见第 6 步），policy_node 哈希变成了 `78f133e1…`。
+已核对：从 tag 生成的两个 yaml 和 policy_node 哈希都和上表一致。如果本机已经有上表哈希的包，直接用，不用重新生成。
+
+从 tag 生成（在仓库根目录执行）：
 
 ```powershell
-python tools/make_deploy_yaml.py --mode mpc-shadow-centerline --car 05 --cones yellow-left --distance 1.0 --v-exec-max 0.12 --out .verification\car05-cl-shadow
-python tools/make_deploy_yaml.py --mode mpc-exec-centerline  --car 05 --cones yellow-left --distance 1.0 --v-exec-max 0.12 --out .verification\car05-cl-exec
+git worktree add ..\Baby-Bus-cl mpc-car-run-cl-20261015
+python ..\Baby-Bus-cl\tools\make_deploy_yaml.py --mode mpc-shadow-centerline --car 05 --cones yellow-left --distance 1.0 --v-exec-max 0.12 --out .verification\car05-cl-shadow
+python ..\Baby-Bus-cl\tools\make_deploy_yaml.py --mode mpc-exec-centerline  --car 05 --cones yellow-left --distance 1.0 --v-exec-max 0.12 --out .verification\car05-cl-exec
+git worktree remove ..\Baby-Bus-cl
 ```
 
-上车前要看到 WSL ROS 门禁通过（`BRANCH=mpc-car-run bash .verification/run_ros_check.sh`），里面包括每个部署配置都能真正启动节点的测试。
+上车前要看到 WSL ROS 门禁对 tag 版本通过（`.verification/run_ros_check.sh`，里面包括每个部署配置都能真正启动节点的测试）。
+如果脚本的 `BRANCH` 只接受分支名，就先执行 `git branch cl-20261015 mpc-car-run-cl-20261015`，再传 `BRANCH=cl-20261015`。
 
 ## 1. SSH、Foxglove、停车、备份
 
@@ -163,3 +170,71 @@ dream runtime logs ai4r_policy --tail 100
 ## 5. 下载与恢复
 
 和 V2 文档第 6 步一样。包名换成 `car05-cl-*`，日志存成 `car05-cl-policy.log`。bag 拷到 `E:\26b\AI4R\car-evidence\`。
+
+## 6. 可选：MVP2.1 lattice shadow，车 Disabled，推车采数据
+
+前 5 步全部做完、bag 已经拷下来以后才做。时间不够就跳过，不影响本轮结论。**只做 shadow，不 exec。**
+
+这一步看的是：lattice 选出的路径交给 MPC 以后，MPC 的转向是否合理。离线回放里，用 lattice 参考时 MPC 转向和 PID 反号的拍数，是中心线 MPC 的 2–4 倍，见[回放结果](../offline/mpc_gym/results/replay_car15_lattice21.md)。
+
+这个包从分支最新代码生成（`e6c13a6` 及以后）：
+
+```text
+.verification\car05-lattice21-shadow   yaml 3048ea1c…  policy_node 78f133e1…
+```
+
+```powershell
+python tools/make_deploy_yaml.py --mode mpc-shadow-lattice21 --car 05 --cones yellow-left --distance 1.0 --v-exec-max 0.12 --out .verification\car05-lattice21-shadow
+Deploy-StartFix .verification\car05-lattice21-shadow
+```
+
+车 1：核对哈希、构建、重启，和第 2 步一样。第 2 步的参数检查完后，再查下面几项：
+
+```bash
+for p in shadow.enabled shadow.rate_hz planner_control.enabled planner_control.require_valid_baseline mpc.shadow; do
+  printf "%-42s " "$p"; ros2 param get "$N" "$p"
+done
+```
+
+预期依次为 True、1.0、True、True、True。启动日志里不应出现 `Shadow worker failed`。
+
+车 2 录包：
+
+```bash
+ros2 bag record -o "$HOME/ai4r-car-bags/car05-lattice21-shadow-$(date +%Y%m%d-%H%M%S)" --topics \
+  /car/mpc_debug /car/mpc_prediction /car/policy_trajectory /car/planner_execution \
+  /car/shadow_trajectory /car/shadow_checked_prefix /car/shadow_reference /car/shadow_planning \
+  /car/policy_fsm_state_string /car/wheel_speed_m_per_sec /car/cone_detections /car/imu/data /tf /tf_static
+```
+
+车 3 观察：
+
+```bash
+PYTHONUNBUFFERED=1 ros2 topic echo /car/mpc_debug --field data |
+grep --line-buffered -oE '"(branch|reference_selection|reference_selection_reason|e_y_m|candidate_steer_action)": ?[^,}]*'
+```
+
+保持 Disabled，请求 state 3，然后：
+
+1. 车静止放在直道中间，等 10 s。
+2. 慢慢推车，沿直道走 1–2 m。
+3. 回 state 2，把车摆到 18:37 那个弯前位置，再请求 state 3。静止 10 s 后，推车慢慢入弯。
+
+每一段结束后都回 state 2。Foxglove 里三条线的含义：
+
+- 绿线：MPC 实际用的参考；
+- 蓝线：lattice 选中的路径，坐标是规划那一刻的，推车时和绿线不重合是正常的；
+- 橙线：MPC 的预测轨迹。
+
+要记下的：
+
+| 看什么 | 记录 |
+| --- | --- |
+| `reference_selection` | planner 和 baseline 各占多少；退回的主要原因（`known_boundary_collision`、`baseline_invalid: ...`、`preview_coverage_exhausted`） |
+| 弯前位置 | `/car/shadow_planning` 的 `status` 是否为 VALID；选中的候选类型 `selected_family`；有没有 `ALL_COLLIDE` |
+| 转向方向 | `reference_selection=planner` 时，`candidate_steer_action` 的方向是否合理，有没有明显往弯外打 |
+| 切换 | planner 和 baseline 来回切换时，转向有没有跳变 |
+| 日志 | `dream runtime logs ai4r_policy --tail 300` 里的 `Shadow planning:` 和 `Reference selection:` 两种行；看 `elapsed_s` 和 `round_trip_s`，这是车上的规划耗时 |
+
+做完回 state 2，确认仍是 Disabled。bag 和日志按第 5 步的方式拷回，目录名用 `car05-lattice21-shadow-*`。
+之后要恢复中心线，用 `Deploy-StartFix .verification\car05-cl-shadow`（或 `car05-cl-exec`）换回去，并重新核对哈希。

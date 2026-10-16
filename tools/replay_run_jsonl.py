@@ -47,6 +47,13 @@ dropout the MPC bridges with mpc.reference_dropout_tolerance_s while the PID's
 logged Path does not (the documented reference-handoff jump). See the printed
 NOTE and the per-step --json-out's road_status/mpc_branch before treating a
 large number as a regression.
+
+--planner-control (2026-10-16): replay the same run a second time with
+config/ai4r_policy_mpc_lattice21.yaml (the MVP2.1 lattice feeding the MPC) and
+compare tick by tick with the road_centerline-only replay. The lattice runs
+in-process, but each result only becomes visible --lattice-delivery-s after its
+own measured planning time, counted from submission (on the car it is a separate
+1 Hz process). That planning time is this computer's, not the car's.
 """
 import argparse
 from collections import Counter
@@ -120,6 +127,64 @@ def set_value(params, dotted, text):
     target[key] = yaml.safe_load(text)
 
 
+class DelayedLatticeWorker:
+    """In-process stand-in for ShadowWorker: the real ShadowLatticePlanner, each
+    result held back until submission + its measured planning time + delivery_s."""
+    def __init__(self, api, clock, delivery_s):
+        self.api, self.clock, self.delivery_s = api, clock, delivery_s
+        self.pending, self.jobs = [], 0
+
+    def submit(self, job):
+        job = json.loads(json.dumps(job, allow_nan=False))      # the real wire format
+        self.jobs += 1
+        settings = self.api["ShadowSettings"](**job["settings"])
+        result = self.api["ShadowLatticePlanner"](settings).plan(job)
+        result.update(generation=job["generation"], job_id=job["job_id"],
+                      submitted_monotonic_s=job["submitted_monotonic_s"],
+                      execution_anchor={"pose": job.get("shadow_pose"),
+                                        "odometry_epoch": job.get("shadow_odometry_epoch")},
+                      shadow_only=not job.get("planner_control_enabled"))
+        ready = job["submitted_monotonic_s"]+result["elapsed_s"]+self.delivery_s
+        self.pending = [(ready, json.loads(json.dumps(result, allow_nan=False)))]   # latest only
+
+    def poll(self):
+        if self.pending and self.pending[0][0] <= self.clock.now_s:
+            return self.pending.pop(0)[1]
+        return None
+
+    def close(self):
+        pass
+
+
+LATTICE_METHODS = ("_planner_preview_m", "_select_planner_reference", "_select_mpc_planner_trajectory",
+                   "_shadow_collect_road", "_shadow_offer", "_shadow_poll", "_shadow_clear")
+
+
+def enable_lattice(node, api, params, delivery_s):
+    """Shadow + planner_control state as PolicyNode.__init__ creates it."""
+    node.shadow_settings = api["ShadowSettings"](**params["shadow"])
+    node.planner_control_settings = api["PlannerControlSettings"](**params["planner_control"])
+    node.policy_update_rate_hz = params.get("policy_update_rate_hz", 20.0)
+    node.fsm_state, node.state_reason = 3, "replay"
+    node.planner_execution = api["PlannerExecutionManager"](node.policy_frame_id)
+    node._last_execution_mode = node._mpc_trajectory = None
+    node.shadow_generation = node.shadow_job_id = 0
+    node.shadow_last_submit_s = -math.inf
+    node.shadow_handoff_estimate_s = node.shadow_settings.handoff_allowance_s
+    node.shadow_last_result_s = node.shadow_pose_stamp_s = node.shadow_previous_reference = None
+    node.shadow_road_history, node.shadow_collection_events = [], []
+    node.shadow_pose, node.shadow_odometry_epoch, node.shadow_collection_reset_id = [0.0, 0.0, 0.0], 0, 0
+    node.shadow_worker = DelayedLatticeWorker(api, node.clock, delivery_s)
+    node.lattice_results = []
+    ignore = SimpleNamespace(publish=lambda msg: None)
+    node.shadow_path_publisher = node.shadow_prefix_publisher = node.shadow_reference_publisher = ignore
+    node.shadow_diagnostics_publisher = SimpleNamespace(
+        publish=lambda msg: node.lattice_results.append(json.loads(msg.data)))
+    node._shadow_publish_path = lambda *_: None
+    bind_methods(node, api, LATTICE_METHODS)
+    node.planner_preview_m = node._planner_preview_m()
+
+
 def make_node(api, params):
     settings = policy_settings(api, params, synchronous_planning=True)
     timeouts = {name: 0.5 for name in SENSORS}
@@ -183,10 +248,12 @@ def path_point_distance(points, x, y):
     return best
 
 
-def replay(api, params, path):
+def replay(api, params, path, lattice_delivery_s=None):
     events, recorded_parameters = load_run(path)
     apply_recorded_parameters(params, recorded_parameters)
     node = make_node(api, params)
+    if lattice_delivery_s is not None:
+        enable_lattice(node, api, params, lattice_delivery_s)
     stops = (api["MPCStop"], api["PolicyStopRequest"])
     t0 = events[0]["time_unix_s"]
     trajectories = []     # (t, [[x, y], ...]) from logged "trajectory" events
@@ -218,8 +285,12 @@ def replay(api, params, path):
             dt = 0.0 if first else now_s-last_step
             row = {"t": round(t-t0, 3), "logged_actions": value.get("actions"),
                   "logged_applied": value.get("applied"), "logged_path_error_m": value.get("path_error_m")}
+            if lattice_delivery_s is not None:
+                node._shadow_poll()     # the node's 20 Hz shadow timer
             try:
                 node.calculate_policy_actions(values, ages, stamps, dt, 0.0 if first else t-t0, first)
+                if lattice_delivery_s is not None:
+                    node._shadow_offer()    # after the action, as run_policy_step does
             except stops as stop:
                 row["stop"] = str(stop)
             road = (node.estimation_output or {}).get("road") or {}
@@ -228,7 +299,11 @@ def replay(api, params, path):
                       planning_reason=(node.planning_output or {}).get("reason"),
                       planning_valid=(node.planning_output or {}).get("valid"),
                       mpc_branch=debug.get("branch"), mpc_reject_reason=debug.get("reject_reason"),
-                      mpc_steer=debug.get("candidate_steer_action"), mpc_drive=debug.get("candidate_drive"))
+                      mpc_steer=debug.get("candidate_steer_action"), mpc_drive=debug.get("candidate_drive"),
+                      mpc_e_y_m=debug.get("e_y_m"), mpc_e_psi_rad=debug.get("e_psi_rad"))
+            if lattice_delivery_s is not None:
+                row.update(reference_selection=debug.get("reference_selection"),
+                           reference_selection_reason=debug.get("reference_selection_reason"))
             traj_ref = nearest(trajectories, t)
             adapted = getattr(node, "_trajectory_reference", None)
             if (traj_ref is not None and len(traj_ref[1]) >= 2 and adapted
@@ -247,7 +322,37 @@ def replay(api, params, path):
                         path_point_distance(mpc_points, x, y) for x, y in current_frame)
             steps.append(row)
             first, last_step = False, now_s
+    if lattice_delivery_s is not None:
+        return steps, node.warnings, node.lattice_results, node.shadow_worker.jobs
     return steps, node.warnings
+
+
+def compare_lattice(baseline, lattice, results):
+    """Tick by tick: which reference the MPC used, and what changed against the
+    road_centerline-only replay of the same ticks."""
+    pairs = list(zip(baseline, lattice))
+    assert all(a["t"] == b["t"] for a, b in pairs)
+    planner = [(a, b) for a, b in pairs if b.get("reference_selection") == "planner"]
+    steer = [abs(b["mpc_steer"]-a["mpc_steer"]) for a, b in planner
+             if api_finite(a.get("mpc_steer")) and api_finite(b.get("mpc_steer"))]
+    e_y = [abs(b["mpc_e_y_m"]-a["mpc_e_y_m"]) for a, b in planner
+           if api_finite(a.get("mpc_e_y_m")) and api_finite(b.get("mpc_e_y_m"))]
+    switches = sum(1 for (_, b0), (_, b1) in zip(pairs, pairs[1:])
+                   if b0.get("reference_selection") != b1.get("reference_selection"))
+    statuses = Counter(r.get("status") for r in results if r.get("status") not in (None, "IDLE"))
+    elapsed = [r["elapsed_s"] for r in results if api_finite(r.get("elapsed_s"))]
+
+    def spread(values):
+        return None if not values else {"median": round(statistics.median(values), 4), "max": round(max(values), 4)}
+    return {"ticks": len(pairs), "planner_ticks": len(planner),
+            "selection_reason": dict(Counter(b.get("reference_selection_reason") for _, b in pairs).most_common()),
+            "reference_switches": switches,
+            "lattice_status": dict(statuses),
+            "lattice_planning_time_s": None if not elapsed else {
+                "mean": round(statistics.mean(elapsed), 4), "max": round(max(elapsed), 4)},
+            "mpc_branch_on_planner_ticks": dict(Counter(b["mpc_branch"] for _, b in planner).most_common()),
+            "steer_change_vs_centerline": spread(steer),
+            "e_y_change_vs_centerline_m": spread(e_y)}
 
 
 def summarize(bag_name, steps, warnings):
@@ -286,6 +391,10 @@ def main():
                         help="dense: no osqp needed, matches the car's Jetson (car-jetson-no-osqp)")
     parser.add_argument("--set", action="append", default=[], metavar="SECTION.KEY=VALUE")
     parser.add_argument("--json-out", type=Path)
+    parser.add_argument("--planner-control", action="store_true",
+                        help="also replay with ai4r_policy_mpc_lattice21.yaml and compare per tick")
+    parser.add_argument("--lattice-delivery-s", type=float, default=0.05,
+                        help="added to each lattice result's own planning time before it is visible")
     args = parser.parse_args()
     params = base_params()
     params["mpc"]["qp_solver"] = args.qp_solver
@@ -314,8 +423,20 @@ def main():
           " treating a run's number as a regression.")
     if result["warnings"]:
         print(f"   ignored inputs:         {result['warnings']}")
+    output = {"summary": result, "steps": steps}
+    if args.planner_control:
+        lattice_params = deepcopy(params)
+        overlay = (ROOT.parent/"config"/"ai4r_policy_mpc_lattice21.yaml").read_text(encoding="utf-8")
+        merge(lattice_params, yaml.safe_load(overlay)[KEY]["ros__parameters"])
+        lattice_steps, _, results, jobs = replay(api, lattice_params, args.run_jsonl, args.lattice_delivery_s)
+        comparison = compare_lattice(steps, lattice_steps, results)
+        comparison["lattice_jobs"] = jobs
+        print(f"== MVP2.1 lattice -> MPC (result visible {args.lattice_delivery_s} s after its planning time)")
+        for key, value in comparison.items():
+            print(f"   {key + ':':34s}{value}")
+        output.update(lattice_comparison=comparison, lattice_steps=lattice_steps)
     if args.json_out:
-        args.json_out.write_text(json.dumps({"summary": result, "steps": steps}, indent=1), encoding="utf-8")
+        args.json_out.write_text(json.dumps(output, indent=1), encoding="utf-8")
         print(f"per-step results: {args.json_out}")
     return 0
 

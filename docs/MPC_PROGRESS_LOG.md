@@ -2,6 +2,47 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-16：MVP2.1 lattice 接到 MPC（默认关闭，只有 shadow 包）
+
+**存档**：改动前给 `9213576` 打了 tag `mpc-car-run-cl-20261015`（只在本地，未 push）。下周 5 号车中心线这一轮用这个版本的包。从 tag 重新生成的 yaml `2e3a116c` / `496f4ffe`、policy_node `72f2ccbd`，和 [CAR05_CENTERLINE_RUN_CN.md](CAR05_CENTERLINE_RUN_CN.md) 里的哈希一致。
+
+**移植来源**：`origin/mvp2.1` `3652e9b`，只取它的规划器部分，没有参考其他分支。
+- `ShadowSettings`…`PlannerExecutionManager`、`--shadow-worker` 入口、`offline/shadow_lattice/` 和纯算法测试，都原样搬入。
+- 改动的地方一律标了 `mpc-car-run adaptation`，以后 mvp2.1 有更新可以直接对比合入。
+
+**和 mvp2.1 不同的地方**（mvp2.1 的下游是 MVP PID，这里是 MPC）：
+
+| 项 | mvp2.1 | 本分支 |
+| --- | --- | --- |
+| 下游控制器 | MVP PID（`control.mode mvp`） | MPC（`mpc.enabled`，`reference_source planning`，`road_centerline`，timer 模式）。本分支的 PID 读不了 ORDERED_CENTERLINE |
+| 覆盖长度 | PID 预瞄 0.35 m，用 `control_path_geometry` 计算 | `max(planning.preview_m, 执行限速 × (N·dt + 执行器延迟))`，用 `_path_project` 计算 |
+| 参考有效期 | `control.max_dt_s + 周期` | `mpc.dt_max_s + 周期`（数值同为 0.25 s） |
+| 参考被拒后的处理 | 恢复 PID 状态，用基线重算一遍 | 调用 `MPCController.step` 之前先用纯函数预检（适配器 + 按预测速度的 `mpc_reference_errors`），每拍只 step 一次。预检之后求解器仍拒绝的，按普通可容忍 dropout 处理 |
+| 中心线无效时 | lattice 照样驱动 | `planner_control.require_valid_baseline: true`（默认）：中心线无效就不用 lattice |
+| 诊断话题 | `/car/planner_execution` 始终创建 | 只在 `planner_control` 打开时创建；`mpc_debug` 也只在打开时增加 `reference_selection(_reason)` 字段 |
+
+**开关关闭时行为不变**（`shadow.enabled`、`planner_control.enabled` 默认都是 false）：
+- 原有离线测试全部通过：估计 65、规划 18、控制 43、lattice 45、MPC 102、真实帧 15。
+- Gym `car_readiness` 和 `car_readiness_centerline` 两个矩阵，和同一台机器上跑的 tag 版本相比，除 `step_p95_ms` 外完全一致。和存档相比有 3 行不同，tag 版本在本机跑出来也一样不同，是机器计时差异造成的。
+- 15 号车三段 run.jsonl 的中心线回放，和 tag 版本逐拍一致。
+
+**新增**：
+- 测试：`test_shadow_lattice` 30、`test_planner_execution` 10（从 mvp2.1 移植）、`test_mpc_planner_control` 12（MPC 接入、退回、跑次隔离、部署配置）。全部通过。
+- 部署：`make_deploy_yaml --mode mpc-shadow-lattice21`，只有 MPC shadow 包。其他模式都会断言 lattice 开关是关闭的。ROS 门禁的"每个部署配置都能启动节点"测试也加上了这个模式。
+- 工具：`replay_run_jsonl.py --planner-control`。
+
+**本机没有 ROS，门禁没跑。** 上车前要在 WSL 上跑 ROS 门禁。
+
+**15 号车 run.jsonl 开环回放**（[结果](../offline/mpc_gym/results/replay_car15_lattice21.md)）：
+- 三段数据上 lattice 结果全部 VALID，用 lattice 的拍占 80–87%。
+- 退回中心线的主要原因是碰到已知边界（27–66 拍）；参考来源切换 8–11 次。
+- 本机规划耗时平均 50–61 ms。
+- **问题**：用 lattice 参考时，MPC 转向和车上 PID 反号的拍数是中心线 MPC 的 2–4 倍（例如 203 对 46）。原因主要有两个：Halton 随机候选占多数，而评分只看前 0.2 m；大转角时有约 0.14 m 的弯外准备偏移。这就是 mvp2.1 文档里写的"大转向 / 参考方向冲突"，本次没有改评分。
+
+**下一步**：
+- 下周中心线照原清单跑。时间够的话做第 6 步：lattice shadow 推车采数据。
+- 在转向反号的问题解决之前，不做 lattice 执行。评分范围和候选需要和 Planning 组商量。
+
 ## 2026-10-15（晚）：V2 在弯前不起步；中心线方案修 H，C 维持 0.03，生成 5 号车中心线包
 
 **18:32、18:37 两次 V2 exec，车都没动**：
