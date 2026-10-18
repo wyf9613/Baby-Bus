@@ -3587,6 +3587,7 @@ class ControlSettings:
     max_dt_s: float = 0.2
     startup_grace_s: float = 0.5
     # Per explicit policy run, wheel-speed odometry (metres), not road lookahead.
+    # 0 disables that budget (loop tracks); wheel-speed freshness is still required.
     max_distance_m: float = 3.0
     max_run_time_s: float = 30.0
     # Direct normalized steering for the first-run MVP, no wheel-angle model.
@@ -3625,10 +3626,14 @@ class ControlSettings:
             if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"control.{name} must be finite and nonnegative")
         for name in ("derivative_tau_s", "drive_max", "steering_max_normalized",
-                     "max_dt_s", "startup_grace_s", "max_distance_m", "max_run_time_s",
+                     "max_dt_s", "startup_grace_s",
                      "reference_hold_max_s", "reference_hold_max_distance_m", "gyro_bias_window_s", "gyro_bias_max_rps"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
+        # 0 = no per-run budget (loop tracks, as in mvp2.1); wheel-speed checks still apply.
+        for name in ("max_distance_m", "max_run_time_s"):
+            if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
+                raise ValueError(f"control.{name} must be finite and nonnegative (0 = no limit)")
         if (not finite_number(self.degraded_speed_mps) or self.degraded_speed_mps <= 0
                 or not finite_number(self.speed_recovery_accel_mps2) or self.speed_recovery_accel_mps2 <= 0
                 or not isinstance(self.recovery_confirm_frames, int) or self.recovery_confirm_frames < 1):
@@ -3673,7 +3678,7 @@ class RunDistanceLimiter:
         self.previous_time_s, self.previous_speed_mps = now_s, speed_mps
         if not finite_number(self.distance_m):
             return "Wheel-speed distance estimate invalid"
-        if self.distance_m+1e-9 >= self.maximum_m:
+        if self.maximum_m > 0 and self.distance_m+1e-9 >= self.maximum_m:   # 0 = no limit
             return f"Distance limit reached: {self.distance_m:.3f} m / {self.maximum_m:.3f} m; explicit resume required"
         return None
 
@@ -3882,7 +3887,16 @@ class MPCSettings:
     shadow: bool = True
     vehicle_params_source: str = "vehicle"
     v_exec_max_mps: float = 0.0       # execution speed cap; must be > 0 for shadow: false
-    overspeed_margin_mps: float = 0.1
+    overspeed_margin_mps: float = 0.1  # locks above cap + this; only while the soft margin is 0
+    # Soft overspeed (2026-10-18; 0 = off, the lock above applies). Above cap + soft the QP
+    # drive floor drops from the deadband to 0 (the MVP's PID can always cut drive); above
+    # that + cut the drive is forced to 0. It locks only when the speed stays above the soft
+    # line for cut_timeout_s, or above overspeed_hard_mps (0 = off) for hard_persist_s.
+    overspeed_soft_margin_mps: float = 0.0
+    overspeed_cut_margin_mps: float = 0.03
+    overspeed_cut_timeout_s: float = 1.0
+    overspeed_hard_mps: float = 0.0
+    overspeed_hard_persist_s: float = 0.2
     # Execution only: a reference rejection shorter than this coasts (drive 0, steering
     # held) instead of locking; a longer or any other rejection still locks. 0 = lock at once.
     reference_dropout_tolerance_s: float = 0.0
@@ -3895,6 +3909,13 @@ class MPCSettings:
     # vehicle.drive_max): the needed effort drifts with the battery. 0 = constant.
     breakaway_ramp_per_s: float = 0.0
     max_restarts: int = 3
+    # Tracking without a stop for this long clears the restart count (0 = never), so a
+    # long or loop run is not ended by occasional stalls spread over many minutes.
+    restart_count_reset_s: float = 0.0
+    # Execution only: a numerical QP failure (solver status, constraint residual, nonfinite
+    # solution, action out of bounds) is a tolerable dropout instead of a lock. Bad inputs
+    # and unexpected exceptions still lock.
+    solver_fail_tolerable: bool = False
     # Drive-bias estimate (integral action on the model's one-step speed residual):
     # bias += drive_bias_gain * (predicted - measured speed) * dt, clipped to +/-drive_bias_max.
     # It shifts the effective deadband. 0 gain = off.
@@ -3916,6 +3937,10 @@ class MPCSettings:
     r_ddrive: float = 2.0
     terminal_scale: float = 5.0
     max_backward_extension_m: float = 0.6
+    # Past the reference end the last segment is extended straight (curvature 0) by at most
+    # this, so a path that reaches the MVP's preview point but not the whole horizon still
+    # solves (2026-10-18). 0 = off: such a path is rejected as reference_too_short.
+    max_forward_extension_m: float = 0.0
     # ORDERED_CENTERLINE only: length of path start fitted for the straight lead-in
     # to the car (reference_trajectory_from_planning). Not used by V1/V2 paths.
     ordered_lead_in_fit_m: float = 1.0
@@ -3941,7 +3966,7 @@ class MPCSettings:
     bypass_valid_for_s: float = 0.1
 
     def __post_init__(self):
-        for name in ("enabled", "shadow", "bypass_acknowledged"):
+        for name in ("enabled", "shadow", "bypass_acknowledged", "solver_fail_tolerable"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"mpc.{name} must be bool")
         if self.reference_source not in ("planning", "estimation_centerline"):
@@ -3981,6 +4006,17 @@ class MPCSettings:
             raise ValueError("mpc.reference_dropout_tolerance_s must be in [0, 0.5] s")
         if self.v_exec_max_mps < 0:
             raise ValueError("mpc.v_exec_max_mps must be nonnegative")
+        if (self.overspeed_soft_margin_mps < 0 or self.overspeed_cut_margin_mps < 0
+                or self.overspeed_cut_timeout_s <= 0 or self.overspeed_hard_mps < 0
+                or self.overspeed_hard_persist_s < 0):
+            raise ValueError("mpc overspeed settings out of range")
+        if self.overspeed_hard_mps > 0 and (
+                self.overspeed_soft_margin_mps <= 0
+                or self.overspeed_hard_mps <= self.v_exec_max_mps + self.overspeed_soft_margin_mps
+                + self.overspeed_cut_margin_mps):
+            raise ValueError("mpc.overspeed_hard_mps needs the soft margin and must exceed cap + soft + cut")
+        if not 0.0 <= self.max_forward_extension_m <= 1.0 or self.restart_count_reset_s < 0:
+            raise ValueError("mpc.max_forward_extension_m must be in [0, 1] m, restart_count_reset_s >= 0")
 
 
 def mpc_vehicle_params(cfg, vehicle):
@@ -4343,14 +4379,15 @@ def reference_trajectory_from_road(road, state, cfg):
     return out
 
 
-def mpc_reference_errors(traj, n, dt_pred, speed, max_extension):
+def mpc_reference_errors(traj, n, dt_pred, speed, max_extension, max_forward=0.0):
     """Vehicle (origin, heading 0 in base_link) against a v0.1 point list.
 
     e_y > 0: vehicle left of the path. e_psi = vehicle heading - path heading.
     Behind the first point the first segment is extended by at most max_extension
     (only meaningful for a straight reference; do not inherit this for curves).
-    Returns (info, None) or (None, reason). No end-point repetition: if the
-    N-step travel is not covered by the path the reference is rejected.
+    Past the last point the last segment is extended straight by at most max_forward
+    (curvature 0 there). Returns (info, None) or (None, reason). No end-point
+    repetition: if the N-step travel is not covered the reference is rejected.
     """
     points = traj.get("points") if isinstance(traj, dict) else None
     if traj.get("frame_id") != "base_link" or not isinstance(points, list) or len(points) < 2:
@@ -4365,12 +4402,14 @@ def mpc_reference_errors(traj, n, dt_pred, speed, max_extension):
         if length < 1e-6:
             return None, "repeated_point"
         cumulative.append(cumulative[-1]+length)
+    last = len(points)-2
     for i, (a, b) in enumerate(zip(points, points[1:])):
         dx, dy = b["x_m"]-a["x_m"], b["y_m"]-a["y_m"]
         length = cumulative[i+1]-cumulative[i]
         t = (-a["x_m"]*dx - a["y_m"]*dy)/(length*length)
         low = -max_extension/length if i == 0 else 0.0
-        clamped = min(1.0, max(low, t))
+        high = 1.0 + max_forward/length if i == last else 1.0
+        clamped = min(high, max(low, t))
         px, py = a["x_m"]+clamped*dx, a["y_m"]+clamped*dy
         distance = math.hypot(px, py)
         if best is None or distance < best[0]:
@@ -4378,15 +4417,18 @@ def mpc_reference_errors(traj, n, dt_pred, speed, max_extension):
     _, i, t, clamped, px, py, theta = best
     if i == 0 and t < -max_extension/(cumulative[1]-cumulative[0]) - 1e-9:
         return None, "origin_before_path_start"
-    if i == len(points)-2 and t > 1.0+1e-9:
+    if i == last and t > 1.0 + max_forward/(cumulative[-1]-cumulative[-2]) + 1e-9:
         return None, "origin_past_path_end"
     s_proj = cumulative[i] + clamped*(cumulative[i+1]-cumulative[i])
     horizon = speed*dt_pred*n
-    if s_proj + horizon > cumulative[-1] + 1e-9:
+    if s_proj + horizon > cumulative[-1] + max_forward + 1e-9:
         return None, "reference_too_short"
     kappas = []
     for k in range(n):
         s_k = s_proj + speed*dt_pred*k
+        if s_k > cumulative[-1] + 1e-9:
+            kappas.append(0.0)       # straight forward extension
+            continue
         j = max(0, min(len(points)-1, sum(1 for c in cumulative if c <= s_k)-1))
         kappas.append(points[j]["curvature_1pm"])
     return {"e_y_m": px*math.sin(theta) - py*math.cos(theta), "e_psi_rad": wrap_angle(-theta),
@@ -4394,12 +4436,13 @@ def mpc_reference_errors(traj, n, dt_pred, speed, max_extension):
             "extended_start": i == 0 and t < 0.0, "v_ref_mps": points[0]["target_speed_mps"]}, None
 
 
-def mpc_path_projector(points, max_extension):
+def mpc_path_projector(points, max_extension, max_forward=0.0):
     """Nearest-point projection onto a v0.1 point list (base_link).
 
     Returns project(x, y) -> (px, py, heading, curvature, target_speed, past_end).
     Behind the first point the first segment is extended by at most max_extension;
-    past the last point the projection clamps and past_end is True.
+    past the last point it is extended straight by at most max_forward (curvature 0
+    there), beyond which the projection clamps and past_end is True.
 
     Ported 2026-10-15 (ORDERED_CENTERLINE support): segments pointing more than
     ~105 deg away from the body's own +x axis (base_link, fixed for the whole
@@ -4409,27 +4452,29 @@ def mpc_path_projector(points, max_extension):
     computed once per solve(), not per query. Falls back to every segment if
     that would exclude all of them, so a valid projection is never refused.
     """
-    segments = []
+    segments, last = [], len(points)-2
     for i, (a, b) in enumerate(zip(points, points[1:])):
         dx, dy = b["x_m"]-a["x_m"], b["y_m"]-a["y_m"]
         length2 = dx*dx + dy*dy
-        segments.append((a, b, dx, dy, length2, -max_extension/math.sqrt(length2) if i == 0 else 0.0))
-    forward_indices = [i for i, (_, _, dx, _, length2, _) in enumerate(segments)
+        segments.append((a, b, dx, dy, length2, -max_extension/math.sqrt(length2) if i == 0 else 0.0,
+                         1.0 + max_forward/math.sqrt(length2) if i == last else 1.0))
+    forward_indices = [i for i, (_, _, dx, _, length2, _, _) in enumerate(segments)
                        if dx/math.sqrt(length2) >= -0.25] or list(range(len(segments)))
 
     def project(x, y):
         best = None
         for i in forward_indices:
-            a, b, dx, dy, length2, low = segments[i]
+            a, b, dx, dy, length2, low, high = segments[i]
             t = ((x-a["x_m"])*dx + (y-a["y_m"])*dy)/length2
-            clamped = min(1.0, max(low, t))
+            clamped = min(high, max(low, t))
             px, py = a["x_m"]+clamped*dx, a["y_m"]+clamped*dy
             distance = (px-x)**2 + (py-y)**2
             if best is None or distance < best[0]:
-                best = (distance, i, t, px, py, math.atan2(dy, dx), a if clamped < 0.5 else b)
-        _, i, t, px, py, heading, near = best
-        return (px, py, heading, near["curvature_1pm"], near["target_speed_mps"],
-                i == len(segments)-1 and t > 1.0+1e-9)
+                best = (distance, i, t, clamped, px, py, math.atan2(dy, dx), a if clamped < 0.5 else b)
+        _, i, t, clamped, px, py, heading, near = best
+        extended = i == last and clamped > 1.0      # on the straight forward extension
+        return (px, py, heading, 0.0 if extended else near["curvature_1pm"], near["target_speed_mps"],
+                i == last and t > segments[i][6]+1e-9)
     return project
 
 
@@ -4484,9 +4529,10 @@ class VehicleModelMPC:
         return replace(p, drive_deadband=deadband,
                        drive_breakaway=max(p.drive_breakaway, deadband) if p.drive_breakaway else 0.0)
 
-    def input_bounds(self, p=None, moving=False, allow_braking=False):
+    def input_bounds(self, p=None, moving=False, allow_braking=False, drive_floor_zero=False):
         p = self.vehicle if p is None else p
-        drive = (max(0.0, p.drive_min, p.drive_deadband if moving and not allow_braking else 0.0), p.drive_max)
+        floor = moving and not allow_braking and not drive_floor_zero
+        drive = (max(0.0, p.drive_min, p.drive_deadband if floor else 0.0), p.drive_max)
         ends = sorted(((p.steering_min_rad-p.steering_offset_rad)/p.steering_gain_rad,
                        (p.steering_max_rad-p.steering_offset_rad)/p.steering_gain_rad))
         return drive, (max(-1.0, ends[0]), min(1.0, ends[1]))
@@ -4599,19 +4645,22 @@ class VehicleModelMPC:
         self._model = None
 
     def solve(self, points, z0, speed_cap, last_drive, nominal=None, drive_bias=0.0, moving=False,
-              speed_targets=None, allow_braking=False):
-        """Returns (solution, None) or (None, reference_reason); raises MPCStop on solver failure."""
+              speed_targets=None, allow_braking=False, drive_floor_zero=False):
+        """Returns (solution, None) or (None, reference_reason); raises MPCStop on solver failure.
+
+        drive_floor_zero (soft overspeed): while moving, drive may go below the deadband,
+        into the model's drag-brake region, without planning a stop."""
         np, cfg, n, h = self._np, self.cfg, self.cfg.horizon_n, self.cfg.dt_pred_s
         p = self.effective(drive_bias)
         t0 = time.perf_counter()
-        project = mpc_path_projector(points, cfg.max_backward_extension_m)
+        project = mpc_path_projector(points, cfg.max_backward_extension_m, cfg.max_forward_extension_m)
         if (speed_targets is not None and (not isinstance(speed_targets, (list, tuple))
                 or len(speed_targets) != n
                 or any(not finite_number(v) or v < 0 for v in speed_targets))):
             raise MPCStop("invalid_speed_targets")
         if allow_braking and (speed_targets is None or p.brake_gain_n <= 0):
             raise MPCStop("braking_model_unavailable")
-        (d_lo, d_hi), (s_lo, s_hi) = self.input_bounds(p, moving, allow_braking)
+        (d_lo, d_hi), (s_lo, s_hi) = self.input_bounds(p, moving, allow_braking, drive_floor_zero)
         g, o = p.steering_gain_rad, p.steering_offset_rad
         z0 = [float(v) for v in z0]
         if not all(math.isfinite(v) for v in z0 + [speed_cap if speed_cap != math.inf else 0.0, last_drive]):
@@ -4697,16 +4746,23 @@ class VehicleModelMPC:
             U_bar = np.clip(U, np.tile([d_lo, s_lo], n), np.tile([d_hi, s_hi], n))
         # Report the CLIPPED model's prediction of the accepted inputs.
         predicted, pred_xy, z = [], [], z0
+        end, before = points[-1], points[-2]
+        end_dir = math.atan2(end["y_m"]-before["y_m"], end["x_m"]-before["x_m"])
+        forward_extension = 0.0
         for k in range(n):
             z = course_model_step(z, U_bar[2*k:2*k+2], h, p)
             px, py, theta, _, _, _ = project(z[0], z[1])
             predicted.append((-(z[0]-px)*math.sin(theta) + (z[1]-py)*math.cos(theta), z[3], z[4]))
             pred_xy.append((float(z[0]), float(z[1])))
+            if cfg.max_forward_extension_m > 0:
+                forward_extension = max(forward_extension, (px-end["x_m"])*math.cos(end_dir)
+                                        + (py-end["y_m"])*math.sin(end_dir))
         inputs = [(float(U_bar[2*k]), float(U_bar[2*k+1])) for k in range(n)]
         return {"inputs": inputs, "drive0": inputs[0][0], "steer0": inputs[0][1],
                 "delta0": g*inputs[0][1] + o, "violation": violation, "iterations": iterations,
                 "pred_e_y": [r[0] for r in predicted], "pred_v": [r[1] for r in predicted],
                 "pred_delta": [r[2] for r in predicted], "pred_xy": pred_xy,
+                "forward_extension_m": float(forward_extension),
                 "solve_s": float(time.perf_counter()-t0)}, None
 
 
@@ -4750,6 +4806,10 @@ class MPCController:
         self.phase = "starting"
         self.start_since = None    # clock_s when the breakaway drive was first applied
         self.restarts = 0
+        self.tracking_since = None  # clock_s when the current stretch of tracking began
+        self.overspeed_state = "ok"
+        self.overspeed_since = None  # clock_s of the first step above the soft line in a row
+        self.hard_since = None       # clock_s of the first step above overspeed_hard_mps in a row
         self.bias = 0.0
         self.last_speed = None     # (clock_s, measured speed) of the previous step
         self.step_times = []
@@ -4817,6 +4877,25 @@ class MPCController:
                                       sub, p)
         return z, delta_now
 
+    def overspeed_check(self, speed):
+        """Soft overspeed state ("ok"/"soft"/"cut") and whether it must lock now."""
+        cfg, now = self.cfg, self.clock_s
+        line = cfg.v_exec_max_mps + cfg.overspeed_soft_margin_mps
+        if speed > line:
+            self.overspeed_since = now if self.overspeed_since is None else self.overspeed_since
+        else:
+            self.overspeed_since = None
+        if cfg.overspeed_hard_mps > 0 and speed > cfg.overspeed_hard_mps:
+            self.hard_since = now if self.hard_since is None else self.hard_since
+        else:
+            self.hard_since = None
+        self.overspeed_state = ("cut" if speed > line + cfg.overspeed_cut_margin_mps
+                                else "soft" if speed > line else "ok")
+        return ((self.overspeed_since is not None
+                 and now - self.overspeed_since >= cfg.overspeed_cut_timeout_s - 1e-9)
+                or (self.hard_since is not None
+                    and now - self.hard_since >= cfg.overspeed_hard_persist_s - 1e-9))
+
     def gate_problem(self):
         cfg = self.cfg
         if cfg.shadow:
@@ -4846,7 +4925,11 @@ class MPCController:
              "drive_bias": self.bias, "plan_index": None, "step_p95_s": None,
              # New 2026-10-15: the full predicted horizon (base_link x,y at the
              # reference time), for the /car/mpc_prediction Foxglove line.
-             "pred_xy": None}
+             "pred_xy": None,
+             # New 2026-10-18: soft overspeed state and time above the soft line;
+             # how far the prediction ran onto the straight forward extension.
+             "overspeed_state": None, "overspeed_s": None, "forward_extension_m": None}
+        soft = cfg.overspeed_soft_margin_mps > 0 and not cfg.shadow
         self.last_debug = d
         if isinstance(traj, dict):
             d["path_id"], d["simulation_only"] = traj.get("path_id"), traj.get("simulation_only")
@@ -4867,8 +4950,10 @@ class MPCController:
         def reject(branch, reason, tolerable=False):
             # A tolerable reference gap must not mask a stop while an old plan is held.
             # These guards also run below for a fresh, successfully solved reference.
+            # With the soft overspeed on, its lock was already decided for this step.
             if tolerable and not cfg.shadow:
-                if finite_number(speed_mps) and speed_mps > cfg.v_exec_max_mps + cfg.overspeed_margin_mps:
+                if (not soft and finite_number(speed_mps)
+                        and speed_mps > cfg.v_exec_max_mps + cfg.overspeed_margin_mps):
                     branch, reason, tolerable = "stop", "overspeed", False
                 elif (self.phase == "starting" and self.start_since is not None
                       and self.clock_s-self.start_since > cfg.breakaway_timeout_s):
@@ -4899,6 +4984,8 @@ class MPCController:
                             # future inputs may be too small to start the real car. Keep
                             # only the already-applied start effort, never ramp up here.
                             drive = min(self.applied_drive, self.vehicle.drive_max)
+                        if soft and self.overspeed_state != "ok":
+                            drive = 0.0      # above the soft line: coast while the plan holds
                         record(drive, steer)
                         return {"drive": drive, "steer": steer, "debug": d}
             self.plan = None
@@ -4933,13 +5020,25 @@ class MPCController:
         self.update_bias(speed_mps)
         breakaway = self.vehicle.drive_breakaway > 0
         if speed_mps >= cfg.moving_speed_mps:
+            if self.phase != "tracking" or self.tracking_since is None:
+                self.tracking_since = self.clock_s
             self.phase, self.start_since = "tracking", None
+            if (cfg.restart_count_reset_s > 0
+                    and self.clock_s - self.tracking_since >= cfg.restart_count_reset_s - 1e-9):
+                self.restarts = 0
         elif self.phase == "tracking" and breakaway:
-            self.phase, self.start_since = "starting", None
+            self.phase, self.start_since, self.tracking_since = "starting", None, None
             self.restarts += 1
             if not cfg.shadow and self.restarts > cfg.max_restarts:
                 return reject("stop", "too_many_restarts")
         d["phase"] = self.phase
+        if soft:
+            must_stop = self.overspeed_check(speed_mps)
+            d["overspeed_state"] = self.overspeed_state
+            d["overspeed_s"] = (0.0 if self.overspeed_since is None
+                                else self.clock_s - self.overspeed_since)
+            if must_stop:
+                return reject("stop", "overspeed")
         if not is_first and dt > cfg.dt_max_s:
             return reject("ref_invalid", "dt_late", tolerable=True)
         if not isinstance(traj, dict) or traj.get("schema") != "reference_trajectory_v0.1":
@@ -4995,12 +5094,12 @@ class MPCController:
                              for k in range(cfg.horizon_n)]
             d.update(reference_speed_mode="time_profile", v_ref_end_mps=speed_targets[-1])
         info, reason = mpc_reference_errors(traj, cfg.horizon_n, cfg.dt_pred_s, 0.0,
-                                            cfg.max_backward_extension_m)
+                                            cfg.max_backward_extension_m, cfg.max_forward_extension_m)
         if info is None:
             return reject("ref_invalid", reason, tolerable=True)
         d.update(e_y_m=info["e_y_m"], e_psi_rad=info["e_psi_rad"],
                  v_ref_mps=speed_targets[0] if speed_targets is not None else info["v_ref_mps"])
-        if not cfg.shadow and speed_mps > cfg.v_exec_max_mps + cfg.overspeed_margin_mps:
+        if not cfg.shadow and not soft and speed_mps > cfg.v_exec_max_mps + cfg.overspeed_margin_mps:
             return reject("stop", "overspeed")
         cap = cfg.v_exec_max_mps if cfg.v_exec_max_mps > 0 else math.inf
         if min(d["v_ref_mps"], cap) <= 0.0:
@@ -5013,10 +5112,14 @@ class MPCController:
             extra = {"drive_bias": self.bias, "moving": self.phase == "tracking"}
         if speed_targets is not None:
             extra.update(speed_targets=speed_targets, allow_braking=planned_stop)
+        if soft and self.overspeed_state != "ok":
+            extra["drive_floor_zero"] = True
         try:
             solution, reason = self.solver.solve(traj["points"], z0, cap, self.applied_drive, self.nominal, **extra)
         except MPCStop as exc:
-            return reject("solver_fail", str(exc))
+            numerical = str(exc).startswith("solver_status:") or str(exc) in ("constraint_residual",
+                                                                               "solver_nonfinite")
+            return reject("solver_fail", str(exc), tolerable=cfg.solver_fail_tolerable and numerical)
         except Exception as exc:
             return reject("solver_fail", f"solver_exception:{type(exc).__name__}")
         if solution is None:
@@ -5024,10 +5127,13 @@ class MPCController:
         drive, steer = solution["drive0"], solution["steer0"]
         if not (finite_number(drive) and finite_number(steer) and abs(steer) <= 1.0 + 1e-6
                 and -1e-6 <= drive <= 1.0 + 1e-6):
-            return reject("solver_fail", "action_out_of_bounds")
+            return reject("solver_fail", "action_out_of_bounds", tolerable=cfg.solver_fail_tolerable)
         drive, steer = min(1.0, max(0.0, drive)), min(1.0, max(-1.0, steer))
         inputs = solution["inputs"]
         self.nominal = inputs[1:] + inputs[-1:]
+        if soft and self.overspeed_state == "cut":
+            # Well above the soft line: no drive, and no warm start that carries it.
+            drive, self.nominal = 0.0, None
         if breakaway and self.phase == "starting" and not cfg.shadow:
             # Static friction: the MPC's small model-based drive would not start the car.
             if self.start_since is None:
@@ -5041,7 +5147,7 @@ class MPCController:
                  status="solved", iterations=solution["iterations"], solve_s=solution["solve_s"],
                  pred_e_y_end_m=solution["pred_e_y"][-1], pred_v_end_mps=solution["pred_v"][-1],
                  # .get: test doubles for self.solver predate this 2026-10-15 field.
-                 pred_xy=solution.get("pred_xy"))
+                 pred_xy=solution.get("pred_xy"), forward_extension_m=solution.get("forward_extension_m"))
         return accept("shadow" if cfg.shadow else "solved", steer, drive)
 
 
@@ -8112,6 +8218,8 @@ class PolicyNode(Node):
                 speed = estimates["state"].get("speed_mps")
                 speed = speed if finite_number(speed) and speed > 0 else 0.0
                 cap = cfg.v_exec_max_mps if cfg.v_exec_max_mps > 0 else self.planning_settings.cruise_speed_mps
+                # No forward extension here (2026-10-18): a lattice path short of the horizon
+                # falls back to the baseline, which the solver may still extend.
                 info, reason = mpc_reference_errors(traj, cfg.horizon_n, cfg.dt_pred_s, max(speed, cap),
                                                     cfg.max_backward_extension_m)
                 if info is not None:
@@ -8581,7 +8689,7 @@ class PolicyNode(Node):
         problem = self.distance_limiter.advance(wheel.value, monotonic_now)
         if problem:
             return problem
-        if (self.policy_started_at is not None and
+        if (self.policy_started_at is not None and self.control_settings.max_run_time_s > 0 and
                 monotonic_now-self.policy_started_at >= self.control_settings.max_run_time_s):
             return "Run time limit reached; explicit resume required"
         if not self.control_settings.enabled:

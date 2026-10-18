@@ -354,17 +354,29 @@
       shadow: true
       vehicle_params_source: "vehicle"
       v_exec_max_mps: 0.0          # execution speed cap; must be > 0 for shadow: false
-      overspeed_margin_mps: 0.1    # execution stops above v_exec_max_mps + this margin
+      overspeed_margin_mps: 0.1    # execution stops above v_exec_max_mps + this margin (soft margin 0 only)
+      # Soft overspeed, 0 = off. Above cap + soft the QP may cut drive below the deadband;
+      # above that + cut the drive is 0. Locks only if still above the soft line after
+      # cut_timeout_s, or above overspeed_hard_mps (0 = off) for hard_persist_s.
+      overspeed_soft_margin_mps: 0.0
+      overspeed_cut_margin_mps: 0.03
+      overspeed_cut_timeout_s: 1.0
+      overspeed_hard_mps: 0.0
+      overspeed_hard_persist_s: 0.2
       # Execution only: tolerable rejections (reference unavailable, late update, over budget)
       # shorter than this keep executing the last solved input sequence (drive never raised);
       # anything longer, or any other rejection, still locks. 0 = off.
       reference_dropout_tolerance_s: 0.0
+      # true: numerical QP failures (status, residual, nonfinite, action out of bounds) are
+      # tolerable like the above; bad inputs and unexpected exceptions still lock.
+      solver_fail_tolerable: false
       # Start from rest when vehicle.drive_breakaway > 0: breakaway drive until moving_speed_mps,
       # lock if no motion within breakaway_timeout_s; at most max_restarts returns to rest per run.
       moving_speed_mps: 0.05
       breakaway_timeout_s: 1.5
       breakaway_ramp_per_s: 0.0    # start drive rises from vehicle.drive_breakaway (capped at drive_max)
       max_restarts: 3
+      restart_count_reset_s: 0.0   # tracking this long clears the restart count (0 = never)
       # Integral action: drive bias from the model's one-step speed residual (0 gain = off).
       drive_bias_gain: 0.0
       drive_bias_max: 0.05
@@ -384,6 +396,9 @@
       r_ddrive: 2.0
       terminal_scale: 5.0
       max_backward_extension_m: 0.6
+      # Past the reference end, extend the last segment straight (curvature 0) by at most this
+      # instead of rejecting reference_too_short; [0, 1] m, 0 = off.
+      max_forward_extension_m: 0.0
       # road_centerline (ORDERED_CENTERLINE) only: a path starting ahead of the car gets a
       # straight lead-in along the tangent, at its start, of a quadratic fitted to its first
       # ordered_lead_in_fit_m (instead of extending the first 5 cm segment).
@@ -459,8 +474,9 @@
       # >=3 m the framework enters continuous-zero state 2; state 3 must be
       # requested explicitly to reset the budget and run again. Coasting/slip
       # and encoder scaling affect the physical final stopping position.
+      # 0 disables the budget (loop tracks); wheel-speed freshness checks still apply.
       max_distance_m: 3.0
-      # Backup cutoff if the wheel estimator reports fresh zero throughout.
+      # Backup cutoff if the wheel estimator reports fresh zero throughout. 0 = no limit.
       max_run_time_s: 30.0
       # Direct normalized/m and normalized/rad gains, no angle-to-servo mapping.
       # 2026-10-06 Tuesday car profile, retained for next week's same-car trial.

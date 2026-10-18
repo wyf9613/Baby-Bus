@@ -304,7 +304,8 @@ class PreviewDistanceChecks(unittest.TestCase):
         delay = max(vehicle.drive_delay_s, vehicle.steering_delay_s)
         for cap in (mpc.v_exec_max_mps, 0.5):
             stand_in = SimpleNamespace(planning_settings=node.planning_settings, vehicle_settings=vehicle,
-                                       mpc_settings=cns["MPCSettings"](**{**vars(mpc), "v_exec_max_mps": cap}))
+                                       mpc_settings=cns["MPCSettings"](**{**vars(mpc), "v_exec_max_mps": cap,
+                                                                          "overspeed_hard_mps": 0.0}))
             expected = max(node.planning_settings.preview_m, cap*(mpc.horizon_n*mpc.dt_pred_s+delay))
             self.assertAlmostEqual(method_ns["_planner_preview_m"](stand_in), expected)
         self.assertGreater(method_ns["_planner_preview_m"](stand_in), node.planning_settings.preview_m)

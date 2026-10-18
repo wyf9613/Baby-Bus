@@ -1600,5 +1600,205 @@ class NodeEntry(unittest.TestCase):
         self.assertEqual(json.loads(published[-1])["branch"], "gate_refused")
 
 
+class RelaxedGuards(unittest.TestCase):
+    """2026-10-18 relaxations so MPC runs wherever the MVP runs; all default off."""
+    NOW = 10.0
+    PENDING = {"schema": "reference_trajectory_v0.1", "valid": False, "reason": "planning_pending"}
+
+    def recording(self, drive0=0.31, error=None):
+        class Recording:
+            calls = []
+
+            def solve(self, *args, **kwargs):
+                Recording.calls.append(kwargs)
+                if error is not None:
+                    raise error
+                return {"inputs": [(drive0, 0.1)]*10, "drive0": drive0, "steer0": 0.1, "delta0": -0.02,
+                        "iterations": 1, "solve_s": 0.0, "pred_e_y": [0.0], "pred_v": [0.15]}, None
+        return Recording()
+
+    def soft_controller(self, **changes):
+        cfg = dict(v_exec_max_mps=0.15, overspeed_soft_margin_mps=0.05, overspeed_hard_mps=0.40,
+                   reference_dropout_tolerance_s=0.5)
+        cfg.update(changes)
+        ctrl = verified(vehicle=newcar(drive_max=0.35, drive_breakaway=0.35), **cfg)
+        ctrl.solver = self.recording()
+        return ctrl
+
+    def drive(self, ctrl, speeds, t=0.0, dt=0.05, traj=None):
+        """One step per speed on fresh references; returns the last output and time."""
+        out = None
+        for speed in speeds:
+            first = t == 0.0
+            ref = traj if traj is not None else straight_trajectory(speed=0.15, stamp=self.NOW+t)
+            out = ctrl.step(ref, speed, 0.0 if first else dt, self.NOW+t, first)
+            t += dt
+        return out, t
+
+    # --- soft overspeed + hard stop -------------------------------------------------
+    def test_defaults_keep_the_old_overspeed_lock(self):
+        cfg = Settings()
+        self.assertEqual((cfg.overspeed_soft_margin_mps, cfg.overspeed_hard_mps,
+                          cfg.max_forward_extension_m, cfg.solver_fail_tolerable,
+                          cfg.restart_count_reset_s), (0.0, 0.0, 0.0, False, 0.0))
+        ctrl = self.soft_controller(overspeed_soft_margin_mps=0.0, overspeed_hard_mps=0.0)
+        self.drive(ctrl, [0.1])
+        with self.assertRaises(Stop):
+            self.drive(ctrl, [0.26], t=0.05)
+        self.assertEqual(ctrl.last_debug["reject_reason"], "overspeed")
+
+    def test_above_the_soft_line_the_drive_floor_is_released(self):
+        ctrl = self.soft_controller()
+        out, t = self.drive(ctrl, [0.1])
+        self.assertFalse(ctrl.solver.calls[-1].get("drive_floor_zero", False))
+        self.assertEqual(out["debug"]["overspeed_state"], "ok")
+        out, _ = self.drive(ctrl, [0.21], t=t)                    # soft line 0.20, cut line 0.23
+        self.assertTrue(ctrl.solver.calls[-1]["drive_floor_zero"])
+        self.assertEqual((out["debug"]["branch"], out["debug"]["overspeed_state"]), ("solved", "soft"))
+        self.assertEqual(out["drive"], 0.31)                     # the QP decides inside the soft band
+
+    def test_cut_line_forces_zero_drive_and_drops_the_warm_start(self):
+        ctrl = self.soft_controller()
+        out, t = self.drive(ctrl, [0.1, 0.24])
+        self.assertEqual((out["drive"], out["debug"]["overspeed_state"]), (0.0, "cut"))
+        self.assertIsNone(ctrl.nominal)
+        self.assertEqual(out["steer"], 0.1)                      # steering keeps tracking
+
+    def test_still_above_the_soft_line_after_the_cut_timeout_locks(self):
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1])
+        _, t = self.drive(ctrl, [0.21]*20, t=t)                    # 0.95 s above the line
+        with self.assertRaises(Stop):
+            self.drive(ctrl, [0.21], t=t)
+        self.assertEqual(ctrl.last_debug["reject_reason"], "overspeed")
+
+    def test_dropping_below_the_soft_line_resets_the_cut_timer(self):
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1])
+        _, t = self.drive(ctrl, [0.21]*18 + [0.15] + [0.21]*18, t=t)
+        self.assertEqual(ctrl.last_debug["overspeed_state"], "soft")
+        self.assertLess(ctrl.last_debug["overspeed_s"], 1.0)
+
+    def test_hard_line_needs_persistence(self):
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1, 0.45, 0.21, 0.45, 0.21])     # single-frame spikes
+        self.assertEqual(ctrl.last_debug["branch"], "solved")
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1, 0.45, 0.45, 0.45, 0.45])     # 0.15 s above 0.40
+        with self.assertRaises(Stop):
+            self.drive(ctrl, [0.45], t=t)                          # 0.20 s
+        self.assertEqual(ctrl.last_debug["reject_reason"], "overspeed")
+
+    def test_plan_hold_coasts_above_the_soft_line_and_still_hard_stops(self):
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1])
+        out = ctrl.step(self.PENDING, 0.21, 0.05, self.NOW+t, False)
+        self.assertEqual((out["debug"]["branch"], out["drive"]), ("plan_hold", 0.0))
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1])
+        for k in range(4):
+            ctrl.step(self.PENDING, 0.45, 0.05, self.NOW+t+k*0.05, False)
+        with self.assertRaises(Stop):
+            ctrl.step(self.PENDING, 0.45, 0.05, self.NOW+t+0.2, False)
+        self.assertEqual(ctrl.last_debug["reject_reason"], "overspeed")
+
+    def test_real_solver_can_request_drive_below_the_deadband(self):
+        solver = Solver(Settings(), newcar())
+        traj = straight_trajectory(speed=0.15)
+        held, _ = solver.solve(traj["points"], [0.0, 0.0, 0.0, 0.3, 0.0], 0.15, 0.3, moving=True)
+        freed, _ = solver.solve(traj["points"], [0.0, 0.0, 0.0, 0.3, 0.0], 0.15, 0.3, moving=True,
+                                drive_floor_zero=True)
+        self.assertGreaterEqual(held["drive0"], 0.289-1e-6)
+        self.assertLess(freed["drive0"], 0.289)
+
+    def test_overspeed_settings_are_checked(self):
+        for kwargs in ({"overspeed_soft_margin_mps": -0.01}, {"overspeed_hard_mps": 0.4},
+                       {"overspeed_soft_margin_mps": 0.05, "overspeed_hard_mps": 0.2, "v_exec_max_mps": 0.15},
+                       {"overspeed_cut_timeout_s": 0.0}, {"overspeed_hard_persist_s": -0.1},
+                       {"solver_fail_tolerable": 1}, {"max_forward_extension_m": -0.1},
+                       {"max_forward_extension_m": 1.5}, {"restart_count_reset_s": -1.0}):
+            with self.assertRaises(ValueError, msg=str(kwargs)):
+                Settings(**kwargs)
+
+    # --- forward extension of the reference end -------------------------------------
+    def test_reference_errors_accept_a_short_path_within_the_extension(self):
+        short = straight_trajectory(length=0.2, start_x=0.0)
+        self.assertEqual(errors(short, 10, 0.1, 0.3, 0.6)[1], "reference_too_short")
+        info, why = errors(short, 10, 0.1, 0.3, 0.6, 0.3)
+        self.assertIsNone(why)
+        self.assertEqual(errors(short, 10, 0.1, 0.6, 0.6, 0.3)[1], "reference_too_short")
+        self.assertEqual(errors(straight_trajectory(start_x=-3.0), 10, 0.1, 0.3, 0.6, 0.3)[1],
+                         "origin_past_path_end")
+        arc = arc_trajectory(0.5, length=0.2)
+        info, why = errors(arc, 10, 0.1, 0.3, 0.6, 0.3)
+        self.assertIsNone(why)
+        self.assertEqual(info["kappas"][0], 0.5)
+        self.assertEqual(info["kappas"][-1], 0.0)                # past the end: straight
+
+    def test_projector_extends_the_last_segment_straight(self):
+        points = straight_trajectory(length=0.5, start_x=0.0, curvature=0.4)["points"]
+        project = namespace["mpc_path_projector"](points, 0.6, 0.3)
+        px, py, _, kappa, _, past = project(0.7, 0.0)
+        self.assertAlmostEqual(px, 0.7)
+        self.assertEqual((kappa, past), (0.0, False))
+        self.assertTrue(project(0.85, 0.0)[5])
+        self.assertTrue(namespace["mpc_path_projector"](points, 0.6)(0.7, 0.0)[5])
+
+    def test_solver_and_controller_use_the_extension(self):
+        traj = straight_trajectory(speed=0.3, length=0.3, start_x=0.0)
+        z0 = [0.0, 0.0, 0.0, 0.3, 0.0]
+        self.assertEqual(Solver(Settings(), measured()).solve(traj["points"], z0, 0.3, 0.0)[1],
+                         "reference_too_short")
+        out, why = Solver(Settings(max_forward_extension_m=0.3), measured()).solve(traj["points"], z0, 0.3, 0.0)
+        self.assertIsNone(why)
+        ctrl = verified(max_forward_extension_m=0.3)
+        result = ctrl.step(traj, 0.3, 0.0, self.NOW, True)
+        self.assertEqual(result["debug"]["branch"], "solved")
+        self.assertGreater(result["debug"]["forward_extension_m"], 0.0)
+
+    # --- tolerable numerical solver failures -----------------------------------------
+    def test_numerical_solver_failures_hold_the_plan_when_enabled(self):
+        for why in ("solver_status:maximum_iterations_reached", "constraint_residual", "solver_nonfinite"):
+            with self.subTest(why=why):
+                ctrl = self.soft_controller(solver_fail_tolerable=True, reference_dropout_tolerance_s=0.15)
+                _, t = self.drive(ctrl, [0.1])
+                ctrl.solver = self.recording(error=Stop(why))
+                out, t = self.drive(ctrl, [0.1, 0.1], t=t)
+                self.assertEqual(out["debug"]["branch"], "plan_hold")
+                with self.assertRaises(Stop):
+                    self.drive(ctrl, [0.1, 0.1], t=t)
+                self.assertEqual(ctrl.last_debug["reject_reason"], why)
+
+    def test_out_of_bounds_action_holds_the_plan_when_enabled(self):
+        ctrl = self.soft_controller(solver_fail_tolerable=True)
+        _, t = self.drive(ctrl, [0.1])
+        ctrl.solver = self.recording(drive0=float("nan"))
+        out, _ = self.drive(ctrl, [0.1], t=t)
+        self.assertEqual((out["debug"]["branch"], out["debug"]["reject_reason"]),
+                         ("plan_hold", "action_out_of_bounds"))
+
+    def test_input_and_unknown_solver_errors_still_lock(self):
+        for error, flag in ((Stop("solver_status:max_iter"), False), (Stop("solver_nonfinite_input"), True),
+                            (Stop("invalid_speed_targets"), True), (RuntimeError("bug"), True)):
+            with self.subTest(error=str(error), flag=flag):
+                ctrl = self.soft_controller(solver_fail_tolerable=flag)
+                _, t = self.drive(ctrl, [0.1])
+                ctrl.solver = self.recording(error=error)
+                with self.assertRaises(Stop):
+                    self.drive(ctrl, [0.1], t=t)
+
+    # --- restart count reset after sustained tracking --------------------------------
+    def test_restart_count_resets_after_sustained_tracking(self):
+        def ride(reset_s):
+            ctrl = verified(vehicle=newcar(), max_restarts=1, restart_count_reset_s=reset_s)
+            speeds = [0.0, 0.1, 0.0, 0.1] + [0.1]*21 + [0.0]
+            for k, speed in enumerate(speeds):
+                ctrl.step(straight_trajectory(speed=0.2), speed, 0.0 if k == 0 else 0.05, self.NOW, k == 0)
+            return ctrl
+        self.assertEqual(ride(1.0).last_debug["phase"], "starting")
+        with self.assertRaises(Stop):
+            ride(0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

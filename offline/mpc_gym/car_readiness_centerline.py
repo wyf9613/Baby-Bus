@@ -45,21 +45,28 @@ SEEDS = tuple(range(1, 11))
 STARTS = {"centre": (0.0, 0.0), "left5cm": (0.05, 0.0), "head5deg": (0.0, 0.087)}
 
 
-def centerline_params():
+def centerline_params(car05_mpc=False):
     layers = ["ai4r_policy.yaml", "ai4r_policy_newcar27.yaml", "ai4r_policy_mpc_newcar27.yaml",
               "ai4r_policy_mpc_centerline.yaml"]
     params = layered(*layers)
+    if car05_mpc:
+        # 2026-10-18: car 05's mpc/control settings (cap 0.15, soft overspeed, start
+        # timeout, restarts, run time) on the same .27 plant and vehicle record; the
+        # car 05 vehicle.* substitution itself is not simulated here.
+        car05 = layered("ai4r_policy_mpc_car05.yaml")
+        params["mpc"].update(car05["mpc"])
+        params["control"].update(car05["control"])
     params["vehicle"]["valid"] = True   # simulation only: see newcar27_experiment.mpc_params
     params["mpc"]["shadow"] = False
     return params
 
 
 def one(job):
-    road, lane, start_pose, seed = job
+    road, lane, start_pose, seed, car05_mpc = job
     start, distance, _ = ROADS[road]
     offset, heading = STARTS[start_pose]
     conditions = {} if lane is None else {"lane_width_m": lane}
-    result = newcar27_run(centerline_params(), noise=0.02, seed=seed, road=road, start_progress_m=start,
+    result = newcar27_run(centerline_params(car05_mpc), noise=0.02, seed=seed, road=road, start_progress_m=start,
                           distance_m=distance, duration=12.0+distance/0.2, offset=offset, heading=heading,
                           conditions=conditions)
     stop = result.get("locked_stop") or {}
@@ -117,11 +124,13 @@ def main():
     parser.add_argument("--seeds", nargs="+", type=int, default=list(SEEDS))
     parser.add_argument("--quick", action="store_true", help="3 seeds, straight + right_angle_r1")
     parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--car05-mpc", action="store_true",
+                        help="also apply config/ai4r_policy_mpc_car05.yaml's mpc/control sections")
     parser.add_argument("--out", default="car_readiness_centerline", help="results/<out>.json and .md")
     args = parser.parse_args()
     if args.quick:
         args.seeds, args.roads = [1, 2, 3], ["straight", "right_angle_r1"]
-    jobs = [(r, lane, pose, s) for r in args.roads
+    jobs = [(r, lane, pose, s, args.car05_mpc) for r in args.roads
             for lane in ROADS[r][2] for pose in (STARTS if r == "straight" else ("centre",)) for s in args.seeds]
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         rows = list(pool.map(one, jobs))

@@ -773,9 +773,28 @@ class ControlChecks(unittest.TestCase):
         problem = node._control_problem(node._monotonic(), node.test_clock.ros_ns)
         self.assertIn("Run time limit", problem)
 
+    def test_zero_budgets_disable_the_limits_but_keep_wheel_checks(self):
+        # Loop tracks (2026-10-18): 0 = no distance/time budget, as in mvp2.1.
+        node = make_node(simulated=False, mvp=True)
+        node.control_settings = ns["ControlSettings"](enabled=False, mode="mvp",
+                                                      max_distance_m=0.0, max_run_time_s=0.0)
+        node.mpc_settings = SimpleNamespace(enabled=True, shadow=False)
+        node.distance_limiter = ns["RunDistanceLimiter"](0.0, 0.2)
+        feed(node, speed=0.5)
+        node.distance_limiter.reset(node._monotonic(), 0.5)
+        node.policy_started_at = node._monotonic()-600.0
+        for _ in range(5):
+            node.test_clock.advance(0.1)
+            feed(node, speed=0.5)
+            self.assertIsNone(node._control_problem(node._monotonic(), node.test_clock.ros_ns))
+        self.assertAlmostEqual(node.distance_limiter.distance_m, 0.25)
+        node.test_clock.advance(5.0)                           # wheel speed goes stale
+        self.assertIn("Wheel speed unavailable", node._control_problem(node._monotonic(), node.test_clock.ros_ns))
+
     def test_invalid_settings_and_incomplete_calibration_are_rejected(self):
         for values in ({"drive_max": 2.0}, {"enabled": 1}, {"max_dt_s": 0}, {"speed_ki": float("nan")},
-                       {"mode": "unknown"}, {"max_distance_m": 0}, {"max_run_time_s": float("inf")},
+                       {"mode": "unknown"}, {"max_distance_m": -1.0}, {"max_run_time_s": float("inf")},
+                       {"max_run_time_s": -1.0},
                        {"mvp_steering_direction": 0}):
             with self.assertRaises(ValueError):
                 ns["ControlSettings"](**values)
@@ -837,6 +856,14 @@ class DistanceChecks(unittest.TestCase):
         limiter.distance_m = 2.9
         self.assertIn("Distance limit reached", limiter.advance(1.0, 0.3))
         self.assertAlmostEqual(limiter.distance_m, 3.0)
+
+    def test_zero_maximum_integrates_without_a_limit(self):
+        limiter = ns["RunDistanceLimiter"](0.0, 0.2)
+        limiter.reset(0.0, 1.0)
+        for k in range(1, 101):
+            self.assertIsNone(limiter.advance(1.0, k*0.1))
+        self.assertAlmostEqual(limiter.distance_m, 10.0)
+        self.assertIsNotNone(limiter.advance(1.0, 10.5))         # gap checks still apply
 
     def test_invalid_wheel_input_and_clock_gap_fail_closed(self):
         for speed, now in ((-0.1, 0.1), (float("nan"), 0.1), (float("inf"), 0.1),

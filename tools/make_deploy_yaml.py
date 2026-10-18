@@ -64,7 +64,8 @@ def arc_test(drive):
 CONE_LAYOUTS = {"blue-left": (2, 1), "yellow-left": (1, 2)}
 
 
-def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", road_age_s=None, car="27"):
+def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", road_age_s=None, car="27",
+          run_time_s=None):
     is_lattice21 = mode == "mpc-shadow-lattice21"
     is_shadow = mode in ("mpc-shadow", "mpc-shadow-centerline", "mpc-shadow-lattice21")
     is_exec = mode in ("mpc-exec", "mpc-exec-centerline")
@@ -86,7 +87,9 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", roa
     for layer in layers[1:]:
         merge(base, yaml.safe_load((ROOT / "config" / layer).read_text(encoding="utf-8")))
     p = base[KEY]["ros__parameters"]
-    p["control"]["max_distance_m"] = distance
+    p["control"]["max_distance_m"] = distance        # 0 = no distance budget (loop tracks)
+    if run_time_s is not None:
+        p["control"]["max_run_time_s"] = run_time_s  # 0 = no time budget
     p["estimation"]["left_colour"], p["estimation"]["right_colour"] = CONE_LAYOUTS[cones]
     if road_age_s is not None:
         p["planning"]["max_source_age_s"] = road_age_s
@@ -146,7 +149,10 @@ def main():
         "mvp", "mpc-shadow", "mpc-exec", "mpc-shadow-centerline", "mpc-exec-centerline",
         "mpc-shadow-lattice21", "steer-arc"])
     parser.add_argument("--distance", type=float, default=3.0,
-                        help="control.max_distance_m: (0, 3] for straights, up to 5 for a curve run")
+                        help="control.max_distance_m: (0, 3] for straights, up to 5 for a curve run, "
+                             "0 = no limit (loop tracks)")
+    parser.add_argument("--run-time-s", type=float,
+                        help="control.max_run_time_s: (0, 600], or 0 = no limit; default from the layers")
     parser.add_argument("--arc-drive", type=float, default=0.32,
                         help="steer-arc: constant drive request, just above the 0.289 deadband / 0.30 breakaway")
     parser.add_argument("--v-exec-max", type=float, default=0.2,
@@ -167,16 +173,21 @@ def main():
         args.cones = "blue-left"   # steer-arc runs no estimator-dependent controller
     if args.road_age_s is not None and not 0.4 < args.road_age_s <= 0.6:
         parser.error("--road-age-s must be in (0.4, 0.6]")
-    if not 0 < args.distance <= 5.0:
-        parser.error("--distance must be in (0, 5]")
+    if not (args.distance == 0 or 0 < args.distance <= 5.0):
+        parser.error("--distance must be 0 (no limit) or in (0, 5]")
+    if args.run_time_s is not None and not (args.run_time_s == 0 or 0 < args.run_time_s <= 600):
+        parser.error("--run-time-s must be 0 (no limit) or in (0, 600]")
     if args.distance > 3.0:
         print(f"NOTE: max_distance_m {args.distance} > 3 m: curve runs only, keep a person beside the car")
+    if args.distance == 0 or args.run_time_s == 0:
+        print("NOTE: no distance and/or time budget: only the operator Stop, sensor checks and the "
+              "controller's own guards end the run")
     if not 0.29 <= args.arc_drive <= 0.35:
         parser.error("--arc-drive must be in [0.29, 0.35]")
     if not 0 < args.v_exec_max <= 0.2:
         parser.error("--v-exec-max must be in (0, 0.2]")
     params, layers = build(args.mode, args.distance, args.arc_drive, args.v_exec_max,
-                           args.cones, args.road_age_s, args.car)
+                           args.cones, args.road_age_s, args.car, args.run_time_s)
     args.out.mkdir(parents=True, exist_ok=True)
     yaml_path, node_path = args.out / "ai4r_policy.yaml", args.out / "policy_node.py"
     yaml_path.write_bytes(yaml.safe_dump(params, sort_keys=False).encode("utf-8"))
@@ -185,9 +196,11 @@ def main():
     road_age = min(p["planning"]["max_source_age_s"], p["estimation"]["max_source_age_s"],
                    p["sensor_timeout_s"]["cone_detections"])
     (args.out / "mode.txt").write_text(
-        f"{args.mode} {args.distance} cones={args.cones} road_age_s={road_age} layers={'+'.join(layers)}\n",
+        f"{args.mode} {args.distance} run_time_s={p['control']['max_run_time_s']} cones={args.cones} "
+        f"road_age_s={road_age} layers={'+'.join(layers)}\n",
         encoding="utf-8")
-    print(f"mode {args.mode}, layers {' + '.join(layers)}, max_distance_m {args.distance}")
+    print(f"mode {args.mode}, layers {' + '.join(layers)}, max_distance_m {args.distance}, "
+          f"max_run_time_s {p['control']['max_run_time_s']}")
     print(f"cones {args.cones} (left_colour {p['estimation']['left_colour']}, right_colour "
           f"{p['estimation']['right_colour']}; yellow=1 blue=2) | planning road age budget {road_age} s")
     if args.mode == "steer-arc":
