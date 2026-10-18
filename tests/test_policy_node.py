@@ -1234,7 +1234,7 @@ def test_mvp2_actual_worker_does_not_block_control_and_restarts(make_node, failu
 @pytest.mark.parametrize("mode,car", [
     (mode, car) for car in ("27", "05")
     for mode in ("mvp", "mpc-shadow", "mpc-exec", "mpc-shadow-centerline", "mpc-exec-centerline",
-                 "mpc-shadow-lattice21")])
+                 "mpc-shadow-lattice21", "mpc-exec-lattice21")])
 def test_every_deploy_profile_starts_a_real_node(tmp_path, mode, car):
     """Each tools/make_deploy_yaml.py profile must construct a real PolicyNode.
 
@@ -1261,7 +1261,7 @@ def test_every_deploy_profile_starts_a_real_node(tmp_path, mode, car):
         assert node.planning_settings.algorithm == expected["planning"].get("algorithm", "centerline")
         assert node.mpc_settings.enabled is expected["mpc"]["enabled"]
         assert node.control_settings.enabled is expected["control"]["enabled"]
-        lattice = mode == "mpc-shadow-lattice21"
+        lattice = mode in ("mpc-shadow-lattice21", "mpc-exec-lattice21")
         assert node.shadow_settings.enabled is lattice
         assert node.planner_control_settings.enabled is lattice
         assert (node.shadow_worker is not None) is lattice

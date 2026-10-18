@@ -12,9 +12,11 @@ Layers, merged recursively in order (the repository files stay unchanged):
   mpc-shadow-centerline, mpc-exec-centerline: ... + ai4r_policy_mpc_centerline.yaml (2026-10-15
     port of main's ordered_xy estimation + road_centerline planning; right-angle/S-bend
     capable, unlike the y_of_x quadratic fit the plain mpc-shadow/mpc-exec modes keep)
-  mpc-shadow-lattice21: mpc-shadow-centerline + ai4r_policy_mpc_lattice21.yaml (2026-10-16:
-    the MVP2.1 lattice from origin/mvp2.1 feeds the MPC, road_centerline as fallback).
-    MPC shadow only; every other mode asserts shadow.* and planner_control.* are off.
+  mpc-shadow-lattice21, mpc-exec-lattice21: mpc-*-centerline + ai4r_policy_mpc_lattice21.yaml
+    (2026-10-16: the MVP2.1 lattice from origin/mvp2.1 feeds the MPC, road_centerline as
+    fallback; exec added 2026-10-18 after the closed-loop Gym comparison in
+    offline/mpc_gym/results/car_readiness_lattice21_car05.md). Every other mode asserts
+    shadow.* and planner_control.* are off.
 --cones (required except steer-arc) writes estimation.left_colour/right_colour. Check the
 road on site first: the G2 field (2026-10-08) was blue-left, the course road on 10-13/14
 yellow-left. A swapped pair makes every road invalid_width_or_order.
@@ -66,10 +68,11 @@ CONE_LAYOUTS = {"blue-left": (2, 1), "yellow-left": (1, 2)}
 
 def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", road_age_s=None, car="27",
           run_time_s=None):
-    is_lattice21 = mode == "mpc-shadow-lattice21"
+    is_lattice21 = mode in ("mpc-shadow-lattice21", "mpc-exec-lattice21")
     is_shadow = mode in ("mpc-shadow", "mpc-shadow-centerline", "mpc-shadow-lattice21")
-    is_exec = mode in ("mpc-exec", "mpc-exec-centerline")
-    is_centerline = mode in ("mpc-shadow-centerline", "mpc-exec-centerline", "mpc-shadow-lattice21")
+    is_exec = mode in ("mpc-exec", "mpc-exec-centerline", "mpc-exec-lattice21")
+    is_centerline = mode in ("mpc-shadow-centerline", "mpc-exec-centerline", "mpc-shadow-lattice21",
+                             "mpc-exec-lattice21")
     layers = ["ai4r_policy.yaml", "ai4r_policy_newcar27.yaml"]
     if mode not in ("mvp", "steer-arc"):
         layers.append("ai4r_policy_mpc_newcar27.yaml")
@@ -147,7 +150,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--mode", required=True, choices=[
         "mvp", "mpc-shadow", "mpc-exec", "mpc-shadow-centerline", "mpc-exec-centerline",
-        "mpc-shadow-lattice21", "steer-arc"])
+        "mpc-shadow-lattice21", "mpc-exec-lattice21", "steer-arc"])
     parser.add_argument("--distance", type=float, default=3.0,
                         help="control.max_distance_m: (0, 3] for straights, up to 5 for a curve run, "
                              "0 = no limit (loop tracks)")

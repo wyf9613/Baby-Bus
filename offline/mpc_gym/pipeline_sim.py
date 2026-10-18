@@ -261,14 +261,24 @@ def make_node(api, params):
 def run(params, offset=0.0, heading=0.0, noise=0.0, seed=1, duration=20.0, start_time=100.0,
         trigger="cone", cone_latency=CONE_LATENCY_S, latency_jitter=0.0, gap_probability=0.0,
         plant=None, distance_m=None, lane_width_m=None, cone_spacing_m=None, road="straight",
-        start_progress_m=0.0):
+        start_progress_m=0.0, lattice_delivery_s=None):
     """One closed-loop run. Defaults reproduce the original flow test (cone trigger,
     50 ms latency, course car); the keyword arguments add the car conditions above.
-    distance_m ends the run as completed once the wheel-integrated distance reaches it."""
+    distance_m ends the run as completed once the wheel-integrated distance reaches it.
+
+    lattice_delivery_s (2026-10-18): params carry shadow.*/planner_control.* (the MVP2.1
+    lattice); the real ShadowLatticePlanner runs in-process and each result becomes
+    visible after its own measured planning time + lattice_delivery_s, as in
+    tools/replay_run_jsonl.py --planner-control, but here the MPC drives the car."""
     api = load_policy()
     env = make_env(offset, heading, noise, seed, lane_width_m, cone_spacing_m, road, start_progress_m)
     observation, _ = env.reset(seed=seed)
     node = make_node(api, params)
+    lattice = lattice_delivery_s is not None
+    if lattice:
+        from replay_run_jsonl import enable_lattice   # tools/ is on sys.path (see above)
+        node.async_planner = node.mpc_held_reference = None
+        enable_lattice(node, api, params, lattice_delivery_s)
     mpc_on = node.mpc_settings.enabled
     stops = (api["MPCStop"], api["PolicyStopRequest"])
     rng = random.Random(seed*7919 + 1)
@@ -309,10 +319,14 @@ def run(params, offset=0.0, heading=0.0, noise=0.0, seed=1, duration=20.0, start
                         for k, o in node.observations.items()}
                 stamps = {k: (None if o is None else o.stamp_ns) for k, o in node.observations.items()}
                 dt = 0.0 if first else t-last_policy_t
+                if lattice:
+                    node._shadow_poll()          # the node's 20 Hz shadow timer
                 try:
                     out = node.calculate_policy_actions(values, ages, stamps, dt, 0.0 if first else t-start_time,
                                                         first)
                     request = (float(out[0]), float(out[1]))
+                    if lattice:
+                        node._shadow_offer()     # after the action, as run_policy_step does
                 except stops as stop:
                     result["locked_stop"] = {"time_s": round(t-start_time, 2), "reason": str(stop),
                                              "planning": (node.planning_output or {}).get("reason"),
@@ -354,6 +368,12 @@ def run(params, offset=0.0, heading=0.0, noise=0.0, seed=1, duration=20.0, start
                   trace=trace)
     branches = Counter(d["branch"] for d in node.debug)
     reasons = Counter(d["reject_reason"] for d in node.debug if d["reject_reason"])
+    if lattice:
+        result["reference_selection"] = dict(Counter(d.get("reference_selection") for d in node.debug))
+        result["selection_reasons"] = dict(Counter(
+            str(d.get("reference_selection_reason")).split(":")[0] for d in node.debug
+            if d.get("reference_selection") == "baseline").most_common(4))
+        result["lattice_results"] = dict(Counter(r.get("status") for r in node.lattice_results))
     result.update(mpc_enabled=mpc_on, branches=dict(branches), reject_reasons=dict(reasons),
                   final_x_m=round(float(state["world_pose"]["x_m"]), 2),
                   final_y_m=round(float(state["world_pose"]["y_m"]), 3),

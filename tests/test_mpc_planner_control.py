@@ -313,7 +313,7 @@ class PreviewDistanceChecks(unittest.TestCase):
 
 class DeployProfileChecks(unittest.TestCase):
     MODES = ("mvp", "mpc-shadow", "mpc-exec", "mpc-shadow-centerline", "mpc-exec-centerline",
-             "mpc-shadow-lattice21")
+             "mpc-shadow-lattice21", "mpc-exec-lattice21")
 
     def test_only_the_lattice21_profile_enables_the_lattice(self):
         for car in ("27", "05"):
@@ -324,7 +324,7 @@ class DeployProfileChecks(unittest.TestCase):
                     except AssertionError:
                         continue      # mpc-exec* refused while vehicle.valid is false (car 27)
                     p = params["/**/ai4r_policy"]["ros__parameters"]
-                    on = mode == "mpc-shadow-lattice21"
+                    on = mode in ("mpc-shadow-lattice21", "mpc-exec-lattice21")
                     self.assertIs(p.get("shadow", {}).get("enabled", False), on)
                     self.assertIs(p.get("planner_control", {}).get("enabled", False), on)
 
@@ -336,6 +336,22 @@ class DeployProfileChecks(unittest.TestCase):
         self.assertEqual(p["planner_control"], vars(PlannerControl(enabled=True)))
         self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
         ShadowSettings(**p["shadow"])
+
+    def test_exec_lattice21_profile_executes_with_the_relaxed_car05_guards(self):
+        p = deployed("mpc-exec-lattice21")
+        self.assertTrue(p["mpc"]["enabled"])
+        self.assertFalse(p["mpc"]["shadow"] or p["control"]["enabled"])
+        self.assertTrue(p["vehicle"]["valid"])
+        self.assertEqual(p["planning"]["algorithm"], "road_centerline")
+        self.assertTrue(p["planner_control"]["enabled"] and p["planner_control"]["require_valid_baseline"])
+        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
+        for key, value in (("v_exec_max_mps", 0.12), ("overspeed_soft_margin_mps", 0.05),
+                           ("overspeed_hard_mps", 0.40), ("max_forward_extension_m", 0.3),
+                           ("reference_dropout_tolerance_s", 0.5), ("solver_fail_tolerable", True)):
+            self.assertEqual(p["mpc"][key], value, key)
+        cns["MPCSettings"](**p["mpc"])
+        with self.assertRaises(AssertionError):            # car 27's record is not measured
+            deploy["build"]("mpc-exec-lattice21", 1.0, cones="yellow-left", car="27")
 
     def test_lattice21_profile_selects_the_lattice_on_the_stand_in_node(self):
         node = make_node(shadow_enabled=True, planner=True, mode="mpc-shadow-lattice21")

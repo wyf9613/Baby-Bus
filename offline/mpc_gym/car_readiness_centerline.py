@@ -45,9 +45,13 @@ SEEDS = tuple(range(1, 11))
 STARTS = {"centre": (0.0, 0.0), "left5cm": (0.05, 0.0), "head5deg": (0.0, 0.087)}
 
 
-def centerline_params(car05_mpc=False):
+def centerline_params(car05_mpc=False, lattice21=False):
     layers = ["ai4r_policy.yaml", "ai4r_policy_newcar27.yaml", "ai4r_policy_mpc_newcar27.yaml",
               "ai4r_policy_mpc_centerline.yaml"]
+    if lattice21:
+        # 2026-10-18: the MVP2.1 lattice (shadow.* + planner_control) feeding the MPC,
+        # layered as make_deploy_yaml does for mpc-shadow-lattice21, but executing.
+        layers.append("ai4r_policy_mpc_lattice21.yaml")
     params = layered(*layers)
     if car05_mpc:
         # 2026-10-18: car 05's mpc/control settings (cap 0.15, soft overspeed, start
@@ -62,13 +66,13 @@ def centerline_params(car05_mpc=False):
 
 
 def one(job):
-    road, lane, start_pose, seed, car05_mpc = job
+    road, lane, start_pose, seed, car05_mpc, lattice21 = job
     start, distance, _ = ROADS[road]
     offset, heading = STARTS[start_pose]
     conditions = {} if lane is None else {"lane_width_m": lane}
-    result = newcar27_run(centerline_params(car05_mpc), noise=0.02, seed=seed, road=road, start_progress_m=start,
-                          distance_m=distance, duration=12.0+distance/0.2, offset=offset, heading=heading,
-                          conditions=conditions)
+    result = newcar27_run(centerline_params(car05_mpc, lattice21), noise=0.02, seed=seed, road=road,
+                          start_progress_m=start, distance_m=distance, duration=12.0+distance/0.2, offset=offset,
+                          heading=heading, conditions=conditions, lattice_delivery_s=0.05 if lattice21 else None)
     stop = result.get("locked_stop") or {}
     lateral = result["trace"]["lateral"]
     return {"road": road, "lane_width_m": lane, "start": start_pose, "seed": seed,
@@ -76,7 +80,9 @@ def one(job):
             "stop_reason": stop.get("reason"), "stop_planning": stop.get("planning"), "stop_road": stop.get("road"),
             "hard_stop": bool(stop.get("reason", "").startswith("stop:")),
             "lateral_max_m": round(max((abs(v) for v in lateral), default=0.0), 3),
-            "step_p95_ms": result.get("step_p95_ms"), "branches": result.get("branches")}
+            "step_p95_ms": result.get("step_p95_ms"), "branches": result.get("branches"),
+            "reference_selection": result.get("reference_selection"),
+            "selection_reasons": result.get("selection_reasons"), "lattice_results": result.get("lattice_results")}
 
 
 def summarise(rows):
@@ -107,7 +113,12 @@ def markdown(table, args):
              "cover 3/5 m; right_angle/u_turn cover 4-5 m (2 m run-in, 2 m run-out); car15_v4 is the "
              "reconstructed car15 path (offline/mpc_gym/real_track.py), its own full length. Simulation "
              "only, not car evidence.",
-             "", f"Seeds {args.seeds[0]}-{args.seeds[-1]}.", "",
+             "", f"Seeds {args.seeds[0]}-{args.seeds[-1]}."
+             + (" **--lattice21**: the MVP2.1 lattice (ai4r_policy_mpc_lattice21.yaml) feeds the executing "
+                "MPC, centerline as fallback; results visible after planning time + 0.05 s."
+                if getattr(args, "lattice21", False) else "")
+             + (" **--car05-mpc**: car 05's mpc/control sections on the .27 plant."
+                if getattr(args, "car05_mpc", False) else ""), "",
              "| road | lane m | start | completed | hard stops | max lateral m (completed) "
              "| median distance m | main stop reasons |", "|---|---:|---|---:|---:|---:|---:|---|"]
     for t in table:
@@ -124,13 +135,15 @@ def main():
     parser.add_argument("--seeds", nargs="+", type=int, default=list(SEEDS))
     parser.add_argument("--quick", action="store_true", help="3 seeds, straight + right_angle_r1")
     parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--lattice21", action="store_true",
+                        help="the MVP2.1 lattice feeds the MPC (config/ai4r_policy_mpc_lattice21.yaml)")
     parser.add_argument("--car05-mpc", action="store_true",
                         help="also apply config/ai4r_policy_mpc_car05.yaml's mpc/control sections")
     parser.add_argument("--out", default="car_readiness_centerline", help="results/<out>.json and .md")
     args = parser.parse_args()
     if args.quick:
         args.seeds, args.roads = [1, 2, 3], ["straight", "right_angle_r1"]
-    jobs = [(r, lane, pose, s, args.car05_mpc) for r in args.roads
+    jobs = [(r, lane, pose, s, args.car05_mpc, args.lattice21) for r in args.roads
             for lane in ROADS[r][2] for pose in (STARTS if r == "straight" else ("centre",)) for s in args.seeds]
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         rows = list(pool.map(one, jobs))
