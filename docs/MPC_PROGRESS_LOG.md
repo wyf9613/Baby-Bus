@@ -2,6 +2,65 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-18：放宽 MPC 门禁，让 MVP 能跑的地方 MPC 也能跑；下周起只跑 exec
+
+**背景**：
+- 逐项核对过，估计层和规划层的参数和 mvp2.1 完全一致。
+- MVP 能跑而 MPC 停车的原因，全在 MPC 自己的门禁上：
+  - 超速立即锁停（18:18 两次）；
+  - 起步超时 1.5 s；
+  - 参考失效只容忍 0.3 s；
+  - 参考线必须覆盖整个预测时域（`reference_too_short`）；
+  - `solver_fail` 立即锁停；
+  - 距离上限 1 m；
+  - 限速 0.12 贴着死区。
+
+**代码改动**（新参数全部默认关闭，打开时有注释说明）：
+
+| 新参数 | 作用 |
+| --- | --- |
+| `mpc.overspeed_soft_margin_mps` / `overspeed_cut_margin_mps` / `overspeed_cut_timeout_s` / `overspeed_hard_mps` / `overspeed_hard_persist_s` | 软超速：超过 cap + soft，QP 的油门下限放到 0（新增 `drive_floor_zero`，和 `allow_braking` 是两回事）；再高 cut 就强制油门为 0，并清掉热启动。锁停条件：切油门 cut_timeout 后仍在软限线以上，或者超过硬停线并持续 persist。规划等待期间（`plan_hold`）也遵守。打开后，旧的 `overspeed_margin_mps` 检查不再生效 |
+| `mpc.max_forward_extension_m` | 参考末端沿最后一段直线外推（曲率 0），`mpc_reference_errors` 和 `mpc_path_projector` 都支持；debug 新增 `forward_extension_m`。**lattice 的预检不外推**：lattice 路径不够长就退回中心线基线，由基线去外推 |
+| `mpc.solver_fail_tolerable` | `solver_status:*`、`constraint_residual`、`solver_nonfinite`、`action_out_of_bounds` 走 `plan_hold`；输入错误和未知异常仍然立即锁停 |
+| `mpc.restart_count_reset_s` | 连续 tracking 这么久后，停后重启计数清零 |
+| `control.max_distance_m` / `max_run_time_s` = 0 | 0 表示不限（和 mvp2.1 一样，为环道准备）；轮速新鲜度检查保留。`make_deploy_yaml` 新增 `--run-time-s`，`--distance` 允许 0 |
+
+**配置**：
+- centerline 配置：dropout 0.3 → 0.5，外推 0.3 m，`solver_fail_tolerable: true`。
+- car05 配置：
+  - 限速 0.12 → 0.15；
+  - 软超速 0.05 / cut 0.03 / 切油门 1 s / 硬停 0.40 持续 0.2 s；
+  - 起步超时 1.5 → 2.5 s；
+  - `max_restarts` 3 → 5，连续 tracking 10 s 清零；
+  - `control.max_run_time_s` 60。
+- `max_step_time_s` 保持 0.05：bag 不在本机，G1 在 Jetson 上测的 p95 是 11.8 ms，余量足够。
+
+**验证**：
+- 离线测试全部通过：mpc 118（新增 16 个 `RelaxedGuards`）、real_frames 15、planner_control 12、control 45（新增 2）、estimation 65、planning 18、lattice 45、shadow_lattice 30、planner_execution 10、release_contract 4。
+- V2 的 `car_readiness.py` 矩阵：表格和存档完全一致。
+- 15 号车三段 run.jsonl 回放：和改动前的提交（`cd37852`）逐拍一致，功能开关都一样。这三段数据本来就没有 `reference_too_short`，软超速和求解失败容忍也只在 exec 下起作用。
+- 中心线 Gym（[改前](../offline/mpc_gym/results/car_readiness_centerline.md) → [放宽后](../offline/mpc_gym/results/car_readiness_centerline_relaxed.md) → [再加 car05 的 MPC 设置](../offline/mpc_gym/results/car_readiness_centerline_car05.md)，后者用 `--car05-mpc`，仍是 .27 的车模型）：
+
+| 道路 | 改前 | 放宽后 | 加 car05 设置 |
+| --- | --- | --- | --- |
+| 直道（6 组） | 3–10/10，主要是 `reference_too_short` | 9–10/10 | 9–10/10 |
+| 缓弯 0.72 / 1.0 m | 5 / 1 | 9 / 7 | 10 / 7 |
+| 直角弯、U 弯 | 0/10，主要是 `overspeed`，中位距离约 1.4 m | 不变（.27 配置没有软限） | 仍是 0/10，但 `overspeed` 基本消失，中位距离 3.0–4.5 m，停在估计层的 `invalid_ordered_geometry` / `insufficient_geometry`（E） |
+
+**要注意**：
+- 跑完的直道和缓弯里，最大横向误差有一部分从约 2 cm 升到 5–12 cm。
+  - 大部分是以前提前停车、现在跑满全程的那些种子；以前的数值只统计到停车为止，没有可比性。
+  - 但也有两次都跑完、却变差的。例如 car05 设置下直道 1.0 m 车头偏 5° 的种子 10：1.7 → 11 cm；缓弯 0.72 种子 5：1.7 → 10.5 cm。
+  - 都还在车道余量以内（0.72 m 车道约 18 cm，1.0 m 车道约 32 cm），但原因还没查清。可能来自低速 0.15 下的纵向表现，或者外推段 / `plan_hold` 期间的跟踪。下次实车要重点看。
+- car05 设置下有 4 个种子新失败，都是估计层停车（`invalid_ordered_geometry`、`motion_interval_too_long`、`motion_transformed_geometry_invalid`），不是这次的放宽造成的。MVP 遇到规划无效同样会立即停车。
+
+**部署包**（只有 exec，不再出 shadow 包）：
+- `.verification/car05-cl-relaxed-exec-{1m,5m,nolimit}`；
+- policy_node 都是 `f1e07c7b…`；yaml 分别是 `afef5e5b…` / `0a65c72c…` / `4f620c36…`；
+- 现场步骤见 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md)。原来的 shadow 推车，改成 Disabled 下请求 state 3 做静态检查（2.5 s 后报 `no_motion_after_breakaway` 是正常的）。
+
+**本机没有 ROS，门禁没跑**，上车前要在 WSL 上跑。
+
 ## 2026-10-16：MVP2.1 lattice 接到 MPC（默认关闭，只有 shadow 包）
 
 **存档**：改动前给 `9213576` 打了 tag `mpc-car-run-cl-20261015`（只在本地，未 push）。下周 5 号车中心线这一轮用这个版本的包。从 tag 重新生成的 yaml `2e3a116c` / `496f4ffe`、policy_node `72f2ccbd`，和 [CAR05_CENTERLINE_RUN_CN.md](CAR05_CENTERLINE_RUN_CN.md) 里的哈希一致。
