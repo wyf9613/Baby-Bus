@@ -2,6 +2,37 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-18（续）：lattice 2.1 → MPC 闭环 Gym，回答"为什么不启用"
+
+**背景**：10-16 的回放是开环的：车按 PID 走，MPC 的输出不改变车的位置。那次回放里，lattice 参考下 MPC 转向和 PID 反号的拍数是中心线的 2–4 倍，但开环分不出谁对。这次让 MPC 跟着 lattice 真正控车。
+
+**工具**：
+- `offline/mpc_gym/pipeline_sim.run(..., lattice_delivery_s=)` 复用 `tools/replay_run_jsonl.py` 的 `enable_lattice` 和 `DelayedLatticeWorker`：真实的 `ShadowLatticePlanner` 在本进程里跑，每个结果要等"本机实测规划耗时 + 0.05 s"后才可见。
+- `car_readiness_centerline.py --lattice21` 叠加 `ai4r_policy_mpc_lattice21.yaml`。
+
+**结果**（[lattice](../offline/mpc_gym/results/car_readiness_lattice21_car05.md) 对比 [中心线](../offline/mpc_gym/results/car_readiness_centerline_car05.md)，都带 `--car05-mpc`，同样的道路和种子）：
+
+| 道路 | 中心线完成 | lattice 完成 | 最大横向（中位数），中心线 → lattice | lattice 使用比例 |
+| --- | --- | --- | --- | --- |
+| 直道（6 组，60 次） | 55 | 54 | 5–12 cm（2–5 cm）→ 9–18 cm（5–16 cm） | 93–97% |
+| 缓弯 0.72 / 1.0 | 10 / 7 | 9 / 7 | 11 / 9 cm → 12 / 23 cm | 93% |
+| 直角弯 r1 | 0 / 0 | 0 / 0（中位距离 3.0–3.5 → 3.5 m） | — | 75–80% |
+| 直角弯 r1.5 | 0 / 0 | 0 / **1** | 17 cm | 80% |
+| U 弯 0.72 / 1.0 | 0 / 0 | **3 / 7** | 14 / 28 cm | 75% |
+
+- 完成率：直道和缓弯和中心线基本一样，U 弯明显更好。
+- lattice 失败的原因都是估计层停车（`invalid_ordered_geometry`、`motion_interval_too_long`），和中心线一样。没有因为跟 lattice 而冲出边界。
+- 横向误差更大，在意料之中：lattice 本来就不追中心线，会在车道内选路，大弯前还有弯外准备偏移。都在车道余量以内：0.72 m 车道车身余量约 23 cm；1.0 m 车道约 37 cm，U 弯最大 28 cm 是最接近的一次。
+- 开环回放里担心的"往弯外打"，在闭环里没有变成失败。
+
+**结论**：闭环不支持"lattice 比中心线差"。横向误差偏大、U 弯余量偏紧，评分范围（`score_min_length_m` 0.2 m）还是值得和 Planning 组商量。仍然是 .27 的车模型和 Gym 噪声，不是实车证据。
+
+**决定：下周只跑 lattice 版 exec。**
+- 新增 `make_deploy_yaml --mode mpc-exec-lattice21`：centerline + lattice21 配置叠加，`mpc.shadow: false`，要求 `vehicle.valid`，所以 .27 车会被拒绝。
+- 部署配置测试和 ROS 门禁的"每个部署配置都能启动节点"都加上了这个模式。
+- 部署包 `.verification/car05-lattice21-exec-{1m,5m,nolimit}`：policy_node 没变，还是 `f1e07c7b…`；yaml 分别是 `afd054f9…` / `6ac9a15f…` / `cfdcf4cf…`。
+- 现场步骤见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md)；中心线版清单只作为备用。
+
 ## 2026-10-18：放宽 MPC 门禁，让 MVP 能跑的地方 MPC 也能跑；下周起只跑 exec
 
 **背景**：

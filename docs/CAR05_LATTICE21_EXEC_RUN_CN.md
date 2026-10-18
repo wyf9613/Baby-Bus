@@ -1,0 +1,123 @@
+# 5 号车 lattice 2.1 + MPC 实车（2026-10-19 这周起，只跑 exec）
+
+**这周只跑这一版。** 规划器用 mvp2.1（`3652e9b`）的 lattice 2.1：时间融合，1 Hz 子进程。MPC 优先跟 lattice 选出的路径；lattice 不可用时，同一拍退回 `road_centerline` 中心线。
+
+MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) 完全相同：限速 0.15、软超速、末端外推、求解失败可容忍、起步超时 2.5 s 等。那份清单现在只作为备用，lattice 版有问题时可以换回中心线版。
+
+**为什么现在可以跑 lattice**（[MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 2026-10-18 续）：
+- 10-16 的开环回放里，MPC 跟 lattice 时和 PID 反号的拍数是中心线的 2–4 倍。但开环分不出谁对。
+- 这次闭环 Gym（[结果](../offline/mpc_gym/results/car_readiness_lattice21_car05.md)）：
+  - 直道和缓弯的完成率和中心线基本一样；
+  - U 弯从 0/10 提高到 3/10 和 7/10；
+  - 失败都停在估计层，没有一次是跟 lattice 冲出边界。
+- **代价**：横向误差更大。直道最大 9–18 cm，1.0 m 车道的 U 弯最大 28 cm。lattice 本来就不追中心线，大弯前还会先往弯外偏。
+
+## 部署包
+
+```text
+.verification\car05-lattice21-exec-1m        yaml afd054f9…  policy_node f1e07c7b…   1 m / 60 s
+.verification\car05-lattice21-exec-5m        yaml 6ac9a15f…  policy_node f1e07c7b…   5 m / 60 s
+.verification\car05-lattice21-exec-nolimit   yaml cfdcf4cf…  policy_node f1e07c7b…   不限 / 不限
+```
+
+重新生成的命令（距离和时间分别换成 `1.0 60`、`5.0 60`、`0 0`）：
+
+```powershell
+python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yellow-left --distance 1.0 --run-time-s 60 --v-exec-max 0.15 --out .verification\car05-lattice21-exec-1m
+```
+
+上车前，WSL ROS 门禁要对这一版代码跑通（`.verification/run_ros_check.sh`）。门禁里"每个部署配置都能启动节点"的测试已经包括 `mpc-exec-lattice21`。
+
+## 1. SSH、Foxglove、停车、备份
+
+和 [CAR05_V2_START_FIX_RUN_CN.md](CAR05_V2_START_FIX_RUN_CN.md) 第 1、2 步一样。
+
+## 2. 部署 1 m 包，Disabled 下做静态检查
+
+```powershell
+Deploy-StartFix .verification\car05-lattice21-exec-1m
+```
+
+车 1：核对哈希、构建、重启，和中心线版的第 2 步一样。然后检查参数：先按中心线版第 2 步的表全部核对一遍，再加查下面几项：
+
+```bash
+for p in shadow.enabled shadow.rate_hz shadow.score_min_length_m planner_control.enabled \
+         planner_control.require_valid_baseline mpc.shadow; do
+  printf "%-40s " "$p"; ros2 param get "$N" "$p"
+done
+dream runtime logs ai4r_policy --tail 50 | grep -i "shadow worker"
+```
+
+预期：
+- 依次为 True、1.0、0.2、True、True、**False**；
+- 日志里**不应该**出现 `Shadow worker failed`。
+
+车 3 观察：
+
+```bash
+PYTHONUNBUFFERED=1 ros2 topic echo /car/mpc_debug --field data |
+grep --line-buffered -oE '"(branch|phase|reject_reason|reference_selection|reference_selection_reason|speed_mps|e_y_m|candidate_steer_action|overspeed_state)": ?[^,}]*'
+```
+
+**车保持 Disabled**，请求 state 3：
+
+```bash
+ros2 topic pub --once /car/policy_fsm_transition_request std_msgs/msg/UInt16 '{data: 3}'
+```
+
+- 开头约 1 s 是 `reference_selection=baseline`、`waiting_for_planner`，这是正常的：lattice 每秒出一次结果。
+- 之后应该切到 `planner`。
+- 2.5 s 后报 `no_motion_after_breakaway` 并回到 state 2，这也是正常的，因为车 Disabled 不会动。
+
+| 摆法 | 通过标准 |
+| --- | --- |
+| 直道居中 | 切到 `planner`；Foxglove 里蓝线（lattice）和绿线（MPC 用的参考）从车附近开始、顺着路；`candidate_steer_action` 小 |
+| 左偏 5 cm | 候选转向往右（正值是右转） |
+| 车头左偏 5° | 候选转向往右 |
+
+一直停在 `baseline`，或者转向方向不对：不上路跑，录 30 s 的包带回来。
+
+## 3. Exec：1 m → 5 m → 不限
+
+车 2 录包，比中心线版多了 lattice 的几个话题：
+
+```bash
+ros2 bag record -o "$HOME/ai4r-car-bags/car05-lattice21-$(date +%Y%m%d-%H%M%S)" --topics \
+  /car/mpc_debug /car/mpc_prediction /car/policy_trajectory /car/planner_execution \
+  /car/shadow_trajectory /car/shadow_checked_prefix /car/shadow_reference /car/shadow_planning \
+  /car/policy_fsm_state_string /car/traxxas_state \
+  /car/drive_and_steer_set_point_normalized /car/drive_and_steer_applied_normalized \
+  /car/wheel_speed_m_per_sec /car/cone_detections /car/imu/data /car/diagnostics /tf /tf_static
+```
+
+每一次的流程和中心线版第 3 步一样：Enable → state 3 → 停车后马上 Disable → 读状态和日志。
+
+| 阶段 | 包 | 赛道 | 进入下一阶段的条件 |
+| --- | --- | --- | --- |
+| A | `-1m` | 直道居中 | 两次都正常报 `Distance limit reached`；车速在 0.10–0.20 之间；转向方向对；大部分时间是 `planner` |
+| B | `-5m` | 直道，然后缓弯 | **连续 3 次**跑满 5 m，没有锁停 |
+| C | `-nolimit` | 整条赛道或环道 | 一直有人跟车，随时 Disable |
+
+以下情况立即 Disable：
+- 转向往弯外打，而且越打越大（大弯前先往弯外偏约 14 cm 是 lattice 的设计，但不应该接近边界）；
+- 车蛇行；
+- 车接近边界；
+- 车速明显超过 0.25。
+
+## 4. 判定
+
+中心线版第 4 步的表全部适用。lattice 另外要看：
+
+| 现象 | 说明 | 下一步 |
+| --- | --- | --- |
+| `reference_selection` 频繁在 planner 和 baseline 之间切换，切换时转向跳变 | 两种参考差得太远 | 记下切换次数和原因（`reference_selection_reason`），把 bag 带回来 |
+| 退回中心线的原因多半是 `known_boundary_collision` | lattice 认为自己的路径会碰到已知边界，属于正常保护 | 记下比例 |
+| 弯里横向偏得多，但没碰边界 | lattice 的选路和弯外准备 | 记下来，交给 Planning 组（评分只看前 0.2 m） |
+| 日志里出现 `Shadow worker failed` | 子进程挂了，MPC 会一直跟中心线 | 停止 exec，把日志带回来 |
+| 规划耗时（日志里的 `elapsed_s`、`round_trip_s`）接近 1 s | 车上算得太慢，lattice 结果会过期 | 记下数值 |
+
+同一个停车原因出现两次，就停止 exec。不在现场改阈值。lattice 版不行时，可以换中心线版（`car05-cl-relaxed-exec-*`）继续跑，每次换包都要重新核对哈希。
+
+## 5. 下载与恢复
+
+和 V2 文档第 6 步一样。包名用 `car05-lattice21-*`，bag 拷到 `E:\26b\AI4R\car-evidence\`。

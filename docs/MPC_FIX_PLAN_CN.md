@@ -33,7 +33,7 @@
 ## 步骤
 
 **当前顺序（10-18 更新）**：
-1. 中心线放宽版实车，只跑 exec：1 m → 5 m → 不限，按 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) 做。这一步顺带验证 B 和 I。
+1. lattice 2.1 + MPC 放宽版实车，只跑 exec：1 m → 5 m → 不限，按 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 做。这一步顺带验证 B 和 I。中心线版（[CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md)）只作为备用。
    （10-15 的旧顺序是先 shadow 再 exec，见 [CAR05_CENTERLINE_RUN_CN.md](CAR05_CENTERLINE_RUN_CN.md)。）
 2. F 转向标定。
 3. D 速度约束。
