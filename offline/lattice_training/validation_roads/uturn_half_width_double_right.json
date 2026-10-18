@@ -1,0 +1,158 @@
+{
+  "format": "fixed_uturn_validation_road_v1",
+  "kind": "validation_uturn_half_width_double_right",
+  "variant": "half_width_double",
+  "direction": "right",
+  "base_seed": 713,
+  "base_reference_radius_m": 1.1267506853028446,
+  "base_full_width_m": 2.2535013706056892,
+  "full_width_m": 1.1267506853028446,
+  "main_turns": [
+    {
+      "first_element": 1,
+      "last_element": 1,
+      "signed_sweep_deg": -180.0
+    },
+    {
+      "first_element": 3,
+      "last_element": 3,
+      "signed_sweep_deg": 180.0
+    }
+  ],
+  "mirror_pair": "validation_uturn_half_width_double",
+  "cold_start_progress_m": 2.5909507929298856,
+  "mission_road_length_m": 14.012644054164337,
+  "physical_road_id": "road:2eb54a687296f187e46486fb",
+  "scenario_width_prior_default": false,
+  "road_spec": {
+    "active_lane_minimum_width_m": 0.05,
+    "elements": [
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.4909507929298855
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular",
+          "left_boundary": "regular"
+        },
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 1.1267506853028446,
+              "end": 1.1267506853028446
+            },
+            "surface": "tarmac"
+          }
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -1.7750155611952845,
+          "sweep_angle_deg": 180
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.4909507929298855
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular",
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 1.7750155611952845,
+          "sweep_angle_deg": 180
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.4909507929298855
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular"
+        }
+      }
+    ],
+    "cone_paths": {
+      "left_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": 1
+        },
+        "color": "blue",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      },
+      "right_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": -1
+        },
+        "color": "yellow",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      }
+    },
+    "obstacles": [
+      {
+        "geometry": {
+          "type": "rectangle",
+          "length_m": 0.2877441555807363,
+          "width_m": 0.16157290663165624
+        },
+        "placement": {
+          "reference_line_progress_m": 1.8,
+          "lateral_offset_m": -0.3830952330029672,
+          "heading_offset_rad": -0.0
+        }
+      },
+      {
+        "geometry": {
+          "type": "rectangle",
+          "length_m": 0.2540048085136475,
+          "width_m": 0.18848010864429718
+        },
+        "placement": {
+          "reference_line_progress_m": 12.212644054164336,
+          "lateral_offset_m": 0.3830952330029672,
+          "heading_offset_rad": -0.0
+        }
+      }
+    ]
+  },
+  "suite_version": 2,
+  "reference_radius_scale": 0.5
+}

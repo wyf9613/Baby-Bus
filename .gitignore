@@ -6,3 +6,16 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .venv/
+offline/mvp21_sim/workspace/index.json
+offline/mvp21_sim/workspace/server-process.json
+offline/mvp21_sim/workspace/watch-status.json
+offline/mvp21_sim/workspace/watch-run.log
+offline/mvp21_sim/workspace/runs/
+offline/mvp21_sim/workspace/evidence/
+offline/mvp21_sim/workspace/imports.json
+offline/mvp21_sim/workspace/last-request.json
+offline/lattice_training/artifacts/2026-10-1[678]-*/
+!offline/lattice_training/artifacts/2026-10-17-expanded-collection/
+offline/lattice_training/artifacts/2026-10-17-expanded-collection/*
+!offline/lattice_training/artifacts/2026-10-17-expanded-collection/model.json
+!offline/lattice_training/artifacts/2026-10-17-expanded-collection/.gitattributes

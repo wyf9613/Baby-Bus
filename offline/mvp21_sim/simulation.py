@@ -63,6 +63,38 @@ def recorded_environment(report, *, seed=0, progress=None, speed=0., latency_ste
     return environment
 
 
+def fixed_road_environment(case, *, seed=713, progress=None, speed=0., latency_steps=1,
+                           max_steps=4000, terminal_support_m=2.,physics_hz=20.,perception_hz=20.):
+    """20 Hz camera/telemetry port for saved road fixtures.
+
+    Warm up only at rest. No oracle geometry or scenario width enters estimation;
+    the colour mapping is the generated-cone sensor adapter convention.
+    """
+    from offline.lattice_training.pipeline import with_terminal_support
+    config = load_notebook(with_obstacles=True)
+    config.integration_config['environment_step_duration_s']=1/physics_hz
+    config.road_spec = with_terminal_support(case['road_spec'], terminal_support_m)
+    body = config.bicycle_model_config['body_geometry']
+    position = body['rear_extent_from_center_of_mass_m']+.04 if progress is None else progress
+    for name, value in (('progress', position), ('lateral_offset_m', 0.), ('heading_error_rad', 0.)):
+        config.initial_state_config['pose'][name].update(lower=value, upper=value)
+    config.initial_state_config['body_motion']['longitudinal_velocity']['value_mps'].update(lower=speed, upper=speed)
+    estimation = parameters()['estimation']
+    estimation.update(left_colour=2, right_colour=1)
+    if estimation['known_lane_width_m'] != 0:
+        raise ValueError('Fixed no-prior suite requires known_lane_width_m=0')
+    env = MVP21SimulationEnv(config, max_steps=max_steps, estimation_settings=estimation,
+        sensor_timing=SensorTiming(period_steps={'cone_detections': round(physics_hz/perception_hz)},
+                                   delay_steps={'cone_detections': latency_steps}))
+    env.collection_route_length_m = case['mission_road_length_m']
+    env.collection_terminal_support_m = terminal_support_m
+    env.fixed_validation_case = deepcopy(case)
+    env.reset(seed=seed)
+    for _ in range(max(latency_steps+2,round(physics_hz/perception_hz)+1)):
+        env.step((0., 0.))
+    return env
+
+
 def ideal_observation(environment, observation):
     result = map_road_input(environment, observation, state_input='measured')
     road = result['estimation']['road']

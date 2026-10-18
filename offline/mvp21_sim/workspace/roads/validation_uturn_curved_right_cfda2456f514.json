@@ -1,0 +1,223 @@
+{
+  "format": "fixed_uturn_validation_road_v1",
+  "kind": "validation_uturn_curved_right",
+  "variant": "curved",
+  "direction": "right",
+  "base_seed": 713,
+  "base_reference_radius_m": 1.1267506853028446,
+  "base_full_width_m": 2.2535013706056892,
+  "full_width_m": 2.2535013706056892,
+  "main_turns": [
+    {
+      "first_element": 4,
+      "last_element": 6,
+      "signed_sweep_deg": -180.0
+    }
+  ],
+  "mirror_pair": "validation_uturn_curved",
+  "cold_start_progress_m": 5.068804965692162,
+  "mission_road_length_m": 16.53933910937141,
+  "physical_road_id": "road:9fd05188be3432d20004d651",
+  "scenario_width_prior_default": false,
+  "road_spec": {
+    "active_lane_minimum_width_m": 0.05,
+    "elements": [
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 1.7454753964649428
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular",
+          "left_boundary": "regular"
+        },
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 2.2535013706056892,
+              "end": 2.2535013706056892
+            },
+            "surface": "tarmac"
+          }
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.2535736515993264,
+          "sweep_angle_deg": 18
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular",
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.2535736515993264,
+          "sweep_angle_deg": 18
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular",
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 1.7454753964649428
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular",
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.7717458961718628,
+          "sweep_angle_deg": 45
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.6120743314466498,
+          "sweep_angle_deg": 90
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.7717458961718628,
+          "sweep_angle_deg": 45
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 1.7454753964649428
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.2535736515993264,
+          "sweep_angle_deg": 18
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.2535736515993264,
+          "sweep_angle_deg": 18
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 1.7454753964649428
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      }
+    ],
+    "cone_paths": {
+      "left_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": 1
+        },
+        "color": "blue",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      },
+      "right_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": -1
+        },
+        "color": "yellow",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      }
+    },
+    "obstacles": [
+      {
+        "geometry": {
+          "type": "rectangle",
+          "length_m": 0.2877441555807363,
+          "width_m": 0.16157290663165624
+        },
+        "placement": {
+          "reference_line_progress_m": 1.8,
+          "lateral_offset_m": -0.7661904660059344,
+          "heading_offset_rad": -0.0
+        }
+      },
+      {
+        "geometry": {
+          "type": "rectangle",
+          "length_m": 0.2540048085136475,
+          "width_m": 0.18848010864429718
+        },
+        "placement": {
+          "reference_line_progress_m": 14.73933910937141,
+          "lateral_offset_m": 0.7661904660059344,
+          "heading_offset_rad": -0.0
+        }
+      }
+    ]
+  },
+  "suite_version": 2,
+  "reference_radius_scale": 1.0,
+  "fixture_id": "validation_uturn_curved_right_cfda2456f514",
+  "title": "validation_uturn_curved_right_cfda2456f514",
+  "runtime_seed": 713
+}

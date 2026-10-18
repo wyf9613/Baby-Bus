@@ -1,9 +1,10 @@
 """Fingerprint latest planner and public policy candidate adapters; no AST loading."""
 import hashlib
 from pathlib import Path
+from .features import FEATURE_VERSION
 
 ROOT=Path(__file__).resolve().parents[2]
-POLICY_INPUT_SCHEMA='state_road_trajectory_v1'
+POLICY_INPUT_SCHEMA=FEATURE_VERSION
 
 
 def planner_source_sha256():
@@ -19,7 +20,8 @@ def planner_source_sha256():
 def policy_encoder_sha256():
     """Model compatibility follows feature semantics, independently of planner."""
     digest=hashlib.sha256(POLICY_INPUT_SCHEMA.encode())
-    for name in ('offline/lattice_training/features.py','offline/lattice_training/reference.py'):
+    for name in ('offline/lattice_training/features.py','offline/lattice_training/spatial.py',
+                 'offline/lattice_training/model.py'):
         digest.update(name.encode()+b'\0')
         digest.update((ROOT/name).read_bytes().replace(b'\r\n',b'\n'))
     return digest.hexdigest()

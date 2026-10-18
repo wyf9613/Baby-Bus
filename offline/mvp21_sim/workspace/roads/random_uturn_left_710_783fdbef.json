@@ -1,0 +1,157 @@
+{
+  "format": "runtime_road_fixture_v1",
+  "kind": "uturn_left",
+  "variant": "uturn_left",
+  "direction": "left",
+  "fixture_id": "random_uturn_left_710_783fdbef",
+  "title": "随机左掉头 · seed 710 · 783fdb",
+  "road_spec": {
+    "active_lane_minimum_width_m": 0.05,
+    "elements": [
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.2538642800846946
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 2.1613003126077195,
+              "end": 2.1613003126077195
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {
+          "left_boundary": "regular",
+          "right_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": 0.9253688570409253,
+          "sweep_angle_deg": 180.0
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.2538642800846946
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "right_boundary": "regular"
+        }
+      }
+    ],
+    "cone_paths": {
+      "left_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": 1
+        },
+        "color": "blue",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      },
+      "right_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": -1
+        },
+        "color": "yellow",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      }
+    },
+    "obstacles": []
+  },
+  "mission_road_length_m": 9.902691152314256,
+  "road_sha256": "783fdbefc134028cbaf9a7948eca8b87826b5646b84344748fb79262fb6e0d72",
+  "road_seed": 710,
+  "runtime_seed": 710,
+  "collection": "random",
+  "split": "train",
+  "split_group": "expanded-seed:710",
+  "saved_scene_ids": [
+    "road:2242e8dce98c24235fec15cf"
+  ],
+  "source_episodes": [
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-a/uturn_left-710-perception.collection.json",
+      "member_sha256": "17b2ca3872e5ebee3a51e0d05efffa95cae4e6c7d5e766b5efe3fe3ebc34c994",
+      "episode_id": "uturn_left:710:initial:0:lattice:standard",
+      "recorded_input_mode": "perception",
+      "recorded_width_prior": false,
+      "recorded_decisions": 0
+    },
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-c/uturn_left-710-no_centerline.collection.json",
+      "member_sha256": "9d1b84f6ba54e866c74c9387432acd782832646f779767de2fcf389bd55b9cfd",
+      "episode_id": "uturn_left:710:initial:0:lattice:standard:no_centerline",
+      "recorded_input_mode": "no_centerline",
+      "recorded_width_prior": false,
+      "recorded_decisions": 0
+    },
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-d/uturn_left-710-no_centerline.collection.json",
+      "member_sha256": "d2fedc6ffdbbcdd7121ab9ea807944ee5c7d5e38c4b0e40f648a169b727fe1e4",
+      "episode_id": "uturn_left:710:initial:0:lattice:standard:no_centerline:road_start",
+      "recorded_input_mode": "no_centerline",
+      "recorded_width_prior": false,
+      "recorded_decisions": 8
+    },
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-d/uturn_left-710-perception.collection.json",
+      "member_sha256": "794bd8075d6552ce2ac81669bd90bd2725ab390baffea0709917ba1e1ddf9e2b",
+      "episode_id": "uturn_left:710:initial:0:lattice:standard:road_start",
+      "recorded_input_mode": "perception",
+      "recorded_width_prior": false,
+      "recorded_decisions": 2
+    },
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-e/uturn_left-710-no_centerline.collection.json",
+      "member_sha256": "a38ef934002ecab49542f21b8b0dbfe2d86fd55596db5310df276c42d3bf148b",
+      "episode_id": "uturn_left:710:initial:0:lattice:standard:no_centerline:scenario_width_prior",
+      "recorded_input_mode": "no_centerline",
+      "recorded_width_prior": true,
+      "recorded_decisions": 5
+    },
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-e/uturn_left-710-perception.collection.json",
+      "member_sha256": "4ce434e6d13704202bddc7709ad3c7e602043583695c38dc48419f90233c962a",
+      "episode_id": "uturn_left:710:initial:0:lattice:standard:scenario_width_prior",
+      "recorded_input_mode": "perception",
+      "recorded_width_prior": true,
+      "recorded_decisions": 5
+    }
+  ],
+  "scenario_width_prior_used": false
+}

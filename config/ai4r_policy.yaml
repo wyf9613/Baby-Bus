@@ -264,6 +264,9 @@
       handoff_allowance_s: 0.10
       score_min_length_m: 0.2
       search_half_width_m: 0.45
+      # Single observed side, no centreline and unknown width: CG guide offset
+      # is 0.45 * 4/3 = 0.60 m. Search half-width and known-width rules stay separate.
+      unknown_width_reference_scale: 1.3333333333333333
       preparation_width_fraction: 0.15
       # PROVISIONAL rectangle at CG, metres; replace with this car's measurements.
       # Width 0.30 follows the operator's car report; front/rear are assumptions.

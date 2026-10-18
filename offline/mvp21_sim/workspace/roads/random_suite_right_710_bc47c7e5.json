@@ -1,0 +1,114 @@
+{
+  "format": "runtime_road_fixture_v1",
+  "kind": "suite_right",
+  "variant": "suite_right",
+  "direction": "right",
+  "fixture_id": "random_suite_right_710_bc47c7e5",
+  "title": "随机右弯 · seed 710 · bc47c7",
+  "road_spec": {
+    "active_lane_minimum_width_m": 0.05,
+    "elements": [
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.644397776832416
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 1.1179547600282316,
+              "end": 1.1179547600282316
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {
+          "left_boundary": "regular",
+          "right_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.33508210288007817,
+          "sweep_angle_deg": 73.96611096534929
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular",
+          "right_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.5054627557548663
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular",
+          "right_boundary": "regular"
+        }
+      }
+    ],
+    "cone_paths": {
+      "left_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": 1
+        },
+        "color": "blue",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      },
+      "right_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": -1
+        },
+        "color": "yellow",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      }
+    },
+    "obstacles": []
+  },
+  "mission_road_length_m": 11.002504884956178,
+  "road_sha256": "bc47c7e56013a41b1027711288de2c0a407462568747bf0de40ca17a330b6765",
+  "road_seed": 710,
+  "runtime_seed": 710,
+  "collection": "random",
+  "split": "train",
+  "split_group": "expanded-seed:710",
+  "saved_scene_ids": [
+    "road:9c34d0a6cd2806d36ae3a185"
+  ],
+  "source_episodes": [
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-a/suite_right-710-perception.collection.json",
+      "member_sha256": "d78590fea413ef92dfc4e9a7bd2e87cbe79cf096e9c2196f68e679a582f02e1b",
+      "episode_id": "suite_right:710:initial:0:lattice:standard",
+      "recorded_input_mode": "perception",
+      "recorded_width_prior": false,
+      "recorded_decisions": 6
+    }
+  ],
+  "scenario_width_prior_used": false
+}

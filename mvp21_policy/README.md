@@ -102,3 +102,15 @@ ROS fast gate已尝试，构建前因缺少固定dream_interfaces checkout而停
 
 当前分支同步范围、两种执行适配的区别和验证见
 [2026-10-16 模块同步记录](../offline/mvp21_sim/UPSTREAM_SYNC_20261016.md)。
+
+2026-10-17 单侧输出修复：ordered_xy 的观测边界不再因宽度未知而丢失。
+成功的状态/运动对齐后，现有 forward_geometry 可携带单侧 observed 边界；
+完整道路 valid 与 near_field.valid 仍为 false，不补中线、对侧或真实宽度。
+仅在当前仿真分支验证，未合并或部署主线；无宽度先验掉头的完整尝试和剩余失败见
+[对照报告](../offline/lattice_training/artifacts/2026-10-17-single-boundary-fix/REPORT_CN.md)。
+
+2026-10-17 单边无宽度参考调整：`shadow.unknown_width_reference_scale=4/3` 只在
+没有中线、只有一侧边界且宽度未知时，将 CG 参考偏移从 0.45 m 增为 0.60 m；
+`search_half_width_m` 保持 0.45 m，已知宽度仍采用既有半宽规则，不新增对侧边界、
+车身 guard 或 policy 输入特征。固定验证道路及运行入口见
+[固定掉头验证说明](../offline/lattice_training/validation_roads/README.md)。

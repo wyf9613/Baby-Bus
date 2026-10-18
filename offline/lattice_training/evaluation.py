@@ -45,7 +45,7 @@ def candidate_panel(planner, observation, pose, *, model=None, progress_m=None, 
     ref,diag = candidates_at(planner,observation,model)
     rows=[]
     for candidate in diag.get("candidate_references",[]):
-        score = float(model.predict(encode_candidate(observation,candidate)[None,:])[0]) if model else candidate['descriptor']['score']
+        score = model.score(encode_candidate(observation,candidate)) if model else candidate['descriptor']['score']
         plan=reference_plan(candidate,objective)
         rows.append({"candidate_id":candidate['candidate_id'],"admitted":True,"score":score,"reason":"feasible",
                      "descriptor":candidate['descriptor'],"points":world_points(candidate['trajectory_xy_m'],pose).tolist(),

@@ -8,9 +8,14 @@
 合并边界和结果见[统一执行说明](offline/mvp21_sim/SHARED_EXECUTION_CN.md)。
 
 学习 policy 只读取 **当前状态、当前道路与障碍、候选轨迹**，使用 C* 真实执行结果训练
-候选评分。[训练入口](offline/lattice_training/README.md)与[输入协议](offline/lattice_training/POLICY_INPUT.md)
+候选评分。每次一条空间路径，不读取速度曲线；模型内编码原生线段与场景，障碍按八片区
+记录最近点位置，缺中线可评分。[训练入口](offline/lattice_training/README.md)与[输入协议](offline/lattice_training/POLICY_INPUT.md)
 说明固定数据编码。旧评分特征、历史路径输入及旧模型/候选兼容代码已删除。
 历史权重、数据与上游来源快照保留作档案，当前入口不加载它们。
+[新协议首批流程记录](offline/lattice_training/artifacts/2026-10-16-new-protocol-batch/REPORT_CN.md)
+包含采集、C* 标签、训练及冻结候选评估；尚未接入主线。
+[扩展采集与失败选路报告](offline/lattice_training/artifacts/2026-10-17-expanded-collection/REPORT_CN.md)
+记录左右弯、缺中线、特殊掉头及近中线障碍的合并训练和剩余误选。
 
 模块源码、单文件打包和虚拟环境分别见上述模块说明、[打包工具](tools/BUNDLE_PYTHON.md)、
 [统一回放](offline/mvp21_sim/README.md)。本地配置已选择 planner，尚未部署。

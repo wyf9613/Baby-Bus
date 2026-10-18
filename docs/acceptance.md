@@ -7,6 +7,111 @@ C* remains a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
 Historical planner/controller/physical evidence below remains separate.
 
+## Observed single-boundary output, 2026-10-17
+
+The simulation branch now retains a successfully fitted ordered single boundary
+when width is unknown, and exposes it through existing forward_geometry only
+after state/motion alignment. Full-corridor and near-field validity stay false;
+no centerline, opposite boundary or scenario width is fabricated. Existing
+stale/out-of-order, motion-gap and contradictory-pair rejection remains intact.
+
+With frozen policy and the original C* budget/0.2 m/s condition, all eight
+left/right U-turn attempts produce eight initial candidates without a width
+prior. Two reach the original goal: the right-turn original-start/no-centerline
+case and the left-turn road-entrance/no-centerline case. Four stop at C* solve
+failure, one at insufficient common boundary support, and one at insufficient
+detections near the goal. No fallback, endpoint relaxation or model updates.
+
+The 133 estimation/contract checks and 39 module/environment/execution checks
+pass. The required ROS fast gate still stops before build because the pinned
+dream_interfaces checkout is absent. Policy inputs/weights, labels, planner,
+plant, C* and shared YAML are unchanged; no main merge/deployment occurred.
+See [before/after plots, actual traces and verification](../offline/lattice_training/artifacts/2026-10-17-single-boundary-fix/REPORT_CN.md).
+
+## Expanded collection and failure selection, 2026-10-17
+
+Collected 25 new physical roads across 63 explicitly recorded experiments,
+including left/right curves, obstacle layouts, controlled missing centerlines
+and outer-semicircle/single-inner-straight U-turns. Width-prior U-turn runs
+remain separate from the original perception configuration. Thirty-seven
+new sequences complete; all 26 incomplete/empty sequences remain reported.
+
+Combined with the previous 120 native-protocol rows: 2111 candidates, 258
+decisions and 4222 C* trials (3725 successful, 497 failures retained).
+Physical-road and mirrored same-seed views remain grouped. Train/Validation/
+Test rows are 1091/476/544; development fitting/model choice contains no Test.
+Validation-only selection chooses hidden 16, seed 0, epoch 175 of 180.
+Avoidable nominal failure selections are 1/130 Train, 0/58 Validation and
+1/66 Test; four all-failed decisions are reported separately. The remaining
+test error is on the previous batch, despite no avoidable failure on the
+62 feasible-option decisions from fresh test roads. No learned closed loop
+or main-runtime integration is claimed.
+
+All 2111 scores survive save/load and archive extraction exactly. The 208
+state/time/control links and 35424 accepted simulation steps pass integrity
+checks; original record content/labels are unchanged except split/provenance.
+Sixty-eight portable checks pass. The pinned ROS dependency is still missing,
+so the fast gate stops before build. Runtime/configuration/plant/C* modules
+and 57 protected files remain unchanged. See [report and evidence](../offline/lattice_training/artifacts/2026-10-17-expanded-collection/REPORT_CN.md).
+
+## First persistent spatial-policy batch, 2026-10-16
+
+Fresh collection, C* labels, training, save/load and frozen-candidate scoring
+completed. Three isolated roads produce 19 decisions, 120 candidates and 240
+trials (210 successful; 30 failures retained). Random continuation uses only
+C*-feasible candidates followed by full legal execution, without reward/policy
+ranking. All 19 segments pass replay constraints; all 16 continuation links
+preserve the exact seven-state vector, timestamp and previous controls.
+
+An explicit 2 m sensor-support runout fixes terminal cone loss without moving
+the original mission goal or initial sampling domain. Collection finishes
+within the declared 0.15 m progress tolerance, without a stop requirement.
+All three sampled mission roads are straight, each with one obstacle; no
+centerline-missing observation occurred in this batch.
+
+Training uses 44/52/24 Train/Validation/Test rows, with validation checkpoint
+44 of 60 epochs. The reloaded model reproduces all 120 scores. It selects a
+C* failure in 1/8 frozen validation decisions and 0/4 test decisions: this is
+workflow evidence, not learned closed-loop qualification. Native runtime,
+common configuration, plant, C* solver/objective and 57 protected files remain
+unchanged. Current portable checks: 32 input/model/sampling, two actual C*
+continuation checks and 34 runtime/compatibility checks pass. ROS fast gate
+still stops before build on the missing pinned dream_interfaces checkout.
+See [batch report](../offline/lattice_training/artifacts/2026-10-16-new-protocol-batch/REPORT_CN.md).
+
+## Untimed spatial policy and historical data audit, 2026-10-16
+
+The sole offline scorer now accepts current state, current road/obstacles and
+one untimed spatial candidate. Native polyline segments feed learned encoders
+and candidate-to-scene attention; no fixed sampled-point vector is retained.
+Obstacles use eight front sectors with nearest observed XY and availability.
+Centerline and either boundary may be absent independently. The training
+adapter no longer requires baseline centerline success before native planning.
+Policy inputs do not read speed profiles, timing, planner costs or history.
+
+C* still uses its existing explicit timing and speed references for supervision.
+Datasets/checkpoints declare a common execution condition, preventing mixed
+hidden target speeds. The numerical C* solver, objective, plant, runtime
+planner/PID and common YAML are unchanged. No learned scorer is installed in
+ROS or the native replay runtime.
+
+Validation: the full 65-check training/input suite passed before final execution
+condition checks; final focused input/model/dataset checks and a second real
+C* CLI roundtrip cover those changes. All 38 module/simulation/execution and
+upstream-compatibility checks passed. ROS fast gate again stopped before build
+because the pinned dream_interfaces checkout is absent. Exact results and
+fingerprints are in [verification.json](../offline/lattice_training/artifacts/2026-10-16-spatial-policy/verification.json).
+
+Full scan of the retained merged data found 217 decisions, 4936 candidates and
+9872 C* trial records. Three frozen NPZ files and the merged raw-record hash
+match their metadata. All scene records can enter the new scene encoder;
+all candidate records still use FRENET_SPATIAL/S_REF_OF_TIME, so none is
+natively compatible with the new sampled spatial contract. Historical labels
+mix 0.1/0.2/0.3 m/s and stop conditions, and their terminal-speed-extension
+protocol differs from the current explicit-full-timing contract. No records
+were converted, labels recomputed, or historical weights/data overwritten.
+See [data-audit.json](../offline/lattice_training/artifacts/2026-10-16-spatial-policy/data-audit.json).
+
 ## Shared execution merge, 2026-10-16
 
 This supersedes the dual-adapter state at acc5324. ROS and simulation now share
@@ -1665,3 +1770,146 @@ camera TF is needed before physical pan motion. GUI workflow remains a separate
 follow-up. Release publication requires promotion, final-tag CI, immutable
 assets and recorded human review; their completion is recorded in GitLab MRs
 and the release record.
+
+### Fixed U-turn validation roads and unknown-width reference, 2026-10-17
+
+The simulation branch adds `shadow.unknown_width_reference_scale=4/3`: only a
+single observed boundary with no supplied centreline and no width uses a 0.60 m
+CG guide offset instead of 0.45 m. Search half-width remains 0.45 m. Known-width,
+two-sided and supplied-centreline cases keep their existing rules; collision
+geometry, C*, policy encoder, frozen model and historical data are unchanged.
+
+Eight concrete JSON validation roads now cover original, half-width/half-radius,
+curved-entry/variable-radius-turn/curved-exit, and half-width/half-radius double
+U-turns in both directions. Per the user's final clarification both full lane
+width AND U-turn reference radius are halved; straight lengths stay fixed. Current
+suite version is 2, with SHA-256 checked loading. The early width-only v1
+construction and runs are retained separately as a construction comparison.
+
+`offline.lattice_training.validate_uturns` uses the existing perception, native
+candidate, optional frozen-policy and C* path. It does not train, add fallback,
+inject scenario width or deploy. Cold-start perception/no-centreline and full
+road-entry perception runs are recorded separately. Completion/failure, actual
+seven-state traces, observed boundary inputs, static road-space checks and the
+original-road 0.45/0.60 m offset ablation are in the
+[v2 validation report](../offline/lattice_training/artifacts/2026-10-17-fixed-uturn-suite-v2/REPORT_CN.md).
+Portable checks cover the parameter's narrow scope, mirrored geometry, concrete
+fixture loading and upstream availability/provenance. Exact legacy path/cost
+comparison for the intentionally changed branch uses scale 1; default-scale
+availability/provenance and unaffected geometry remain checked. The ROS fast
+gate stops before build because the pinned dream_interfaces checkout is absent.
+No ROS runtime or physical vehicle acceptance is claimed.
+
+### Clock-driven MVP control on fixed U-turn roads, 2026-10-18
+
+`offline.mvp21_sim.validate_roads` reuses the existing shared runtime loop,
+`mvp21_policy.execution` and actual `PolicyController`. The fixed-road camera
+acquires at 20 Hz with 50 ms delivery latency; estimation/control run at 20 Hz
+and native jobs are submitted at 1 Hz. A causal 100 ms simulated planner service
+keeps control moving between submissions/deliveries. It does not wait for a
+candidate's end. Actual CPU durations are logged separately; deterministic
+delivery is not a ROS executor deadline measurement.
+
+Eight unchanged v2 road fixtures are tested from the road entrance, plus eight
+separate stationary pre-bend diagnostics. Scenario width is not injected.
+Learned scoring and C* control are not used. Common planner/control YAML and
+owning MVP modules remain unchanged. The existing C* geometry helper is only a
+passive truth monitor. Input packets, acquisition times, full seven-state plant
+traces, actual control/reference source, native candidates and delayed handoffs
+are retained; faults publish zero in the simulation tail without auto-resume.
+
+Entrance completion is 3/8 with baseline use (strict native-only 0/8). Three
+runs contact a physical obstacle; two double-turn runs stop after the rolling
+execution check detects a known boundary collision and the single-side baseline
+is unavailable. All eight pre-bend starts stop before submitting the first job:
+the actual node submits only after a successful control action. Startup speed
+peaks at about 0.776 m/s despite the unchanged 0.2 m/s target.
+
+The [runtime report](../offline/lattice_training/artifacts/2026-10-18-mvp-runtime-validation/REPORT_CN.md)
+and interactive viewer separate these failures from the earlier C* training
+loop. Recorded 50 ms control/camera periods, 1 s submission periods, delivery
+causality and zero-action tails pass all sixteen trace audits. Portable checks
+also replay logged commands through the real stateful MVP PID and reproduce
+its actions exactly. The required ROS gate still stops before build because
+the pinned dream_interfaces checkout is absent. Hardware acceptance: not run.
+
+### Frozen-policy runtime evaluation, 2026-10-18
+
+The user authorized frozen learned-policy selection in offline visualization and
+evaluation. Known perception/branch/chain-direction/partial-output limits are
+recorded in SIMULATION_LIMITATIONS_CN.md and remain unfixed. ROS/default native
+selection, common parameters, owning MVP algorithms, input encoder, model and
+historical data are unchanged. The optional simulation worker scores exactly
+one admitted native candidate per model call using the submission-frame current
+state, estimator road and obstacles. Authored geometry is preserved; native cost,
+history, truth, width injection and speed curves do not enter the model.
+
+Eight fixed roads at 20 Hz perception/control and 1 Hz generation/ranking have
+0/8 entrance completion versus the preserved same-condition native baseline's
+3/8. Eight pre-bend starts stop before any policy inference. Independent replay
+verifies 3,387 delivered candidate inputs/scores/argmax and 1,409 stateful shared
+MVP PID action frames; no policy inference error occurred. The existing baseline
+is reused only after exact module/parameter/environment/initial-state checks.
+
+The fixed 100 ms causal service model remains explicit. Actual combined native
+and ranking CPU wall time exceeded 1 s in 11 deliveries; this does not qualify
+real 1 Hz execution. The training labels use C* at 0.2 m/s while evaluation uses
+actual MVP control. No retraining or tuning is hidden in this regression run.
+The comparison viewer retains three-layer perception and per-candidate scores.
+Evidence: offline/lattice_training/artifacts/2026-10-18-current-frequency-policy-evaluation/REPORT_CN.md.
+
+### Archived random-road runtime evaluation, 2026-10-18
+
+The current acceptance target is road integration, clocked replay and shared
+runtime verification. Per the user's latest direction, learned-policy quality
+is observational only and is not a target for this round; no tuning/retraining.
+
+Restored exact road/obstacle specifications from the first new-protocol batch and
+expanded collection archives, including empty collection episodes. The 28 old
+scene IDs contain 33 physical variants because five obstacle revisions reused
+scene IDs. All variants retain their original split group; no model was trained.
+
+Ran 132 entrance cases: 33 variants, original perception / controlled missing
+centerline, native / frozen policy. Camera and actual MVP PID run at 20 Hz;
+generation and policy selection run at 1 Hz with the same simulated delays and
+shared execution/fallback. No scenario width prior or main/ROS policy enablement.
+Original perception reaches the mission goal in 22/33 native and 10/33 policy
+runs, allowing actual baseline fallback. Both missing-centerline groups stop
+33/33 before first planner submission/inference; these are startup gate failures,
+not evidence that the learned scorer cannot encode a missing centerline.
+
+55 relevant portable tests pass. The ROS fast gate stops at preflight because
+the pinned dream_interfaces checkout is absent. CPU timing is measured separately
+from simulated delivery and is not a real-time qualification. Independent input,
+score, argmax, PID and causal-clock replay and browser evidence are recorded in
+the new report. Historical fixed-road raw evidence and trained weights remain
+unchanged.
+
+Evidence: [random-road report](../offline/lattice_training/artifacts/2026-10-18-current-frequency-policy-evaluation/random-road-evaluation/REPORT_CN.md).
+
+### Configurable validation workspace and replay index, 2026-10-18
+
+The new offline CLI is `python -m offline.mvp21_sim.validation`. It initializes
+saved road fixtures, ingests additional JSON roads, runs the same shared runtime,
+indexes immutable records, serves a data-only replay and watches source/config
+changes. Defaults reproduce the previous runtime frame-by-frame. Module choices
+are observed/perfect perception, current native/fixed single straight planning,
+native/frozen model selection and actual MVP/existing C* control. Independent
+integer physics clocks default to 20/20/1/1/20 Hz for physics/perception/planning/
+selection/control; changing them is explicit offline configuration.
+
+64 portable tests pass, including default action/state/job parity, independent
+clocks, lower-frequency held C* control, original single-candidate geometry,
+zero-step failure snapshots, road ingestion and immutable re-indexing. All 16
+module combinations produced inspectable records with causal-clock checks;
+solver/mission failures remain failures. A new short road reached its mission
+goal using the default runtime, with baseline fallback retained. A live config
+change triggered fresh-process C*/single-line validation and a different actual
+trajectory; restoring defaults generated a new MVP record which the browser
+selected automatically without manual refresh. No policy-quality target,
+retraining or ROS enablement. The ROS gate still stops at missing pinned
+dream_interfaces preflight. Evidence is in `offline/mvp21_sim/workspace/evidence`.
+
+See [workflow](../offline/mvp21_sim/VALIDATION_WORKFLOW_CN.md). The working-tree
+bundle includes current uncommitted source and official evidence with per-file
+hashes; no Git commit/push or release is performed.

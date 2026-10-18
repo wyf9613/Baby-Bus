@@ -1,0 +1,101 @@
+{
+  "format": "fixed_uturn_validation_manifest_v1",
+  "suite_version": 2,
+  "source_seed": 713,
+  "purpose": "fixed_validation_only_no_training_in_this_run",
+  "semantics": {
+    "half_width": "halve both full lane width and U-turn reference radius; retain straight lengths",
+    "curved": "S-curved entry/exit and three distinct-radius arcs totaling 180 degrees",
+    "double": "half-width and half-radius left/right consecutive U-turns; retain connecting straight length"
+  },
+  "cases": [
+    {
+      "kind": "validation_uturn_original_left",
+      "file": "uturn_original_left.json",
+      "sha256": "8297b7ce44aa50ed085bf0cc490c2178bcb1df9dc61cda204f8ee273dbc82be3",
+      "variant": "original",
+      "direction": "left",
+      "full_width_m": 2.2535013706056892,
+      "mission_length_m": 10.521693261234452,
+      "mirror_pair": "validation_uturn_original",
+      "reference_radius_scale": 1.0
+    },
+    {
+      "kind": "validation_uturn_original_right",
+      "file": "uturn_original_right.json",
+      "sha256": "05462ed7d44e34b519bd8a7ba3505b58aaa204da2e8705d912c4ebeb6f4a1dee",
+      "variant": "original",
+      "direction": "right",
+      "full_width_m": 2.2535013706056892,
+      "mission_length_m": 10.521693261234452,
+      "mirror_pair": "validation_uturn_original",
+      "reference_radius_scale": 1.0
+    },
+    {
+      "kind": "validation_uturn_half_width_left",
+      "file": "uturn_half_width_left.json",
+      "sha256": "0d01a32380bbd597825148ebe80e3809db957bb33d6f2d3ee85823555f529136",
+      "variant": "half_width",
+      "direction": "left",
+      "full_width_m": 1.1267506853028446,
+      "mission_length_m": 8.751797423547112,
+      "mirror_pair": "validation_uturn_half_width",
+      "reference_radius_scale": 0.5
+    },
+    {
+      "kind": "validation_uturn_half_width_right",
+      "file": "uturn_half_width_right.json",
+      "sha256": "b170f48f832b98a1963a1722b5bf3d674aa522cb4e4e0e7c06f2746d79fb5402",
+      "variant": "half_width",
+      "direction": "right",
+      "full_width_m": 1.1267506853028446,
+      "mission_length_m": 8.751797423547112,
+      "mirror_pair": "validation_uturn_half_width",
+      "reference_radius_scale": 0.5
+    },
+    {
+      "kind": "validation_uturn_curved_left",
+      "file": "uturn_curved_left.json",
+      "sha256": "bde674372fb5c8fbbab86de0ead034560491b945931a207bb8e1b4d561181c4e",
+      "variant": "curved",
+      "direction": "left",
+      "full_width_m": 2.2535013706056892,
+      "mission_length_m": 16.53933910937141,
+      "mirror_pair": "validation_uturn_curved",
+      "reference_radius_scale": 1.0
+    },
+    {
+      "kind": "validation_uturn_curved_right",
+      "file": "uturn_curved_right.json",
+      "sha256": "419772c1bf2dc0babf714c8d0c61c00851ee4f38759df03383e94aff0334a81c",
+      "variant": "curved",
+      "direction": "right",
+      "full_width_m": 2.2535013706056892,
+      "mission_length_m": 16.53933910937141,
+      "mirror_pair": "validation_uturn_curved",
+      "reference_radius_scale": 1.0
+    },
+    {
+      "kind": "validation_uturn_half_width_double_left",
+      "file": "uturn_half_width_double_left.json",
+      "sha256": "dedbbad4b3458b388efca7724fcc47a95781ec063109b4656424601fac00522e",
+      "variant": "half_width_double",
+      "direction": "left",
+      "full_width_m": 1.1267506853028446,
+      "mission_length_m": 14.012644054164337,
+      "mirror_pair": "validation_uturn_half_width_double",
+      "reference_radius_scale": 0.5
+    },
+    {
+      "kind": "validation_uturn_half_width_double_right",
+      "file": "uturn_half_width_double_right.json",
+      "sha256": "797528c75efb835a8e84521c077049bd37a41c19657cc14b25fdb1efe339403b",
+      "variant": "half_width_double",
+      "direction": "right",
+      "full_width_m": 1.1267506853028446,
+      "mission_length_m": 14.012644054164337,
+      "mirror_pair": "validation_uturn_half_width_double",
+      "reference_radius_scale": 0.5
+    }
+  ]
+}

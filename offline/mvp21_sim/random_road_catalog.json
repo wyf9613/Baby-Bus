@@ -1,0 +1,4561 @@
+{
+  "format": "saved_random_road_catalog_v1",
+  "source_archive_sha256": {
+    "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip": "054e4f315d0b859a9284fd15cbe13a1ddbb2f927fb6eaffd3b67ee1cc90536b5",
+    "offline/lattice_training/artifacts/2026-10-16-new-protocol-batch/batch.zip": "7fec6bc71ae323c07ed0e53fa8f7d8718ea0316f84b1781cab992deeaecd3a8a"
+  },
+  "physical_variants": 33,
+  "source_scene_ids": 28,
+  "source_episodes": 66,
+  "grouping": "Exact saved road and obstacle specification; do not collapse altered obstacles sharing a scene_id",
+  "current_initial_condition": "road entrance at rest; current common controller; no scenario width prior",
+  "cases": [
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "randomized",
+      "variant": "randomized",
+      "direction": "left",
+      "fixture_id": "random_randomized_0_883830db",
+      "title": "首批随机直道 · seed 0 · 883830",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 6.318480843660727
+            },
+            "speed_limit_kph": 0.8171232169549933,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            },
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.0061460285904291,
+                  "end": 1.0061460285904291
+                },
+                "surface": "tarmac"
+              }
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 4.125308095680109
+            },
+            "speed_limit_kph": 1.04859200781998,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.5
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.5
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.23248693095478173,
+              "width_m": 0.1804295465615136
+            },
+            "placement": {
+              "reference_line_progress_m": 5.26591924078543,
+              "lateral_offset_m": 0.3400162288356515,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.443788939340836,
+      "road_sha256": "883830dbc5bfe4c891ef09ea8c3ce6673e50f225b5faea87623574a635a32593",
+      "road_seed": 0,
+      "runtime_seed": 0,
+      "collection": "random",
+      "split": "train",
+      "split_group": "road:995082b717c150c45927a558",
+      "saved_scene_ids": [
+        "road:995082b717c150c45927a558"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-16-new-protocol-batch/batch.zip",
+          "member": "collection/decisions.collection.json",
+          "member_sha256": "ed44f3f5fae8c9f46812154f75a15f127c874e0f5b465bc32671bcbca55aadc5",
+          "episode_id": "randomized:0:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 7
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "randomized",
+      "variant": "randomized",
+      "direction": "left",
+      "fixture_id": "random_randomized_100_109e59c1",
+      "title": "首批随机直道 · seed 100 · 109e59",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 6.417490815251004
+            },
+            "speed_limit_kph": 0.9347594497084395,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            },
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.0433294862536806,
+                  "end": 1.0433294862536806
+                },
+                "surface": "tarmac"
+              }
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 4.189461758042486
+            },
+            "speed_limit_kph": 0.9347298134632879,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.5
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.5
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.22858060023106944,
+              "width_m": 0.18076570897751695
+            },
+            "placement": {
+              "reference_line_progress_m": 5.19384948385012,
+              "lateral_offset_m": -0.12677391224511597,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.60695257329349,
+      "road_sha256": "109e59c13141633e991de5766b43287489bd8aaf7f650737109c935c9d87104a",
+      "road_seed": 100,
+      "runtime_seed": 100,
+      "collection": "random",
+      "split": "validation",
+      "split_group": "road:297be43d6b7ec94efcfbef51",
+      "saved_scene_ids": [
+        "road:297be43d6b7ec94efcfbef51"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-16-new-protocol-batch/batch.zip",
+          "member": "collection/decisions.collection.json",
+          "member_sha256": "ed44f3f5fae8c9f46812154f75a15f127c874e0f5b465bc32671bcbca55aadc5",
+          "episode_id": "randomized:100:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 8
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "randomized",
+      "variant": "randomized",
+      "direction": "left",
+      "fixture_id": "random_randomized_200_8a897045",
+      "title": "首批随机直道 · seed 200 · 8a8970",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 6.323417071839569
+            },
+            "speed_limit_kph": 0.9590111896965887,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            },
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.0044852478663453,
+                  "end": 1.0044852478663453
+                },
+                "surface": "tarmac"
+              }
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 4.029398659699746
+            },
+            "speed_limit_kph": 0.9184190463453878,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.5
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.5
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2720584110372831,
+              "width_m": 0.19653798474643347
+            },
+            "placement": {
+              "reference_line_progress_m": 5.258162317596812,
+              "lateral_offset_m": -0.18862453211436217,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.352815731539316,
+      "road_sha256": "8a89704516c7e9ac7b07eb21b44e06afcd4c123bd35d6605a6d9d1ce7a28daff",
+      "road_seed": 200,
+      "runtime_seed": 200,
+      "collection": "random",
+      "split": "test",
+      "split_group": "road:f399b758016e83e7be4bc07b",
+      "saved_scene_ids": [
+        "road:f399b758016e83e7be4bc07b"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-16-new-protocol-batch/batch.zip",
+          "member": "collection/decisions.collection.json",
+          "member_sha256": "ed44f3f5fae8c9f46812154f75a15f127c874e0f5b465bc32671bcbca55aadc5",
+          "episode_id": "randomized:200:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 4
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_left",
+      "variant": "suite_left",
+      "direction": "left",
+      "fixture_id": "random_suite_left_710_5bcda86e",
+      "title": "随机左弯 · seed 710 · 5bcda8",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.644397776832416
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1179547600282316,
+                  "end": 1.1179547600282316
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.33508210288007817,
+              "sweep_angle_deg": 73.96611096534929
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.5054627557548663
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": []
+      },
+      "mission_road_length_m": 11.002504884956178,
+      "road_sha256": "5bcda86ee89948ea4a799e9a0ec0e95ef6d00d34a9bd3f14890da89f30fc6413",
+      "road_seed": 710,
+      "runtime_seed": 710,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:710",
+      "saved_scene_ids": [
+        "road:cdf930e72a50eca2431653c2"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/suite_left-710-perception.collection.json",
+          "member_sha256": "334687e6cea6fcbdd83a3555c7f28ea596c5faba5fc8bb7c5ef6810241bae404",
+          "episode_id": "suite_left:710:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_left",
+      "variant": "suite_left",
+      "direction": "left",
+      "fixture_id": "random_suite_left_711_73646f2e",
+      "title": "随机左弯 · seed 711 · 73646f",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.760117300269364
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.161271301931295,
+                  "end": 1.161271301931295
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.3110227194636224,
+              "sweep_angle_deg": 54.71909583617675
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.8507194057757066
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.21448134616979836,
+              "width_m": 0.1860194768733429
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.39483224265664035,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2548449544366498,
+              "width_m": 0.20172124393715862
+            },
+            "placement": {
+              "reference_line_progress_m": 8.881443212549188,
+              "lateral_offset_m": 0.39483224265664035,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.681443212549189,
+      "road_sha256": "73646f2e283850728bb99d5aed6c9e2c8ee267cc3690478386eb59117e2ce99d",
+      "road_seed": 711,
+      "runtime_seed": 711,
+      "collection": "random",
+      "split": "validation",
+      "split_group": "expanded-seed:711",
+      "saved_scene_ids": [
+        "road:0a87b5b1de9b5890ecb27591"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_left-711-no_centerline.collection.json",
+          "member_sha256": "ab6dfc5a664b18d24505ad4b4a660830adffce14399b51248fef2c1572a51073",
+          "episode_id": "suite_left:711:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_left-711-perception.collection.json",
+          "member_sha256": "68c6ea46136efcc94c9cb27bc78de1d5715d9f48a2bbe3f2a48d83771002b9ad",
+          "episode_id": "suite_left:711:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_left",
+      "variant": "suite_left",
+      "direction": "left",
+      "fixture_id": "random_suite_left_712_e35eb8fd",
+      "title": "随机左弯 · seed 712 · e35eb8",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.376552842488337
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1265102282913444,
+                  "end": 1.1265102282913444
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.32289635857594756,
+              "sweep_angle_deg": 65.61089945069688
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.764217997644651
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2192080078270806,
+              "width_m": 0.1699110877799543
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": -0.38301347761905713,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2523107409027048,
+              "width_m": 0.17631262550046164
+            },
+            "placement": {
+              "reference_line_progress_m": 8.887191201328413,
+              "lateral_offset_m": -0.38301347761905713,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.687191201328414,
+      "road_sha256": "e35eb8fdcefae28c13e685d34baacf856bded58a7b9176e8a804f5df3036cf42",
+      "road_seed": 712,
+      "runtime_seed": 712,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:712",
+      "saved_scene_ids": [
+        "road:6e763d9df131248383b2d089"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/suite_left-712-perception.collection.json",
+          "member_sha256": "99d0a56a1e255dc59de494300944cbd0026d92bb3d6311c539cbb591fdf22395",
+          "episode_id": "suite_left:712:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_left",
+      "variant": "suite_left",
+      "direction": "left",
+      "fixture_id": "random_suite_left_713_91472de6",
+      "title": "随机左弯 · seed 713 · 91472d",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.7264649334844178
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1969835976432952,
+                  "end": 1.1969835976432952
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.32365435783151314,
+              "sweep_angle_deg": 63.50120212841186
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.3183505773693227
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.24746684774049527,
+              "width_m": 0.21090346917140596
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.4069744231987204,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2034680095663416,
+              "width_m": 0.1976984085847829
+            },
+            "placement": {
+              "reference_line_progress_m": 8.669163211718548,
+              "lateral_offset_m": -0.4069744231987204,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.469163211718548,
+      "road_sha256": "91472de68a387285cee49f98d4d3d74d0cd02c7c260aab67b2fedeeaa230401f",
+      "road_seed": 713,
+      "runtime_seed": 713,
+      "collection": "random",
+      "split": "test",
+      "split_group": "expanded-seed:713",
+      "saved_scene_ids": [
+        "road:b2f2f5210cf360089fd935e8"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_left-713-no_centerline.collection.json",
+          "member_sha256": "68c87929eae9753cf642832570df74ca5e10579bb654565db78cc839236c7636",
+          "episode_id": "suite_left:713:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_left-713-perception.collection.json",
+          "member_sha256": "83a70059b2dfd05f364830b5ed03e67827089ff15c0666f0fd6495222bcbde07",
+          "episode_id": "suite_left:713:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_left",
+      "variant": "suite_left",
+      "direction": "left",
+      "fixture_id": "random_suite_left_714_bb5b3576",
+      "title": "随机左弯 · seed 714 · bb5b35",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.3242870192211207
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1181660765992267,
+                  "end": 1.1181660765992267
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.3081411857291613,
+              "sweep_angle_deg": 56.64110188066276
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.870095888170332
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2116883729021471,
+              "width_m": 0.19385009804179815
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.26835985838381443,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2952460678518152,
+              "width_m": 0.20931316558257596
+            },
+            "placement": {
+              "reference_line_progress_m": 8.602567225355418,
+              "lateral_offset_m": -0.26835985838381443,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.402567225355419,
+      "road_sha256": "bb5b357651d708077593d0152782b4134c405e7d7373ce738ce42e64c0b67977",
+      "road_seed": 714,
+      "runtime_seed": 714,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:714",
+      "saved_scene_ids": [
+        "road:9cc55b2c9a664f07f6371f8a"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/suite_left-714-perception.collection.json",
+          "member_sha256": "b546a898b4c1621eb6b6b0039934f933aa18ef30f5f956e28b180a757501c757",
+          "episode_id": "suite_left:714:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_right",
+      "variant": "suite_right",
+      "direction": "right",
+      "fixture_id": "random_suite_right_710_bc47c7e5",
+      "title": "随机右弯 · seed 710 · bc47c7",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.644397776832416
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1179547600282316,
+                  "end": 1.1179547600282316
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.33508210288007817,
+              "sweep_angle_deg": 73.96611096534929
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.5054627557548663
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": []
+      },
+      "mission_road_length_m": 11.002504884956178,
+      "road_sha256": "bc47c7e56013a41b1027711288de2c0a407462568747bf0de40ca17a330b6765",
+      "road_seed": 710,
+      "runtime_seed": 710,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:710",
+      "saved_scene_ids": [
+        "road:9c34d0a6cd2806d36ae3a185"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/suite_right-710-perception.collection.json",
+          "member_sha256": "d78590fea413ef92dfc4e9a7bd2e87cbe79cf096e9c2196f68e679a582f02e1b",
+          "episode_id": "suite_right:710:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_right",
+      "variant": "suite_right",
+      "direction": "right",
+      "fixture_id": "random_suite_right_711_060fabcf",
+      "title": "随机右弯 · seed 711 · 060fab",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.760117300269364
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.161271301931295,
+                  "end": 1.161271301931295
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.3110227194636224,
+              "sweep_angle_deg": 54.71909583617675
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.8507194057757066
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.21448134616979836,
+              "width_m": 0.1860194768733429
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.39483224265664035,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2548449544366498,
+              "width_m": 0.20172124393715862
+            },
+            "placement": {
+              "reference_line_progress_m": 8.881443212549188,
+              "lateral_offset_m": 0.39483224265664035,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.681443212549189,
+      "road_sha256": "060fabcf03cdcc8de79e87bda5172075783fb64393190967a047705f1a4898ef",
+      "road_seed": 711,
+      "runtime_seed": 711,
+      "collection": "random",
+      "split": "validation",
+      "split_group": "expanded-seed:711",
+      "saved_scene_ids": [
+        "road:e0837d80dcb7b895f9d939b5"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_right-711-no_centerline.collection.json",
+          "member_sha256": "737b92dd83e10a66a511de66f54278be6103618d47a92cbfd10c3e02b7d6de33",
+          "episode_id": "suite_right:711:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_right-711-perception.collection.json",
+          "member_sha256": "47ce8672d24635f2126af7651debabe66b88d1615946b1bfe8e8cc42685d8d05",
+          "episode_id": "suite_right:711:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_right",
+      "variant": "suite_right",
+      "direction": "right",
+      "fixture_id": "random_suite_right_712_71e23d15",
+      "title": "随机右弯 · seed 712 · 71e23d",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.376552842488337
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1265102282913444,
+                  "end": 1.1265102282913444
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.32289635857594756,
+              "sweep_angle_deg": 65.61089945069688
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.764217997644651
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2192080078270806,
+              "width_m": 0.1699110877799543
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": -0.38301347761905713,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2523107409027048,
+              "width_m": 0.17631262550046164
+            },
+            "placement": {
+              "reference_line_progress_m": 8.887191201328413,
+              "lateral_offset_m": -0.38301347761905713,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.687191201328414,
+      "road_sha256": "71e23d1533814303bb8e925d5511538342fd5f7e974e19ebff3f88533d88de61",
+      "road_seed": 712,
+      "runtime_seed": 712,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:712",
+      "saved_scene_ids": [
+        "road:3ec9d4e53d28d753f83f5563"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/suite_right-712-perception.collection.json",
+          "member_sha256": "580ae87dae31bb74c4232f51e73a862f89daeac1e526a5915345c5124e53588f",
+          "episode_id": "suite_right:712:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_right",
+      "variant": "suite_right",
+      "direction": "right",
+      "fixture_id": "random_suite_right_713_5181b4b6",
+      "title": "随机右弯 · seed 713 · 5181b4",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.7264649334844178
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1969835976432952,
+                  "end": 1.1969835976432952
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.32365435783151314,
+              "sweep_angle_deg": 63.50120212841186
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.3183505773693227
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.24746684774049527,
+              "width_m": 0.21090346917140596
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.4069744231987204,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2034680095663416,
+              "width_m": 0.1976984085847829
+            },
+            "placement": {
+              "reference_line_progress_m": 8.669163211718548,
+              "lateral_offset_m": -0.4069744231987204,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.469163211718548,
+      "road_sha256": "5181b4b6ca40c1203300b678db83468a4a8c88a6be27b4759a715859ba47edc4",
+      "road_seed": 713,
+      "runtime_seed": 713,
+      "collection": "random",
+      "split": "test",
+      "split_group": "expanded-seed:713",
+      "saved_scene_ids": [
+        "road:a4a36af503edfa4990535d1a"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_right-713-no_centerline.collection.json",
+          "member_sha256": "6762740db3a506caf9fa98717eb2df2c47dc7ac9371e67355c68d553c9463e9a",
+          "episode_id": "suite_right:713:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 6
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_right-713-perception.collection.json",
+          "member_sha256": "390c28dd95957de5159f3b4a87c8387fb36d72e36688bf28ea5efdefc26a1818",
+          "episode_id": "suite_right:713:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_right",
+      "variant": "suite_right",
+      "direction": "right",
+      "fixture_id": "random_suite_right_714_89e270a9",
+      "title": "随机右弯 · seed 714 · 89e270",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.3242870192211207
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1181660765992267,
+                  "end": 1.1181660765992267
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.3081411857291613,
+              "sweep_angle_deg": 56.64110188066276
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.870095888170332
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2116883729021471,
+              "width_m": 0.19385009804179815
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.26835985838381443,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2952460678518152,
+              "width_m": 0.20931316558257596
+            },
+            "placement": {
+              "reference_line_progress_m": 8.602567225355418,
+              "lateral_offset_m": -0.26835985838381443,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.402567225355419,
+      "road_sha256": "89e270a93616e227b477eee1cf61e4633e38857eb9313815ade58223e0edd5b6",
+      "road_seed": 714,
+      "runtime_seed": 714,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:714",
+      "saved_scene_ids": [
+        "road:6a93f162423de908c31e8a90"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/suite_right-714-perception.collection.json",
+          "member_sha256": "14d1b756e4655c279ec5379cf08d576f74181e114aca3d6ff5fb8ba73b3c5742",
+          "episode_id": "suite_right:714:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_710_4a3b898a",
+      "title": "随机直道 · seed 710 · 4a3b89",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.644397776832416
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1179547600282316,
+                  "end": 1.1179547600282316
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.5054627557548663
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.12,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 5.349860532587282,
+              "lateral_offset_m": -0.12,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 7.149860532587282,
+      "road_sha256": "4a3b898adb1fcedbc9c0b78d8719288e50f0e8f732badcc15fde7bc5a1348a0e",
+      "road_seed": 710,
+      "runtime_seed": 710,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:710",
+      "saved_scene_ids": [
+        "road:61e978bee8b53b45a3e150d1"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-g/suite_straight-710-perception.collection.json",
+          "member_sha256": "1a6391c733a06ca00459f1dfb3a5c94d1733d7218e9344242237be5df21ff43a",
+          "episode_id": "suite_straight:710:initial:0:lattice:standard:near_center_alternating",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 2
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_710_e69687e5",
+      "title": "随机直道 · seed 710 · e69687",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.644397776832416
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1179547600282316,
+                  "end": 1.1179547600282316
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.5054627557548663
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": []
+      },
+      "mission_road_length_m": 7.149860532587282,
+      "road_sha256": "e69687e53d751bd7af294d51211a2317854a6bb768880076e5b955d352e5ea1c",
+      "road_seed": 710,
+      "runtime_seed": 710,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:710",
+      "saved_scene_ids": [
+        "road:61e978bee8b53b45a3e150d1"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/suite_straight-710-perception.collection.json",
+          "member_sha256": "ac3343b58a180f7e69dbc565fdef093907e84ced66dffdb630393065e1e61d7c",
+          "episode_id": "suite_straight:710:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-c/suite_straight-710-no_centerline.collection.json",
+          "member_sha256": "dcef7757c29a550188c73437bfc11cbaa4d83359d100fe6ac7b4d26b09277229",
+          "episode_id": "suite_straight:710:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_711_1911a518",
+      "title": "随机直道 · seed 711 · 1911a5",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.760117300269364
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.161271301931295,
+                  "end": 1.161271301931295
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.8507194057757066
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.12,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 5.8108367060450705,
+              "lateral_offset_m": -0.12,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 7.61083670604507,
+      "road_sha256": "1911a5184e446084f3023da17ff1568034a388a27e387790e6f75ee9a2251bdc",
+      "road_seed": 711,
+      "runtime_seed": 711,
+      "collection": "random",
+      "split": "validation",
+      "split_group": "expanded-seed:711",
+      "saved_scene_ids": [
+        "road:80bd5f92f7913f0b898b0911"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-h/suite_straight-711-perception.collection.json",
+          "member_sha256": "27cfd492759b1e6b60ffe0934aa652b0c081248138089951bce8206447e8705f",
+          "episode_id": "suite_straight:711:initial:0:lattice:standard:near_center_alternating",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 2
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_711_4a1e73fa",
+      "title": "随机直道 · seed 711 · 4a1e73",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.760117300269364
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.161271301931295,
+                  "end": 1.161271301931295
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.8507194057757066
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.21887638334470702,
+              "width_m": 0.16868880770187902
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.39483224265664035,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2433657947889048,
+              "width_m": 0.19290697266198986
+            },
+            "placement": {
+              "reference_line_progress_m": 5.8108367060450705,
+              "lateral_offset_m": 0.39483224265664035,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 7.61083670604507,
+      "road_sha256": "4a1e73fa2e8ec00db3adc522b324cbc34e9cdbca5bcc07accf3144f36508a94b",
+      "road_seed": 711,
+      "runtime_seed": 711,
+      "collection": "random",
+      "split": "validation",
+      "split_group": "expanded-seed:711",
+      "saved_scene_ids": [
+        "road:80bd5f92f7913f0b898b0911"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_straight-711-no_centerline.collection.json",
+          "member_sha256": "06bd98b90c7df98b6fc3418d55c9074f6086f74da6f1dd9926a7e2aa43a1fee7",
+          "episode_id": "suite_straight:711:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 1
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_straight-711-perception.collection.json",
+          "member_sha256": "8f51d7f2486fef34f9ed2e66bacf55ff21f64be1e42e552142b21e8f494c8e38",
+          "episode_id": "suite_straight:711:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_712_322fb126",
+      "title": "随机直道 · seed 712 · 322fb1",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.376552842488337
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1265102282913444,
+                  "end": 1.1265102282913444
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.764217997644651
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2624435978027875,
+              "width_m": 0.17152480469624837
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": -0.38301347761905713,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2165184796332572,
+              "width_m": 0.19138644454162287
+            },
+            "placement": {
+              "reference_line_progress_m": 5.340770840132988,
+              "lateral_offset_m": -0.38301347761905713,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 7.140770840132988,
+      "road_sha256": "322fb1267cb4609422d53db83bd11f25e8bb489adb71789b9ff9c8a2fec0ceee",
+      "road_seed": 712,
+      "runtime_seed": 712,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:712",
+      "saved_scene_ids": [
+        "road:29cd6bd71b1c7d486d44f5c2"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/suite_straight-712-perception.collection.json",
+          "member_sha256": "3685bbc852f63f7baf9f74298bd10e0b1ef83c3a0d84a9eb05128212421bfb25",
+          "episode_id": "suite_straight:712:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_712_4c7f222b",
+      "title": "随机直道 · seed 712 · 4c7f22",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.376552842488337
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1265102282913444,
+                  "end": 1.1265102282913444
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.764217997644651
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": -0.12,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 5.340770840132988,
+              "lateral_offset_m": 0.12,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 7.140770840132988,
+      "road_sha256": "4c7f222b8e46a8c244f26ed96ae5132145ed443e5e4454487fae30474898ab98",
+      "road_seed": 712,
+      "runtime_seed": 712,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:712",
+      "saved_scene_ids": [
+        "road:29cd6bd71b1c7d486d44f5c2"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-g/suite_straight-712-perception.collection.json",
+          "member_sha256": "d749f847f802f9cd6117a81d3229e5ef02769d73a379ffbbc40593e2f252d3ad",
+          "episode_id": "suite_straight:712:initial:0:lattice:standard:near_center_alternating",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 2
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_713_d9c93354",
+      "title": "随机直道 · seed 713 · d9c933",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.7264649334844178
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1969835976432952,
+                  "end": 1.1969835976432952
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.3183505773693227
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": -0.12,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 5.244815510853741,
+              "lateral_offset_m": 0.12,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 7.0448155108537405,
+      "road_sha256": "d9c933545d39d9e867de3a71ad224e6969dc023c3f17c70b0d69e47b6f45d8ca",
+      "road_seed": 713,
+      "runtime_seed": 713,
+      "collection": "random",
+      "split": "test",
+      "split_group": "expanded-seed:713",
+      "saved_scene_ids": [
+        "road:352384e5b292f71bdf2259ec"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-h/suite_straight-713-perception.collection.json",
+          "member_sha256": "146b62c034a92b16717cbd15950048f0f97fe15c1cd4e341cd9ee9b75de4ed0d",
+          "episode_id": "suite_straight:713:initial:0:lattice:standard:near_center_alternating",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 2
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_713_f5e1fd6c",
+      "title": "随机直道 · seed 713 · f5e1fd",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.7264649334844178
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1969835976432952,
+                  "end": 1.1969835976432952
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.3183505773693227
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2540048085136475,
+              "width_m": 0.18848010864429718
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.4069744231987204,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2848391152856766,
+              "width_m": 0.16208080573980496
+            },
+            "placement": {
+              "reference_line_progress_m": 5.244815510853741,
+              "lateral_offset_m": -0.4069744231987204,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 7.0448155108537405,
+      "road_sha256": "f5e1fd6c64b7925b7d96d7be0727b0e92551eb1504f944ff0039c1ff75669808",
+      "road_seed": 713,
+      "runtime_seed": 713,
+      "collection": "random",
+      "split": "test",
+      "split_group": "expanded-seed:713",
+      "saved_scene_ids": [
+        "road:352384e5b292f71bdf2259ec"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_straight-713-no_centerline.collection.json",
+          "member_sha256": "fa01a431795e717bf5aea48ec859d715cbb75f3867da73f9310113667c5617d5",
+          "episode_id": "suite_straight:713:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/suite_straight-713-perception.collection.json",
+          "member_sha256": "d235c0a29d81ea9c680d4162c243f9bb795afb54df5a62eaec501d8c77bda622",
+          "episode_id": "suite_straight:713:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_714_7de40602",
+      "title": "随机直道 · seed 714 · 7de406",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.3242870192211207
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1181660765992267,
+                  "end": 1.1181660765992267
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.870095888170332
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.12,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.26,
+              "width_m": 0.2
+            },
+            "placement": {
+              "reference_line_progress_m": 5.394382907391453,
+              "lateral_offset_m": -0.12,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 7.194382907391453,
+      "road_sha256": "7de406029b0cb1bdaad85f4f74acc8a9fb7288681dc87f904ceca82d0da35c82",
+      "road_seed": 714,
+      "runtime_seed": 714,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:714",
+      "saved_scene_ids": [
+        "road:adf3f46a4a32e24af7f56fa1"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-g/suite_straight-714-perception.collection.json",
+          "member_sha256": "09449a5393f123ca7c14cf83ff474160eaeaf7a59a01c3dfbdeebadb8bdb8f2a",
+          "episode_id": "suite_straight:714:initial:0:lattice:standard:near_center_alternating",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "suite_straight",
+      "variant": "suite_straight",
+      "direction": "left",
+      "fixture_id": "random_suite_straight_714_ebc2d3ce",
+      "title": "随机直道 · seed 714 · ebc2d3",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.3242870192211207
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 1.1181660765992267,
+                  "end": 1.1181660765992267
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.870095888170332
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.22656440752265106,
+              "width_m": 0.16701302374128824
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.26835985838381443,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.25641683006966354,
+              "width_m": 0.21714764071108913
+            },
+            "placement": {
+              "reference_line_progress_m": 5.394382907391453,
+              "lateral_offset_m": -0.26835985838381443,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 7.194382907391453,
+      "road_sha256": "ebc2d3ceedba559c129d7fd60b3647b7ec120104febdf89bd42d3160937ef5e6",
+      "road_seed": 714,
+      "runtime_seed": 714,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:714",
+      "saved_scene_ids": [
+        "road:adf3f46a4a32e24af7f56fa1"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/suite_straight-714-perception.collection.json",
+          "member_sha256": "249b50318ebb8ca21346d9693431099cbe1ca03e8b7d8405d7cd29234c97c6a9",
+          "episode_id": "suite_straight:714:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_left",
+      "variant": "uturn_left",
+      "direction": "left",
+      "fixture_id": "random_uturn_left_710_783fdbef",
+      "title": "随机左掉头 · seed 710 · 783fdb",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.2538642800846946
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.1613003126077195,
+                  "end": 2.1613003126077195
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.9253688570409253,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.2538642800846946
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": []
+      },
+      "mission_road_length_m": 9.902691152314256,
+      "road_sha256": "783fdbefc134028cbaf9a7948eca8b87826b5646b84344748fb79262fb6e0d72",
+      "road_seed": 710,
+      "runtime_seed": 710,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:710",
+      "saved_scene_ids": [
+        "road:2242e8dce98c24235fec15cf"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/uturn_left-710-perception.collection.json",
+          "member_sha256": "17b2ca3872e5ebee3a51e0d05efffa95cae4e6c7d5e766b5efe3fe3ebc34c994",
+          "episode_id": "uturn_left:710:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-c/uturn_left-710-no_centerline.collection.json",
+          "member_sha256": "9d1b84f6ba54e866c74c9387432acd782832646f779767de2fcf389bd55b9cfd",
+          "episode_id": "uturn_left:710:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-d/uturn_left-710-no_centerline.collection.json",
+          "member_sha256": "d2fedc6ffdbbcdd7121ab9ea807944ee5c7d5e38c4b0e40f648a169b727fe1e4",
+          "episode_id": "uturn_left:710:initial:0:lattice:standard:no_centerline:road_start",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 8
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-d/uturn_left-710-perception.collection.json",
+          "member_sha256": "794bd8075d6552ce2ac81669bd90bd2725ab390baffea0709917ba1e1ddf9e2b",
+          "episode_id": "uturn_left:710:initial:0:lattice:standard:road_start",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 2
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_left-710-no_centerline.collection.json",
+          "member_sha256": "a38ef934002ecab49542f21b8b0dbfe2d86fd55596db5310df276c42d3bf148b",
+          "episode_id": "uturn_left:710:initial:0:lattice:standard:no_centerline:scenario_width_prior",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": true,
+          "recorded_decisions": 5
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_left-710-perception.collection.json",
+          "member_sha256": "4ce434e6d13704202bddc7709ad3c7e602043583695c38dc48419f90233c962a",
+          "episode_id": "uturn_left:710:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_left",
+      "variant": "uturn_left",
+      "direction": "left",
+      "fixture_id": "random_uturn_left_711_200d5ed6",
+      "title": "随机左掉头 · seed 711 · 200d5e",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.383813905793885
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.3632993033724055,
+                  "end": 2.3632993033724055
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.8462745269488376,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.383813905793885
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.29335288337822735,
+              "width_m": 0.20720452049506058
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.8035217631466179,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.21887638334470702,
+              "width_m": 0.16868880770187902
+            },
+            "placement": {
+              "reference_line_progress_m": 8.679889676442082,
+              "lateral_offset_m": 0.8035217631466179,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.479889676442083,
+      "road_sha256": "200d5ed6c7cda01dc3c3ac0f0b9a0f76704f5416f8cd80866f7f441aab152bf7",
+      "road_seed": 711,
+      "runtime_seed": 711,
+      "collection": "random",
+      "split": "validation",
+      "split_group": "expanded-seed:711",
+      "saved_scene_ids": [
+        "road:91b5402127921163bae1327f"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/uturn_left-711-no_centerline.collection.json",
+          "member_sha256": "f69b6f92c8e17a2f7088976bd19b12698edffaefa135e4d9dc7be69d99dc46b1",
+          "episode_id": "uturn_left:711:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/uturn_left-711-perception.collection.json",
+          "member_sha256": "723fc74ea077c6825e386f9ceb5c90198bb66a82afe3a404492fd4d9ee87bf95",
+          "episode_id": "uturn_left:711:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_left-711-no_centerline.collection.json",
+          "member_sha256": "a1506542e427023c62b8831ed29e51077f87ff616683fdccfe29a2bb2ff2e497",
+          "episode_id": "uturn_left:711:initial:0:lattice:standard:no_centerline:scenario_width_prior",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": true,
+          "recorded_decisions": 6
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_left-711-perception.collection.json",
+          "member_sha256": "b37cbbe0e423ea92316e339ba7917a9ae293dd2500f3f0aa0c4b85f4544d3879",
+          "episode_id": "uturn_left:711:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_left",
+      "variant": "uturn_left",
+      "direction": "left",
+      "fixture_id": "random_uturn_left_712_f2f85d07",
+      "title": "随机左掉头 · seed 712 · f2f85d",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.279530684874033
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.259847840523707,
+                  "end": 2.259847840523707
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.885015337818723,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.279530684874033
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.22942547374805616,
+              "width_m": 0.1997901140838272
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": -0.7683482657780604,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2624435978027875,
+              "width_m": 0.17152480469624837
+            },
+            "placement": {
+              "reference_line_progress_m": 8.308822056758082,
+              "lateral_offset_m": -0.7683482657780604,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.108822056758083,
+      "road_sha256": "f2f85d075be752e4e8b47b71a7ee78acdef6bf814ec0d11c842f5d5d65695ed1",
+      "road_seed": 712,
+      "runtime_seed": 712,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:712",
+      "saved_scene_ids": [
+        "road:28b24bad35c557a0ec4afccc"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/uturn_left-712-perception.collection.json",
+          "member_sha256": "ef72a838eaca910214bf26bcc0d872f66331f915254a9ba73d52472c82518782",
+          "episode_id": "uturn_left:712:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-f/uturn_left-712-perception.collection.json",
+          "member_sha256": "3b817ae83ad0088ced4cc73df8876cb7ec918e79886abae1a3aa06523ec9feaf",
+          "episode_id": "uturn_left:712:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_left",
+      "variant": "uturn_left",
+      "direction": "left",
+      "fixture_id": "random_uturn_left_713_80ee836a",
+      "title": "随机左掉头 · seed 713 · 80ee83",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.4909507929298855
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.2535013706056892,
+                  "end": 2.2535013706056892
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.8875077805976422,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.4909507929298855
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2877441555807363,
+              "width_m": 0.16157290663165624
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.7661904660059344,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2540048085136475,
+              "width_m": 0.18848010864429718
+            },
+            "placement": {
+              "reference_line_progress_m": 8.721693261234451,
+              "lateral_offset_m": -0.7661904660059344,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.521693261234452,
+      "road_sha256": "80ee836a9078f96d8d78d5ec3ff0da64e98b26842edc99d392cca10a69f11037",
+      "road_seed": 713,
+      "runtime_seed": 713,
+      "collection": "random",
+      "split": "test",
+      "split_group": "expanded-seed:713",
+      "saved_scene_ids": [
+        "road:493858dd1d679dbc3fa9e7d8"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/uturn_left-713-no_centerline.collection.json",
+          "member_sha256": "2594e56a1418ecd7cc0d74c184ca439779424b8f6476a7cdbe72fc11ff8e38e0",
+          "episode_id": "uturn_left:713:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/uturn_left-713-perception.collection.json",
+          "member_sha256": "c84783871a3dbd60a10e61e4f53ef42ac7f703907f5728a43622138070825f3d",
+          "episode_id": "uturn_left:713:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_left-713-no_centerline.collection.json",
+          "member_sha256": "bccc16f77d08564e2850b5347a04fb8bddbcf9d4112a5f79d395999b9fe82923",
+          "episode_id": "uturn_left:713:initial:0:lattice:standard:no_centerline:scenario_width_prior",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": true,
+          "recorded_decisions": 7
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_left-713-perception.collection.json",
+          "member_sha256": "d62d0a3ccf03d9082cb28da09371437c3ad6b7c7a742611ac2864155c96c5a24",
+          "episode_id": "uturn_left:713:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 8
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_left",
+      "variant": "uturn_left",
+      "direction": "left",
+      "fixture_id": "random_uturn_left_714_3e6d0ebf",
+      "title": "随机左掉头 · seed 714 · 3e6d0e",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.2544982297976803
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.3896074284243056,
+                  "end": 2.3896074284243056
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": 0.8369575588902439,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.2544982297976803
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "right_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.22071450320352012,
+              "width_m": 0.2088653618431713
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.5735057828218333,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.22656440752265106,
+              "width_m": 0.16701302374128824
+            },
+            "placement": {
+              "reference_line_progress_m": 8.462583030646059,
+              "lateral_offset_m": -0.5735057828218333,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.26258303064606,
+      "road_sha256": "3e6d0ebf5ef1d37b9aa58538834b0ded6eef17c7ce79ebf84d343f3670478a25",
+      "road_seed": 714,
+      "runtime_seed": 714,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:714",
+      "saved_scene_ids": [
+        "road:e221a8b99681da9038abe806"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/uturn_left-714-perception.collection.json",
+          "member_sha256": "46d763266928a7622aad2b16d28e364dece12b3bedec4785e0577e647e67a211",
+          "episode_id": "uturn_left:714:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-f/uturn_left-714-perception.collection.json",
+          "member_sha256": "ce8bf6c0fd030808cabc15fda80446aa7c1adbaea7256219017b493b5ee09c05",
+          "episode_id": "uturn_left:714:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_right",
+      "variant": "uturn_right",
+      "direction": "right",
+      "fixture_id": "random_uturn_right_710_7ab99e4a",
+      "title": "随机右掉头 · seed 710 · 7ab99e",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.2538642800846946
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.1613003126077195,
+                  "end": 2.1613003126077195
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.9253688570409253,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.2538642800846946
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": []
+      },
+      "mission_road_length_m": 9.902691152314256,
+      "road_sha256": "7ab99e4a2b3bbd2785a8efcfff5ab6c89ba5616ac95dc1bf6bb332c1d680c1a6",
+      "road_seed": 710,
+      "runtime_seed": 710,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:710",
+      "saved_scene_ids": [
+        "road:57e3676e49a5d40bb73b24a5"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/uturn_right-710-perception.collection.json",
+          "member_sha256": "49cdce67a87be6e8ba2ff5ede93a17107920cc1718447139bd0010f319c671de",
+          "episode_id": "uturn_right:710:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-c/uturn_right-710-no_centerline.collection.json",
+          "member_sha256": "9277f62333db2ea29a36d46703a6e6121fa9866a625861bc782eafa28ea54f72",
+          "episode_id": "uturn_right:710:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-d/uturn_right-710-no_centerline.collection.json",
+          "member_sha256": "92ea86bcdf43076b39472344ed7e3d740e2c22b6e9b2c1736e9edbcb5233d6c8",
+          "episode_id": "uturn_right:710:initial:0:lattice:standard:no_centerline:road_start",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 2
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-d/uturn_right-710-perception.collection.json",
+          "member_sha256": "cc6410f7503deac4fbd50255ac419d4115114c32610401da4971b631434c9eb0",
+          "episode_id": "uturn_right:710:initial:0:lattice:standard:road_start",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 2
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_right-710-no_centerline.collection.json",
+          "member_sha256": "425d580a0380466c075816ed5240c03d4427eb1e30df66e8a9323a97aa7834e5",
+          "episode_id": "uturn_right:710:initial:0:lattice:standard:no_centerline:scenario_width_prior",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": true,
+          "recorded_decisions": 5
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_right-710-perception.collection.json",
+          "member_sha256": "05e679aceff07bfbf02737ed8817c4962780b92497a5032369aac1d03bb9bdcb",
+          "episode_id": "uturn_right:710:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_right",
+      "variant": "uturn_right",
+      "direction": "right",
+      "fixture_id": "random_uturn_right_711_46abd21f",
+      "title": "随机右掉头 · seed 711 · 46abd2",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.383813905793885
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.3632993033724055,
+                  "end": 2.3632993033724055
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.8462745269488376,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.383813905793885
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.29335288337822735,
+              "width_m": 0.20720452049506058
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.8035217631466179,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.21887638334470702,
+              "width_m": 0.16868880770187902
+            },
+            "placement": {
+              "reference_line_progress_m": 8.679889676442082,
+              "lateral_offset_m": 0.8035217631466179,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.479889676442083,
+      "road_sha256": "46abd21febd0e54934412115cf2bd1d2eb325423fa1a00dd9c6162b9a95e1a33",
+      "road_seed": 711,
+      "runtime_seed": 711,
+      "collection": "random",
+      "split": "validation",
+      "split_group": "expanded-seed:711",
+      "saved_scene_ids": [
+        "road:8389d6c9b53dffa4dbd79a4b"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/uturn_right-711-no_centerline.collection.json",
+          "member_sha256": "65ff0fca34828744e52f99ab18723c88e7c3d59df2d7d8c095c787739df67bf2",
+          "episode_id": "uturn_right:711:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/uturn_right-711-perception.collection.json",
+          "member_sha256": "11afbc7606002a3e8bfc6223c4e9491523e08fefa92c26bbd8e44398dade217d",
+          "episode_id": "uturn_right:711:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_right-711-no_centerline.collection.json",
+          "member_sha256": "e50769a7780b17735c6cbcd214e57d9b5e548a81d9b70fba94cf53a793045e5c",
+          "episode_id": "uturn_right:711:initial:0:lattice:standard:no_centerline:scenario_width_prior",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": true,
+          "recorded_decisions": 6
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_right-711-perception.collection.json",
+          "member_sha256": "91f4dab428829cae22f98259032ce77a935721703d8b5377579551078e178e8e",
+          "episode_id": "uturn_right:711:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 5
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_right",
+      "variant": "uturn_right",
+      "direction": "right",
+      "fixture_id": "random_uturn_right_712_687b2bc8",
+      "title": "随机右掉头 · seed 712 · 687b2b",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.279530684874033
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.259847840523707,
+                  "end": 2.259847840523707
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.885015337818723,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.279530684874033
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.22942547374805616,
+              "width_m": 0.1997901140838272
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": -0.7683482657780604,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2624435978027875,
+              "width_m": 0.17152480469624837
+            },
+            "placement": {
+              "reference_line_progress_m": 8.308822056758082,
+              "lateral_offset_m": -0.7683482657780604,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.108822056758083,
+      "road_sha256": "687b2bc85a4d26998891ab9994f79390e4091363fb5c611394fd82dfab39ec15",
+      "road_seed": 712,
+      "runtime_seed": 712,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:712",
+      "saved_scene_ids": [
+        "road:55c658f81b9e2357dffe0d78"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/uturn_right-712-perception.collection.json",
+          "member_sha256": "2eccbdc72a4f7f97955559ecaad7ea44fa9d91e1d2aa070c18c64d5f44bebaeb",
+          "episode_id": "uturn_right:712:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-f/uturn_right-712-perception.collection.json",
+          "member_sha256": "59b5d941c03e99dcf73908cbd243fb32655ecf8ad9955ecd9a76598ebe343565",
+          "episode_id": "uturn_right:712:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 7
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_right",
+      "variant": "uturn_right",
+      "direction": "right",
+      "fixture_id": "random_uturn_right_713_01c97b06",
+      "title": "随机右掉头 · seed 713 · 01c97b",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.4909507929298855
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.2535013706056892,
+                  "end": 2.2535013706056892
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.8875077805976422,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.4909507929298855
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2877441555807363,
+              "width_m": 0.16157290663165624
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.7661904660059344,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.2540048085136475,
+              "width_m": 0.18848010864429718
+            },
+            "placement": {
+              "reference_line_progress_m": 8.721693261234451,
+              "lateral_offset_m": -0.7661904660059344,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.521693261234452,
+      "road_sha256": "01c97b061ca1ed5119c858fabab425347dbb4451ef6e4ddcddac3ba6f9621c81",
+      "road_seed": 713,
+      "runtime_seed": 713,
+      "collection": "random",
+      "split": "test",
+      "split_group": "expanded-seed:713",
+      "saved_scene_ids": [
+        "road:caa1f45ab6627bbb2febe2c1"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/uturn_right-713-no_centerline.collection.json",
+          "member_sha256": "5216259e76deed7e322fdbed634ea4f29fe33cb918940c5476c4a57305d2c47a",
+          "episode_id": "uturn_right:713:initial:0:lattice:standard:no_centerline",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-b/uturn_right-713-perception.collection.json",
+          "member_sha256": "2618e94aba3cca66261454682eb980c87ac904dd943a9099a10a346d42925253",
+          "episode_id": "uturn_right:713:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_right-713-no_centerline.collection.json",
+          "member_sha256": "34ef0547c960610bc007b476dde57228bb8eb0f29309c45227bb1184871a392e",
+          "episode_id": "uturn_right:713:initial:0:lattice:standard:no_centerline:scenario_width_prior",
+          "recorded_input_mode": "no_centerline",
+          "recorded_width_prior": true,
+          "recorded_decisions": 6
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-e/uturn_right-713-perception.collection.json",
+          "member_sha256": "61d4adaece803251933c2cfdf6b878a10afcef0ad306bf370af313572d1c5849",
+          "episode_id": "uturn_right:713:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 9
+        }
+      ],
+      "scenario_width_prior_used": false
+    },
+    {
+      "format": "runtime_road_fixture_v1",
+      "kind": "uturn_right",
+      "variant": "uturn_right",
+      "direction": "right",
+      "fixture_id": "random_uturn_right_714_eefe0d27",
+      "title": "随机右掉头 · seed 714 · eefe0d",
+      "road_spec": {
+        "active_lane_minimum_width_m": 0.05,
+        "elements": [
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.2544982297976803
+            },
+            "speed_limit_kph": 0.72,
+            "lanes": {
+              "reference_line_role": "lane_center",
+              "reference_lane": {
+                "width_m": {
+                  "start": 2.3896074284243056,
+                  "end": 2.3896074284243056
+                },
+                "surface": "tarmac"
+              }
+            },
+            "active_cone_paths": {
+              "left_boundary": "regular",
+              "right_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "circular_arc",
+              "curvature_per_m": -0.8369575588902439,
+              "sweep_angle_deg": 180.0
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          },
+          {
+            "geometry": {
+              "type": "straight",
+              "length_m": 3.2544982297976803
+            },
+            "speed_limit_kph": 0.72,
+            "active_cone_paths": {
+              "left_boundary": "regular"
+            }
+          }
+        ],
+        "cone_paths": {
+          "left_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": 1
+            },
+            "color": "blue",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          },
+          "right_boundary": {
+            "placement": {
+              "mode": "lane_line",
+              "lane_line_index": -1
+            },
+            "color": "yellow",
+            "radius_m": 0.08,
+            "profiles": {
+              "regular": {
+                "inter_cone_spacing": {
+                  "distribution": "fixed",
+                  "value_m": 0.35
+                }
+              }
+            }
+          }
+        },
+        "obstacles": [
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.22071450320352012,
+              "width_m": 0.2088653618431713
+            },
+            "placement": {
+              "reference_line_progress_m": 1.8,
+              "lateral_offset_m": 0.5735057828218333,
+              "heading_offset_rad": 0.0
+            }
+          },
+          {
+            "geometry": {
+              "type": "rectangle",
+              "length_m": 0.22656440752265106,
+              "width_m": 0.16701302374128824
+            },
+            "placement": {
+              "reference_line_progress_m": 8.462583030646059,
+              "lateral_offset_m": -0.5735057828218333,
+              "heading_offset_rad": 0.0
+            }
+          }
+        ]
+      },
+      "mission_road_length_m": 10.26258303064606,
+      "road_sha256": "eefe0d27e7cc6121a59bad3cc5665a7230d87677f557f244ccf2b4e866495e41",
+      "road_seed": 714,
+      "runtime_seed": 714,
+      "collection": "random",
+      "split": "train",
+      "split_group": "expanded-seed:714",
+      "saved_scene_ids": [
+        "road:6e1a864e65abab9dbfc072bf"
+      ],
+      "source_episodes": [
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-a/uturn_right-714-perception.collection.json",
+          "member_sha256": "afa7e7838e51f3c2df7e18de158a80f5964e999eb87e46e0619d10ce8ed2412e",
+          "episode_id": "uturn_right:714:initial:0:lattice:standard",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": false,
+          "recorded_decisions": 0
+        },
+        {
+          "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+          "member": "collection/collect-f/uturn_right-714-perception.collection.json",
+          "member_sha256": "aa768108f362925a763c903f3db5ba5047e853e1ab623c2eb498770d8e3c9574",
+          "episode_id": "uturn_right:714:initial:0:lattice:standard:scenario_width_prior",
+          "recorded_input_mode": "perception",
+          "recorded_width_prior": true,
+          "recorded_decisions": 6
+        }
+      ],
+      "scenario_width_prior_used": false
+    }
+  ]
+}

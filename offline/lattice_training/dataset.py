@@ -8,7 +8,8 @@ from copy import deepcopy
 
 import numpy as np
 
-from .features import FEATURE_NAMES, FEATURE_VERSION, INPUT_GROUPS, encode_candidate, scene_features
+from .features import (FEATURE_SCHEMA, FEATURE_VERSION, INPUT_GROUPS, encode_candidate,
+                       scene_features, pack_inputs, unpack_input)
 from .source import planner_source_sha256,policy_encoder_sha256,POLICY_INPUT_SCHEMA
 from .objective import CSTAR_TARGET, CStarTrackingSettings, cstar_trial_returns
 
@@ -33,8 +34,8 @@ def write_json(path, value):
     path.write_text(json.dumps(json_safe(value), ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
 
 
-DECISION_FORMAT = "state_road_trajectory_decision_v1"
-DATASET_FORMAT = "state_road_trajectory_dataset_v1"
+DECISION_FORMAT = "spatial_path_decision_v1"
+DATASET_FORMAT = "spatial_path_dataset_v1"
 SPLITS = {"train", "validation", "test"}
 INTERNAL_LABEL_VERSION = "6"
 
@@ -55,6 +56,25 @@ def label_source_contract(source):
         for key in ('train_seeds', 'validation_seeds', 'test_seeds', 'train_only'):
             result['collection_settings'].pop(key, None)
     return result
+
+
+def execution_label_contract(source):
+    """Explicit repartition may vary scenes/counts, never C* label semantics."""
+    result = deepcopy(json_safe(source))
+    for field in ('road_randomization', 'collection_settings'):
+        result.pop(field, None)
+    return result
+
+
+def _numeric_contract(value):
+    """Canonical numeric equality without treating boolean flags as numbers."""
+    if isinstance(value, dict):
+        return {k: _numeric_contract(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_numeric_contract(v) for v in value]
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return value
 
 
 def training_readiness(data):
@@ -144,7 +164,38 @@ def _label_mean(label):
     return float(np.mean([_finite_number(value, "label return") for value in values])), len(values)
 
 
-def import_dataset(records_path, output, *, required_splits=None):
+def fixed_execution_condition(candidate):
+    """Label-side contract for an untimed scorer, never a policy input feature.
+
+    The current collector authors uniform acceleration over the whole path.
+    Without a target-speed input, one checkpoint must have one execution rule.
+    """
+    reference = candidate['reference']
+    timing = reference['longitudinal_profile']
+    profile = np.asarray(reference['speed_profile'], dtype=float)
+    duration = _finite_number(timing['duration_s'], 'execution duration')
+    v0, terminal = float(profile[0, 1]), float(profile[-1, 1])
+    coefficients = np.asarray(timing['coeffs_low_to_high'], dtype=float)
+    expected = np.zeros(max(3, len(coefficients)))
+    expected[:3] = [0., v0*duration, (terminal-v0)*duration/2]
+    padded = np.pad(coefficients, (0, len(expected)-len(coefficients)))
+    if (timing.get('type') != 'P_PATH_OF_TIME' or duration <= 0
+            or not np.allclose(profile[:, 1], v0+(terminal-v0)*profile[:, 0]/duration, atol=1e-8, rtol=1e-7)
+            or not np.allclose(padded, expected, atol=1e-8, rtol=1e-7)):
+        raise ValueError('Untimed policy labels require the declared common uniform-acceleration execution condition')
+    return validate_execution_condition(dict(reference_policy='uniform_acceleration_over_full_path',
+        cruise_speed_mps=terminal, planned_stop=bool(reference.get('planned_stop') or timing.get('stop'))))
+
+
+def validate_execution_condition(condition):
+    if (not isinstance(condition, dict) or condition.get('reference_policy') != 'uniform_acceleration_over_full_path'
+            or not isinstance(condition.get('planned_stop'), bool)
+            or _finite_number(condition.get('cruise_speed_mps'), 'common target speed') < 0):
+        raise ValueError('Dataset/model must declare its fixed label execution condition')
+    return condition
+
+
+def import_dataset(records_path, output, *, required_splits=None, allow_collection_variation=False):
     """Encode actual C* traces, enforce splits and preserve producer provenance."""
     started = time.perf_counter()
     required_splits = SPLITS if required_splits is None else set(required_splits)
@@ -153,6 +204,7 @@ def import_dataset(records_path, output, *, required_splits=None):
     records_sha256 = file_sha256(records_path)
     rows, scene_splits, groups, contract, sources = [], {}, set(), None, {}
     producers=set()
+    execution_condition = None
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     partial_records = output / 'decisions.jsonl.part'
@@ -179,7 +231,12 @@ def import_dataset(records_path, output, *, required_splits=None):
             raise ValueError("Label-source objective fingerprint differs from the training objective")
         if source.get("execution_assumption") != "cstar":
             raise ValueError("C* labels require execution_assumption=cstar")
-        identity = (fingerprint, objective_hash(label_source_contract(source)))
+        source_contract = execution_label_contract if allow_collection_variation else label_source_contract
+        # API settings may serialize 30 versus 30.0; keep original integer
+        # budget fields in provenance while comparing equal numeric values.
+        compatible = source_contract(source)
+        identity = (fingerprint, objective_hash(_numeric_contract(compatible)
+                    if allow_collection_variation else compatible))
         if contract is not None and identity != contract:
             raise ValueError("A dataset cannot mix objective definitions or label-source versions")
         contract = identity
@@ -201,6 +258,10 @@ def import_dataset(records_path, output, *, required_splits=None):
         for entry in record["candidates"]:
             candidate = entry["candidate"]
             computed, initial = cstar_trial_returns(candidate, entry.get("cstar_trials"), objective)
+            condition = fixed_execution_condition(candidate)
+            if execution_condition is not None and condition != execution_condition:
+                raise ValueError('Untimed policy dataset cannot mix hidden target speeds or execution conditions')
+            execution_condition = condition
             if shared_initial is None:
                 shared_initial = initial
             elif initial.keys() != shared_initial.keys() or any(
@@ -221,7 +282,7 @@ def import_dataset(records_path, output, *, required_splits=None):
                          "rule_selected": candidate["candidate_id"] == selected})
     if not rows or set(scene_splits.values()) != required_splits:
         raise ValueError('Data must provide exactly these nonempty splits: ' + ', '.join(sorted(required_splits)))
-    np.savez_compressed(output / "data.npz", X=np.stack([row["X"] for row in rows]),
+    np.savez_compressed(output / "data.npz", X=pack_inputs([row["X"] for row in rows]),
         y=np.asarray([row["y"] for row in rows]), groups=np.asarray([row["group"] for row in rows]),
         scenarios=np.asarray([row["scenario"] for row in rows]), splits=np.asarray([row["split"] for row in rows]),
         candidate_ids=np.asarray([row["candidate"] for row in rows]),
@@ -231,16 +292,17 @@ def import_dataset(records_path, output, *, required_splits=None):
     partial_records.replace(output / 'decisions.jsonl')
     readiness = training_readiness({'splits': np.asarray([row['split'] for row in rows])})
     metadata = {"format": DATASET_FORMAT, "feature_version": FEATURE_VERSION,
-                "feature_names": FEATURE_NAMES, "rows": len(rows), "decisions": len(groups),
+                "feature_schema": FEATURE_SCHEMA, "rows": len(rows), "decisions": len(groups),
                 "split_rows": {split: sum(row["split"] == split for row in rows) for split in sorted(SPLITS)},
                 "objective": objective, "objective_sha256": contract[0],
-                "label_source": source if len(sources) == 1 else label_source_contract(source),
+                "label_source": source if len(sources) == 1 else source_contract(source),
                 "label_sources": list(sources.values()),
                 "training_readiness": readiness, "training_eligible": readiness['eligible'],
                 "label_aggregation": "negative_arithmetic_mean_of_cstar_tracking_losses",
                 "label_definition": CSTAR_TARGET, "planner_source_sha256": current_source,
                 "producer_planner_sha256": sorted(producers),
                 "policy_input_schema": POLICY_INPUT_SCHEMA,"policy_encoder_sha256":policy_encoder_sha256(),
+                "execution_condition": execution_condition,
                 "input_groups": INPUT_GROUPS,
                 "records_sha256": records_sha256,
                 "encoded_records_sha256": file_sha256(output / 'decisions.jsonl'),
@@ -268,7 +330,8 @@ def append_training_dataset(base, addition, output):
     if old.keys() != new.keys():
         raise ValueError('Dataset array schemas differ')
     if (old_metadata['objective'] != new_metadata['objective'] or
-            label_source_contract(old_metadata['label_source']) != label_source_contract(new_metadata['label_source'])):
+            label_source_contract(old_metadata['label_source']) != label_source_contract(new_metadata['label_source'])
+            or old_metadata['execution_condition'] != new_metadata['execution_condition']):
         raise ValueError('Append would mix different C* objectives, solvers, plants or sampling contracts')
     if set(old['groups']) & set(new['groups']) or set(old_metadata['scene_splits']) & set(new_metadata['scene_splits']):
         raise ValueError('Added decision groups or roads must be new, including relative to holdouts')
@@ -354,8 +417,14 @@ def score_decisions(model, records_path, output):
             raise ValueError("Scoring record and policy use different objectives")
         context = scene_features(record["observation"])
         candidates = [entry["candidate"] for entry in record["candidates"]]
-        scores = model.predict(np.stack([encode_candidate(record["observation"], candidate, context=context)
-                                        for candidate in candidates]))
+        condition = model.provenance.get('execution_condition')
+        for candidate in candidates:
+            reference = candidate['reference']
+            if (condition is not None and 'speed_profile' in reference and 'longitudinal_profile' in reference
+                    and fixed_execution_condition(candidate) != condition):
+                raise ValueError('Scoring record differs from the policy fixed execution condition')
+        scores = [model.score(encode_candidate(record["observation"], candidate, context=context))
+                  for candidate in candidates]
         index = int(np.argmax(scores))
         results.append({"group_id": record["group_id"],
                         "selected_candidate_id": candidates[index]["candidate_id"],
@@ -375,8 +444,9 @@ def load_dataset(directory):
     metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
     validate_label_source(metadata.get('label_source'))
     if (metadata.get('policy_input_schema')!=POLICY_INPUT_SCHEMA or metadata.get('policy_encoder_sha256')!=policy_encoder_sha256()
-            or metadata.get('input_groups')!={k:list(v) for k,v in INPUT_GROUPS.items()}):
-        raise ValueError('Dataset state/road/trajectory encoder/schema differs; collect current-format data')
+            or metadata.get('input_groups')!=list(INPUT_GROUPS)):
+        raise ValueError('Dataset spatial-path encoder/schema differs; collect current-format data')
+    validate_execution_condition(metadata.get('execution_condition'))
     fingerprint = validate_objective(metadata.get("objective"))
     if metadata.get("objective_sha256", fingerprint) != fingerprint:
         raise ValueError("Dataset objective fingerprint mismatch")
@@ -386,7 +456,7 @@ def load_dataset(directory):
             or metadata["label_source"].get("execution_assumption") != "cstar"
             or metadata["label_source"].get("objective_sha256") != fingerprint):
         raise ValueError("Dataset must use the single C* execution/target contract")
-    if metadata.get("feature_version") != FEATURE_VERSION or metadata.get("feature_names") != list(FEATURE_NAMES):
+    if metadata.get("feature_version") != FEATURE_VERSION or metadata.get("feature_schema") != FEATURE_SCHEMA:
         raise ValueError("Dataset feature schema differs from the current scorer")
     if hashlib.sha256((directory / "data.npz").read_bytes()).hexdigest() != metadata["data_sha256"]:
         raise ValueError("Dataset content hash mismatch")
@@ -396,9 +466,10 @@ def load_dataset(directory):
     if not required <= data.keys() or any(data[name].ndim != 1 or len(data[name]) != len(data["y"])
                                          for name in required - {"X"}):
         raise ValueError("Dataset row arrays are missing or inconsistent")
-    if data["X"].shape != (len(data["y"]), len(FEATURE_NAMES)) or not (
-            np.isfinite(data["X"]).all() and np.isfinite(data["y"]).all()):
+    if data["X"].shape != (len(data["y"]),) or data['X'].dtype.kind != 'U' or not np.isfinite(data['y']).all():
         raise ValueError("Dataset shape/nonfinite values are invalid")
+    for record in data['X']:
+        unpack_input(record)
     if not np.isfinite(data["rule_scores"]).all() or not set(data["splits"]) <= {"train", "validation", "test"}:
         raise ValueError("Dataset rule scores or split labels are invalid")
     for field in ("groups", "scenarios"):

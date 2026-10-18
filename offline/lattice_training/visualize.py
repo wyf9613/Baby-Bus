@@ -16,7 +16,7 @@ import numpy as np
 from .cstar import SolverSettings
 from .dataset import write_json, json_safe
 from .evaluation import RoadEvaluation,road_environment
-from .model import ReturnMLP
+from .model import SpatialPathPolicy
 from .objective import CStarTrackingSettings
 from .roads import generate_random_road_spec,RoadRandomizationSettings,obstacle_passage_report,road_length
 
@@ -139,7 +139,7 @@ def main():
     else:
         settings=RoadRandomizationSettings(**json.loads(args.road_settings.read_text(encoding='utf-8'))) if args.road_settings else None
         spec=generate_random_road_spec(args.road_seed,settings)
-    model=ReturnMLP.load(args.model) if args.model else None
+    model=SpatialPathPolicy.load(args.model) if args.model else None
     solver=SolverSettings(population=args.population,iterations=args.iterations,max_evaluations=args.max_evaluations,max_wall_s=args.solver_wall_s)
     args.output.mkdir(parents=True,exist_ok=True);write_json(args.output/'road.json',spec)
     env=road_environment(spec,args.road_seed,progress=args.start_progress,speed=args.initial_speed)

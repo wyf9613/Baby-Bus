@@ -16,10 +16,11 @@ sys.path.insert(0, str(ROOT))
 import numpy as np
 
 from offline.lattice_training.dataset import (
-    DECISION_FORMAT, import_dataset, load_dataset, objective_hash, score_decisions, validate_objective)
-from offline.lattice_training.model import ReturnMLP, evaluate_policy, train_model
+    DECISION_FORMAT, import_dataset, load_dataset, objective_hash, score_decisions, validate_objective,
+    fixed_execution_condition)
+from offline.lattice_training.model import SpatialPathPolicy, evaluate_policy, train_model
 from offline.lattice_training.objective import CSTAR_TARGET, CStarTrackingSettings, cstar_trial_returns, sample_reference, tracking_loss
-from offline.lattice_training.features import FEATURE_NAMES, encode_candidate
+from offline.lattice_training.features import INPUT_GROUPS, encode_candidate, pack_inputs
 from offline.lattice_training.source import planner_source_sha256
 
 
@@ -285,27 +286,34 @@ runpy.run_module('offline.lattice_training', run_name='__main__')
 class PolicyModelChecks(unittest.TestCase):
     def test_model_learns_sigmoid_scores_and_json_roundtrips(self):
         rng = np.random.default_rng(10)
-        X = np.zeros((96, len(FEATURE_NAMES)))
-        X[:, :2] = rng.uniform(-1, 1, size=(96, 2))
-        y = 0.2*X[:, 0]-0.1*X[:, 1]-0.5
-        model = ReturnMLP(hidden=16, seed=2)
+        states = rng.uniform([0., -.2], [.5, .2], size=(96, 2))
+        inputs = []
+        observation = decision_records()[0]['observation']
+        for speed, yaw in states:
+            changed = deepcopy(observation)
+            changed['estimation']['state'].update(speed_mps=speed, yaw_rate_rps=yaw)
+            inputs.append(encode_candidate(changed, candidate()))
+        X = pack_inputs(inputs)
+        y = .8*states[:, 0]-.1*states[:, 1]-.5
+        model = SpatialPathPolicy(hidden=16, seed=2)
         history = model.fit(X[:72], y[:72], np.repeat(np.arange(24), 3),
                             X[72:], y[72:], epochs=100, learning_rate=0.01)
         self.assertLess(np.sqrt(np.mean((model.predict(X[72:])-model.training_targets(y[72:]))**2)), 0.15)
-        np.testing.assert_allclose(model.x_mean, X[:72].mean(axis=0))
+        np.testing.assert_allclose(model.normalization['state']['mean'][:2], states[:72].mean(axis=0))
         self.assertEqual(len(history), 100)
         model.provenance = {"objective": CStarTrackingSettings().specification(), "target": CSTAR_TARGET,
-                            "training_target_transform": model.target_specification}
+                            "training_target_transform": model.target_specification,
+                            'execution_condition': fixed_execution_condition(candidate())}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "model.json"
             model.save(path)
-            restored = ReturnMLP.load(path)
+            restored = SpatialPathPolicy.load(path)
             np.testing.assert_allclose(restored.predict(X), model.predict(X), atol=1e-12)
             record = json.loads(path.read_text(encoding="utf-8"))
-            record["x_scale"][0] = 0.0
+            record['normalization']['state']['scale'][0] = 0.0
             path.write_text(json.dumps(record), encoding="utf-8")
             with self.assertRaises(ValueError):
-                ReturnMLP.load(path)
+                SpatialPathPolicy.load(path)
 
     def test_features_ignore_truth_labels_and_controller_state(self):
         record = decision_records()[0]
@@ -316,8 +324,8 @@ class PolicyModelChecks(unittest.TestCase):
         changed["controller_context"] = {"speed_integral": 1e9, "lateral_integral": -1e9}
         modified = deepcopy(proposal)
         modified["label"] = {"return": 1e9}
-        np.testing.assert_array_equal(encode_candidate(changed, modified), expected)
-        self.assertEqual(len(expected), len(FEATURE_NAMES))
+        self.assertEqual(encode_candidate(changed, modified), expected)
+        self.assertEqual(set(expected), {'schema_version', *INPUT_GROUPS})
         from offline.lattice_training import reference
         self.assertFalse(hasattr(reference,"FrenetLatticePlanner"))
 
@@ -338,6 +346,24 @@ class PolicyModelChecks(unittest.TestCase):
 
 
 class RandomRoadCollectionChecks(unittest.TestCase):
+    def test_terminal_sensor_support_preserves_route_goal_and_initial_draw(self):
+        from offline.lattice_training.pipeline import PipelineSettings,initialize_episode,road_goal_progress
+        from offline.lattice_training.roads import RoadRandomizationSettings,road_length
+        roads=RoadRandomizationSettings(element_count_min=2,element_count_max=2,
+            obstacle_count_min=0,obstacle_count_max=0)
+        settings=PipelineSettings(starts_per_road=1)
+        base,_,base_info=initialize_episode('randomized',0,0,settings,CStarTrackingSettings(),roads)
+        extra,_,extra_info=initialize_episode('randomized',0,0,replace(settings,terminal_support_m=2.),
+                                             CStarTrackingSettings(),roads)
+        with base,extra:
+            np.testing.assert_array_equal(base._backend.car._state_values(),extra._backend.car._state_values())
+            self.assertEqual(road_goal_progress(base),road_goal_progress(extra))
+            self.assertEqual(base_info['route_length_m'],extra_info['route_length_m'])
+            self.assertAlmostEqual(road_length(extra.config.road_spec)-road_length(base.config.road_spec),2.)
+            self.assertEqual(extra_info['terminal_support_m'],2.)
+            with extra.fork() as branch:
+                self.assertEqual(road_goal_progress(branch),road_goal_progress(extra))
+
     def test_random_obstacles_leave_a_connected_inflated_body_passage(self):
         from offline.lattice_training.roads import generate_random_road_spec,obstacle_passage_report,road_identity
         for seed in range(10):
@@ -488,7 +514,7 @@ class RandomRoadCollectionChecks(unittest.TestCase):
     def test_random_successor_does_not_select_by_policy_or_reward(self):
         from offline.lattice_training.pipeline import sample_successor
         choices = [{'candidate_id': str(i), 'reward': i*100} for i in range(8)]
-        solved = {str(i): {} for i in range(8)}
+        solved = {str(i): {'status':'approximate'} for i in range(8)}
         expected = int(np.random.default_rng(12).permutation(8)[0])
         with patch('offline.lattice_training.pipeline.simulate_segment',
                    return_value=(object(), {'completed': True, 'reason': None})) as simulate:
@@ -502,10 +528,10 @@ class RandomRoadCollectionChecks(unittest.TestCase):
             selected, _, _ = sample_successor(None, choices, solved, (0,0), None, None, np.random.default_rng(12), 6)
             self.assertEqual(selected['candidate_id'], str(expected))
 
-    def test_retry_only_after_a_completed_illegal_terminal_region(self):
+    def test_random_legal_successor_retries_full_execution_failures(self):
         from offline.lattice_training.pipeline import sample_successor
         choices = [{'candidate_id': str(i)} for i in range(3)]
-        solved = {str(i): {} for i in range(3)}
+        solved = {str(i): {'status':'approximate'} for i in range(3)}
         invalid = {'completed': True, 'reason': 'terminal_region_illegal', 'terminal_region': {'legal': False}}
         valid = {'completed': True, 'reason': None, 'terminal_region': {'legal': True}}
         with patch('offline.lattice_training.pipeline.simulate_segment',
@@ -522,26 +548,46 @@ class RandomRoadCollectionChecks(unittest.TestCase):
                     return_value=(None, {'completed': completed, 'reason': reason})) as simulate:
                 _, snapshot, report = sample_successor(None, choices, solved, (0,0), None, None, np.random.default_rng(3), 3)
                 self.assertIsNone(snapshot)
-                self.assertEqual(simulate.call_count, 1)
-                self.assertEqual(report['reason'], reason)
+                self.assertEqual(simulate.call_count, 3)
+                self.assertEqual(report['reason'], 'no_legal_executable_successor')
+                self.assertTrue(all(row['reason']==reason for row in report['attempts']))
+
+    def test_random_legal_successor_excludes_failed_solver_results_without_reward_ranking(self):
+        from offline.lattice_training.pipeline import sample_successor
+        choices=[dict(candidate_id=str(i),reward=-i*1e6) for i in range(3)]
+        solved={str(i):dict(status='failed' if i==0 else 'approximate') for i in range(3)}
+        with patch('offline.lattice_training.pipeline.simulate_segment',
+                   return_value=(object(),dict(completed=True,reason=None))) as simulate:
+            chosen,snapshot,report=sample_successor(None,choices,solved,(0,0),None,None,np.random.default_rng(3),3)
+            self.assertIn(chosen['candidate_id'],('1','2'))
+            self.assertEqual(report['solver_excluded_candidate_ids'],['0'])
+            self.assertEqual(report['eligible_candidates'],2)
+            self.assertIsNotNone(snapshot)
+            self.assertEqual(simulate.call_count,1)
+        with patch('offline.lattice_training.pipeline.simulate_segment') as simulate:
+            _,snapshot,report=sample_successor(None,choices,{str(i):dict(status='failed') for i in range(3)},
+                (0,0),None,None,np.random.default_rng(3),3)
+            self.assertIsNone(snapshot)
+            self.assertEqual(report['reason'],'no_cstar_feasible_successor')
+            simulate.assert_not_called()
 
     def test_illegal_endpoint_retry_exhaustion_is_explicit(self):
         from offline.lattice_training.pipeline import sample_successor
         choices = [{'candidate_id': str(i)} for i in range(3)]
         with patch('offline.lattice_training.pipeline.simulate_segment',
                    return_value=(None, {'completed': True, 'reason': 'terminal_region_illegal'})) as simulate:
-            _, snapshot, report = sample_successor(None, choices, {str(i): {} for i in range(3)},
+            _, snapshot, report = sample_successor(None, choices, {str(i): {'status':'approximate'} for i in range(3)},
                                                    (0,0), None, None, np.random.default_rng(3), 2)
             self.assertIsNone(snapshot)
             self.assertEqual(simulate.call_count, 2)
-            self.assertEqual(report['reason'], 'illegal_terminal_resampling_exhausted')
+            self.assertEqual(report['reason'], 'legal_successor_search_budget_exhausted')
 
     def test_collection_connects_full_terminal_states_and_keeps_base_road_splits(self):
         from offline.lattice_training.pipeline import PipelineSettings, collect_records
         from offline.lattice_training.cstar import SolverSettings
         settings = PipelineSettings(kinds=('straight',), train_seeds=(0,), validation_seeds=(100,), test_seeds=(200,),
             starts_per_road=1, planner_profiles=('standard',), decisions=2, trials=1)
-        with tempfile.TemporaryDirectory() as directory, patch.object(ReturnMLP, 'predict',
+        with tempfile.TemporaryDirectory() as directory, patch.object(SpatialPathPolicy, 'score',
                 side_effect=AssertionError('Policy must not select training transitions')):
             path = Path(directory)/'records.jsonl'
             report = collect_records(path, settings, CStarTrackingSettings(),
@@ -601,7 +647,8 @@ class RandomRoadCollectionChecks(unittest.TestCase):
                 self.assertLessEqual(scene['decisions'],settings.max_segments)
                 self.assertTrue(scene['road_completed'],scene)
                 self.assertEqual(scene['terminal_behavior'], 'road_goal_reached')
-                self.assertGreaterEqual(scene['final_progress_m'], scene['goal_progress_m'])
+                self.assertLessEqual(scene['goal_progress_m']-scene['final_progress_m'],
+                                     scene['goal_progress_tolerance_m'])
                 self.assertEqual(scene['faults'], [])
             self.assertEqual(report['trials'], report['candidates'])
             self.assertGreater(report['timing_totals']['solve_s'], 0)
@@ -906,7 +953,7 @@ class NativeCStarIntegration(unittest.TestCase):
             self.assertTrue(all(trial['constraints_satisfied'] for trial in successful))
             self.assertTrue(all(trial['solver_status']=='failed' or trial['constraints_satisfied'] for trial in trials))
             self.assertEqual(metadata["objective"]["horizon_s"], 3.0)
-            model = ReturnMLP.load(root / "model.json")
+            model = SpatialPathPolicy.load(root / "model.json")
             score_decisions(model, root / "decisions.jsonl", root / "scores.json")
             closed = json.loads((root / "closed_loop.json").read_text(encoding="utf-8"))
             self.assertEqual(len(closed["episodes"]), 4)

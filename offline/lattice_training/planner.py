@@ -17,7 +17,6 @@ class PolicyCandidatePlanner:
              collect_candidates=False,candidate_scorer=None):
         self.sequence+=1
         envelope,admission=self.admission.plan(road,state,obstacles,vehicle_limits,now_s,source_timeout_s,mvp=True)
-        if not envelope['valid']:return envelope,dict(admission=admission,candidate_references=[],reason=envelope['reason'])
         jobs=[];offer=ShadowJobSource()
         offer.shadow_settings,offer.planning_settings=self.cfg,self.settings
         offer.shadow_last_submit_s=-math.inf;offer.shadow_handoff_estimate_s=self.cfg.handoff_allowance_s
@@ -35,7 +34,11 @@ class PolicyCandidatePlanner:
             # law starts at measured speed and changes it uniformly over the
             # whole path; it must not introduce an instantaneous speed step.
             duration=2*length/(initial_speed+speed);ref=deepcopy(envelope)
-            ref.update(planner_version='mvp21_lattice_policy_frenet',planned_stop=False,
+            # Baseline centerline admission is diagnostic only: native supports
+            # missing centerlines and partial/single-side roads independently.
+            ref.update(valid=True,status='TRACK',reason='native_candidate_available',
+                stop_requested=False,stop_reason=None,valid_for_s=self.settings.reference_lifetime_s,
+                target_speed_mps=speed,planner_version='mvp21_lattice_policy_frenet',planned_stop=False,
                 path=dict(type='ORDERED_CENTERLINE',independent_variable='s_m',samples_xy=[list(p[:2]) for p in proposal['path']],
                     range=[0.,length],preview_m=self.settings.preview_m),
                 frenet_path=dict(type='SAMPLED_FRENET',candidate=contract),

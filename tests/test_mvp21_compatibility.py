@@ -57,9 +57,20 @@ class MVP21CompatibilityChecks(unittest.TestCase):
         self.assertEqual(merged['status'], baseline['status'])
         self.assertEqual(merged.get('known_boundary_sides'), baseline.get('known_boundary_sides'))
         if baseline['status'] == 'VALID':
-            self.assertEqual(merged['selected']['id'], baseline['selected']['id'])
-            self.assertEqual(merged['selected']['path'], baseline['selected']['path'])
-            self.assertEqual(merged['selected']['cost'], baseline['selected']['cost'])
+            equivalent = merged
+            if merged.get('unknown_width_reference_scaled'):
+                # User-authorized 0.45 -> 0.60 m guide adjustment changes paths
+                # and costs here. Keep availability/provenance comparison at the
+                # new default, and compare exact legacy geometry at scale 1.
+                config=ShadowSettings(**{**values,'unknown_width_reference_scale':1.})
+                equivalent=ShadowLatticePlanner(config).plan(deepcopy(job))
+                current=ShadowSettings(**values)
+                self.assertAlmostEqual(merged['reference_boundary_offset_m'],
+                    current.search_half_width_m*current.unknown_width_reference_scale)
+                self.assertEqual(merged['planning_input']['road'],baseline['planning_input']['road'])
+            self.assertEqual(equivalent['selected']['id'], baseline['selected']['id'])
+            self.assertEqual(equivalent['selected']['path'], baseline['selected']['path'])
+            self.assertEqual(equivalent['selected']['cost'], baseline['selected']['cost'])
         return baseline, merged
 
     def test_20_recorded_inputs_keep_native_availability_selection_and_boundaries(self):

@@ -26,6 +26,9 @@ class ShadowSettings:
     handoff_allowance_s: float = 0.10
     score_min_length_m: float = 0.2
     search_half_width_m: float = 0.45
+    # Only a single boundary with no supplied centreline/width uses this scale.
+    # It moves the CG guide inward; it is neither lane width nor body clearance.
+    unknown_width_reference_scale: float = 4/3
     preparation_width_fraction: float = 0.15
     body_front_m: float = 0.25
     body_rear_m: float = 0.25
@@ -64,7 +67,7 @@ class ShadowSettings:
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
         for name in ("rate_hz", "length_m", "path_spacing_m", "score_min_length_m",
-                     "search_half_width_m", "body_front_m", "body_rear_m", "body_width_m",
+                     "search_half_width_m", "unknown_width_reference_scale", "body_front_m", "body_rear_m", "body_width_m",
                      "sweep_translation_step_m", "sweep_rotation_step_rad", "fusion_window_s", "fusion_spacing_m"):
             if getattr(self, name) == 0:
                 raise ValueError("shadow."+name+" must be positive")
@@ -565,6 +568,7 @@ class ShadowLatticePlanner:
         width = road.get("lane_width_m")
         width = width if finite_number(width) and width > 0 else None
         reference_origin = "centerline"
+        reference_offset, unknown_width_scaled = None, False
         phase_started = time.perf_counter()
         timing["input"] = phase_started-started
         if not points:
@@ -578,6 +582,10 @@ class ShadowLatticePlanner:
             side = "left" if left else "right"
             base = ShadowFrame(boundary)
             offset = width/2 if width else cfg.search_half_width_m
+            if width is None and bool(left) != bool(right):
+                offset *= cfg.unknown_width_reference_scale
+                unknown_width_scaled = True
+            reference_offset = offset
             points = [tuple(p[k]+(-1 if side == "left" else 1)*offset*n[k] for k in (0, 1))
                       for s in base.lengths for p, _, n in [base.at(s)]]
             reference_origin = "boundary_offset_inferred"
@@ -667,6 +675,8 @@ class ShadowLatticePlanner:
                 "planning_input": {"road": road, "state": state, "preview_m": preview},
                 "shadow_settings": vars(cfg).copy(), "controller_preview_m": preview,
                 "reference_chart_xy": list(frame.points), "reference_origin": reference_origin, "reference": [frame.at(s0+horizon*i/40)[0] for i in range(41)],
+                "reference_boundary_offset_m": reference_offset,
+                "unknown_width_reference_scaled": unknown_width_scaled,
                 "reference_observed_range_s_m": [0.0, frame.end], "start_s_m": s0, "start_d_m": d0,
                 "turn_angle_rad": turn, "entry_heading_weight": entry_weight, "preparation_offset_m": preparation,
                 "speed_mps": speed, "speed_available": finite_number(v), "hold_time_s": hold,

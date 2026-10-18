@@ -7,8 +7,9 @@ from pathlib import Path
 import numpy as np
 
 from .dataset import (load_dataset, objective_hash, write_json, validate_label_source,
-                      training_readiness, road_coverage_complete)
-from .features import FEATURE_NAMES, FEATURE_VERSION,INPUT_GROUPS
+                      training_readiness, road_coverage_complete, validate_execution_condition)
+from .features import FEATURE_SCHEMA, FEATURE_VERSION, INPUT_GROUPS
+from .spatial import SpatialNetwork, input_matrices, STATE_CHANNELS, PATH_CHANNELS, SCENE_CHANNELS
 from .source import planner_source_sha256,policy_encoder_sha256,POLICY_INPUT_SCHEMA
 from .objective import CSTAR_TARGET, CStarTrackingSettings
 
@@ -28,22 +29,28 @@ def stable_sigmoid(values):
     return result
 
 
-class ReturnMLP:
+class SpatialPathPolicy:
+    """Learned segment/scene encoders; one untimed candidate in each prediction."""
     def __init__(self, hidden=32, seed=0, *, target_transform="sigmoid", target_temperature=1.0):
-        if not isinstance(hidden, int) or hidden < 1:
+        if not isinstance(hidden, int) or isinstance(hidden, bool) or hidden < 1:
             raise ValueError("hidden must be a positive integer")
         if target_transform != "sigmoid" or (
                 not np.isfinite(target_temperature) or target_temperature <= 0):
             raise ValueError("Invalid training target transform")
         self.target_transform, self.target_temperature = target_transform, float(target_temperature)
-        rng = np.random.default_rng(seed)
-        count = len(FEATURE_NAMES)
-        self.parameters = {"w1": rng.normal(0, 1/np.sqrt(count), (count, hidden)),
-                           "b1": np.zeros(hidden), "w2": rng.normal(0, 1/np.sqrt(hidden), hidden),
-                           "b2": np.zeros(1)}
-        self.x_mean, self.x_scale = np.zeros(count), np.ones(count)
+        self.network = SpatialNetwork(hidden, seed)
+        self.normalization = {name: dict(mean=np.zeros(count), scale=np.ones(count))
+            for name, count in (('state', STATE_CHANNELS), ('path', PATH_CHANNELS), ('scene', SCENE_CHANNELS))}
         self.provenance = {}
         self.planner_source_sha256 = planner_source_sha256()
+
+    @property
+    def parameters(self):
+        return self.network.parameters
+
+    @parameters.setter
+    def parameters(self, values):
+        self.network.parameters = values
 
     @property
     def prediction_space(self):
@@ -56,78 +63,80 @@ class ReturnMLP:
                 "order": "after_trial_arithmetic_mean", "output_space": self.prediction_space}
 
     def training_targets(self, raw_returns):
-        """Dataset y already contains the mean of the original trial returns."""
         values = np.asarray(raw_returns, dtype=np.float64)
         if not np.isfinite(values).all():
             raise ValueError("Nonfinite C* training targets")
         return stable_sigmoid(values / self.target_temperature)
 
-    def _forward(self, X):
-        p = self.parameters
-        hidden = np.tanh(X @ p["w1"]+p["b1"])
-        output = hidden @ p["w2"]+p["b2"]
-        return stable_sigmoid(output), hidden
+    def _normalize(self, matrices):
+        return {name: (values-self.normalization[name]['mean'])/self.normalization[name]['scale']
+                for name, values in matrices.items()}
 
-    def predict(self, X):
-        X = np.asarray(X, dtype=np.float64)
-        if X.ndim != 2 or X.shape[1] != len(FEATURE_NAMES) or not np.isfinite(X).all():
-            raise ValueError("Invalid scorer feature input")
-        scores, _ = self._forward((X-self.x_mean)/self.x_scale)
-        result = scores
-        if not np.isfinite(result).all():
-            raise ValueError("Nonfinite learned candidate scores")
-        return result
+    def score(self, record):
+        """The production scoring entry accepts exactly one structured path."""
+        value, _ = self.network.forward(self._normalize(input_matrices(record)))
+        if not np.isfinite(value):
+            raise ValueError("Nonfinite learned path score")
+        return float(value)
+
+    def predict(self, records):
+        """Independent scoring loop for training/evaluation, with no cross-row attention."""
+        if isinstance(records, dict):
+            raise ValueError("Use score() for one path or predict() for independent records")
+        return np.asarray([self.score(record) for record in records], dtype=float)
 
     def save(self, path):
-        write_json(path, {"format": "state_road_trajectory_mlp_v1", "feature_version": FEATURE_VERSION,
-                         "input_groups": INPUT_GROUPS,
-                         "feature_names": FEATURE_NAMES, "parameters": self.parameters,
-                         "x_mean": self.x_mean, "x_scale": self.x_scale,
-                         "training_target_transform": self.target_specification,
-                         "output_activation": "sigmoid",
-                         "planner_source_sha256": self.planner_source_sha256,
-                         "policy_input_schema": POLICY_INPUT_SCHEMA,
-                         "policy_encoder_sha256": policy_encoder_sha256(),
-                         "provenance": self.provenance})
+        write_json(path, dict(format="spatial_path_attention_policy_v1", feature_version=FEATURE_VERSION,
+            input_groups=INPUT_GROUPS, feature_schema=FEATURE_SCHEMA, hidden=self.network.hidden,
+            parameters=self.parameters, normalization=self.normalization,
+            training_target_transform=self.target_specification, output_activation="sigmoid",
+            planner_source_sha256=self.planner_source_sha256, policy_input_schema=POLICY_INPUT_SCHEMA,
+            policy_encoder_sha256=policy_encoder_sha256(), provenance=self.provenance))
 
     @classmethod
     def load(cls, path):
         record = json.loads(Path(path).read_text(encoding="utf-8"))
-        if (record.get("format") != "state_road_trajectory_mlp_v1"
+        if (record.get("format") != "spatial_path_attention_policy_v1"
                 or record.get("feature_version") != FEATURE_VERSION
-                or record.get("feature_names") != list(FEATURE_NAMES)):
+                or record.get("feature_schema") != FEATURE_SCHEMA):
             raise ValueError("Unsupported scorer format/schema")
-        if (record.get('policy_input_schema')!=POLICY_INPUT_SCHEMA or
-                record.get('policy_encoder_sha256')!=policy_encoder_sha256() or
-                record.get('input_groups')!={k:list(v) for k,v in INPUT_GROUPS.items()}):
-            raise ValueError('Scorer state/road/trajectory input or encoder semantics differ')
-        transform = record.get("training_target_transform")
-        if not isinstance(transform, dict):
-            raise ValueError("Checkpoint does not declare its training target transform")
-        model = cls(hidden=len(record["parameters"]["b1"]),
-                    target_transform=transform.get("name"),
+        if (record.get('policy_input_schema') != POLICY_INPUT_SCHEMA
+                or record.get('policy_encoder_sha256') != policy_encoder_sha256()
+                or record.get('input_groups') != list(INPUT_GROUPS)):
+            raise ValueError('Scorer spatial-path input or encoder semantics differ')
+        transform = record.get("training_target_transform") or {}
+        model = cls(hidden=record["hidden"], target_transform=transform.get("name"),
                     target_temperature=transform.get("temperature", float("nan")))
         if transform != model.target_specification or record.get("output_activation") != "sigmoid":
             raise ValueError("Checkpoint score semantics are inconsistent")
-        model.parameters = {name: np.asarray(record["parameters"][name], dtype=float)
-                            for name in ("w1", "b1", "w2", "b2")}
-        model.x_mean, model.x_scale = np.asarray(record["x_mean"]), np.asarray(record["x_scale"])
-        model.planner_source_sha256, model.provenance = record["planner_source_sha256"], record.get("provenance", {})
+        parameters = record.get('parameters') or {}
+        if set(parameters) != set(model.parameters):
+            raise ValueError("Invalid model parameter names")
+        for name, expected in model.parameters.items():
+            values = np.asarray(parameters[name], dtype=float)
+            if values.shape != expected.shape or not np.isfinite(values).all():
+                raise ValueError("Invalid model tensor shapes or values")
+            model.parameters[name] = values
+        normalization = record.get('normalization') or {}
+        if set(normalization) != set(model.normalization):
+            raise ValueError("Invalid model normalization groups")
+        for name, expected in model.normalization.items():
+            for field in ('mean', 'scale'):
+                values = np.asarray(normalization[name][field], dtype=float)
+                if values.shape != expected[field].shape or not np.isfinite(values).all():
+                    raise ValueError("Invalid model normalization")
+                if field == 'scale' and (values <= 0).any():
+                    raise ValueError("Invalid model normalization")
+                model.normalization[name][field] = values
+        model.planner_source_sha256 = record['planner_source_sha256']
+        model.provenance = record.get("provenance", {})
+        validate_execution_condition(model.provenance.get('execution_condition'))
         validate_label_source(model.provenance.get('label_source'))
         CStarTrackingSettings.from_specification(model.provenance.get("objective"))
         if model.provenance.get("target") != CSTAR_TARGET:
             raise ValueError("Checkpoint does not declare the C* policy target")
         if model.provenance.get("training_target_transform") != model.target_specification:
             raise ValueError("Checkpoint target transform differs from its training provenance")
-        hidden = len(model.parameters["b1"])
-        shapes = {"w1": (len(FEATURE_NAMES), hidden), "b1": (hidden,), "w2": (hidden,), "b2": (1,)}
-        if any(model.parameters[name].shape != shape or not np.isfinite(model.parameters[name]).all()
-               for name, shape in shapes.items()):
-            raise ValueError("Invalid model tensor shapes or values")
-        if (model.x_mean.shape != (len(FEATURE_NAMES),) or model.x_scale.shape != model.x_mean.shape
-                or not np.isfinite(model.x_mean).all() or not np.isfinite(model.x_scale).all()
-                or (model.x_scale <= 0).any()):
-            raise ValueError("Invalid model normalization")
         return model
 
     def fit(self, X, y, groups, validation_X, validation_y, *,
@@ -137,12 +146,18 @@ class ReturnMLP:
             raise ValueError("Invalid training hyperparameters")
         if len(X) < 2 or not len(validation_X):
             raise ValueError("Nonempty training and validation scenarios are required")
-        # Inputs use training rows only. Sigmoid targets need no fitted y scaler.
-        self.x_mean, self.x_scale = X.mean(axis=0), X.std(axis=0)
-        self.x_scale[self.x_scale < 1e-8] = 1.0
+        training = [input_matrices(record) for record in X]
+        validation = [input_matrices(record) for record in validation_X]
+        # Per-channel normalization is fitted on Train only; no curve is resampled.
+        for name, values in self.normalization.items():
+            rows = [item[name].reshape(-1, len(values['mean'])) for item in training if item[name].size]
+            if rows:
+                joined = np.concatenate(rows)
+                values['mean'], values['scale'] = joined.mean(axis=0), joined.std(axis=0)
+                values['scale'][values['scale'] < 1e-8] = 1.
+        training = [self._normalize(item) for item in training]
+        validation = [self._normalize(item) for item in validation]
         targets, validation_targets = self.training_targets(y), self.training_targets(validation_y)
-        normalized_X = (X-self.x_mean)/self.x_scale
-        normalized_y = targets
         weights = np.empty(len(y))
         pairs = []
         for group in np.unique(groups):
@@ -155,36 +170,38 @@ class ReturnMLP:
         variances = deepcopy(moments)
         best, best_loss, history = None, float("inf"), []
         for epoch in range(1, epochs+1):
-            predictions, hidden = self._forward(normalized_X)
-            error = predictions-normalized_y
-            derivative = 2*weights*error
-            pair_loss = 0.0
+            outputs = [self.network.forward(item) for item in training]
+            predictions = np.asarray([value for value, _ in outputs])
+            derivative = 2*weights*(predictions-targets)
+            pair_loss = 0.
             if len(pair_indices):
                 a, b = pair_indices.T
-                differences = predictions[a]-predictions[b]-(normalized_y[a]-normalized_y[b])
+                differences = predictions[a]-predictions[b]-(targets[a]-targets[b])
                 pair_loss = float(np.mean(differences**2))
                 np.add.at(derivative, a, 2*pair_weight*differences/len(a))
                 np.add.at(derivative, b, -2*pair_weight*differences/len(a))
-            p = self.parameters
-            derivative *= predictions * (1 - predictions)
-            back = derivative[:, None]*p["w2"][None, :]*(1-hidden**2)
-            gradients = {"w1": normalized_X.T @ back+2*l2*p["w1"], "b1": back.sum(axis=0),
-                         "w2": hidden.T @ derivative+2*l2*p["w2"],
-                         "b2": np.array([derivative.sum()])}
+            gradients = {name: np.zeros_like(value) for name, value in self.parameters.items()}
+            for (_, cache), scale in zip(outputs, derivative):
+                for name, value in self.network.backward(cache, scale).items():
+                    gradients[name] += value
+            for name, gradient in gradients.items():
+                if name.endswith('_w'):
+                    gradient += 2*l2*self.parameters[name]
             norm = np.sqrt(sum(float(np.sum(value*value)) for value in gradients.values()))
             for name, gradient in gradients.items():
-                gradient *= min(1.0, 10/max(norm, 1e-12))
-                moments[name] = 0.9*moments[name]+0.1*gradient
-                variances[name] = 0.999*variances[name]+0.001*gradient*gradient
-                p[name] -= learning_rate*(moments[name]/(1-0.9**epoch))/(
-                    np.sqrt(variances[name]/(1-0.999**epoch))+1e-8)
-            train_rmse = float(np.sqrt(np.mean((self.predict(X)-targets)**2)))
-            validation_rmse = float(np.sqrt(np.mean((self.predict(validation_X)-validation_targets)**2)))
-            history.append({"epoch": epoch, "training_rmse": train_rmse,
-                            "validation_rmse": validation_rmse, "pair_loss": pair_loss,
-                            "rmse_space": self.prediction_space})
+                gradient *= min(1., 10/max(norm, 1e-12))
+                moments[name] = .9*moments[name]+.1*gradient
+                variances[name] = .999*variances[name]+.001*gradient*gradient
+                self.parameters[name] -= learning_rate*(moments[name]/(1-.9**epoch))/(
+                    np.sqrt(variances[name]/(1-.999**epoch))+1e-8)
+            train_prediction = np.asarray([self.network.forward(item)[0] for item in training])
+            validation_prediction = np.asarray([self.network.forward(item)[0] for item in validation])
+            train_rmse = float(np.sqrt(np.mean((train_prediction-targets)**2)))
+            validation_rmse = float(np.sqrt(np.mean((validation_prediction-validation_targets)**2)))
+            history.append(dict(epoch=epoch, training_rmse=train_rmse, validation_rmse=validation_rmse,
+                                pair_loss=pair_loss, rmse_space=self.prediction_space))
             if validation_rmse < best_loss:
-                best_loss, best = validation_rmse, deepcopy(p)
+                best_loss, best = validation_rmse, deepcopy(self.parameters)
         self.parameters = best
         return history
 
@@ -229,7 +246,7 @@ def train_model(dataset, output, *, epochs=150, hidden=32, seed=0, learning_rate
         raise ValueError('Training requires at least two Train rows and a nonempty Validation split')
     coverage = metadata.get('collection_coverage')
     train, validation = data["splits"] == "train", data["splits"] == "validation"
-    model = ReturnMLP(hidden=hidden, seed=seed, target_temperature=target_temperature)
+    model = SpatialPathPolicy(hidden=hidden, seed=seed, target_temperature=target_temperature)
     history = model.fit(data["X"][train], data["y"][train], data["groups"][train],
                         data["X"][validation], data["y"][validation],
                         epochs=epochs, learning_rate=learning_rate)
@@ -244,6 +261,7 @@ def train_model(dataset, output, *, epochs=150, hidden=32, seed=0, learning_rate
     model.provenance["pipeline_code_sha256"] = metadata["pipeline_code_sha256"]
     model.provenance["objective"] = metadata["objective"]
     model.provenance["label_source"] = metadata["label_source"]
+    model.provenance['execution_condition'] = metadata['execution_condition']
     model.provenance["label_aggregation"] = metadata["label_aggregation"]
     model.provenance["target"] = metadata["label_definition"]
     model.provenance["training_code_sha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -271,6 +289,8 @@ def evaluate_policy(model, dataset, output):
     data, metadata = load_dataset(dataset)
     if objective_hash(model.provenance.get("objective")) != objective_hash(metadata["objective"]):
         raise ValueError("Model and evaluation dataset use different reward objectives")
+    if model.provenance.get('execution_condition') != metadata['execution_condition']:
+        raise ValueError('Model and evaluation dataset use different fixed execution conditions')
     predictions = model.predict(data["X"])
     targets = model.training_targets(data["y"])
     report = {"format": "lattice_policy_evaluation_v1", "model_provenance": model.provenance,

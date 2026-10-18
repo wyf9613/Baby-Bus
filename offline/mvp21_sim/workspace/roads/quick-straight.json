@@ -1,0 +1,61 @@
+{
+  "active_lane_minimum_width_m": 0.05,
+  "elements": [
+    {
+      "geometry": {
+        "type": "straight",
+        "length_m": 2.8
+      },
+      "speed_limit_kph": 0.72,
+      "lanes": {
+        "reference_line_role": "lane_center",
+        "reference_lane": {
+          "width_m": {
+            "start": 1.1179547600282316,
+            "end": 1.1179547600282316
+          },
+          "surface": "tarmac"
+        }
+      },
+      "active_cone_paths": {
+        "left_boundary": "regular",
+        "right_boundary": "regular"
+      }
+    }
+  ],
+  "cone_paths": {
+    "left_boundary": {
+      "placement": {
+        "mode": "lane_line",
+        "lane_line_index": 1
+      },
+      "color": "blue",
+      "radius_m": 0.08,
+      "profiles": {
+        "regular": {
+          "inter_cone_spacing": {
+            "distribution": "fixed",
+            "value_m": 0.35
+          }
+        }
+      }
+    },
+    "right_boundary": {
+      "placement": {
+        "mode": "lane_line",
+        "lane_line_index": -1
+      },
+      "color": "yellow",
+      "radius_m": 0.08,
+      "profiles": {
+        "regular": {
+          "inter_cone_spacing": {
+            "distribution": "fixed",
+            "value_m": 0.35
+          }
+        }
+      }
+    }
+  },
+  "obstacles": []
+}

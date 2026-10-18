@@ -49,8 +49,8 @@ class EstimationSettings:
     road_width_min_m: float = 0.4
     road_width_max_m: float = 2.0
     road_max_abs_slope: float = 1.0
-    # 0 means unknown: single-sided geometry stays invalid until measured or
-    # explicitly supplied for a known simulated road. Never guess a lane width.
+    # 0 means unknown: a single side cannot establish a valid corridor or
+    # centreline. Its observed chain may still be published separately.
     known_lane_width_m: float = 0.0
     # Remember the last valid TWO-SIDED observed width for this policy run.
     # A fresh single boundary then defines an inward normal-offset centreline.
@@ -936,6 +936,11 @@ class EstimationPipeline:
             output["visibility"] = side+"_only"
             if width == 0:
                 output["status"] = "single_side_width_unknown" if other is None else "insufficient_common_range"
+                if other is None:
+                    # Width is required to infer a centreline, not to retain an
+                    # already observed boundary. Alignment still gates consumers.
+                    output[side+"_boundary_xy"] = [p[:2] for p in fit["support_points"]]
+                    output["boundary_source"][side] = "observed"
                 return output
             # A visible but contradictory opposite chain must not be hidden by
             # a width fallback. Missing/too-short chains are handled normally.
@@ -996,6 +1001,9 @@ class EstimationPipeline:
         road.update(measurement_timestamp_s=source_time, timestamp_s=None,
                     time_aligned=False, motion_compensation=None)
         if not road["valid"]:
+            if (road.get("geometry_encoding") == "ordered_xy"
+                    and road["status"] == "single_side_width_unknown"):
+                return self._align_observed_boundary(road, source_time, now_s, state_valid)
             return road
         if road.get("geometry_encoding") == "ordered_xy":
             return self._align_ordered_road(road, source_time, now_s, state_valid)
@@ -1068,6 +1076,38 @@ class EstimationPipeline:
                         centerline_xy=[], left_boundary_xy=None, right_boundary_xy=None,
                         lane_width_m=None, x_range_m=None, local_curvature_1pm=None,
                         confidence=0.0, motion_compensation=None)
+        return road
+
+    def _align_observed_boundary(self, road, source_time, now_s, state_valid):
+        """Expose an aligned measured side without admitting a full corridor.
+
+        Native planning can use one observed side. Baseline corridor validity,
+        learned width and trusted-road prediction remain unchanged.
+        """
+        boundaries = {side: road.get(side+"_boundary_xy") for side in ("left", "right")}
+        road.update(left_boundary_xy=None, right_boundary_xy=None)
+        pose, problem = self.motion.pose_between(source_time, now_s)
+        if not state_valid:
+            problem = "motion_state_unavailable"
+        aligned = {}
+        if problem is None:
+            for side, points in boundaries.items():
+                if not points:
+                    continue
+                transformed = [self.motion.transform_xy(p, pose) for p in points]
+                if (_path_points(transformed) is None
+                        or _path_lengths(transformed)[-1] < self.settings.road_min_coverage_m):
+                    problem = "motion_transformed_geometry_invalid"
+                    break
+                aligned[side] = transformed
+        if problem is None and aligned:
+            forward = deepcopy(road)
+            forward.update(timestamp_s=now_s, time_aligned=True, geometry_valid=True,
+                           motion_compensated=pose["interval_s"] > 0, motion_compensation=pose)
+            for side, points in aligned.items():
+                forward[side+"_boundary_xy"] = points
+            road["forward_geometry"] = forward
+        road["near_field"]["status"] = problem or road["status"]
         return road
 
     def _align_ordered_road(self, road, source_time, now_s, state_valid):

@@ -1,20 +1,21 @@
-# 接入候选评分模型
+# 单条空间路径评分接线
 
-旧 V2 planner 已移除。当前生成器是 `mvp21_policy.lattice.ShadowLatticePlanner`，
-policy 通过[三组输入契约](POLICY_INPUT.md)与生成器评分解耦。
+当前唯一 native 生成器为 `mvp21_policy.lattice.ShadowLatticePlanner`。
+离线 policy 使用[结构输入契约](POLICY_INPUT.md)，不依赖 native 评分项。
 
-离线接线已经实现：
+1. `pipeline.make_planner()` 创建最新生成器适配器。中线参考仅作诊断，不再先以其成功
+   作为 native 候选生成的准入条件；保留无中线和单侧道路能力。
+2. `candidates_at(planner, observation, model)` 每次将一条已过滤候选传入
+   `encode_candidate` 和 `SpatialPathPolicy.score`。不传候选列表、速度曲线或历史路径。
+3. 原始候选几何不变。C* 使用适配器附加的显式时间/速度规律执行并生成标签；
+   此参考不进入 policy 编码。
+4. 数据集保存逐条结构 JSON；变长曲线由模型内的线段编码和场景注意力处理。
+   不保留旧 140/1285 维加载分支或旧模型兼容入口。
 
-1. `pipeline.make_planner()` 创建最新生成器的 `PolicyCandidatePlanner` 适配器。
-2. `candidates_at(planner, observation, model)` 生成并筛选候选，再用相同的
-   `encode_candidate` 编码，以 `ReturnMLP.predict` 回调评分。
-3. 评分最高的已准入候选保持原始空间几何，按明确的时间曲线交给原 C* 求解器。
-4. C* 真实执行日志用于训练标签；模型按共享接口/encoder 校验，生成器指纹仅追踪来源。
+两个 ROS script 名称进入同一模块化 node。ROS/仿真当前均由 native 路径加固定
+巡航目标的 PID 执行，暂未加载学习模型；CMake 不安装离线训练包或权重。
+这些离线接线不改变主线控制、停止状态机或传感器准入。
 
-输入只包含当前状态、当前道路与障碍、候选轨迹；不读取 planner costs、净空代价或
-前一条路径。旧模型/数据只作历史档案，旧加载器与多项式候选解码已删除。
-
-两个 ROS script 名称均使用 `mvp21_policy.node`。节点中的 lattice 当前仍为 shadow，
-尚未装入模型或评分回调，CMake 也不安装离线训练包和权重。本次迁移没有启用机器人
-上的学习规划。后续接入需显式安装 scorer、核对同一接口/encoder，并保持状态机、输入
-有效期与停止行为。1 Hz 执行接线目前仅在[虚拟环境](../mvp21_sim/ONE_HZ_CONTROL.md)验证。
+扩展采集见 `scenarios.py`、`expanded.py` 和 `repartition.py`。缺中线是同时施加到 native
+与学习输入的显式观测遮除。掉头的场景宽度先验通过现有感知配置注入，仅用于标记的
+离线实验；相机边界、C* 约束及主线 YAML 保持原实现。模型选择使用无 Test 行的开发数据。

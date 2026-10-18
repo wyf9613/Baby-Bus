@@ -1,0 +1,148 @@
+{
+  "format": "runtime_road_fixture_v1",
+  "kind": "suite_right",
+  "variant": "suite_right",
+  "direction": "right",
+  "fixture_id": "random_suite_right_713_5181b4b6",
+  "title": "随机右弯 · seed 713 · 5181b4",
+  "road_spec": {
+    "active_lane_minimum_width_m": 0.05,
+    "elements": [
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.7264649334844178
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 1.1969835976432952,
+              "end": 1.1969835976432952
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {
+          "left_boundary": "regular",
+          "right_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.32365435783151314,
+          "sweep_angle_deg": 63.50120212841186
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular",
+          "right_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.3183505773693227
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular",
+          "right_boundary": "regular"
+        }
+      }
+    ],
+    "cone_paths": {
+      "left_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": 1
+        },
+        "color": "blue",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      },
+      "right_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": -1
+        },
+        "color": "yellow",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      }
+    },
+    "obstacles": [
+      {
+        "geometry": {
+          "type": "rectangle",
+          "length_m": 0.24746684774049527,
+          "width_m": 0.21090346917140596
+        },
+        "placement": {
+          "reference_line_progress_m": 1.8,
+          "lateral_offset_m": 0.4069744231987204,
+          "heading_offset_rad": 0.0
+        }
+      },
+      {
+        "geometry": {
+          "type": "rectangle",
+          "length_m": 0.2034680095663416,
+          "width_m": 0.1976984085847829
+        },
+        "placement": {
+          "reference_line_progress_m": 8.669163211718548,
+          "lateral_offset_m": -0.4069744231987204,
+          "heading_offset_rad": 0.0
+        }
+      }
+    ]
+  },
+  "mission_road_length_m": 10.469163211718548,
+  "road_sha256": "5181b4b6ca40c1203300b678db83468a4a8c88a6be27b4759a715859ba47edc4",
+  "road_seed": 713,
+  "runtime_seed": 713,
+  "collection": "random",
+  "split": "test",
+  "split_group": "expanded-seed:713",
+  "saved_scene_ids": [
+    "road:a4a36af503edfa4990535d1a"
+  ],
+  "source_episodes": [
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-b/suite_right-713-no_centerline.collection.json",
+      "member_sha256": "6762740db3a506caf9fa98717eb2df2c47dc7ac9371e67355c68d553c9463e9a",
+      "episode_id": "suite_right:713:initial:0:lattice:standard:no_centerline",
+      "recorded_input_mode": "no_centerline",
+      "recorded_width_prior": false,
+      "recorded_decisions": 6
+    },
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-b/suite_right-713-perception.collection.json",
+      "member_sha256": "390c28dd95957de5159f3b4a87c8387fb36d72e36688bf28ea5efdefc26a1818",
+      "episode_id": "suite_right:713:initial:0:lattice:standard",
+      "recorded_input_mode": "perception",
+      "recorded_width_prior": false,
+      "recorded_decisions": 5
+    }
+  ],
+  "scenario_width_prior_used": false
+}

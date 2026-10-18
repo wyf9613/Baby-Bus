@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from .dataset import DECISION_FORMAT, json_safe, score_decisions, validate_objective, write_json
-from .features import FEATURE_NAMES, FEATURE_VERSION, INPUT_GROUPS
-from .model import ReturnMLP
+from .features import FEATURE_SCHEMA, FEATURE_VERSION, INPUT_GROUPS
+from .model import SpatialPathPolicy
 from .objective import CStarTrackingSettings
 from .source import planner_source_sha256, POLICY_INPUT_SCHEMA
 
@@ -38,8 +38,14 @@ def main():
                      help="Safety ceiling for until-road-end; exhausting it is reported as a failure")
     run.add_argument("--starts-per-road", type=int, default=2)
     run.add_argument("--planner-profiles", default="standard,conservative")
+    run.add_argument('--planner-sample-count', type=int,
+                     help='Explicit offline native candidate count; minimum 8')
+    run.add_argument('--planner-rate-hz', type=float, default=1.,
+                     help='Native job horizon parameter; collection itself advances once per full segment')
+    run.add_argument('--terminal-support-m', type=float, default=0.,
+                     help='Explicit sensor-support road extension beyond the unchanged collection goal')
     run.add_argument("--segment-resampling-attempts", type=int, default=6,
-                     help="Retry other random candidates only after a completed illegal terminal state")
+                     help="Try random C*-feasible candidates until a complete legal execution is found")
     run.add_argument("--trials", type=int, default=2)
     run.add_argument("--evaluation-steps", type=int, default=60)
     run.add_argument("--population", type=int, default=12)
@@ -93,14 +99,14 @@ def main():
         progress({"format": DECISION_FORMAT, "planner_source_sha256": planner_source_sha256(),
                   "policy_input_schema": POLICY_INPUT_SCHEMA,"input_groups":INPUT_GROUPS,
                   "default_candidate_representation": "policy_frenet_candidate_v2",
-                  "feature_version": FEATURE_VERSION, "feature_count": len(FEATURE_NAMES),
+                  "feature_version": FEATURE_VERSION, "feature_schema": FEATURE_SCHEMA,
                   "required_fields": ["group_id", "observation", "candidates"],
                   "training_fields": ["scene_id", "split", "objective", "label_source"],
                   "candidate_fields": ["candidate", "cstar_trials"],
                   "label_source_fields": ["name", "version", "objective_sha256", "execution_assumption=cstar"],
                   "objective": specification, "objective_sha256": validate_objective(specification)})
     elif args.command == "score":
-        model = ReturnMLP.load(args.model)
+        model = SpatialPathPolicy.load(args.model)
         results = score_decisions(model, args.records, args.output)
         progress({"stage": "policy_scoring_complete", "decisions": len(results), "output": str(args.output)})
     elif args.command == "train":
@@ -126,7 +132,7 @@ def main():
         from .pipeline import PipelineSettings, run_pipeline, collect_dataset, CollectionCoverageError, augment_training_dataset
         from .roads import RoadRandomizationSettings
         configuration = CStarTrackingSettings.from_specification(json.loads(args.objective.read_text(encoding="utf-8")))
-        settings = PipelineSettings(kinds=tuple(args.kinds.split(',')), train_seeds=args.train_seeds, validation_seeds=() if args.command == 'augment' else args.validation_seeds, test_seeds=() if args.command == 'augment' else args.test_seeds, train_only=args.command == 'augment', decisions=args.decisions, until_road_end=args.until_road_end, max_segments=args.max_segments, trials=args.trials, evaluation_steps=args.evaluation_steps, starts_per_road=args.starts_per_road, planner_profiles=tuple(args.planner_profiles.split(',')), segment_resampling_attempts=args.segment_resampling_attempts)
+        settings = PipelineSettings(kinds=tuple(args.kinds.split(',')), train_seeds=args.train_seeds, validation_seeds=() if args.command == 'augment' else args.validation_seeds, test_seeds=() if args.command == 'augment' else args.test_seeds, train_only=args.command == 'augment', decisions=args.decisions, until_road_end=args.until_road_end, max_segments=args.max_segments, trials=args.trials, evaluation_steps=args.evaluation_steps, starts_per_road=args.starts_per_road, planner_profiles=tuple(args.planner_profiles.split(',')), segment_resampling_attempts=args.segment_resampling_attempts, planner_sample_count=args.planner_sample_count, planner_rate_hz=args.planner_rate_hz, terminal_support_m=args.terminal_support_m)
         road_settings = RoadRandomizationSettings(**json.loads(args.road_settings.read_text(encoding="utf-8")))
         solver = SolverSettings(population=args.population, iterations=args.iterations,
             max_evaluations=args.max_evaluations, max_wall_s=args.solver_wall_s,

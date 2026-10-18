@@ -11,16 +11,21 @@ from mvp21_policy.lattice import ShadowLatticePlanner, ShadowSettings
 
 
 class SimulatedPlannerWorker:
-    def __init__(self, *, delay_s=.1, measured=False):
+    def __init__(self, *, delay_s=.1, measured=False, candidate_selector=None,candidate_planner=None):
         if not math.isfinite(delay_s) or delay_s < 0:
             raise ValueError('Nonnegative delivery delay required')
         self.delay_s, self.measured = delay_s, measured
         self.now_s = 0.
         self.pending = self.waiting = None
         self.completed = []
+        self.candidate_selector=candidate_selector
+        self.policy_observation=None
+        self.candidate_planner=candidate_planner
 
     def submit(self, job):
         job = deepcopy(job)
+        if self.candidate_selector is not None:
+            job['policy_observation']=deepcopy(self.policy_observation)
         if self.pending is None:
             self._start(job,self.now_s)
         else:
@@ -29,9 +34,13 @@ class SimulatedPlannerWorker:
     def _start(self, job, start_s):
         started = time.perf_counter()
         try:
-            result = ShadowLatticePlanner(ShadowSettings(**job['settings'])).plan(job)
+            result = (self.candidate_planner(job) if self.candidate_planner is not None else
+                ShadowLatticePlanner(ShadowSettings(**job['settings'])).plan(job))
         except Exception as error:
             result = dict(status='WORKER_ERROR',error=str(error),selected=None)
+        native_wall=time.perf_counter()-started
+        if self.candidate_selector is not None:
+            result=self.candidate_selector.select(result,job.get('policy_observation'))
         wall = time.perf_counter()-started
         service = wall+self.delay_s if self.measured else self.delay_s
         result.update(generation=job['generation'],job_id=job['job_id'],
@@ -39,7 +48,9 @@ class SimulatedPlannerWorker:
             shadow_only=not bool(job.get('planner_control_enabled')),
             submitted_monotonic_s=job['submitted_monotonic_s'])
         self.pending = dict(result=result,job=job,ready_s=start_s+service,
-            started_s=start_s,service_s=service,planner_wall_s=wall)
+            started_s=start_s,service_s=service,planner_wall_s=wall,native_wall_s=native_wall,
+            policy_wall_s=(result.get('policy_selection')or{}).get('wall_s',0.),
+            total_late_for_requested_period=wall>1/job['settings']['rate_hz'])
 
     def poll(self, now_s):
         self.now_s = now_s

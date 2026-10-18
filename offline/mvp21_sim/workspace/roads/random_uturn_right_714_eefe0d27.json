@@ -1,0 +1,146 @@
+{
+  "format": "runtime_road_fixture_v1",
+  "kind": "uturn_right",
+  "variant": "uturn_right",
+  "direction": "right",
+  "fixture_id": "random_uturn_right_714_eefe0d27",
+  "title": "随机右掉头 · seed 714 · eefe0d",
+  "road_spec": {
+    "active_lane_minimum_width_m": 0.05,
+    "elements": [
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.2544982297976803
+        },
+        "speed_limit_kph": 0.72,
+        "lanes": {
+          "reference_line_role": "lane_center",
+          "reference_lane": {
+            "width_m": {
+              "start": 2.3896074284243056,
+              "end": 2.3896074284243056
+            },
+            "surface": "tarmac"
+          }
+        },
+        "active_cone_paths": {
+          "left_boundary": "regular",
+          "right_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "circular_arc",
+          "curvature_per_m": -0.8369575588902439,
+          "sweep_angle_deg": 180.0
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      },
+      {
+        "geometry": {
+          "type": "straight",
+          "length_m": 3.2544982297976803
+        },
+        "speed_limit_kph": 0.72,
+        "active_cone_paths": {
+          "left_boundary": "regular"
+        }
+      }
+    ],
+    "cone_paths": {
+      "left_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": 1
+        },
+        "color": "blue",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      },
+      "right_boundary": {
+        "placement": {
+          "mode": "lane_line",
+          "lane_line_index": -1
+        },
+        "color": "yellow",
+        "radius_m": 0.08,
+        "profiles": {
+          "regular": {
+            "inter_cone_spacing": {
+              "distribution": "fixed",
+              "value_m": 0.35
+            }
+          }
+        }
+      }
+    },
+    "obstacles": [
+      {
+        "geometry": {
+          "type": "rectangle",
+          "length_m": 0.22071450320352012,
+          "width_m": 0.2088653618431713
+        },
+        "placement": {
+          "reference_line_progress_m": 1.8,
+          "lateral_offset_m": 0.5735057828218333,
+          "heading_offset_rad": 0.0
+        }
+      },
+      {
+        "geometry": {
+          "type": "rectangle",
+          "length_m": 0.22656440752265106,
+          "width_m": 0.16701302374128824
+        },
+        "placement": {
+          "reference_line_progress_m": 8.462583030646059,
+          "lateral_offset_m": -0.5735057828218333,
+          "heading_offset_rad": 0.0
+        }
+      }
+    ]
+  },
+  "mission_road_length_m": 10.26258303064606,
+  "road_sha256": "eefe0d27e7cc6121a59bad3cc5665a7230d87677f557f244ccf2b4e866495e41",
+  "road_seed": 714,
+  "runtime_seed": 714,
+  "collection": "random",
+  "split": "train",
+  "split_group": "expanded-seed:714",
+  "saved_scene_ids": [
+    "road:6e1a864e65abab9dbfc072bf"
+  ],
+  "source_episodes": [
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-a/uturn_right-714-perception.collection.json",
+      "member_sha256": "afa7e7838e51f3c2df7e18de158a80f5964e999eb87e46e0619d10ce8ed2412e",
+      "episode_id": "uturn_right:714:initial:0:lattice:standard",
+      "recorded_input_mode": "perception",
+      "recorded_width_prior": false,
+      "recorded_decisions": 0
+    },
+    {
+      "archive": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/dataset.zip",
+      "member": "collection/collect-f/uturn_right-714-perception.collection.json",
+      "member_sha256": "aa768108f362925a763c903f3db5ba5047e853e1ab623c2eb498770d8e3c9574",
+      "episode_id": "uturn_right:714:initial:0:lattice:standard:scenario_width_prior",
+      "recorded_input_mode": "perception",
+      "recorded_width_prior": true,
+      "recorded_decisions": 6
+    }
+  ],
+  "scenario_width_prior_used": false
+}
