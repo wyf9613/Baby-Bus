@@ -4,6 +4,10 @@
 #   ai4r_policy.yaml -> ai4r_policy_newcar27.yaml -> ai4r_policy_mpc_newcar27.yaml
 #   -> ai4r_policy_mpc_centerline.yaml -> this file
 #
+# 2026-10-18: cap 0.15 with a soft overspeed (drive cut above 0.20, lock only if it does not
+# come back within 1 s or exceeds 0.40 for 0.2 s), longer start timeout, more restarts and a
+# 60 s run budget, so that the MPC is not stopped where the MVP would keep driving.
+#
 # What is and isn't actually measured for car 05:
 #   - Deadband: 0.30, bracketed by two car 05 execs. 17:53 (car05-v2-startfix-exec-20261015-175338):
 #     at .27's 0.289 (applied ~0.256) car 05 decelerated from 0.18 to 0.06 m/s. 18:18
@@ -38,9 +42,20 @@
     mpc:
       # shadow/exec itself is still set by --mode (mpc-shadow-centerline vs
       # mpc-exec-centerline), not here: this overlay also applies in shadow mode.
-      v_exec_max_mps: 0.12            # well below the car .27 fit's 0.35 m/s; raise only
-                                       # after watching several shadow/slow runs on this car
-      overspeed_margin_mps: 0.10      # stop at 0.22 m/s; 0.08 tripped at the first handover (18:18)
+      # 2026-10-18 relaxations so MPC runs where the MVP runs (docs/MPC_PROGRESS_LOG.md):
+      v_exec_max_mps: 0.15            # was 0.12, right at the deadband edge where 17:53 sagged and
+                                       # 18:18 overshot; the MVP runs this car at 0.20. Only with the
+                                       # soft overspeed below, never with the old 0.10 lock alone.
+      overspeed_margin_mps: 0.10      # unused while the soft margin is > 0 (old lock: 0.22 m/s)
+      overspeed_soft_margin_mps: 0.05 # above 0.20 m/s the QP may cut drive below the deadband
+      overspeed_cut_margin_mps: 0.03  # above 0.23 m/s drive is forced to 0
+      overspeed_cut_timeout_s: 1.0    # lock if still above 0.20 m/s after 1 s
+      overspeed_hard_mps: 0.40        # or above 0.40 m/s for 0.2 s (0.35 drive cap, ~0.5 m/s steady)
+      overspeed_hard_persist_s: 0.2
       breakaway_ramp_per_s: 0.0      # start at the tested request; do not slowly ramp from 0.30
-      breakaway_timeout_s: 1.5       # unchanged: fixed 0.35 produced feedback at ~0.79 s
+      breakaway_timeout_s: 2.5       # was 1.5: fixed 0.35 produced feedback at ~0.79 s; margin for a low battery
+      max_restarts: 5                # was 3
+      restart_count_reset_s: 10.0    # 10 s of tracking clears the count (long / loop runs)
       moving_speed_mps: 0.05         # unchanged: keep the existing tracking handover threshold
+    control:
+      max_run_time_s: 60.0           # was 30; the distance budget comes from make_deploy_yaml --distance

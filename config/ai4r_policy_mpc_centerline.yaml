@@ -51,3 +51,8 @@
       allow_forward_only: true
     mpc:
       reference_source: planning         # road_centerline is synchronous; no async hold needed
+      # 2026-10-18 relaxations so MPC runs where the MVP runs (docs/MPC_PROGRESS_LOG.md):
+      reference_dropout_tolerance_s: 0.5 # was 0.3; inside the 1.0 s horizon, below road_hold_s 0.8
+      max_forward_extension_m: 0.3       # the MVP needs only its 0.35 m preview point; straight
+                                         # extension instead of reference_too_short
+      solver_fail_tolerable: true        # numerical QP failures hold the plan like a dropout
