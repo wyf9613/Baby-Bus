@@ -3924,6 +3924,23 @@ class MPCSettings:
     # Late updates: dt_max_s < dt <= dt_hard_max_s is a tolerable (plan-hold) rejection,
     # dt above dt_hard_max_s locks.
     dt_hard_max_s: float = 0.4
+    # Held wheel reading (2026-10-19, 0 = off). The car's wheel-speed driver keeps its last
+    # value ~3 s after the wheel slows or stops. A raw value unchanged for wheel_hold_stale_s
+    # is not fresh: the soft-overspeed timer and the drive bias pause. It means a stalled car
+    # (speed passed as 0, so the start drive is reapplied) when the gyro also stayed below
+    # wheel_stall_yaw_rps while the applied steering was at least wheel_stall_min_steer, or
+    # for wheel_hold_straight_s at any steering (moving readings changed within 1.18 s).
+    wheel_hold_stale_s: float = 0.0
+    wheel_hold_straight_s: float = 1.5
+    wheel_stall_yaw_rps: float = 0.02
+    wheel_stall_min_steer: float = 0.3
+    # Centerline jump guard (2026-10-19, 0 = off). A road_centerline reference whose heading
+    # error exceeds switch_max_epsi_rad, or whose errors jumped from the previous solved step
+    # by more than switch_max_epsi_rad / switch_max_dey_m, is a tolerable dropout (the last
+    # solved inputs keep running) for at most switch_hold_s in a row; after that it is used.
+    switch_hold_s: float = 0.0
+    switch_max_epsi_rad: float = 0.5
+    switch_max_dey_m: float = 0.15
     horizon_n: int = 10
     dt_pred_s: float = 0.1            # fixed prediction step; measured dt is only range-checked
     dt_max_s: float = 0.2
@@ -4017,6 +4034,16 @@ class MPCSettings:
             raise ValueError("mpc.overspeed_hard_mps needs the soft margin and must exceed cap + soft + cut")
         if not 0.0 <= self.max_forward_extension_m <= 1.0 or self.restart_count_reset_s < 0:
             raise ValueError("mpc.max_forward_extension_m must be in [0, 1] m, restart_count_reset_s >= 0")
+        if (not 0.0 <= self.wheel_hold_stale_s <= 2.0
+                or not self.wheel_hold_stale_s <= self.wheel_hold_straight_s <= 3.0
+                or not 0.0 < self.wheel_stall_yaw_rps <= 0.2 or not 0.0 < self.wheel_stall_min_steer <= 1.0):
+            raise ValueError("mpc wheel hold settings out of range")
+        if (not 0.0 <= self.switch_hold_s <= 0.5 or not 0.0 < self.switch_max_epsi_rad <= 1.5
+                or not 0.0 < self.switch_max_dey_m <= 0.5):
+            raise ValueError("mpc switch guard settings out of range")
+        if self.switch_hold_s > 0 and self.reference_dropout_tolerance_s <= self.switch_hold_s:
+            # The guard rides on the tolerable dropout; without it a guarded tick would lock.
+            raise ValueError("mpc.switch_hold_s needs reference_dropout_tolerance_s above it")
 
 
 def mpc_vehicle_params(cfg, vehicle):
@@ -4766,6 +4793,54 @@ class VehicleModelMPC:
                 "solve_s": float(time.perf_counter()-t0)}, None
 
 
+class WheelHoldMonitor:
+    """Is the raw wheel-speed reading fresh, and is a held reading a stalled car?
+
+    The car's wheel-speed driver holds its last value for ~3 s after the wheel slows or
+    stops (10-19 bags: 22 holds of 3.0 s), while readings of a moving car changed within
+    1.18 s (p95 0.48 s). The gyro tells a stall apart: a car steering at least
+    wheel_stall_min_steer must turn, so |yaw rate| below wheel_stall_yaw_rps over the last
+    wheel_hold_stale_s (the car may roll on for a while after its last reading) is a stall.
+    Off (always fresh, never stalled) while cfg.wheel_hold_stale_s is 0. Pure logic on the
+    ROS clock; the caller feeds every tick.
+    """
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.reset()
+
+    def reset(self):
+        self.value = None          # raw reading being timed
+        self.since_s = None        # ROS time it first appeared
+        self.yaw = []              # (ROS time, |yaw rate|) within the last wheel_hold_stale_s
+
+    def update(self, raw_speed, yaw_rate, applied_steer, now_s):
+        cfg = self.cfg
+        out = {"held_s": None, "fresh": True, "stalled": False}
+        if cfg.wheel_hold_stale_s <= 0:
+            return out
+        if not finite_number(now_s) or (self.yaw and now_s < self.yaw[-1][0]):
+            self.reset()
+            return out
+        # Unknown yaw counts as turning, so it can never declare a stall.
+        self.yaw.append((now_s, abs(yaw_rate) if finite_number(yaw_rate) else math.inf))
+        while self.yaw and self.yaw[0][0] < now_s - cfg.wheel_hold_stale_s:
+            self.yaw.pop(0)
+        if (not finite_number(raw_speed) or raw_speed <= cfg.moving_speed_mps
+                or raw_speed != self.value or self.since_s is None):
+            # A new value, rest, or no usable reading: timing restarts with this sample.
+            self.value = raw_speed if finite_number(raw_speed) and raw_speed > cfg.moving_speed_mps else None
+            self.since_s = now_s if self.value is not None else None
+            out["held_s"] = 0.0 if self.value is not None else None
+            return out
+        held = now_s - self.since_s
+        still = max(v for _, v in self.yaw) < cfg.wheel_stall_yaw_rps
+        steering = finite_number(applied_steer) and abs(applied_steer) >= cfg.wheel_stall_min_steer
+        out.update(held_s=held, fresh=held < cfg.wheel_hold_stale_s,
+                   stalled=still and (held >= cfg.wheel_hold_stale_s and steering
+                                      or held >= cfg.wheel_hold_straight_s))
+        return out
+
+
 class MPCController:
     """One step per policy update; every branch fills last_debug before returning/raising.
 
@@ -4877,12 +4952,19 @@ class MPCController:
                                       sub, p)
         return z, delta_now
 
-    def overspeed_check(self, speed):
-        """Soft overspeed state ("ok"/"soft"/"cut") and whether it must lock now."""
+    def overspeed_check(self, speed, fresh=True, dt=0.0):
+        """Soft overspeed state ("ok"/"soft"/"cut") and whether it must lock now.
+
+        A held (not fresh) wheel reading does not advance the cut timeout: its start moves
+        forward by dt. The hard line keeps timing on any reading.
+        """
         cfg, now = self.cfg, self.clock_s
         line = cfg.v_exec_max_mps + cfg.overspeed_soft_margin_mps
         if speed > line:
-            self.overspeed_since = now if self.overspeed_since is None else self.overspeed_since
+            if self.overspeed_since is None:
+                self.overspeed_since = now
+            elif not fresh:
+                self.overspeed_since += dt
         else:
             self.overspeed_since = None
         if cfg.overspeed_hard_mps > 0 and speed > cfg.overspeed_hard_mps:
@@ -4910,7 +4992,7 @@ class MPCController:
             return "planning_bypass_not_acknowledged"
         return None
 
-    def step(self, traj, speed_mps, dt, now_s, is_first):
+    def step(self, traj, speed_mps, dt, now_s, is_first, speed_fresh=True):
         cfg, t0 = self.cfg, time.perf_counter()
         d = {"branch": None, "reject_reason": None, "shadow": cfg.shadow, "dt": dt,
              "speed_mps": speed_mps, "v_ref_mps": None, "v_ref_end_mps": None,
@@ -5017,7 +5099,10 @@ class MPCController:
         if not finite_number(speed_mps) or speed_mps < 0:
             return reject("ref_invalid", "speed_invalid")
         d["dt"] = dt if not is_first else 0.0
-        self.update_bias(speed_mps)
+        if speed_fresh:
+            self.update_bias(speed_mps)
+        else:
+            self.last_speed = None   # a held reading is no residual; restart after it
         breakaway = self.vehicle.drive_breakaway > 0
         if speed_mps >= cfg.moving_speed_mps:
             if self.phase != "tracking" or self.tracking_since is None:
@@ -5033,7 +5118,7 @@ class MPCController:
                 return reject("stop", "too_many_restarts")
         d["phase"] = self.phase
         if soft:
-            must_stop = self.overspeed_check(speed_mps)
+            must_stop = self.overspeed_check(speed_mps, speed_fresh, d["dt"])
             d["overspeed_state"] = self.overspeed_state
             d["overspeed_s"] = (0.0 if self.overspeed_since is None
                                 else self.clock_s - self.overspeed_since)
@@ -7958,6 +8043,8 @@ class PolicyNode(Node):
                 self.mpc_controller = MPCController(mpc_settings, getattr(self, "vehicle_settings", None))
                 self.mpc_has_run = False
                 self.mpc_held_reference = None
+                self.wheel_hold = WheelHoldMonitor(mpc_settings)
+                self._jump_guard_s, self._jump_ref = 0.0, None
             state = estimates["state"]
             planning_ref, held_age = self.planning_output, None
             if mpc_settings.reference_source == "planning":
@@ -7993,11 +8080,29 @@ class PolicyNode(Node):
                                                           mpc_settings.ordered_lead_in_fit_m,
                                                           mpc_settings.max_backward_extension_m)
             speed = state["speed_mps"] if state.get("speed_valid") else None
+            # 2026-10-19: a held wheel reading of a stalled car is passed as 0 (the start
+            # drive is reapplied); any held reading pauses the soft-overspeed timer and bias.
+            rates = motion_observations.get("imu_angular_velocity")
+            if getattr(self, "wheel_hold", None) is None:
+                self.wheel_hold, self._jump_guard_s, self._jump_ref = WheelHoldMonitor(mpc_settings), 0.0, None
+            hold = self.wheel_hold.update(
+                observations.get("wheel_speed"), rates[2] if rates is not None else None,
+                self.mpc_controller.applied_steer, state["timestamp_s"])
+            raw_speed = speed
+            if hold["stalled"] and speed is not None:
+                speed = 0.0
+            guard = getattr(self, "_mpc_jump_guard", None)   # absent on partial offline stand-ins
+            traj, gate = guard(traj, speed, dt, guard=planner_traj is None) if guard else (traj, None)
             try:
-                mpc_result = self.mpc_controller.step(traj, speed, dt, state["timestamp_s"], is_first_policy_step)
+                mpc_result = self.mpc_controller.step(traj, speed, dt, state["timestamp_s"], is_first_policy_step,
+                                                      speed_fresh=hold["fresh"])
             finally:
                 self.mpc_controller.last_debug.update(reference_held=held_age is not None,
-                                                      reference_held_age_s=held_age)
+                                                      reference_held_age_s=held_age,
+                                                      wheel_held_s=hold["held_s"], wheel_fresh=hold["fresh"],
+                                                      speed_override="stall" if hold["stalled"] else None,
+                                                      speed_raw_mps=raw_speed, reference_gate=gate,
+                                                      reference_gate_s=self._jump_guard_s)
                 if planner_requested:
                     self.mpc_controller.last_debug.update(
                         reference_selection=self.planner_execution.diagnostics.get("mode"),
@@ -8231,6 +8336,48 @@ class PolicyNode(Node):
         self.planner_execution.diagnostics.update(mode="baseline", fallback=True,
                                                   reason="mpc_reference_rejected: "+str(reason))
         return None
+
+    def _mpc_jump_guard(self, traj, speed, dt, guard=True):
+        """Hold the last solved inputs over a jumping road_centerline reference.
+
+        road_centerline planning only. 10-19 car runs: on falling back from the lattice
+        (and inside centerline stretches) the centerline estimate jumped for a tick or two
+        (e_psi up to 1.2 rad) and the steering swung from -1 to +1. Compared with the
+        previous solved step, a jump makes
+        this tick a tolerable dropout ("baseline_jump": the MPC's plan_hold runs) for at
+        most mpc.switch_hold_s in a row; after that the reference is used as it is.
+        Lattice ticks (guard=False) only refresh the previous solved errors. Returns
+        (trajectory for the MPC, gate label or None).
+        """
+        cfg, mpc = self.mpc_settings, self.mpc_controller
+        last = mpc.last_debug or {}
+        if last.get("branch") == "solved" and finite_number(last.get("e_y_m")) and finite_number(last.get("e_psi_rad")):
+            self._jump_ref = (last["e_y_m"], last["e_psi_rad"])
+        ref = getattr(self, "_jump_ref", None)
+        if (not guard or cfg.switch_hold_s <= 0 or cfg.shadow or mpc.plan is None
+                or self.planning_settings.algorithm != "road_centerline"
+                or not isinstance(traj, dict) or traj.get("valid") is not True or traj.get("stop_required")):
+            self._jump_guard_s = 0.0
+            return traj, None
+        cap = cfg.v_exec_max_mps if cfg.v_exec_max_mps > 0 else self.planning_settings.cruise_speed_mps
+        try:
+            info, _ = mpc_reference_errors(traj, cfg.horizon_n, cfg.dt_pred_s, max(speed or 0.0, cap),
+                                           cfg.max_backward_extension_m, cfg.max_forward_extension_m)
+        except (ValueError, TypeError, ArithmeticError, KeyError):
+            info = None
+        if info is None:          # the MPC rejects such a reference itself
+            self._jump_guard_s = 0.0
+            return traj, None
+        e_y, e_psi = info["e_y_m"], info["e_psi_rad"]
+        jump = abs(e_psi) > cfg.switch_max_epsi_rad or ref is not None and (
+            abs(e_psi-ref[1]) > cfg.switch_max_epsi_rad or abs(e_y-ref[0]) > cfg.switch_max_dey_m)
+        if not jump:
+            self._jump_guard_s = 0.0
+            return traj, None
+        if self._jump_guard_s >= cfg.switch_hold_s - 1e-9:
+            return traj, "baseline_jump_expired"
+        self._jump_guard_s += dt if finite_number(dt) and dt > 0 else 0.0
+        return {**traj, "valid": False, "reason": "baseline_jump"}, "baseline_jump"
 
     def _publish_planner_execution(self):
         """Record every executed control tick; transport faults cannot stop it."""

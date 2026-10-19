@@ -72,7 +72,7 @@ sys.path.insert(0, str(ROOT))
 from policy_offline import bind_methods, load_policy_namespace, policy_settings  # noqa: E402
 from make_deploy_yaml import KEY, merge  # noqa: E402
 
-METHODS = ("calculate_policy_actions", "_store", "_robust_control_enabled", "_mpc_uses_planning",
+METHODS = ("calculate_policy_actions", "_mpc_jump_guard", "_store", "_robust_control_enabled", "_mpc_uses_planning",
            "_select_control_reference", "_report_control_status")
 SENSORS = ("cone_detections", "fiducial_detections", "lidar_scan", "lidar_cartesian", "wheel_speed",
            "imu_orientation", "imu_angular_velocity", "imu_specific_force")

@@ -381,6 +381,18 @@
       drive_bias_gain: 0.0
       drive_bias_max: 0.05
       dt_hard_max_s: 0.4           # dt_max_s < dt <= this holds the last plan; above it locks
+      # Held wheel reading (0 = off): a raw value unchanged this long is not fresh (the
+      # soft-overspeed timer and the drive bias pause); with the gyro still and the steering
+      # applied, or for wheel_hold_straight_s, it is a stalled car and the start drive returns.
+      wheel_hold_stale_s: 0.0
+      wheel_hold_straight_s: 1.5
+      wheel_stall_yaw_rps: 0.02
+      wheel_stall_min_steer: 0.3
+      # Centerline jump guard (0 = off; needs reference_dropout_tolerance_s above it): a
+      # road_centerline reference that jumps from the last solved step holds the last plan.
+      switch_hold_s: 0.0
+      switch_max_epsi_rad: 0.5
+      switch_max_dey_m: 0.15
       horizon_n: 10
       dt_pred_s: 0.1               # fixed prediction step; measured dt is only range-checked
       dt_max_s: 0.2

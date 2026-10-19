@@ -41,7 +41,7 @@ NAMES = {
     "ControlReferenceManager", "MPCStop", "VehicleParamsSettings",
     "course_simulation_vehicle_params", "course_model_step", "MPCSettings",
     "mpc_vehicle_params", "reference_trajectory_from_planning", "_ordered_lead_in", "mpc_reference_errors",
-    "mpc_path_projector", "VehicleModelMPC", "MPCController", "mpc_debug_json",
+    "mpc_path_projector", "VehicleModelMPC", "MPCController", "WheelHoldMonitor", "mpc_debug_json",
 }
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))

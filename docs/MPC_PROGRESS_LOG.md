@@ -2,6 +2,45 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-19（晚）：轮速过期识别 + 中心线跳变保护
+
+针对同日实车的问题 1 和 2（见下一条）。新参数都默认关闭，只在 `ai4r_policy_mpc_car05.yaml` 打开：`wheel_hold_stale_s` 0.5、`switch_hold_s` 0.25。
+
+| 改动 | 内容 |
+| --- | --- |
+| `WheelHoldMonitor` | 原始轮速读数 0.5 s 不变：不新鲜，软超速的切油门计时和偏置估计暂停（0.40 硬停照常计时）。最近 0.5 s 内 IMU 偏航角速度都 < 0.02 rad/s，且施加的转向 ≥ 0.3（或读数 1.5 s 不变）：判为卡住，交给 MPC 的车速改为 0，由已有逻辑切回 starting、重新给 0.35 的起步油门（计入 `max_restarts`） |
+| `_mpc_jump_guard` | 只对 `road_centerline`：中心线参考的 `|e_psi|` > 0.5 rad，或相对上一拍已求解的误差跳变（0.5 rad / 0.15 m），就作为可容忍的参考缺失，进入 `plan_hold`，最多 0.25 s，之后照常使用（`baseline_jump_expired`）。lattice 的拍只更新"上一拍误差"。需要 `reference_dropout_tolerance_s` 大于它（V2 0.3、中心线 0.5） |
+
+**离线复核**（今天 6 个 bag 逐拍回放监测器）：判为卡住 10 次，读数随后都跳到 0，**无误判**；判出时间多在卡住后 0.7–1.5 s，原来要等 3 s。nolimit-run2 那次"连续 32 s"其实在满舵过弯时卡住了 3 次、每次约 3 s。17:16 两次正常的 1 m 运行没有误判。跳变规则在 run2 的 15、25、29、37–38 s 命中。
+
+**测试**：
+- 新增 `tests/fixtures/car05_20261019_wheel_hold.json`（从 bag 截的 5 段）；
+- `test_mpc.HeldWheelReading` 7 项；
+- `test_mpc_planner_control.CarFiveGuards` 3 项，外加车 05 配置检查 1 项；
+- 全部本地测试通过（mpc 125、planner_control 17、real_frames 15、shadow_lattice 30、planner_execution 10、control 45、estimation 65、planning 18、release_contract 4、lattice 45）；
+- Gym（lattice21 + 车 05，0.20）：死区 0.23 的仿真车 29/30（改前 28/30），死区 0.289 的 23/30（改前 21/30），都没有超速锁停。
+
+Gym 和 replay 工具的方法清单加了 `_mpc_jump_guard`；只抽取部分代码的测试替身没有这个方法时跳过保护。部署包 `car05-lattice21-exec-v020-*` 已重新生成：policy_node 为 `2ff849ac…`，yaml 分别为 `a0bed939…` / `60236ee0…` / `261f6abf…`。上车前要跑 WSL 门禁。
+
+## 2026-10-19（现场，续）：`d19a0d5` 实车结果，nolimit 连续 32 s
+
+bag 同上目录。全部是 0.20 限速、lattice 2.1、转向区间 ±1.0。
+
+| bag | 结果 |
+| --- | --- |
+| `v020-1m-d19a`（17:08） | 7 次启动：6 次 `invalid_road_motion_state_unavailable`，1 次 overspeed。policy 节拍 p95 0.092 s、最长 0.151 s（之前 0.058–0.067） |
+| `v020-1m-overspeed-171654` | **两次 1 m 都跑满**；第二次进过软超速/切油门后恢复，偏置正常（-0.003）。节拍 p95 0.067 |
+| `v020-nolimit-run1` | 0.7 m、2.5 m 后 overspeed 锁停 |
+| `v020-nolimit-run2` | **连续 32.5 s、约 5.5 m**，平均 0.19 m/s，88% 跟 lattice，跟 lattice 时横向基本在 ±5 cm 内；结束于 `invalid_road_insufficient_geometry` |
+
+**CPU**：车上负载均值 8.5–9.5（6 核），各核 91–99%，温度约 50 °C，没有降频。5 个 `dream_command.runtime_runner` 包装进程各占 70–80%，是最大负载。负载高时 policy 节拍被拖到 0.1–0.15 s，超过 `motion_max_gap_s` 0.15，状态被判过期而停车（`motion_state_unavailable`）。时有时无。已建议关 Foxglove、减少终端，并报告助教。
+
+**问题（待改代码）**：
+1. **车停住但轮速保持旧值**：nolimit-run1 第二次锁停时满舵、油门 0.22–0.27，IMU 偏航角速度 31.75–32.6 s 恒为 0，轮速却一直 0.252。MPC 以为在巡航，不重新起步，最后由超速保护锁停。
+2. **lattice ↔ 中心线切换时转向跳变**：退回中心线那一拍中心线估计常跳（`e_psi` 到 1.1 rad），转向从 -1 打到 +1（run2 25–26 s、29 s、37–38 s）。起步前 1–2 s 只有中心线参考，车没摆正时横向误差显示 0.2–0.6 m。
+3. **弯道常打满舵**：run2 满舵占 32% 时间，都是单方向持续 1–4 s 的过弯。转向参数借自 .20（满舵 18°），5 号车未测。
+4. 起步时车要摆正（清单要求 ±0.15 m、±5°）；跑满距离后原地接着跑会带着很大的初始偏差。
+
 ## 2026-10-19（现场）：0.20 实车的三个问题和现场修正
 
 bag：`car-evidence/car05-lattice21-20261019-161732-197/`。

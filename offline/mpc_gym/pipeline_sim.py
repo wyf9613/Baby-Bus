@@ -43,7 +43,7 @@ import dreamgym  # noqa: E402,F401  (registers the environment)
 sys.path.insert(0, str(ROOT / "tools"))
 from policy_offline import bind_methods, load_policy_namespace, policy_settings  # noqa: E402
 
-METHODS = ("calculate_policy_actions", "_store", "_robust_control_enabled", "_mpc_uses_planning",
+METHODS = ("calculate_policy_actions", "_mpc_jump_guard", "_store", "_robust_control_enabled", "_mpc_uses_planning",
            "_select_control_reference", "_report_control_status")
 GYM_TO_ROS_COLOUR = {1: 2, 0: 1}        # Gym blue 1 / yellow 0 -> ConeDetection BLUE 2 / YELLOW 1
 ENV_DT, CONE_PERIOD_STEPS, CONE_LATENCY_S = 0.05, 2, 0.05

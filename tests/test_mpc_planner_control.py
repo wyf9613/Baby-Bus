@@ -36,7 +36,7 @@ EXTRA = {"RoadCenterlinePlanner", "_estimation_order_boundary", "_path_points", 
          "MPCStop", "VehicleParamsSettings", "course_simulation_vehicle_params", "course_model_step",
          "MPCSettings", "mpc_vehicle_params", "reference_trajectory_from_planning", "_ordered_lead_in",
          "_estimation_solve", "reference_trajectory_from_road", "mpc_reference_errors",
-         "mpc_path_projector", "VehicleModelMPC", "MPCController", "mpc_debug_json",
+         "mpc_path_projector", "VehicleModelMPC", "MPCController", "WheelHoldMonitor", "mpc_debug_json",
          "transport_control_reference", "_control_sample_points", "mpc_planning_reference",
          "ShadowSettings", "ShadowFrame", "ShadowLatticePlanner", "PlannerControlSettings",
          "PlannerExecutionManager"}
@@ -47,7 +47,7 @@ for n in definitions:
     estimation_ns.setdefault(n.name, cns[n.name])
 METHODS = {"_planner_preview_m", "_select_planner_reference", "_select_mpc_planner_trajectory",
            "_publish_planner_execution", "_shadow_clear", "_shadow_collect_road", "_shadow_offer",
-           "_shadow_poll", "_mpc_uses_planning"}
+           "_shadow_poll", "_mpc_uses_planning", "_mpc_jump_guard"}
 policy_node = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "PolicyNode")
 methods = [n for n in policy_node.body if isinstance(n, ast.FunctionDef) and n.name in METHODS]
 assert {n.name for n in methods} == METHODS
@@ -353,12 +353,79 @@ class DeployProfileChecks(unittest.TestCase):
         with self.assertRaises(AssertionError):            # car 27's record is not measured
             deploy["build"]("mpc-exec-lattice21", 1.0, cones="yellow-left", car="27")
 
+    def test_car05_profiles_turn_on_the_wheel_hold_and_jump_guard(self):
+        for car, on in (("05", True), ("27", False)):
+            p = deploy["build"]("mpc-shadow-lattice21", 1.0, cones="yellow-left", car=car)[0]
+            mpc = p["/**/ai4r_policy"]["ros__parameters"]["mpc"]
+            self.assertEqual((mpc["wheel_hold_stale_s"], mpc["switch_hold_s"]),
+                             (0.5, 0.25) if on else (0.0, 0.0))
+            cns["MPCSettings"](**mpc)
+
     def test_lattice21_profile_selects_the_lattice_on_the_stand_in_node(self):
         node = make_node(shadow_enabled=True, planner=True, mode="mpc-shadow-lattice21")
         records = run(node, 30)
         self.assertEqual(records[-1]["reference_selection"], "planner")
         self.assertEqual(records[-1]["branch"], "shadow")
         self.assertEqual(node.action_publisher.messages[-1].drive, 0.0)
+
+
+class CarFiveGuards(unittest.TestCase):
+    """2026-10-19 car 05: held wheel readings and centerline jumps (car 05 profile turns both on)."""
+
+    def test_a_held_reading_with_a_still_gyro_reapplies_the_start_drive(self):
+        node = make_node(mode="mpc-exec-centerline")
+        records = run(node, 36)          # feed() repeats one wheel value and a zero gyro
+        before = [r for r in records if r["speed_override"] is None]
+        stalled = [r for r in records if r["speed_override"] == "stall"]
+        self.assertTrue(before and stalled)
+        self.assertEqual(before[-1]["phase"], "tracking")
+        self.assertFalse(before[-1]["wheel_fresh"])          # held, not yet a stall (straight)
+        self.assertGreaterEqual(stalled[0]["wheel_held_s"], 1.5-1e-9)
+        self.assertEqual((stalled[0]["phase"], stalled[0]["applied_drive"], stalled[0]["speed_raw_mps"]),
+                         ("starting", node.vehicle_settings.drive_breakaway, 0.12))
+        self.assertEqual(node.fsm_state, 3)
+
+    def shifted(self, traj, dy):
+        return {**traj, "points": [{**p, "y_m": p["y_m"]+dy} for p in traj["points"]]}
+
+    def test_a_jumping_centerline_holds_the_last_plan_then_is_used(self):
+        node = make_node(mode="mpc-exec-centerline")
+        run(node, 8)
+        cfg = node.mpc_settings
+        traj = cns["reference_trajectory_from_planning"](node.planning_output, cfg.reference_spacing_m,
+                                                         cfg.ordered_lead_in_fit_m, cfg.max_backward_extension_m)
+        self.assertEqual(node._mpc_jump_guard(traj, 0.12, 0.05), (traj, None))
+        jumped = self.shifted(traj, 0.3)
+        gates = []
+        for _ in range(7):
+            guarded, gate = node._mpc_jump_guard(jumped, 0.12, 0.05)
+            gates.append(gate)
+            if gate == "baseline_jump":
+                self.assertEqual((guarded["valid"], guarded["reason"]), (False, "baseline_jump"))
+                now = node.estimation_output["state"]["timestamp_s"]
+                out = node.mpc_controller.step(guarded, 0.12, 0.05, now, False)
+                self.assertEqual(out["debug"]["branch"], "plan_hold")
+            else:
+                self.assertIs(guarded, jumped)
+        self.assertEqual(gates, ["baseline_jump"]*5 + ["baseline_jump_expired"]*2)
+        self.assertEqual(node._mpc_jump_guard(traj, 0.12, 0.05), (traj, None))
+        self.assertEqual(node._jump_guard_s, 0.0)
+        small = self.shifted(traj, 0.05)
+        self.assertEqual(node._mpc_jump_guard(small, 0.12, 0.05), (small, None))
+        self.assertEqual(node._mpc_jump_guard(jumped, 0.12, 0.05, guard=False), (jumped, None))
+
+    def test_the_guard_is_off_in_shadow_and_without_a_plan(self):
+        node = make_node(mode="mpc-shadow-centerline")
+        run(node, 8)
+        cfg = node.mpc_settings
+        traj = cns["reference_trajectory_from_planning"](node.planning_output, cfg.reference_spacing_m,
+                                                         cfg.ordered_lead_in_fit_m, cfg.max_backward_extension_m)
+        jumped = self.shifted(traj, 0.3)
+        self.assertEqual(node._mpc_jump_guard(jumped, 0.12, 0.05), (jumped, None))
+        node = make_node(mode="mpc-exec-centerline")
+        run(node, 8)
+        node.mpc_controller.plan = None
+        self.assertEqual(node._mpc_jump_guard(jumped, 0.12, 0.05), (jumped, None))
 
 
 if __name__ == "__main__":

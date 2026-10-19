@@ -61,5 +61,10 @@
       max_restarts: 5                # was 3
       restart_count_reset_s: 10.0    # 10 s of tracking clears the count (long / loop runs)
       moving_speed_mps: 0.05         # unchanged: keep the existing tracking handover threshold
+      wheel_hold_stale_s: 0.5        # 2026-10-19 bags: held readings stalled the car in full-lock turns
+                                     # (3 x ~3 s in nolimit-run2) and fed the overspeed locks; offline
+                                     # replay flagged 10 stalls, all real (the reading then fell to 0)
+      switch_hold_s: 0.25            # centerline jumps (e_psi to 1.2 rad) hold the last plan <= 0.25 s;
+                                     # must stay below reference_dropout_tolerance_s (0.3 V2, 0.5 centerline)
     control:
       max_run_time_s: 60.0           # was 30; the distance budget comes from make_deploy_yaml --distance

@@ -30,7 +30,7 @@ SOURCE = ROOT / "scripts" / "policy_node.py"
 NAMES = {"wrap_angle", "MPCStop", "VehicleParamsSettings", "course_simulation_vehicle_params",
          "course_model_step", "MPCSettings", "mpc_vehicle_params", "reference_trajectory_from_planning",
          "_ordered_lead_in", "_estimation_solve", "reference_trajectory_from_road", "mpc_reference_errors", "mpc_path_projector",
-         "VehicleModelMPC", "MPCController", "mpc_debug_json", "transport_control_reference",
+         "VehicleModelMPC", "MPCController", "WheelHoldMonitor", "mpc_debug_json", "transport_control_reference",
          "_control_sample_points", "mpc_planning_reference", "ControlReferenceManager"}
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 definitions = [item for item in tree.body if isinstance(item, (ast.FunctionDef, ast.ClassDef))
@@ -1798,6 +1798,102 @@ class RelaxedGuards(unittest.TestCase):
         self.assertEqual(ride(1.0).last_debug["phase"], "starting")
         with self.assertRaises(Stop):
             ride(0.0)
+
+
+class HeldWheelReading(unittest.TestCase):
+    """2026-10-19: the wheel-speed driver holds its last value ~3 s after the wheel stops."""
+    NOW = RelaxedGuards.NOW
+    recording, soft_controller, drive = (RelaxedGuards.recording, RelaxedGuards.soft_controller,
+                                         RelaxedGuards.drive)
+    FIXTURE = json.loads((ROOT/"tests"/"fixtures"/"car05_20261019_wheel_hold.json").read_text(encoding="utf-8"))
+    Monitor = namespace["WheelHoldMonitor"]
+
+    def monitor(self, **changes):
+        return self.Monitor(Settings(**{"wheel_hold_stale_s": 0.5, **changes}))
+
+    def replay(self, segment, **changes):
+        """(t, output) per recorded policy tick of a fixture segment."""
+        monitor = self.monitor(**changes)
+        return [(t, monitor.update(wheel, yaw, steer, self.NOW+t)) for t, wheel, yaw, steer in segment["ticks"]]
+
+    def test_off_by_default(self):
+        self.assertEqual(Settings().wheel_hold_stale_s, 0.0)
+        out = self.Monitor(Settings()).update(0.25, 0.0, 1.0, self.NOW)
+        self.assertEqual(out, {"held_s": None, "fresh": True, "stalled": False})
+
+    def test_car05_stalls_are_found_and_completed_runs_are_not(self):
+        for segment in self.FIXTURE["segments"]:
+            with self.subTest(segment["note"]):
+                outs, expect = self.replay(segment), segment["expect"]
+                stalled = [t for t, out in outs if out["stalled"]]
+                if expect.get("never_stalled"):
+                    self.assertEqual(stalled, [])
+                else:
+                    self.assertTrue(stalled and stalled[0] <= expect["stalled_by_s"], stalled[:1])
+                    self.assertGreaterEqual(stalled[0], expect["no_stall_before_s"])
+
+    def test_a_new_value_or_rest_restarts_the_timing(self):
+        monitor = self.monitor()
+        for k in range(12):                                     # 0.55 s on 0.25, still and steering
+            out = monitor.update(0.25, 0.0, 0.8, self.NOW+0.05*k)
+        self.assertEqual((out["fresh"], out["stalled"]), (False, True))
+        out = monitor.update(0.26, 0.0, 0.8, self.NOW+0.6)
+        self.assertEqual((out["held_s"], out["fresh"], out["stalled"]), (0.0, True, False))
+        out = monitor.update(0.0, 0.0, 0.8, self.NOW+0.65)
+        self.assertEqual((out["held_s"], out["fresh"], out["stalled"]), (None, True, False))
+
+    def test_turning_or_straight_holds_are_not_a_quick_stall(self):
+        monitor = self.monitor()
+        for k in range(16):                                     # held 0.75 s but the gyro turns
+            out = monitor.update(0.25, 0.1, 0.8, self.NOW+0.05*k)
+        self.assertEqual((out["fresh"], out["stalled"]), (False, False))
+        monitor = self.monitor()
+        times = [0.05*k for k in range(31)]                     # straight: still gyro, small steering
+        outs = [monitor.update(0.25, 0.0, 0.05, self.NOW+t) for t in times]
+        self.assertFalse(any(o["stalled"] for t, o in zip(times, outs) if t < 1.5-1e-9))
+        self.assertTrue(outs[-1]["stalled"])                    # wheel_hold_straight_s
+        monitor = self.monitor()
+        outs = [monitor.update(0.25, None, 0.8, self.NOW+0.05*k) for k in range(40)]
+        self.assertFalse(any(o["stalled"] for o in outs))       # unknown yaw never stalls
+
+    def test_held_reading_pauses_the_cut_timeout_but_not_the_hard_stop(self):
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1])
+        for k in range(40):                                     # 2 s above the soft line, held
+            out = ctrl.step(straight_trajectory(speed=0.15, stamp=self.NOW+t), 0.21, 0.05, self.NOW+t, False,
+                            speed_fresh=False)
+            t += 0.05
+        self.assertEqual(out["debug"]["branch"], "solved")
+        self.assertLess(out["debug"]["overspeed_s"], 0.1)
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1])
+        with self.assertRaises(Stop):
+            for k in range(6):
+                ctrl.step(straight_trajectory(speed=0.15, stamp=self.NOW+t), 0.45, 0.05, self.NOW+t, False,
+                          speed_fresh=False)
+                t += 0.05
+        self.assertEqual(ctrl.last_debug["reject_reason"], "overspeed")
+
+    def test_held_reading_does_not_move_the_drive_bias(self):
+        ctrl = self.soft_controller(drive_bias_gain=2.0, overspeed_soft_margin_mps=0.0, overspeed_hard_mps=0.0)
+        _, t = self.drive(ctrl, [0.1, 0.12])
+        bias = ctrl.bias
+        for k in range(20):
+            ctrl.step(straight_trajectory(speed=0.15, stamp=self.NOW+t), 0.12, 0.05, self.NOW+t, False,
+                      speed_fresh=False)
+            t += 0.05
+        self.assertEqual(ctrl.bias, bias)
+
+    def test_wheel_hold_and_switch_settings_are_checked(self):
+        for kwargs in ({"wheel_hold_stale_s": -0.1}, {"wheel_hold_stale_s": 2.5},
+                       {"wheel_hold_stale_s": 1.0, "wheel_hold_straight_s": 0.5},
+                       {"wheel_stall_yaw_rps": 0.0}, {"wheel_stall_min_steer": 1.5},
+                       {"switch_hold_s": 0.3}, {"switch_hold_s": 0.3, "reference_dropout_tolerance_s": 0.3},
+                       {"switch_hold_s": 0.6, "reference_dropout_tolerance_s": 0.5},
+                       {"switch_max_epsi_rad": 0.0}, {"switch_max_dey_m": 0.0}):
+            with self.assertRaises(ValueError, msg=str(kwargs)):
+                Settings(**kwargs)
+        Settings(switch_hold_s=0.3, reference_dropout_tolerance_s=0.5)
 
 
 if __name__ == "__main__":
