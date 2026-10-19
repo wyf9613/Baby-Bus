@@ -1,0 +1,4698 @@
+{
+ "rows": [
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 1,
+   "completed": true,
+   "distance_m": 3.0,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.118,
+   "peak_speed_mps": 0.359,
+   "elapsed_s": 11.05,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 220
+   },
+   "reference_selection": {
+    "baseline": 7,
+    "planner": 213
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 3.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.063,
+   "peak_speed_mps": 0.358,
+   "elapsed_s": 11.05,
+   "step_p95_ms": 9.7,
+   "branches": {
+    "solved": 220
+   },
+   "reference_selection": {
+    "baseline": 29,
+    "planner": 191
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 25,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 3,
+   "completed": true,
+   "distance_m": 3.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.036,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 8.0,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 3.007,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.016,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.9,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 3.015,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.085,
+   "peak_speed_mps": 0.352,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 8.7,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 3.001,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.112,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.0,
+   "step_p95_ms": 9.3,
+   "branches": {
+    "solved": 219
+   },
+   "reference_selection": {
+    "baseline": 13,
+    "planner": 206
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 9,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 7,
+   "completed": true,
+   "distance_m": 3.005,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.103,
+   "peak_speed_mps": 0.354,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 9.3,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 3.004,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.018,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 8.1,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 3.005,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.062,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 9.1,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 3.014,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.095,
+   "peak_speed_mps": 0.351,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 8.2,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 1,
+   "completed": true,
+   "distance_m": 3.007,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.12,
+   "peak_speed_mps": 0.353,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 8.7,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 10,
+    "planner": 211
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 6,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 3.013,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.061,
+   "peak_speed_mps": 0.372,
+   "elapsed_s": 11.05,
+   "step_p95_ms": 8.6,
+   "branches": {
+    "solved": 220
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 216
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 3,
+   "completed": true,
+   "distance_m": 3.013,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.05,
+   "peak_speed_mps": 0.363,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 8.0,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 3.0,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.095,
+   "peak_speed_mps": 0.35,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 7.9,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 3.006,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.055,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 219
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 3.007,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.107,
+   "peak_speed_mps": 0.348,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 8.1,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 7,
+   "completed": true,
+   "distance_m": 3.011,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.109,
+   "peak_speed_mps": 0.349,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 8.0,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 3.006,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.05,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 3.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.059,
+   "peak_speed_mps": 0.348,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.5,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 3.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.109,
+   "peak_speed_mps": 0.355,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 8.2,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 10,
+    "planner": 211
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 6,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 1,
+   "completed": true,
+   "distance_m": 3.015,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.11,
+   "peak_speed_mps": 0.347,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 3.011,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.087,
+   "peak_speed_mps": 0.38,
+   "elapsed_s": 11.05,
+   "step_p95_ms": 8.2,
+   "branches": {
+    "solved": 220
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 216
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 3,
+   "completed": true,
+   "distance_m": 3.004,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.092,
+   "peak_speed_mps": 0.373,
+   "elapsed_s": 11.05,
+   "step_p95_ms": 8.2,
+   "branches": {
+    "solved": 220
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 216
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 3.013,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.06,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 3.005,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.028,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 3.006,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.056,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 8.1,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 7,
+   "completed": true,
+   "distance_m": 3.005,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.058,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 3.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.033,
+   "peak_speed_mps": 0.354,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 3.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.019,
+   "peak_speed_mps": 0.352,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 3.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.09,
+   "peak_speed_mps": 0.349,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 1,
+   "completed": true,
+   "distance_m": 3.001,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.196,
+   "peak_speed_mps": 0.442,
+   "elapsed_s": 10.7,
+   "step_p95_ms": 8.7,
+   "branches": {
+    "solved": 213
+   },
+   "reference_selection": {
+    "baseline": 7,
+    "planner": 206
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 4,
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 3.004,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.156,
+   "peak_speed_mps": 0.366,
+   "elapsed_s": 11.0,
+   "step_p95_ms": 8.1,
+   "branches": {
+    "solved": 219
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 215
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 3,
+   "completed": true,
+   "distance_m": 3.009,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.021,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 8.0,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 219
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 3.011,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.015,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 3.002,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.082,
+   "peak_speed_mps": 0.352,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 3.009,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.129,
+   "peak_speed_mps": 0.359,
+   "elapsed_s": 11.05,
+   "step_p95_ms": 8.2,
+   "branches": {
+    "solved": 220
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 216
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 7,
+   "completed": true,
+   "distance_m": 3.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.105,
+   "peak_speed_mps": 0.353,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 3.007,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.016,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 8.1,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 219
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 3.006,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.037,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 219
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 3.006,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.071,
+   "peak_speed_mps": 0.351,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 1,
+   "completed": true,
+   "distance_m": 3.002,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.166,
+   "peak_speed_mps": 0.354,
+   "elapsed_s": 11.0,
+   "step_p95_ms": 7.9,
+   "branches": {
+    "solved": 219
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 215
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 3.003,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.05,
+   "peak_speed_mps": 0.35,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 3,
+   "completed": false,
+   "distance_m": 1.4,
+   "stop_reason": "stop:invalid_road_motion_interval_too_long",
+   "stop_planning": "invalid_road_motion_interval_too_long",
+   "stop_road": "motion_interval_too_long",
+   "hard_stop": true,
+   "lateral_max_m": 0.062,
+   "peak_speed_mps": 0.358,
+   "elapsed_s": 5.7,
+   "step_p95_ms": 9.0,
+   "branches": {
+    "solved": 113,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 109
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 6
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 3.006,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.128,
+   "peak_speed_mps": 0.348,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 3.007,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.074,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 3.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.123,
+   "peak_speed_mps": 0.347,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 7,
+   "completed": true,
+   "distance_m": 3.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.134,
+   "peak_speed_mps": 0.348,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 3.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.05,
+   "peak_speed_mps": 0.349,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 219
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 3.011,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.05,
+   "peak_speed_mps": 0.347,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 3.004,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.141,
+   "peak_speed_mps": 0.352,
+   "elapsed_s": 11.0,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 219
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 215
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 1,
+   "completed": true,
+   "distance_m": 3.001,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.174,
+   "peak_speed_mps": 0.353,
+   "elapsed_s": 10.9,
+   "step_p95_ms": 8.0,
+   "branches": {
+    "solved": 217
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 213
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 3.014,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.161,
+   "peak_speed_mps": 0.35,
+   "elapsed_s": 11.05,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 220
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 216
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 3,
+   "completed": false,
+   "distance_m": 1.371,
+   "stop_reason": "stop:invalid_road_motion_interval_too_long",
+   "stop_planning": "invalid_road_motion_interval_too_long",
+   "stop_road": "motion_interval_too_long",
+   "hard_stop": true,
+   "lateral_max_m": 0.02,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 5.7,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 113,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 110
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 6
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 3.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.019,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.9,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 3.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.013,
+   "peak_speed_mps": 0.35,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 3.0,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.157,
+   "peak_speed_mps": 0.35,
+   "elapsed_s": 11.1,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 221
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 7,
+   "completed": true,
+   "distance_m": 3.007,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.069,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.9,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 3.005,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.009,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 218
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 3.013,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.022,
+   "peak_speed_mps": 0.351,
+   "elapsed_s": 11.15,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 222
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 219
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 3.015,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.16,
+   "peak_speed_mps": 0.351,
+   "elapsed_s": 11.05,
+   "step_p95_ms": 8.1,
+   "branches": {
+    "solved": 220
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 216
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 1,
+   "completed": true,
+   "distance_m": 5.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.121,
+   "peak_speed_mps": 0.359,
+   "elapsed_s": 17.65,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 352
+   },
+   "reference_selection": {
+    "baseline": 6,
+    "planner": 346
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 2
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 5.014,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.066,
+   "peak_speed_mps": 0.358,
+   "elapsed_s": 17.7,
+   "step_p95_ms": 8.9,
+   "branches": {
+    "solved": 353
+   },
+   "reference_selection": {
+    "baseline": 29,
+    "planner": 324
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 25,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 3,
+   "completed": true,
+   "distance_m": 5.013,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.044,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 350
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 5.004,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.02,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 7.9,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 350
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 5.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.065,
+   "peak_speed_mps": 0.353,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 350
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 5.012,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.111,
+   "peak_speed_mps": 0.347,
+   "elapsed_s": 17.65,
+   "step_p95_ms": 8.4,
+   "branches": {
+    "solved": 352
+   },
+   "reference_selection": {
+    "baseline": 12,
+    "planner": 340
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 8,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 7,
+   "completed": true,
+   "distance_m": 5.009,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.129,
+   "peak_speed_mps": 0.356,
+   "elapsed_s": 17.65,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 352
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 348
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 8,
+   "completed": false,
+   "distance_m": 0.845,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.005,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 3.95,
+   "step_p95_ms": 8.0,
+   "branches": {
+    "solved": 78,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 74
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 4
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 5.013,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.082,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 17.8,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 355
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 351
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 5.002,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.116,
+   "peak_speed_mps": 0.352,
+   "elapsed_s": 17.7,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 353
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 349
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 1,
+   "completed": true,
+   "distance_m": 5.011,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.203,
+   "peak_speed_mps": 0.438,
+   "elapsed_s": 17.35,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 346
+   },
+   "reference_selection": {
+    "baseline": 7,
+    "planner": 339
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 3
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 5.013,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.15,
+   "peak_speed_mps": 0.367,
+   "elapsed_s": 17.5,
+   "step_p95_ms": 8.1,
+   "branches": {
+    "solved": 349
+   },
+   "reference_selection": {
+    "baseline": 6,
+    "planner": 343
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 2
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 3,
+   "completed": true,
+   "distance_m": 5.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.026,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 351
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 5.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.026,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 8.0,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 350
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 5.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.068,
+   "peak_speed_mps": 0.352,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 350
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 5.003,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.096,
+   "peak_speed_mps": 0.357,
+   "elapsed_s": 17.7,
+   "step_p95_ms": 7.9,
+   "branches": {
+    "solved": 353
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 349
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 7,
+   "completed": true,
+   "distance_m": 5.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.142,
+   "peak_speed_mps": 0.353,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 7.9,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 350
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 5.002,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.019,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 7.6,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 350
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 5.007,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.048,
+   "peak_speed_mps": 0.345,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 7.7,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 351
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 5.013,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.109,
+   "peak_speed_mps": 0.351,
+   "elapsed_s": 17.75,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 354
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 350
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 18
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 1,
+   "completed": false,
+   "distance_m": 3.533,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.119,
+   "peak_speed_mps": 0.447,
+   "elapsed_s": 12.15,
+   "step_p95_ms": 9.9,
+   "branches": {
+    "solved": 242,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 11,
+    "planner": 232
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 7,
+    "waiting_for_planner": 3,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 12
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 4.003,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.105,
+   "peak_speed_mps": 0.428,
+   "elapsed_s": 13.75,
+   "step_p95_ms": 9.4,
+   "branches": {
+    "solved": 274
+   },
+   "reference_selection": {
+    "baseline": 37,
+    "planner": 237
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 33,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 3,
+   "completed": false,
+   "distance_m": 3.667,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.084,
+   "peak_speed_mps": 0.447,
+   "elapsed_s": 12.65,
+   "step_p95_ms": 10.8,
+   "branches": {
+    "solved": 252,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 36,
+    "planner": 217
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 31,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 13
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 4.006,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.096,
+   "peak_speed_mps": 0.444,
+   "elapsed_s": 13.85,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 276
+   },
+   "reference_selection": {
+    "baseline": 31,
+    "planner": 245
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 28,
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 5,
+   "completed": false,
+   "distance_m": 0.582,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.063,
+   "peak_speed_mps": 0.353,
+   "elapsed_s": 3.05,
+   "step_p95_ms": 10.1,
+   "branches": {
+    "solved": 60,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 56
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 3
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 6,
+   "completed": false,
+   "distance_m": 3.916,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.114,
+   "peak_speed_mps": 0.445,
+   "elapsed_s": 13.45,
+   "step_p95_ms": 10.3,
+   "branches": {
+    "solved": 268,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 45,
+    "planner": 224
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 40,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 7,
+   "completed": false,
+   "distance_m": 3.552,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.124,
+   "peak_speed_mps": 0.434,
+   "elapsed_s": 12.25,
+   "step_p95_ms": 10.1,
+   "branches": {
+    "solved": 244,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 29,
+    "planner": 216
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 24,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 12
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 8,
+   "completed": false,
+   "distance_m": 3.934,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.105,
+   "peak_speed_mps": 0.442,
+   "elapsed_s": 13.55,
+   "step_p95_ms": 8.8,
+   "branches": {
+    "solved": 270,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 8,
+    "planner": 263
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 4,
+    "waiting_for_planner": 3,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 9,
+   "completed": false,
+   "distance_m": 3.639,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.064,
+   "peak_speed_mps": 0.442,
+   "elapsed_s": 12.65,
+   "step_p95_ms": 9.0,
+   "branches": {
+    "solved": 252,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 18,
+    "planner": 235
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 13,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 13
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 10,
+   "completed": false,
+   "distance_m": 3.914,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.143,
+   "peak_speed_mps": 0.444,
+   "elapsed_s": 13.35,
+   "step_p95_ms": 10.3,
+   "branches": {
+    "solved": 266,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 53,
+    "planner": 214
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 48,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 1,
+   "completed": false,
+   "distance_m": 3.431,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.196,
+   "peak_speed_mps": 0.442,
+   "elapsed_s": 11.65,
+   "step_p95_ms": 9.0,
+   "branches": {
+    "solved": 232,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 7,
+    "planner": 226
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 2,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 12
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 2,
+   "completed": false,
+   "distance_m": 0.279,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.008,
+   "peak_speed_mps": 0.346,
+   "elapsed_s": 2.05,
+   "step_p95_ms": 8.6,
+   "branches": {
+    "solved": 40,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 36
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 2
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 3,
+   "completed": false,
+   "distance_m": 3.919,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.271,
+   "peak_speed_mps": 0.445,
+   "elapsed_s": 13.25,
+   "step_p95_ms": 9.6,
+   "branches": {
+    "solved": 264,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 62,
+    "planner": 203
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 57,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 13
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 4,
+   "completed": false,
+   "distance_m": 3.972,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.26,
+   "peak_speed_mps": 0.449,
+   "elapsed_s": 13.35,
+   "step_p95_ms": 9.1,
+   "branches": {
+    "solved": 266,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 8,
+    "planner": 259
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 4,
+    "waiting_for_planner": 3,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 5,
+   "completed": false,
+   "distance_m": 3.819,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.262,
+   "peak_speed_mps": 0.442,
+   "elapsed_s": 13.25,
+   "step_p95_ms": 9.6,
+   "branches": {
+    "solved": 264,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 37,
+    "planner": 228
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 32,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 13
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 6,
+   "completed": false,
+   "distance_m": 3.716,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.221,
+   "peak_speed_mps": 0.442,
+   "elapsed_s": 12.75,
+   "step_p95_ms": 10.3,
+   "branches": {
+    "solved": 254,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 43,
+    "planner": 212
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 39,
+    "waiting_for_planner": 3,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 13
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 7,
+   "completed": false,
+   "distance_m": 3.187,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.173,
+   "peak_speed_mps": 0.453,
+   "elapsed_s": 10.95,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 218,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 214
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 11
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 8,
+   "completed": false,
+   "distance_m": 3.592,
+   "stop_reason": "stop:invalid_road_motion_transformed_geometry_invalid",
+   "stop_planning": "invalid_road_motion_transformed_geometry_invalid",
+   "stop_road": "motion_transformed_geometry_invalid",
+   "hard_stop": true,
+   "lateral_max_m": 0.255,
+   "peak_speed_mps": 0.448,
+   "elapsed_s": 12.25,
+   "step_p95_ms": 10.3,
+   "branches": {
+    "solved": 244,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 47,
+    "planner": 198
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 42,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 12
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 9,
+   "completed": false,
+   "distance_m": 3.913,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.238,
+   "peak_speed_mps": 0.452,
+   "elapsed_s": 13.55,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 270,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 13,
+    "planner": 258
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 8,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 4.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.265,
+   "peak_speed_mps": 0.448,
+   "elapsed_s": 13.55,
+   "step_p95_ms": 9.0,
+   "branches": {
+    "solved": 270
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 266
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 1,
+   "completed": false,
+   "distance_m": 4.338,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.113,
+   "peak_speed_mps": 0.359,
+   "elapsed_s": 15.15,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 302,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 7,
+    "planner": 296
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 2,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 2,
+   "completed": false,
+   "distance_m": 4.396,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.068,
+   "peak_speed_mps": 0.373,
+   "elapsed_s": 15.35,
+   "step_p95_ms": 9.1,
+   "branches": {
+    "solved": 306,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 38,
+    "planner": 269
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 33,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 16
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 3,
+   "completed": true,
+   "distance_m": 4.508,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.042,
+   "peak_speed_mps": 0.364,
+   "elapsed_s": 15.6,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 311
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 307
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 16
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 4.506,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.061,
+   "peak_speed_mps": 0.355,
+   "elapsed_s": 15.55,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 310
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 306
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 16
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 5,
+   "completed": false,
+   "distance_m": 4.454,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.069,
+   "peak_speed_mps": 0.432,
+   "elapsed_s": 15.45,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 308,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 26,
+    "planner": 283
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 21,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 16
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 6,
+   "completed": false,
+   "distance_m": 4.264,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.125,
+   "peak_speed_mps": 0.438,
+   "elapsed_s": 14.45,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 288,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 28,
+    "planner": 261
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 23,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 7,
+   "completed": true,
+   "distance_m": 4.5,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.1,
+   "peak_speed_mps": 0.445,
+   "elapsed_s": 15.5,
+   "step_p95_ms": 10.8,
+   "branches": {
+    "solved": 309
+   },
+   "reference_selection": {
+    "baseline": 28,
+    "planner": 281
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 24,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 16
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 8,
+   "completed": false,
+   "distance_m": 4.374,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.069,
+   "peak_speed_mps": 0.355,
+   "elapsed_s": 15.15,
+   "step_p95_ms": 7.8,
+   "branches": {
+    "solved": 302,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 298
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 9,
+   "completed": false,
+   "distance_m": 4.269,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.05,
+   "peak_speed_mps": 0.351,
+   "elapsed_s": 14.85,
+   "step_p95_ms": 7.9,
+   "branches": {
+    "solved": 296,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 292
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 10,
+   "completed": false,
+   "distance_m": 4.203,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.081,
+   "peak_speed_mps": 0.388,
+   "elapsed_s": 14.45,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 288,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 19,
+    "planner": 270
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 15,
+    "waiting_for_planner": 3,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 1,
+   "completed": false,
+   "distance_m": 4.327,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.147,
+   "peak_speed_mps": 0.445,
+   "elapsed_s": 14.75,
+   "step_p95_ms": 8.6,
+   "branches": {
+    "solved": 294,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 290
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 2,
+   "completed": false,
+   "distance_m": 4.237,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.201,
+   "peak_speed_mps": 0.447,
+   "elapsed_s": 14.35,
+   "step_p95_ms": 8.7,
+   "branches": {
+    "solved": 286,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 6,
+    "planner": 281
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 1,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 3,
+   "completed": false,
+   "distance_m": 4.347,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.151,
+   "peak_speed_mps": 0.427,
+   "elapsed_s": 14.75,
+   "step_p95_ms": 8.7,
+   "branches": {
+    "solved": 294,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 291
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 4,
+   "completed": false,
+   "distance_m": 4.293,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.126,
+   "peak_speed_mps": 0.446,
+   "elapsed_s": 14.55,
+   "step_p95_ms": 8.6,
+   "branches": {
+    "solved": 290,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 286
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 4.506,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.176,
+   "peak_speed_mps": 0.425,
+   "elapsed_s": 15.45,
+   "step_p95_ms": 10.3,
+   "branches": {
+    "solved": 308
+   },
+   "reference_selection": {
+    "baseline": 33,
+    "planner": 275
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 29,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 16
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 4.505,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.239,
+   "peak_speed_mps": 0.418,
+   "elapsed_s": 15.15,
+   "step_p95_ms": 8.4,
+   "branches": {
+    "solved": 302
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 298
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 7,
+   "completed": false,
+   "distance_m": 4.454,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.198,
+   "peak_speed_mps": 0.441,
+   "elapsed_s": 14.85,
+   "step_p95_ms": 9.1,
+   "branches": {
+    "solved": 296,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 10,
+    "planner": 287
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 5,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 4.509,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.165,
+   "peak_speed_mps": 0.444,
+   "elapsed_s": 15.45,
+   "step_p95_ms": 8.8,
+   "branches": {
+    "solved": 308
+   },
+   "reference_selection": {
+    "baseline": 6,
+    "planner": 302
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 2
+   },
+   "lattice_results": {
+    "VALID": 16
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 9,
+   "completed": false,
+   "distance_m": 4.283,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.153,
+   "peak_speed_mps": 0.425,
+   "elapsed_s": 14.85,
+   "step_p95_ms": 8.5,
+   "branches": {
+    "solved": 296,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 292
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 15
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 4.509,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.238,
+   "peak_speed_mps": 0.436,
+   "elapsed_s": 15.4,
+   "step_p95_ms": 8.7,
+   "branches": {
+    "solved": 307
+   },
+   "reference_selection": {
+    "baseline": 6,
+    "planner": 301
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 2
+   },
+   "lattice_results": {
+    "VALID": 16
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 1,
+   "completed": true,
+   "distance_m": 5.014,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.137,
+   "peak_speed_mps": 0.447,
+   "elapsed_s": 16.7,
+   "step_p95_ms": 9.0,
+   "branches": {
+    "solved": 333
+   },
+   "reference_selection": {
+    "baseline": 27,
+    "planner": 306
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 23,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 5.003,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.157,
+   "peak_speed_mps": 0.437,
+   "elapsed_s": 16.4,
+   "step_p95_ms": 9.7,
+   "branches": {
+    "solved": 327
+   },
+   "reference_selection": {
+    "baseline": 79,
+    "planner": 248
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 75,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 3,
+   "completed": true,
+   "distance_m": 5.005,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.07,
+   "peak_speed_mps": 0.446,
+   "elapsed_s": 16.75,
+   "step_p95_ms": 9.3,
+   "branches": {
+    "solved": 334
+   },
+   "reference_selection": {
+    "baseline": 8,
+    "planner": 326
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 5.004,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.084,
+   "peak_speed_mps": 0.445,
+   "elapsed_s": 16.7,
+   "step_p95_ms": 10.0,
+   "branches": {
+    "solved": 333
+   },
+   "reference_selection": {
+    "baseline": 28,
+    "planner": 305
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 24,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 5.013,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.099,
+   "peak_speed_mps": 0.447,
+   "elapsed_s": 16.55,
+   "step_p95_ms": 9.9,
+   "branches": {
+    "solved": 330
+   },
+   "reference_selection": {
+    "baseline": 27,
+    "planner": 303
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 23,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 5.006,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.127,
+   "peak_speed_mps": 0.437,
+   "elapsed_s": 16.55,
+   "step_p95_ms": 10.0,
+   "branches": {
+    "solved": 330
+   },
+   "reference_selection": {
+    "baseline": 63,
+    "planner": 267
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 59,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 7,
+   "completed": false,
+   "distance_m": 1.929,
+   "stop_reason": "stop:overspeed",
+   "stop_planning": "road_centerline_available",
+   "stop_road": "near_field_requires_both_boundaries",
+   "hard_stop": true,
+   "lateral_max_m": 0.112,
+   "peak_speed_mps": 0.395,
+   "elapsed_s": 7.05,
+   "step_p95_ms": 9.3,
+   "branches": {
+    "solved": 140,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 137
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 7
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 5.011,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.047,
+   "peak_speed_mps": 0.451,
+   "elapsed_s": 16.65,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 332
+   },
+   "reference_selection": {
+    "baseline": 35,
+    "planner": 297
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 31,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 5.012,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.085,
+   "peak_speed_mps": 0.451,
+   "elapsed_s": 16.7,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 333
+   },
+   "reference_selection": {
+    "baseline": 29,
+    "planner": 304
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 25,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 5.007,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.097,
+   "peak_speed_mps": 0.451,
+   "elapsed_s": 16.5,
+   "step_p95_ms": 9.4,
+   "branches": {
+    "solved": 329
+   },
+   "reference_selection": {
+    "baseline": 26,
+    "planner": 303
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 22,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 1,
+   "completed": false,
+   "distance_m": 1.318,
+   "stop_reason": "stop:overspeed",
+   "stop_planning": "road_centerline_available",
+   "stop_road": "near_field_requires_both_boundaries",
+   "hard_stop": true,
+   "lateral_max_m": 0.094,
+   "peak_speed_mps": 0.385,
+   "elapsed_s": 5.15,
+   "step_p95_ms": 8.1,
+   "branches": {
+    "solved": 102,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 4,
+    "planner": 99
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 5
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 2,
+   "completed": true,
+   "distance_m": 5.009,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.176,
+   "peak_speed_mps": 0.455,
+   "elapsed_s": 16.2,
+   "step_p95_ms": 10.3,
+   "branches": {
+    "solved": 323
+   },
+   "reference_selection": {
+    "baseline": 76,
+    "planner": 247
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 72,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 16
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 3,
+   "completed": true,
+   "distance_m": 5.011,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.231,
+   "peak_speed_mps": 0.454,
+   "elapsed_s": 16.5,
+   "step_p95_ms": 9.7,
+   "branches": {
+    "solved": 329
+   },
+   "reference_selection": {
+    "baseline": 50,
+    "planner": 279
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 46,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 4,
+   "completed": true,
+   "distance_m": 5.0,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.262,
+   "peak_speed_mps": 0.438,
+   "elapsed_s": 16.65,
+   "step_p95_ms": 10.1,
+   "branches": {
+    "solved": 332
+   },
+   "reference_selection": {
+    "baseline": 59,
+    "planner": 273
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 55,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 5,
+   "completed": true,
+   "distance_m": 5.008,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.231,
+   "peak_speed_mps": 0.449,
+   "elapsed_s": 16.7,
+   "step_p95_ms": 9.9,
+   "branches": {
+    "solved": 333
+   },
+   "reference_selection": {
+    "baseline": 87,
+    "planner": 246
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 83,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 6,
+   "completed": true,
+   "distance_m": 5.016,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.241,
+   "peak_speed_mps": 0.448,
+   "elapsed_s": 16.4,
+   "step_p95_ms": 10.1,
+   "branches": {
+    "solved": 327
+   },
+   "reference_selection": {
+    "baseline": 64,
+    "planner": 263
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 60,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 7,
+   "completed": false,
+   "distance_m": 1.343,
+   "stop_reason": "stop:overspeed",
+   "stop_planning": "road_centerline_available",
+   "stop_road": "near_field_requires_both_boundaries",
+   "hard_stop": true,
+   "lateral_max_m": 0.091,
+   "peak_speed_mps": 0.391,
+   "elapsed_s": 5.25,
+   "step_p95_ms": 8.3,
+   "branches": {
+    "solved": 104,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 3,
+    "planner": 102
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 3
+   },
+   "lattice_results": {
+    "VALID": 5
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 8,
+   "completed": true,
+   "distance_m": 5.01,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.232,
+   "peak_speed_mps": 0.447,
+   "elapsed_s": 16.6,
+   "step_p95_ms": 10.1,
+   "branches": {
+    "solved": 331
+   },
+   "reference_selection": {
+    "baseline": 49,
+    "planner": 282
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 45,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 9,
+   "completed": true,
+   "distance_m": 5.007,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.265,
+   "peak_speed_mps": 0.441,
+   "elapsed_s": 16.7,
+   "step_p95_ms": 9.5,
+   "branches": {
+    "solved": 333
+   },
+   "reference_selection": {
+    "baseline": 58,
+    "planner": 275
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 54,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "seed": 10,
+   "completed": true,
+   "distance_m": 5.011,
+   "stop_reason": null,
+   "stop_planning": null,
+   "stop_road": null,
+   "hard_stop": false,
+   "lateral_max_m": 0.248,
+   "peak_speed_mps": 0.426,
+   "elapsed_s": 16.7,
+   "step_p95_ms": 9.4,
+   "branches": {
+    "solved": 333
+   },
+   "reference_selection": {
+    "baseline": 41,
+    "planner": 292
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 37,
+    "waiting_for_planner": 4
+   },
+   "lattice_results": {
+    "VALID": 17
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 1,
+   "completed": false,
+   "distance_m": 3.796,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.052,
+   "peak_speed_mps": 0.386,
+   "elapsed_s": 13.55,
+   "step_p95_ms": 9.1,
+   "branches": {
+    "solved": 270,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 26,
+    "planner": 245
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 21,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 2,
+   "completed": false,
+   "distance_m": 3.292,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.045,
+   "peak_speed_mps": 0.42,
+   "elapsed_s": 11.85,
+   "step_p95_ms": 9.2,
+   "branches": {
+    "solved": 236,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 24,
+    "planner": 213
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 19,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 12
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 3,
+   "completed": false,
+   "distance_m": 3.759,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.048,
+   "peak_speed_mps": 0.358,
+   "elapsed_s": 13.45,
+   "step_p95_ms": 8.3,
+   "branches": {
+    "solved": 268,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 264
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 4,
+   "completed": false,
+   "distance_m": 3.498,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.053,
+   "peak_speed_mps": 0.364,
+   "elapsed_s": 12.55,
+   "step_p95_ms": 9.7,
+   "branches": {
+    "solved": 250,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 23,
+    "planner": 228
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 18,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 13
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 5,
+   "completed": false,
+   "distance_m": 3.773,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.058,
+   "peak_speed_mps": 0.388,
+   "elapsed_s": 13.45,
+   "step_p95_ms": 8.5,
+   "branches": {
+    "solved": 268,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 5,
+    "planner": 264
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 6,
+   "completed": false,
+   "distance_m": 3.429,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.063,
+   "peak_speed_mps": 0.387,
+   "elapsed_s": 12.25,
+   "step_p95_ms": 8.4,
+   "branches": {
+    "solved": 244,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 26,
+    "planner": 219
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 21,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 13
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 7,
+   "completed": false,
+   "distance_m": 3.836,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.059,
+   "peak_speed_mps": 0.395,
+   "elapsed_s": 13.55,
+   "step_p95_ms": 8.9,
+   "branches": {
+    "solved": 270,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 22,
+    "planner": 249
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 17,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 8,
+   "completed": false,
+   "distance_m": 3.807,
+   "stop_reason": "stop:invalid_road_insufficient_geometry",
+   "stop_planning": "invalid_road_insufficient_geometry",
+   "stop_road": "insufficient_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.067,
+   "peak_speed_mps": 0.456,
+   "elapsed_s": 13.55,
+   "step_p95_ms": 10.0,
+   "branches": {
+    "solved": 270,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 8,
+    "planner": 263
+   },
+   "selection_reasons": {
+    "waiting_for_planner": 4,
+    "known_boundary_collision": 3,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 14
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 9,
+   "completed": false,
+   "distance_m": 3.493,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.047,
+   "peak_speed_mps": 0.404,
+   "elapsed_s": 12.45,
+   "step_p95_ms": 9.8,
+   "branches": {
+    "solved": 248,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 47,
+    "planner": 202
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 42,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 13
+   }
+  },
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "seed": 10,
+   "completed": false,
+   "distance_m": 3.523,
+   "stop_reason": "stop:invalid_road_invalid_ordered_geometry",
+   "stop_planning": "invalid_road_invalid_ordered_geometry",
+   "stop_road": "invalid_ordered_geometry",
+   "hard_stop": true,
+   "lateral_max_m": 0.026,
+   "peak_speed_mps": 0.42,
+   "elapsed_s": 12.65,
+   "step_p95_ms": 9.2,
+   "branches": {
+    "solved": 252,
+    "stop": 1
+   },
+   "reference_selection": {
+    "baseline": 17,
+    "planner": 236
+   },
+   "selection_reasons": {
+    "known_boundary_collision": 12,
+    "waiting_for_planner": 4,
+    "baseline_invalid": 1
+   },
+   "lattice_results": {
+    "VALID": 13
+   }
+  }
+ ],
+ "table": [
+  {
+   "road": "car15_v4",
+   "lane_width_m": null,
+   "start": "centre",
+   "completed": "0/10",
+   "hard_stops": 10,
+   "lateral_max_m": null,
+   "median_distance_m": 3.759,
+   "peak_speed_max_mps": 0.456,
+   "stop_reasons": {
+    "stop:invalid_road_insufficient_geometry": 5,
+    "stop:invalid_road_invalid_ordered_geometry": 5
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "completed": "9/10",
+   "hard_stops": 1,
+   "lateral_max_m": 0.129,
+   "median_distance_m": 5.01,
+   "peak_speed_max_mps": 0.359,
+   "stop_reasons": {
+    "stop:invalid_road_invalid_ordered_geometry": 1
+   }
+  },
+  {
+   "road": "gentle_arc",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "completed": "10/10",
+   "hard_stops": 0,
+   "lateral_max_m": 0.203,
+   "median_distance_m": 5.008,
+   "peak_speed_max_mps": 0.438,
+   "stop_reasons": {}
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "completed": "2/10",
+   "hard_stops": 8,
+   "lateral_max_m": 0.105,
+   "median_distance_m": 3.914,
+   "peak_speed_max_mps": 0.447,
+   "stop_reasons": {
+    "stop:invalid_road_invalid_ordered_geometry": 5,
+    "stop:invalid_road_insufficient_geometry": 3
+   }
+  },
+  {
+   "road": "right_angle_r1",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "completed": "1/10",
+   "hard_stops": 9,
+   "lateral_max_m": 0.265,
+   "median_distance_m": 3.819,
+   "peak_speed_max_mps": 0.453,
+   "stop_reasons": {
+    "stop:invalid_road_invalid_ordered_geometry": 7,
+    "stop:invalid_road_insufficient_geometry": 1,
+    "stop:invalid_road_motion_transformed_geometry_invalid": 1
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "completed": "3/10",
+   "hard_stops": 7,
+   "lateral_max_m": 0.1,
+   "median_distance_m": 4.396,
+   "peak_speed_max_mps": 0.445,
+   "stop_reasons": {
+    "stop:invalid_road_invalid_ordered_geometry": 6,
+    "stop:invalid_road_insufficient_geometry": 1
+   }
+  },
+  {
+   "road": "right_angle_r1_5",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "completed": "4/10",
+   "hard_stops": 6,
+   "lateral_max_m": 0.239,
+   "median_distance_m": 4.454,
+   "peak_speed_max_mps": 0.447,
+   "stop_reasons": {
+    "stop:invalid_road_invalid_ordered_geometry": 6
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "completed": "10/10",
+   "hard_stops": 0,
+   "lateral_max_m": 0.118,
+   "median_distance_m": 3.007,
+   "peak_speed_max_mps": 0.359,
+   "stop_reasons": {}
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "head5deg",
+   "completed": "10/10",
+   "hard_stops": 0,
+   "lateral_max_m": 0.11,
+   "median_distance_m": 3.01,
+   "peak_speed_max_mps": 0.38,
+   "stop_reasons": {}
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 0.72,
+   "start": "left5cm",
+   "completed": "10/10",
+   "hard_stops": 0,
+   "lateral_max_m": 0.12,
+   "median_distance_m": 3.01,
+   "peak_speed_max_mps": 0.372,
+   "stop_reasons": {}
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "completed": "10/10",
+   "hard_stops": 0,
+   "lateral_max_m": 0.196,
+   "median_distance_m": 3.007,
+   "peak_speed_max_mps": 0.442,
+   "stop_reasons": {}
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "head5deg",
+   "completed": "9/10",
+   "hard_stops": 1,
+   "lateral_max_m": 0.174,
+   "median_distance_m": 3.008,
+   "peak_speed_max_mps": 0.353,
+   "stop_reasons": {
+    "stop:invalid_road_motion_interval_too_long": 1
+   }
+  },
+  {
+   "road": "straight",
+   "lane_width_m": 1.0,
+   "start": "left5cm",
+   "completed": "9/10",
+   "hard_stops": 1,
+   "lateral_max_m": 0.166,
+   "median_distance_m": 3.007,
+   "peak_speed_max_mps": 0.358,
+   "stop_reasons": {
+    "stop:invalid_road_motion_interval_too_long": 1
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 0.72,
+   "start": "centre",
+   "completed": "9/10",
+   "hard_stops": 1,
+   "lateral_max_m": 0.157,
+   "median_distance_m": 5.007,
+   "peak_speed_max_mps": 0.451,
+   "stop_reasons": {
+    "stop:overspeed": 1
+   }
+  },
+  {
+   "road": "u_turn",
+   "lane_width_m": 1.0,
+   "start": "centre",
+   "completed": "8/10",
+   "hard_stops": 2,
+   "lateral_max_m": 0.265,
+   "median_distance_m": 5.009,
+   "peak_speed_max_mps": 0.455,
+   "stop_reasons": {
+    "stop:overspeed": 2
+   }
+  }
+ ]
+}

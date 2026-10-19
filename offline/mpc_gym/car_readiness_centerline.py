@@ -45,7 +45,7 @@ SEEDS = tuple(range(1, 11))
 STARTS = {"centre": (0.0, 0.0), "left5cm": (0.05, 0.0), "head5deg": (0.0, 0.087)}
 
 
-def centerline_params(car05_mpc=False, lattice21=False):
+def centerline_params(car05_mpc=False, lattice21=False, speed=None):
     layers = ["ai4r_policy.yaml", "ai4r_policy_newcar27.yaml", "ai4r_policy_mpc_newcar27.yaml",
               "ai4r_policy_mpc_centerline.yaml"]
     if lattice21:
@@ -60,17 +60,22 @@ def centerline_params(car05_mpc=False, lattice21=False):
         car05 = layered("ai4r_policy_mpc_car05.yaml")
         params["mpc"].update(car05["mpc"])
         params["control"].update(car05["control"])
+    if speed is not None:
+        # 2026-10-19 speed sweep: the MPC cap and the reference speed together (the
+        # lattice only supplies a path; its speed is planning.cruise_speed_mps).
+        params["mpc"]["v_exec_max_mps"] = speed
+        params["planning"]["cruise_speed_mps"] = speed
     params["vehicle"]["valid"] = True   # simulation only: see newcar27_experiment.mpc_params
     params["mpc"]["shadow"] = False
     return params
 
 
 def one(job):
-    road, lane, start_pose, seed, car05_mpc, lattice21 = job
+    road, lane, start_pose, seed, car05_mpc, lattice21, speed = job
     start, distance, _ = ROADS[road]
     offset, heading = STARTS[start_pose]
     conditions = {} if lane is None else {"lane_width_m": lane}
-    result = newcar27_run(centerline_params(car05_mpc, lattice21), noise=0.02, seed=seed, road=road,
+    result = newcar27_run(centerline_params(car05_mpc, lattice21, speed), noise=0.02, seed=seed, road=road,
                           start_progress_m=start, distance_m=distance, duration=12.0+distance/0.2, offset=offset,
                           heading=heading, conditions=conditions, lattice_delivery_s=0.05 if lattice21 else None)
     stop = result.get("locked_stop") or {}
@@ -80,6 +85,8 @@ def one(job):
             "stop_reason": stop.get("reason"), "stop_planning": stop.get("planning"), "stop_road": stop.get("road"),
             "hard_stop": bool(stop.get("reason", "").startswith("stop:")),
             "lateral_max_m": round(max((abs(v) for v in lateral), default=0.0), 3),
+            "peak_speed_mps": round(max(result["trace"]["speed"], default=0.0), 3),
+            "elapsed_s": round(result["trace"]["t"][-1] - result["trace"]["t"][0], 2) if result["trace"]["t"] else None,
             "step_p95_ms": result.get("step_p95_ms"), "branches": result.get("branches"),
             "reference_selection": result.get("reference_selection"),
             "selection_reasons": result.get("selection_reasons"), "lattice_results": result.get("lattice_results")}
@@ -99,6 +106,7 @@ def summarise(rows):
                       "hard_stops": sum(r["hard_stop"] for r in group),
                       "lateral_max_m": max((r["lateral_max_m"] for r in done), default=None),
                       "median_distance_m": sorted(r["distance_m"] for r in group)[len(group)//2],
+                      "peak_speed_max_mps": max(r.get("peak_speed_mps", 0.0) for r in group),
                       "stop_reasons": dict(reasons.most_common(3))})
     return table
 
@@ -118,13 +126,15 @@ def markdown(table, args):
                 "MPC, centerline as fallback; results visible after planning time + 0.05 s."
                 if getattr(args, "lattice21", False) else "")
              + (" **--car05-mpc**: car 05's mpc/control sections on the .27 plant."
-                if getattr(args, "car05_mpc", False) else ""), "",
+                if getattr(args, "car05_mpc", False) else "")
+             + (f" **--speed {args.speed}**: mpc.v_exec_max_mps and planning.cruise_speed_mps."
+                if getattr(args, "speed", None) is not None else ""), "",
              "| road | lane m | start | completed | hard stops | max lateral m (completed) "
-             "| median distance m | main stop reasons |", "|---|---:|---|---:|---:|---:|---:|---|"]
+             "| median distance m | peak m/s | main stop reasons |", "|---|---:|---|---:|---:|---:|---:|---:|---|"]
     for t in table:
         lines.append(f"| {t['road']} | {t['lane_width_m']} | {t['start']} "
                      f"| {t['completed']} "
-                     f"| {t['hard_stops']} | {t['lateral_max_m']} | {t['median_distance_m']} | "
+                     f"| {t['hard_stops']} | {t['lateral_max_m']} | {t['median_distance_m']} | {t['peak_speed_max_mps']} | "
                      + ", ".join(f"{k} {v}" for k, v in t["stop_reasons"].items()) + " |")
     return "\n".join(lines) + "\n"
 
@@ -139,11 +149,13 @@ def main():
                         help="the MVP2.1 lattice feeds the MPC (config/ai4r_policy_mpc_lattice21.yaml)")
     parser.add_argument("--car05-mpc", action="store_true",
                         help="also apply config/ai4r_policy_mpc_car05.yaml's mpc/control sections")
+    parser.add_argument("--speed", type=float, default=None,
+                        help="override mpc.v_exec_max_mps and planning.cruise_speed_mps (speed sweep)")
     parser.add_argument("--out", default="car_readiness_centerline", help="results/<out>.json and .md")
     args = parser.parse_args()
     if args.quick:
         args.seeds, args.roads = [1, 2, 3], ["straight", "right_angle_r1"]
-    jobs = [(r, lane, pose, s, args.car05_mpc, args.lattice21) for r in args.roads
+    jobs = [(r, lane, pose, s, args.car05_mpc, args.lattice21, args.speed) for r in args.roads
             for lane in ROADS[r][2] for pose in (STARTS if r == "straight" else ("centre",)) for s in args.seeds]
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         rows = list(pool.map(one, jobs))

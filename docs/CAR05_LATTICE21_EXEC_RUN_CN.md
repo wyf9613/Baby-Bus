@@ -20,6 +20,16 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
 .verification\car05-lattice21-exec-nolimit   yaml cfdcf4cf…  policy_node f1e07c7b…   不限 / 不限
 ```
 
+**0.20 m/s 版**（2026-10-19：`ai4r_policy_mpc_car05.yaml` 的限速上限从 0.15 提到 0.20，0.15 包的哈希不变；依据是同日 Gym 扫描中 0.20 是最好的一档，见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md)）：
+
+```text
+.verification\car05-lattice21-exec-v020-1m        yaml e8dc599e…  policy_node f1e07c7b…   1 m / 60 s
+.verification\car05-lattice21-exec-v020-5m        yaml 1f1290c3…  policy_node f1e07c7b…   5 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit   yaml 1fd487bc…  policy_node f1e07c7b…   不限 / 不限
+```
+
+用 `--v-exec-max 0.2`、`--out .verification\car05-lattice21-exec-v020-*` 生成。0.20 版下软超速线是 0.25，0.28 以上强制油门为 0，硬停 0.40；第 3 步"车速在 0.10–0.20 之间"改为 0.15–0.25，"明显超过 0.25 就 Disable"改为 0.30。
+
 重新生成的命令（距离和时间分别换成 `1.0 60`、`5.0 60`、`0 0`）：
 
 ```powershell

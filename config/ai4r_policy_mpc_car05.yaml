@@ -43,9 +43,11 @@
       # shadow/exec itself is still set by --mode (mpc-shadow-centerline vs
       # mpc-exec-centerline), not here: this overlay also applies in shadow mode.
       # 2026-10-18 relaxations so MPC runs where the MVP runs (docs/MPC_PROGRESS_LOG.md):
-      v_exec_max_mps: 0.15            # was 0.12, right at the deadband edge where 17:53 sagged and
-                                       # 18:18 overshot; the MVP runs this car at 0.20. Only with the
-                                       # soft overspeed below, never with the old 0.10 lock alone.
+      v_exec_max_mps: 0.20            # ceiling; make_deploy_yaml --v-exec-max picks 0.15 or 0.20 below it.
+                                       # Was 0.12 (deadband edge: 17:53 sagged, 18:18 overshot), then 0.15;
+                                       # the MVP runs this car at 0.20, and the 2026-10-19 lattice Gym sweep
+                                       # found 0.20 the best cap. Only with the soft overspeed below, never
+                                       # with the old 0.10 lock alone.
       overspeed_margin_mps: 0.10      # unused while the soft margin is > 0 (old lock: 0.22 m/s)
       overspeed_soft_margin_mps: 0.05 # above 0.20 m/s the QP may cut drive below the deadband
       overspeed_cut_margin_mps: 0.03  # above 0.23 m/s drive is forced to 0
