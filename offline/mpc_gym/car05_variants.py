@@ -40,8 +40,15 @@ def parse_value(text):
     return {"true": True, "false": False}.get(text.lower(), text)
 
 
+_CONFIGURED = False
+
+
 def configure(args):
-    """Patch the readiness script's parameter builder and plant in this process."""
+    """Patch the readiness script's parameter builder and plant, once per process."""
+    global _CONFIGURED
+    if _CONFIGURED:          # pool workers are reused: patching again would nest the wrappers
+        return
+    _CONFIGURED = True
     car05 = ne.layered("ai4r_policy_mpc_car05.yaml")
     overrides = [s.split("=", 1) for s in args.set]
     base = c.centerline_params

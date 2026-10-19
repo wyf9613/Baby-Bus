@@ -2,6 +2,23 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-20：`b0c660c` 本机复核、部署包、Gym 对比
+
+- 本机测试全部通过：mpc 138、planner_control 18、real_frames 15、shadow_lattice 30、planner_execution 10、control 45、estimation 65、planning 18、release_contract 4、lattice 45。
+- 部署包已重新生成：policy_node `3567d439…`，yaml 分别为 `24da6b96…`（1m）/ `923a3ab6…`（5m）/ `6dfc0d1c…`（nolimit），已填进现场清单。
+- `offline/mpc_gym/car05_variants.py` 修了一个 bug：进程池复用工作进程时补丁会层层嵌套，超过 `--workers` 个任务就报 `plant_changes` 重复。现在每个进程只打一次补丁。
+
+**Gym**（`car05_variants.py`，仿真车转向 24°，5 种路 × 2 种车道宽 × 6 个种子 = 60 次，0.20 m/s）。"关闭"用 `--set` 把 `turn_drive_per_steer`、`rest_speed_mps`、`handover_s`、`switch_blend_s` 置 0：
+
+| 仿真车 | 关闭 | 打开 | 最大横向误差（直道 / 直角 r1.5），关闭 → 打开 |
+| --- | --- | --- | --- |
+| 满电（死区 0.23、起步阈值 0.24） | 36/60，峰值 0.49 | 38/60，峰值 0.51 | 0.16 → 0.23 / 0.30 → 0.52 m |
+| 电量偏低（0.31、0.37） | 32/60 | 29/60 | 0.12 → 0.20 / 0.22 → 0.57 m |
+
+- 完成次数在随机波动以内（同一配置重跑会差 1–3 次）。两种仿真车都没有超速、推不动或 `too_many_restarts`，失败都在估计层。
+- 最大横向误差变大了。Gym 的仿真车**没有转弯阻力，也不会出现轮速读数保持**，这次三项改动针对的正是这两点，所以 Gym 体现不出好处。转弯阻力补偿在没有转弯阻力的仿真车上只会让车过弯更快。
+- 上车要重点看急弯的横向误差：如果实车的转弯阻力比 0.06 小，弯里可能偏得更多。可以先只关掉转弯阻力（`turn_drive_per_steer` 0）做对照。
+
 ## 2026-10-19（深夜）：MPC_NEXT_PLAN 第 2 节三项改动（转弯阻力、起步回差 + 交接限幅、参考切换限速）🟡
 
 按 [MPC_NEXT_PLAN_CN.md](MPC_NEXT_PLAN_CN.md) 第 2 节实施，目标是消除"一段一段"的走法。**只跑了单元测试，未在 Gym 和实车上验证。** 部署包和哈希没有生成（留给本人本地做）。

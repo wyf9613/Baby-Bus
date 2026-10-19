@@ -23,9 +23,9 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
 **0.20 m/s 版**（2026-10-19：`ai4r_policy_mpc_car05.yaml` 的限速上限从 0.15 提到 0.20，0.15 包的哈希不变；依据是同日 Gym 扫描中 0.20 是最好的一档，见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md)）：
 
 ```text
-.verification\car05-lattice21-exec-v020-1m        yaml c27113a3…  policy_node 873df5ae…   1 m / 60 s
-.verification\car05-lattice21-exec-v020-5m        yaml ce78e2eb…  policy_node 873df5ae…   5 m / 60 s
-.verification\car05-lattice21-exec-v020-nolimit   yaml 67dc7494…  policy_node 873df5ae…   不限 / 不限
+.verification\car05-lattice21-exec-v020-1m        yaml 24da6b96…  policy_node 3567d439…   1 m / 60 s
+.verification\car05-lattice21-exec-v020-5m        yaml 923a3ab6…  policy_node 3567d439…   5 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit   yaml 6dfc0d1c…  policy_node 3567d439…   不限 / 不限
 ```
 
 同日现场改了 5 号车模型（16:55 后）：`vehicle.drive_deadband` 0.30 → 0.24（满电时 0.25 的请求就能维持约 0.255 m/s），`mpc.overspeed_cut_timeout_s` 1.0 → 2.0；0.40/0.2 s 硬停不变。上表是改后的哈希；0.15 包也随之变化，用前重新生成。车上 `traxxas_vehicle_interface` 的转向区间必须是 ±1.0（10-19 发现被改回 ±0.5，转向只施加一半）。
@@ -53,7 +53,7 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
   - 核对参数：`vehicle.drive_max` 0.38、`mpc.high_speed_mps` 0.12、`vehicle.steering_gain_rad` -0.37。
 - 看包时：弯道里出现 `speed_override=stall` 之后应该是 `phase=starting`、油门 0.35，车随即重新动起来；`reference_gate=baseline_jump` 期间分支是 `plan_hold`，转向不应再从 -1 打到 +1。
 
-10-19 深夜（[MPC_NEXT_PLAN_CN.md](MPC_NEXT_PLAN_CN.md) 第 2 节，**还没在 Gym 和实车上验证**；部署包和哈希要按本文重新生成后再填）：新增三项，只在 5 号车配置里打开。
+10-19 深夜（[MPC_NEXT_PLAN_CN.md](MPC_NEXT_PLAN_CN.md) 第 2 节，**还没在实车上验证**；上表已是这一版 `b0c660c` 的哈希）：新增三项，只在 5 号车配置里打开。
 - **转弯阻力**（`mpc.turn_drive_per_steer` 0.06）：舵量 |s| 时，MPC 和偏置估计都把死区抬高 0.06×|s|（满舵 +0.06）。弯里油门下限随之变高，偏置不再把转弯阻力当误差学进去。
 - **起步回差 + 平顺交接**（`mpc.rest_speed_mps` 0.03，`mpc.handover_s` 0.5，`mpc.handover_drive_margin` 0.04）：
   - 起步 → 跟踪仍在 0.05 m/s；跟踪中车速低于 **0.03** 才回到起步，0.03–0.05 之间保持原状态；
