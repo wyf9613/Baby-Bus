@@ -4801,6 +4801,8 @@ class WheelHoldMonitor:
     1.18 s (p95 0.48 s). The gyro tells a stall apart: a car steering at least
     wheel_stall_min_steer must turn, so |yaw rate| below wheel_stall_yaw_rps over the last
     wheel_hold_stale_s (the car may roll on for a while after its last reading) is a stall.
+    A stall stays declared until the reading changes (10-19 evening: dropping it when the
+    restarted car's steering fell below the threshold flickered and counted extra restarts).
     Off (always fresh, never stalled) while cfg.wheel_hold_stale_s is 0. Pure logic on the
     ROS clock; the caller feeds every tick.
     """
@@ -4812,6 +4814,7 @@ class WheelHoldMonitor:
         self.value = None          # raw reading being timed
         self.since_s = None        # ROS time it first appeared
         self.yaw = []              # (ROS time, |yaw rate|) within the last wheel_hold_stale_s
+        self.latched = False       # a stall was declared on the current held value
 
     def update(self, raw_speed, yaw_rate, applied_steer, now_s):
         cfg = self.cfg
@@ -4830,14 +4833,15 @@ class WheelHoldMonitor:
             # A new value, rest, or no usable reading: timing restarts with this sample.
             self.value = raw_speed if finite_number(raw_speed) and raw_speed > cfg.moving_speed_mps else None
             self.since_s = now_s if self.value is not None else None
+            self.latched = False
             out["held_s"] = 0.0 if self.value is not None else None
             return out
         held = now_s - self.since_s
         still = max(v for _, v in self.yaw) < cfg.wheel_stall_yaw_rps
         steering = finite_number(applied_steer) and abs(applied_steer) >= cfg.wheel_stall_min_steer
-        out.update(held_s=held, fresh=held < cfg.wheel_hold_stale_s,
-                   stalled=still and (held >= cfg.wheel_hold_stale_s and steering
-                                      or held >= cfg.wheel_hold_straight_s))
+        self.latched = self.latched or still and (held >= cfg.wheel_hold_stale_s and steering
+                                                  or held >= cfg.wheel_hold_straight_s)
+        out.update(held_s=held, fresh=held < cfg.wheel_hold_stale_s, stalled=self.latched)
         return out
 
 

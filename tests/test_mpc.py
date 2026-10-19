@@ -1842,6 +1842,18 @@ class HeldWheelReading(unittest.TestCase):
         out = monitor.update(0.0, 0.0, 0.8, self.NOW+0.65)
         self.assertEqual((out["held_s"], out["fresh"], out["stalled"]), (None, True, False))
 
+    def test_a_stall_stays_declared_until_the_reading_changes(self):
+        monitor = self.monitor()
+        for k in range(12):                                     # stalled at 0.55 s
+            out = monitor.update(0.25, 0.0, 0.8, self.NOW+0.05*k)
+        self.assertTrue(out["stalled"])
+        # Restarted: the steering falls below 0.3 and the gyro moves, the reading still held.
+        for k in range(12, 20):
+            out = monitor.update(0.25, 0.1, 0.1, self.NOW+0.05*k)
+            self.assertTrue(out["stalled"])
+        out = monitor.update(0.27, 0.1, 0.1, self.NOW+1.0)
+        self.assertEqual((out["fresh"], out["stalled"]), (True, False))
+
     def test_turning_or_straight_holds_are_not_a_quick_stall(self):
         monitor = self.monitor()
         for k in range(16):                                     # held 0.75 s but the gyro turns

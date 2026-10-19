@@ -31,10 +31,13 @@
       valid: true
       source: "car05_20261015_start035_db030_27model_20steering_UNVERIFIED"
       drive_breakaway: 0.35          # tested fixed request on THIS car; not applied telemetry
-      drive_max: 0.35                # preserve the previous hard request ceiling
-      drive_deadband: 0.24           # 2026-10-19 (fresh battery): request 0.25 held ~0.255 m/s, 0.28 -> 0.24, 0.30 -> 0.27;
-                                     # 0.30 left the MPC coasting at 0.25 above the soft line (bias pinned at -0.05).
-                                     # Was 0.30 (10-15: 0.289 sagged, 0.32 overspeeds); bias +/-0.05 still covers 0.19-0.29
+      drive_max: 0.35                # kept: 0.40 overshot to 0.56 m/s out of U-turns on a fresh-battery Gym plant
+                                     # (3 hard-line locks); the 10-19 turn stalls came from 0.26-0.29 requests,
+                                     # which the 0.25 +/- 0.10 deadband range now lifts up to this cap
+      drive_deadband: 0.25           # middle of the battery range, with mpc.drive_bias_max 0.10 covering 0.15-0.35:
+                                     # fresh (16:50) a 0.25 request held ~0.255 m/s and 0.30 left the MPC coasting
+                                     # above the soft line (bias at -0.05); used (17:55) the bias sat at +0.05 on
+                                     # 0.24 and the car stalled in turns. Was 0.30, then 0.24
       steering_gain_rad: -0.3142       # car .20, 2026-10-12 protractor measurement
       steering_offset_rad: 0.0         # not measured on either car; assumed centred
       steering_min_rad: -0.3142
@@ -58,9 +61,10 @@
       overspeed_hard_persist_s: 0.2
       breakaway_ramp_per_s: 0.0      # start at the tested request; do not slowly ramp from 0.30
       breakaway_timeout_s: 2.5       # was 1.5: fixed 0.35 produced feedback at ~0.79 s; margin for a low battery
-      max_restarts: 5                # was 3
+      max_restarts: 8                # was 3, then 5: loop runs restart after occasional turn stalls
       restart_count_reset_s: 10.0    # 10 s of tracking clears the count (long / loop runs)
       moving_speed_mps: 0.05         # unchanged: keep the existing tracking handover threshold
+      drive_bias_max: 0.10           # was 0.05 (newcar27 layer); see vehicle.drive_deadband
       wheel_hold_stale_s: 0.5        # 2026-10-19 bags: held readings stalled the car in full-lock turns
                                      # (3 x ~3 s in nolimit-run2) and fed the overspeed locks; offline
                                      # replay flagged 10 stalls, all real (the reading then fell to 0)
