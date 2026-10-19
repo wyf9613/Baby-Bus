@@ -1953,5 +1953,129 @@ class HeldWheelReading(unittest.TestCase):
         Settings(switch_hold_s=0.3, reference_dropout_tolerance_s=0.5)
 
 
+class TurnDragHandoverBlend(unittest.TestCase):
+    """docs/MPC_NEXT_PLAN_CN.md section 2: turn drag, start handover + hysteresis, source blend."""
+    NOW = RelaxedGuards.NOW
+    recording, soft_controller, drive = (RelaxedGuards.recording, RelaxedGuards.soft_controller,
+                                         RelaxedGuards.drive)
+
+    def test_defaults_are_off(self):
+        cfg = Settings()
+        self.assertEqual((cfg.turn_drive_per_steer, cfg.rest_speed_mps, cfg.handover_s, cfg.switch_blend_s),
+                         (0.0, 0.0, 0.0, 0.0))
+
+    def test_new_settings_are_checked(self):
+        for kwargs in ({"turn_drive_per_steer": -0.01}, {"turn_drive_per_steer": 0.3},
+                       {"rest_speed_mps": -0.01}, {"rest_speed_mps": 0.06},
+                       {"handover_s": -0.1}, {"handover_s": 3.0}, {"handover_drive_margin": 0.3},
+                       {"switch_blend_s": -0.1}, {"switch_blend_s": 3.0}, {"switch_steer_rate_per_s": 0.0}):
+            with self.assertRaises(ValueError, msg=str(kwargs)):
+                Settings(**kwargs)
+        Settings(turn_drive_per_steer=0.06, rest_speed_mps=0.03, handover_s=0.5, switch_blend_s=0.4)
+
+    # --- 2.1 turn drag ---------------------------------------------------------------
+    def bias_after_steering(self, steer, **changes):
+        ctrl = self.soft_controller(**changes)
+        _, t = self.drive(ctrl, [0.1])
+        ctrl.applied_steer = steer
+        self.drive(ctrl, [0.1], t=t)
+        return ctrl.solver.calls[-1]["drive_bias"], ctrl.last_debug["turn_drive"]
+
+    def test_turn_drag_shifts_the_solver_deadband_with_the_steering(self):
+        self.assertEqual(self.bias_after_steering(0.8), (0.0, 0.0))            # off: unchanged
+        straight, _ = self.bias_after_steering(0.0, turn_drive_per_steer=0.06)
+        turning, turn = self.bias_after_steering(-0.8, turn_drive_per_steer=0.06)
+        self.assertEqual(straight, 0.0)
+        self.assertAlmostEqual(turning - straight, 0.8*0.06)
+        self.assertAlmostEqual(turn, 0.8*0.06)
+
+    def test_turn_drag_raises_the_real_solvers_drive(self):
+        def drive0(k):
+            ctrl = verified(vehicle=newcar(), turn_drive_per_steer=k)
+            ctrl.applied_steer = 0.8
+            return ctrl.step(straight_trajectory(speed=0.2), 0.15, 0.0, self.NOW, True)["debug"]["candidate_drive"]
+        self.assertGreater(drive0(0.06), drive0(0.0) + 0.02)
+
+    def test_bias_does_not_learn_the_modelled_turn_drag(self):
+        k, steer, drive = 0.06, 0.8, 0.36
+
+        def bias(model_k):
+            ctrl = verified(vehicle=newcar(), drive_bias_gain=2.0, drive_bias_max=0.1, turn_drive_per_steer=model_k)
+            p = ctrl.vehicle
+            ctrl.phase, ctrl.history = "tracking", [(-5.0, drive, steer)]
+            speed = 0.15
+            ctrl.update_bias(speed)
+            for _ in range(40):                       # the car: deadband + k|s|, 2 s at 20 Hz
+                for _ in range(5):
+                    force = p.motor_gain_n*(drive - p.drive_deadband - k*steer)
+                    speed += 0.01*(force - p.drag_kg_per_m*speed*speed)/p.mass_kg
+                ctrl.clock_s += 0.05
+                ctrl.update_bias(speed)
+            self.assertGreater(speed, 0.15)
+            return ctrl.bias
+        self.assertGreater(bias(0.0), 0.5*k*steer)    # without the term the bias learns it
+        self.assertLess(abs(bias(k)), 0.1*k*steer)
+
+    # --- 2.2 start hysteresis and handover --------------------------------------------
+    def test_tracking_holds_between_rest_and_moving_speed(self):
+        ctrl = self.soft_controller(rest_speed_mps=0.03)
+        _, t = self.drive(ctrl, [0.1, 0.04, 0.04, 0.035])
+        self.assertEqual((ctrl.phase, ctrl.last_debug["restarts"]), ("tracking", 0))
+        _, t = self.drive(ctrl, [0.02], t=t)
+        self.assertEqual((ctrl.phase, ctrl.last_debug["restarts"]), ("starting", 1))
+        _, t = self.drive(ctrl, [0.04], t=t)                                     # still starting
+        self.assertEqual((ctrl.phase, ctrl.last_debug["restarts"]), ("starting", 1))
+        self.assertEqual(ctrl.last_debug["applied_drive"], 0.35)
+        ctrl = self.soft_controller()                                            # default: no hysteresis
+        self.drive(ctrl, [0.1, 0.04])
+        self.assertEqual((ctrl.phase, ctrl.last_debug["restarts"]), ("starting", 1))
+
+    def test_handover_caps_the_drive_near_the_deadband_for_a_while(self):
+        ctrl = self.soft_controller(handover_s=0.5, handover_drive_margin=0.04)
+        ctrl.solver = self.recording(drive0=0.35)
+        out, t = self.drive(ctrl, [0.0])
+        self.assertEqual((out["debug"]["phase"], out["drive"], out["debug"]["handover"]), ("starting", 0.35, False))
+        cap = ctrl.vehicle.drive_deadband + 0.04
+        outs = []
+        for _ in range(12):
+            out, t = self.drive(ctrl, [0.1], t=t)
+            outs.append(out)
+        self.assertEqual([o["debug"]["handover"] for o in outs], [True]*10 + [False]*2)
+        for o in outs[:10]:
+            self.assertAlmostEqual(o["drive"], cap)
+        self.assertEqual(outs[-1]["drive"], 0.35)
+
+    def test_handover_includes_bias_and_turn_and_keeps_the_cut(self):
+        ctrl = self.soft_controller(handover_s=0.5, turn_drive_per_steer=0.06)
+        ctrl.solver = self.recording(drive0=0.38)
+        _, t = self.drive(ctrl, [0.0])
+        ctrl.bias, ctrl.applied_steer = 0.01, -0.5
+        out, t = self.drive(ctrl, [0.1], t=t)
+        self.assertAlmostEqual(out["drive"], ctrl.vehicle.drive_deadband + 0.01 + 0.03 + 0.04)
+        ctrl = self.soft_controller(handover_s=0.5)
+        _, t = self.drive(ctrl, [0.0])
+        out, _ = self.drive(ctrl, [0.24], t=t)                                  # above the cut line
+        self.assertEqual((out["drive"], out["debug"]["overspeed_state"]), (0.0, "cut"))
+
+    # --- 2.3 steering slew after a reference-source switch -----------------------------
+    def test_steer_slew_limits_the_applied_change_and_the_history(self):
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1])
+        ctrl.applied_steer = -0.2                                               # solver gives 0.1
+        out = ctrl.step(straight_trajectory(speed=0.15, stamp=self.NOW+t), 0.1, 0.05, self.NOW+t, False,
+                        steer_slew=0.075)
+        self.assertAlmostEqual(out["steer"], -0.125)
+        self.assertAlmostEqual(ctrl.applied_steer, -0.125)
+        self.assertAlmostEqual(ctrl.history[-1][2], -0.125)
+        self.assertEqual((out["debug"]["steer_slew"], out["debug"]["candidate_steer_action"]), (0.075, 0.1))
+        ctrl.applied_steer = -0.2                                               # plan_hold too
+        out = ctrl.step(RelaxedGuards.PENDING, 0.1, 0.05, self.NOW+t+0.05, False, steer_slew=0.075)
+        self.assertEqual(out["debug"]["branch"], "plan_hold")
+        self.assertAlmostEqual(out["steer"], -0.125)
+        ctrl.applied_steer = -0.2                                               # no limit by default
+        out, _ = self.drive(ctrl, [0.1], t=t+0.1)
+        self.assertEqual((out["steer"], out["debug"]["steer_slew"]), (0.1, None))
+
+
 if __name__ == "__main__":
     unittest.main()

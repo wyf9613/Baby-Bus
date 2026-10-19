@@ -80,5 +80,15 @@
                                      # replay flagged 10 stalls, all real (the reading then fell to 0)
       switch_hold_s: 0.25            # centerline jumps (e_psi to 1.2 rad) hold the last plan <= 0.25 s;
                                      # must stay below reference_dropout_tolerance_s (0.3 V2, 0.5 centerline)
+      # 2026-10-19 night (docs/MPC_NEXT_PLAN_CN.md section 2; tools/car05_run_stats.py on the 10-19 bags).
+      # Not yet run in Gym or on the car.
+      turn_drive_per_steer: 0.06     # steady drive (|a| < 0.15) at 0.12-0.28 m/s: straight 0.28-0.30,
+                                     # full lock 0.33-0.35 and mostly still slowing: ~0.05-0.07 more
+      rest_speed_mps: 0.03           # tracking -> start only below 0.03 (start -> tracking stays at 0.05):
+                                     # about half the restarts were dips below 0.05, not stalls
+      handover_s: 0.5                # after start -> tracking, drive <= deadband + bias + turn + 0.04 for 0.5 s:
+      handover_drive_margin: 0.04    # 48 of 65 handovers reached the soft/cut overspeed line within 2.5 s
+      switch_blend_s: 0.4            # centerline -> lattice moved the steering by the QP's full step
+      switch_steer_rate_per_s: 1.5   # (median 0.27-0.39); 0.075 per 0.05 s tick for 0.4 s after a switch
     control:
       max_run_time_s: 60.0           # was 30; the distance budget comes from make_deploy_yaml --distance

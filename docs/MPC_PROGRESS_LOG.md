@@ -2,6 +2,36 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-19（深夜）：MPC_NEXT_PLAN 第 2 节三项改动（转弯阻力、起步回差 + 交接限幅、参考切换限速）🟡
+
+按 [MPC_NEXT_PLAN_CN.md](MPC_NEXT_PLAN_CN.md) 第 2 节实施，目标是消除"一段一段"的走法。**只跑了单元测试，未在 Gym 和实车上验证。** 部署包和哈希没有生成（留给本人本地做）。
+
+新参数都在 `MPCSettings`，默认关闭，基础 `ai4r_policy.yaml` 补了默认值，只在 `ai4r_policy_mpc_car05.yaml` 打开：
+
+| 参数 | 默认 | 车 05 | 作用 |
+| --- | --- | --- | --- |
+| `turn_drive_per_steer` | 0 | 0.06 | 舵量 \|s\| 时死区抬高 k\|s\|：求解器收到 `drive_bias = bias + k·|applied_steer|`；偏置估计的单步预测按当时指令舵量同样抬高 |
+| `rest_speed_mps` | 0（= `moving_speed_mps`） | 0.03 | 跟踪中低于它才回到起步；`moving_speed_mps` 仍 0.05 |
+| `handover_s` / `handover_drive_margin` | 0 / 0.04 | 0.5 / 0.04 | 起步 → 跟踪后 0.5 s 内油门 ≤ min(死区 + bias + turn, drive_max−1e-3) + 0.04；`cut` 仍为 0，起步油门、`plan_hold` 不变 |
+| `switch_blend_s` / `switch_steer_rate_per_s` | 0 / 1.5 | 0.4 / 1.5 | lattice ↔ 中心线切换后 0.4 s 内每拍转向变化 ≤ 1.5·dt（0.075），`accept` 和 `plan_hold` 都限，记录的施加历史是限幅后的值 |
+
+- `MPCController.step` 新增 `steer_slew=None`；policy 侧按 `planner_traj is not None` 判断来源，只在限幅期内传这个参数（替身没有新属性时用 `getattr` 兜底）。没有新增顶层名字和 `PolicyNode` 方法，测试抽取列表不用改。
+- `mpc_debug` 新字段：`turn_drive`、`handover`、`steer_slew`。
+- 和计划的小差异：交接限幅只在 `vehicle.drive_breakaway > 0`（真的施加过起步油门）时记录交接时刻；`handover_drive_margin`、`switch_steer_rate_per_s` 的默认值取车 05 的值（它们只在对应时长 > 0 时生效，和 `switch_max_epsi_rad` 的做法一样）。
+- 校验：七个部署模式 × 车 05/27 都能构造 `MPCSettings`（车 27 的 exec 模式按预期被 build 拒绝）。
+- 测试：`test_mpc.py` 新增 `TurnDragHandoverBlend`（9 个），`test_mpc_planner_control.py` 新增节点层切换限速测试并扩展车 05 配置断言。第 4 节全部单元测试通过：test_mpc 138、test_mpc_planner_control 18、test_mpc_real_frames 15、test_shadow_lattice 30、test_planner_execution 10、test_control 45、test_estimation 65、test_planning 18、test_release_contract 4、test_lattice 45（`test_policy_node.py` 需要 ROS，未跑）。
+
+改动前基线（`python tools/car05_run_stats.py`，10-19 的 4 个 bag，上车后用同一套指标对比）：
+
+| 指标 | 09bc-run1 | 09bc-run2 | a5da-run1 | ea03-run1 | 合计 |
+| --- | --- | --- | --- | --- | --- |
+| 重启（卡住 / 低于 moving speed） | 21（10/11） | 9（4/5） | 18（6/12） | 14（6/8） | 62（26/36） |
+| 其中前 1 s 有参考切换 | 1 | 0 | 3 | 1 | 5 |
+| 起步 → 跟踪交接 / 2.5 s 内进入软超速或切油门 | 22/17 | 10/7 | 19/14 | 14/10 | 65/48（74%） |
+| baseline → planner 切换：次数，\|dsteer\| 中位数/最大，\|de_y\| 最大 | 12，0.39/0.39，0.17 | 3，0.28/0.39，0.07 | 24，0.27/0.39，0.18 | 7，0.33/0.46，0.44 | — |
+| 稳态油门：直行 \|s\|<0.15 / 满舵 \|s\|≥0.85 | 0.299/0.326 | 0.299/0.341 | 0.282/0.350 | 0.280/—（满舵只有减速窗口 0.348） | — |
+| 满舵占跟踪时间，1 s 内左右来回 | 15%，5 | 7%，2 | 28%，14 | 12%，2 | — |
+
 ## 2026-10-19（夜，续）：ea03 实车：控制层没有再停车；剩下的停车是别组锥桶误导估计层
 
 bag `…-ea03-run1-191128`（`ea0304c`，模型转向 0.37）。三次启动：

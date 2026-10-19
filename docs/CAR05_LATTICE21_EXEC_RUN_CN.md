@@ -53,6 +53,29 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
   - 核对参数：`vehicle.drive_max` 0.38、`mpc.high_speed_mps` 0.12、`vehicle.steering_gain_rad` -0.37。
 - 看包时：弯道里出现 `speed_override=stall` 之后应该是 `phase=starting`、油门 0.35，车随即重新动起来；`reference_gate=baseline_jump` 期间分支是 `plan_hold`，转向不应再从 -1 打到 +1。
 
+10-19 深夜（[MPC_NEXT_PLAN_CN.md](MPC_NEXT_PLAN_CN.md) 第 2 节，**还没在 Gym 和实车上验证**；部署包和哈希要按本文重新生成后再填）：新增三项，只在 5 号车配置里打开。
+- **转弯阻力**（`mpc.turn_drive_per_steer` 0.06）：舵量 |s| 时，MPC 和偏置估计都把死区抬高 0.06×|s|（满舵 +0.06）。弯里油门下限随之变高，偏置不再把转弯阻力当误差学进去。
+- **起步回差 + 平顺交接**（`mpc.rest_speed_mps` 0.03，`mpc.handover_s` 0.5，`mpc.handover_drive_margin` 0.04）：
+  - 起步 → 跟踪仍在 0.05 m/s；跟踪中车速低于 **0.03** 才回到起步，0.03–0.05 之间保持原状态；
+  - 起步切到跟踪后 0.5 s 内，油门不超过"死区 + 偏置 + 转弯阻力 + 0.04"；超速切油门（`cut`）照样为 0，起步油门不受影响。
+- **参考来源切换限速**（`mpc.switch_blend_s` 0.4，`mpc.switch_steer_rate_per_s` 1.5）：lattice 和中心线之间每切换一次（两个方向），之后 0.4 s 内转向每拍最多变 1.5×dt（20 Hz 下 0.075）。原有的 `switch_hold_s` 跳变保护不变。
+- 核对参数（车 1，Disabled 下）：
+
+  ```bash
+  for p in mpc.turn_drive_per_steer mpc.rest_speed_mps mpc.moving_speed_mps mpc.handover_s \
+           mpc.handover_drive_margin mpc.switch_blend_s mpc.switch_steer_rate_per_s; do
+    printf "%-32s " "$p"; ros2 param get "$N" "$p"
+  done
+  ```
+
+  预期依次为 0.06、0.03、0.05、0.5、0.04、0.4、1.5。前四项里出现 0（`turn_drive_per_steer`、`rest_speed_mps`、`handover_s`、`switch_blend_s` 的默认值）说明部署的不是新包。
+- `mpc_debug` 新字段：
+  - `turn_drive`：这一拍加到死区上的转弯阻力（0–0.06）；直行接近 0，满舵 0.06。
+  - `handover`：`true` 表示处在起步后的交接限幅里。每次 `phase` 从 `starting` 变成 `tracking` 之后应连续约 10 拍为 `true`，这期间 `applied_drive` ≤ 死区 + `drive_bias` + `turn_drive` + 0.04。
+  - `steer_slew`：这一拍允许的最大转向变化，没有限幅时为 `null`。`reference_selection` 每次变化后约 8 拍为 0.075，期间相邻两拍 `applied_steer_action` 之差不超过它；`candidate_steer_action` 仍是 MPC 原始解，可能更大。
+  - 车 3 观察时可以在 grep 的字段里加上 `turn_drive|handover|steer_slew|applied_drive|applied_steer_action`。
+- 看包时（`tools/car05_run_stats.py`，和 10-19 对比）：重启次数里"低于 moving speed"那一类、"起步后 2.5 s 内进入软超速/切油门"的比例应该明显下降；满舵弯里不应再减速到停；baseline → planner 的 `|dsteer|` 中位数应 ≤ 0.075。
+
 用 `--v-exec-max 0.2`、`--out .verification\car05-lattice21-exec-v020-*` 生成。0.20 版下软超速线是 0.25，0.28 以上强制油门为 0，硬停 0.40；第 3 步"车速在 0.10–0.20 之间"改为 0.15–0.25，"明显超过 0.25 就 Disable"改为 0.30。
 
 重新生成的命令（距离和时间分别换成 `1.0 60`、`5.0 60`、`0 0`）：

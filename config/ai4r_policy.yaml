@@ -398,6 +398,21 @@
       switch_hold_s: 0.0
       switch_max_epsi_rad: 0.5
       switch_max_dey_m: 0.15
+      # Turn drag (0 = off): at normalized steering |s| holding a speed takes this * |s| more
+      # drive than straight; it shifts the effective deadband in the QP and the bias model.
+      turn_drive_per_steer: 0.0
+      # Start hysteresis (0 = moving_speed_mps): tracking returns to the start phase only
+      # below this speed (<= moving_speed_mps).
+      rest_speed_mps: 0.0
+      # Start handover (0 = off): for handover_s after the start phase hands over to tracking,
+      # drive <= effective deadband (deadband + bias + turn drag) + handover_drive_margin.
+      handover_s: 0.0
+      handover_drive_margin: 0.04
+      # Reference-source blend (0 = off): for switch_blend_s after the reference switches
+      # between the lattice and the centerline, steering changes at most
+      # switch_steer_rate_per_s * dt per tick.
+      switch_blend_s: 0.0
+      switch_steer_rate_per_s: 1.5
       horizon_n: 10
       dt_pred_s: 0.1               # fixed prediction step; measured dt is only range-checked
       dt_max_s: 0.2

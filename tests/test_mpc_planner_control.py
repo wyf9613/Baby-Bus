@@ -360,6 +360,11 @@ class DeployProfileChecks(unittest.TestCase):
             self.assertEqual((mpc["wheel_hold_stale_s"], mpc["switch_hold_s"], mpc["restart_merge_s"],
                               mpc["high_speed_drive_max"]),
                              (0.5, 0.25, 2.0, 0.35) if on else (0.0, 0.0, 0.0, 0.0))
+            self.assertEqual((mpc["turn_drive_per_steer"], mpc["rest_speed_mps"], mpc["handover_s"],
+                              mpc["switch_blend_s"]),
+                             (0.06, 0.03, 0.5, 0.4) if on else (0.0, 0.0, 0.0, 0.0))
+            if on:
+                self.assertEqual((mpc["handover_drive_margin"], mpc["switch_steer_rate_per_s"]), (0.04, 1.5))
             cns["MPCSettings"](**mpc)
 
     def test_lattice21_profile_selects_the_lattice_on_the_stand_in_node(self):
@@ -427,6 +432,33 @@ class CarFiveGuards(unittest.TestCase):
         run(node, 8)
         node.mpc_controller.plan = None
         self.assertEqual(node._mpc_jump_guard(jumped, 0.12, 0.05), (jumped, None))
+
+    def switch_to_offset_lattice(self, **mpc_changes):
+        """Exec lattice node on the centerline, then a lattice offset by 0.1 m; mpc_debug records."""
+        node = make_node(shadow_enabled=True, planner=True, worker=SyncWorker(deliver=False),
+                         mode="mpc-exec-lattice21")
+        node.mpc_settings = cns["MPCSettings"](**{**vars(node.mpc_settings), **mpc_changes})
+        before = run(node, 6)
+        self.assertEqual(before[-1]["reference_selection"], "baseline")
+        node.planner_execution.accept(offset_result(node, 0.1))
+        return before + run(node, 12)[len(before):]
+
+    def test_a_reference_source_switch_limits_the_steering_rate(self):
+        records = self.switch_to_offset_lattice()
+        sources = [r["reference_selection"] for r in records]
+        switch = sources.index("planner")
+        self.assertEqual(sources[switch:switch+8], ["planner"]*8)
+        steer = [r["applied_steer_action"] for r in records]
+        for k in range(switch, switch+8):                         # 0.4 s at 20 Hz
+            self.assertEqual(records[k]["branch"], "solved")
+            self.assertAlmostEqual(records[k]["steer_slew"], 0.075)
+            self.assertLessEqual(abs(steer[k]-steer[k-1]), 0.075+1e-9, k)
+        self.assertIsNone(records[switch+8]["steer_slew"])
+        self.assertTrue(all(r["steer_slew"] is None for r in records[:switch]))
+        # The lattice moves the steering faster than that when the blend is off.
+        records = self.switch_to_offset_lattice(switch_blend_s=0.0)
+        steer = [r["applied_steer_action"] for r in records]
+        self.assertGreater(max(abs(b-a) for a, b in zip(steer[switch-1:switch+8], steer[switch:switch+8])), 0.075)
 
 
 if __name__ == "__main__":

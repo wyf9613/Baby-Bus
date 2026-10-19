@@ -3949,6 +3949,22 @@ class MPCSettings:
     switch_hold_s: float = 0.0
     switch_max_epsi_rad: float = 0.5
     switch_max_dey_m: float = 0.15
+    # Turn drag (2026-10-19 plan, 0 = off): at normalized steering |s| holding a speed takes
+    # turn_drive_per_steer*|s| more drive than straight. It shifts the effective deadband
+    # with the bias, in the QP and in the bias estimate's one-step prediction.
+    turn_drive_per_steer: float = 0.0
+    # Start hysteresis (0 = moving_speed_mps, i.e. none): tracking returns to the start
+    # phase only below rest_speed_mps (<= moving_speed_mps).
+    rest_speed_mps: float = 0.0
+    # Start handover (0 = off): for handover_s after the start phase hands over to tracking,
+    # drive is capped at the effective deadband (deadband + bias + turn) + handover_drive_margin.
+    handover_s: float = 0.0
+    handover_drive_margin: float = 0.04
+    # Reference-source blend (0 = off): for switch_blend_s after the reference switches
+    # between the lattice and the centerline, steering moves at most
+    # switch_steer_rate_per_s*dt per tick (both directions; switch_hold_s is unchanged).
+    switch_blend_s: float = 0.0
+    switch_steer_rate_per_s: float = 1.5
     horizon_n: int = 10
     dt_pred_s: float = 0.1            # fixed prediction step; measured dt is only range-checked
     dt_max_s: float = 0.2
@@ -4052,6 +4068,11 @@ class MPCSettings:
         if (not 0.0 <= self.restart_merge_s <= 5.0 or not 0.0 <= self.high_speed_drive_max <= 1.0
                 or not 0.0 < self.high_speed_mps <= 0.5):
             raise ValueError("mpc restart merge / high-speed drive settings out of range")
+        if (not 0.0 <= self.turn_drive_per_steer <= 0.2
+                or not 0.0 <= self.rest_speed_mps <= self.moving_speed_mps
+                or not 0.0 <= self.handover_s <= 2.0 or not 0.0 <= self.handover_drive_margin <= 0.2
+                or not 0.0 <= self.switch_blend_s <= 2.0 or not 0.0 < self.switch_steer_rate_per_s <= 20.0):
+            raise ValueError("mpc turn drag / start hysteresis / handover / switch blend settings out of range")
         if self.switch_hold_s > 0 and self.reference_dropout_tolerance_s <= self.switch_hold_s:
             # The guard rides on the tolerable dropout; without it a guarded tick would lock.
             raise ValueError("mpc.switch_hold_s needs reference_dropout_tolerance_s above it")
@@ -4901,6 +4922,7 @@ class MPCController:
         self.restarts = 0
         self.last_restart_s = None  # clock_s of the last counted restart
         self.tracking_since = None  # clock_s when the current stretch of tracking began
+        self.handover_since = None  # clock_s when the start phase last handed over to tracking
         self.overspeed_state = "ok"
         self.overspeed_since = None  # clock_s of the first step above the soft line in a row
         self.hard_since = None       # clock_s of the first step above overspeed_hard_mps in a row
@@ -4910,14 +4932,22 @@ class MPCController:
         if self.solver is not None and hasattr(self.solver, "reset"):
             self.solver.reset()
 
+    def turn_drive(self, steer):
+        """Extra drive the turn drag takes at normalized steering steer (0 while off)."""
+        return self.cfg.turn_drive_per_steer*abs(steer)
+
     def predicted_speed(self, speed, start_s, end_s):
-        """Longitudinal model from start_s to end_s with the drive commands actually in force."""
+        """Longitudinal model from start_s to end_s with the commands actually in force.
+
+        The deadband carries the turn drag of the steering command in force, so the bias
+        does not learn it a second time."""
         p = self.vehicle
-        d0 = min(p.drive_max, max(0.0, p.drive_deadband + self.bias))
         count = max(1, math.ceil((end_s-start_s)/0.01))
         h = (end_s-start_s)/count
         for i in range(count):
-            effort = self.command_at(start_s + i*h - p.drive_delay_s)[0] - d0
+            drive, steer = self.command_at(start_s + i*h - p.drive_delay_s)
+            d0 = min(p.drive_max, max(0.0, p.drive_deadband + self.bias + self.turn_drive(steer)))
+            effort = drive - d0
             force = (p.motor_gain_n if effort >= 0 else p.brake_gain_n)*effort
             speed = max(0.0, speed + h*(force - p.drag_kg_per_m*speed*abs(speed))/p.mass_kg)
         return speed
@@ -5014,7 +5044,8 @@ class MPCController:
             return "planning_bypass_not_acknowledged"
         return None
 
-    def step(self, traj, speed_mps, dt, now_s, is_first, speed_fresh=True, speed_raw=None):
+    def step(self, traj, speed_mps, dt, now_s, is_first, speed_fresh=True, speed_raw=None, steer_slew=None):
+        """steer_slew: the largest steering change allowed this tick (None = no limit)."""
         cfg, t0 = self.cfg, time.perf_counter()
         d = {"branch": None, "reject_reason": None, "shadow": cfg.shadow, "dt": dt,
              "speed_mps": speed_mps, "v_ref_mps": None, "v_ref_end_mps": None,
@@ -5032,7 +5063,10 @@ class MPCController:
              "pred_xy": None,
              # New 2026-10-18: soft overspeed state and time above the soft line;
              # how far the prediction ran onto the straight forward extension.
-             "overspeed_state": None, "overspeed_s": None, "forward_extension_m": None}
+             "overspeed_state": None, "overspeed_s": None, "forward_extension_m": None,
+             # New 2026-10-19 (night): turn-drag deadband shift, start handover cap active, steering
+             # change limit after a reference-source switch (None = none).
+             "turn_drive": 0.0, "handover": False, "steer_slew": steer_slew}
         soft = cfg.overspeed_soft_margin_mps > 0 and not cfg.shadow
         self.last_debug = d
         if isinstance(traj, dict):
@@ -5041,6 +5075,11 @@ class MPCController:
             d["planning_bypassed"] = traj.get("planning_bypassed")
             if finite_number(traj.get("timestamp_s")) and finite_number(now_s):
                 d["ref_age_s"] = now_s - traj["timestamp_s"]
+
+        def slew(steer):
+            if steer_slew is None:
+                return steer
+            return min(self.applied_steer + steer_slew, max(self.applied_steer - steer_slew, steer))
 
         def record(drive, steer):
             d["phase"], d["drive_bias"] = self.phase, self.bias
@@ -5082,7 +5121,7 @@ class MPCController:
                         # Short dropout: keep executing the last solved sequence, never
                         # increasing the drive. Its age is bounded by the tolerance.
                         d["branch"], d["plan_index"] = "plan_hold", index
-                        drive, steer = min(inputs[index][0], self.applied_drive), inputs[index][1]
+                        drive, steer = min(inputs[index][0], self.applied_drive), slew(inputs[index][1])
                         if self.phase == "starting" and self.start_since is not None:
                             # Breakaway overrides drive0 after the QP is solved, so its
                             # future inputs may be too small to start the real car. Keep
@@ -5105,7 +5144,7 @@ class MPCController:
             d["step_p95_s"] = sorted(self.step_times)[int(0.95*(len(self.step_times)-1))]
             if d["step_s"] > cfg.max_step_time_s:
                 return reject("over_budget", f"step {d['step_s']:.4f}s", tolerable=True)
-            steer, out_drive = (0.0, 0.0) if cfg.shadow else (steer_action, drive)
+            steer, out_drive = (0.0, 0.0) if cfg.shadow else (slew(steer_action), drive)
             self.invalid_since = None
             record(out_drive, steer)
             return {"drive": out_drive, "steer": steer, "debug": d}
@@ -5129,12 +5168,16 @@ class MPCController:
         if speed_mps >= cfg.moving_speed_mps:
             if self.phase != "tracking" or self.tracking_since is None:
                 self.tracking_since = self.clock_s
+            if self.phase == "starting" and breakaway:
+                self.handover_since = self.clock_s
             self.phase, self.start_since = "tracking", None
             if (cfg.restart_count_reset_s > 0
                     and self.clock_s - self.tracking_since >= cfg.restart_count_reset_s - 1e-9):
                 self.restarts = 0
-        elif self.phase == "tracking" and breakaway:
+        elif self.phase == "tracking" and breakaway and speed_mps < (cfg.rest_speed_mps or cfg.moving_speed_mps):
+            # Between rest_speed_mps and moving_speed_mps the phase stays as it is (hysteresis).
             self.phase, self.start_since, self.tracking_since = "starting", None, None
+            self.handover_since = None
             if (cfg.restart_merge_s <= 0 or self.last_restart_s is None
                     or self.clock_s - self.last_restart_s >= cfg.restart_merge_s - 1e-9):
                 self.restarts += 1
@@ -5218,9 +5261,11 @@ class MPCController:
             return accept("zero_target", self.applied_steer, 0.0)
         z0, delta_now = self.initial_state(speed_mps)
         d["delta_est_rad"] = delta_now
+        turn = self.turn_drive(self.applied_steer)
+        d["turn_drive"] = turn
         extra = {}
-        if self.bias or self.vehicle.drive_deadband > 0:
-            extra = {"drive_bias": self.bias, "moving": self.phase == "tracking"}
+        if self.bias or turn or self.vehicle.drive_deadband > 0:
+            extra = {"drive_bias": self.bias + turn, "moving": self.phase == "tracking"}
         if speed_targets is not None:
             extra.update(speed_targets=speed_targets, allow_braking=planned_stop)
         if soft and self.overspeed_state != "ok":
@@ -5260,6 +5305,13 @@ class MPCController:
                 return reject("stop", "no_motion_after_breakaway")
             drive = min(self.vehicle.drive_max, self.vehicle.drive_breakaway
                         + cfg.breakaway_ramp_per_s*(self.clock_s - self.start_since))
+        if (cfg.handover_s > 0 and self.phase == "tracking" and self.handover_since is not None
+                and self.clock_s - self.handover_since < cfg.handover_s - 1e-9):
+            # Just pulled away: the start drive's momentum overshot (10-19: 74% of handovers
+            # reached the soft overspeed line within 2.5 s). Stay near the effective deadband.
+            p = self.vehicle
+            d_eff = min(p.drive_max-1e-3, max(0.0, p.drive_deadband + self.bias + turn))
+            drive, d["handover"] = min(drive, d_eff + cfg.handover_drive_margin), True
         self.plan = (self.clock_s, inputs)
         d.update(candidate_delta_rad=solution["delta0"], candidate_steer_action=steer, candidate_drive=drive,
                  status="solved", iterations=solution["iterations"], solve_s=solution["solve_s"],
@@ -8078,6 +8130,7 @@ class PolicyNode(Node):
                 self.mpc_held_reference = None
                 self.wheel_hold = WheelHoldMonitor(mpc_settings)
                 self._jump_guard_s, self._jump_ref = 0.0, None
+                self._ref_source, self._blend_left_s = None, 0.0
             state = estimates["state"]
             planning_ref, held_age = self.planning_output, None
             if mpc_settings.reference_source == "planning":
@@ -8126,10 +8179,22 @@ class PolicyNode(Node):
                 speed = 0.0
             guard = getattr(self, "_mpc_jump_guard", None)   # absent on partial offline stand-ins
             traj, gate = guard(traj, speed, dt, guard=planner_traj is None) if guard else (traj, None)
+            # Reference-source blend (mpc.switch_blend_s, 0 = off): after the reference switches
+            # between the lattice and the centerline, limit the steering change per tick
+            # (10-19: centerline -> lattice moved it by the QP's full step, 0.27-0.39).
+            source = "planner" if planner_traj is not None else "baseline"
+            previous = getattr(self, "_ref_source", None)
+            if previous is not None and previous != source:
+                self._blend_left_s = mpc_settings.switch_blend_s
+            self._ref_source = source
+            slew = {}
+            if getattr(self, "_blend_left_s", 0.0) > 1e-9 and finite_number(dt) and dt > 0:
+                slew = {"steer_slew": mpc_settings.switch_steer_rate_per_s*dt}
+                self._blend_left_s -= dt
             try:
                 mpc_result = self.mpc_controller.step(traj, speed, dt, state["timestamp_s"], is_first_policy_step,
                                                       speed_fresh=hold["fresh"],
-                                                      speed_raw=observations.get("wheel_speed"))
+                                                      speed_raw=observations.get("wheel_speed"), **slew)
             finally:
                 self.mpc_controller.last_debug.update(reference_held=held_age is not None,
                                                       reference_held_age_s=held_age,
