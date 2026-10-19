@@ -3909,6 +3909,14 @@ class MPCSettings:
     # vehicle.drive_max): the needed effort drifts with the battery. 0 = constant.
     breakaway_ramp_per_s: float = 0.0
     max_restarts: int = 3
+    # A restart within restart_merge_s of the last counted one is the same episode (a stall
+    # restart that dips below moving_speed_mps again while pulling away); 0 = count each.
+    restart_merge_s: float = 0.0
+    # Speed-dependent drive cap (2026-10-19, 0 = off): at or above high_speed_mps the QP's
+    # drive bound is high_speed_drive_max instead of vehicle.drive_max, so a low battery gets
+    # the larger cap when crawling or starting, and a fresh one cannot overshoot with it.
+    high_speed_drive_max: float = 0.0
+    high_speed_mps: float = 0.15
     # Tracking without a stop for this long clears the restart count (0 = never), so a
     # long or loop run is not ended by occasional stalls spread over many minutes.
     restart_count_reset_s: float = 0.0
@@ -4041,6 +4049,9 @@ class MPCSettings:
         if (not 0.0 <= self.switch_hold_s <= 0.5 or not 0.0 < self.switch_max_epsi_rad <= 1.5
                 or not 0.0 < self.switch_max_dey_m <= 0.5):
             raise ValueError("mpc switch guard settings out of range")
+        if (not 0.0 <= self.restart_merge_s <= 5.0 or not 0.0 <= self.high_speed_drive_max <= 1.0
+                or not 0.0 < self.high_speed_mps <= 0.5):
+            raise ValueError("mpc restart merge / high-speed drive settings out of range")
         if self.switch_hold_s > 0 and self.reference_dropout_tolerance_s <= self.switch_hold_s:
             # The guard rides on the tolerable dropout; without it a guarded tick would lock.
             raise ValueError("mpc.switch_hold_s needs reference_dropout_tolerance_s above it")
@@ -4556,10 +4567,12 @@ class VehicleModelMPC:
         return replace(p, drive_deadband=deadband,
                        drive_breakaway=max(p.drive_breakaway, deadband) if p.drive_breakaway else 0.0)
 
-    def input_bounds(self, p=None, moving=False, allow_braking=False, drive_floor_zero=False):
+    def input_bounds(self, p=None, moving=False, allow_braking=False, drive_floor_zero=False, drive_cap=None):
         p = self.vehicle if p is None else p
         floor = moving and not allow_braking and not drive_floor_zero
-        drive = (max(0.0, p.drive_min, p.drive_deadband if floor else 0.0), p.drive_max)
+        low = max(0.0, p.drive_min, p.drive_deadband if floor else 0.0)
+        high = p.drive_max if drive_cap is None else min(p.drive_max, drive_cap)
+        drive = (low, max(low, high))
         ends = sorted(((p.steering_min_rad-p.steering_offset_rad)/p.steering_gain_rad,
                        (p.steering_max_rad-p.steering_offset_rad)/p.steering_gain_rad))
         return drive, (max(-1.0, ends[0]), min(1.0, ends[1]))
@@ -4672,11 +4685,12 @@ class VehicleModelMPC:
         self._model = None
 
     def solve(self, points, z0, speed_cap, last_drive, nominal=None, drive_bias=0.0, moving=False,
-              speed_targets=None, allow_braking=False, drive_floor_zero=False):
+              speed_targets=None, allow_braking=False, drive_floor_zero=False, drive_cap=None):
         """Returns (solution, None) or (None, reference_reason); raises MPCStop on solver failure.
 
         drive_floor_zero (soft overspeed): while moving, drive may go below the deadband,
-        into the model's drag-brake region, without planning a stop."""
+        into the model's drag-brake region, without planning a stop. drive_cap lowers the
+        drive bound below vehicle.drive_max (never below the deadband floor)."""
         np, cfg, n, h = self._np, self.cfg, self.cfg.horizon_n, self.cfg.dt_pred_s
         p = self.effective(drive_bias)
         t0 = time.perf_counter()
@@ -4687,7 +4701,7 @@ class VehicleModelMPC:
             raise MPCStop("invalid_speed_targets")
         if allow_braking and (speed_targets is None or p.brake_gain_n <= 0):
             raise MPCStop("braking_model_unavailable")
-        (d_lo, d_hi), (s_lo, s_hi) = self.input_bounds(p, moving, allow_braking, drive_floor_zero)
+        (d_lo, d_hi), (s_lo, s_hi) = self.input_bounds(p, moving, allow_braking, drive_floor_zero, drive_cap)
         g, o = p.steering_gain_rad, p.steering_offset_rad
         z0 = [float(v) for v in z0]
         if not all(math.isfinite(v) for v in z0 + [speed_cap if speed_cap != math.inf else 0.0, last_drive]):
@@ -4885,6 +4899,7 @@ class MPCController:
         self.phase = "starting"
         self.start_since = None    # clock_s when the breakaway drive was first applied
         self.restarts = 0
+        self.last_restart_s = None  # clock_s of the last counted restart
         self.tracking_since = None  # clock_s when the current stretch of tracking began
         self.overspeed_state = "ok"
         self.overspeed_since = None  # clock_s of the first step above the soft line in a row
@@ -4959,8 +4974,11 @@ class MPCController:
     def overspeed_check(self, speed, fresh=True, dt=0.0):
         """Soft overspeed state ("ok"/"soft"/"cut") and whether it must lock now.
 
-        A held (not fresh) wheel reading does not advance the cut timeout: its start moves
-        forward by dt. The hard line keeps timing on any reading.
+        A held (not fresh) wheel reading does not advance the cut timeout (its start moves
+        forward by dt) and neither cuts nor releases the drive: it is the last value of a
+        slowing or stopped wheel, never a fast one (10-19 18:20 bags: drive held at 0 or the
+        soft floor on such readings stalled the car in 5 of 10 cases). The hard line keeps
+        timing on any reading.
         """
         cfg, now = self.cfg, self.clock_s
         line = cfg.v_exec_max_mps + cfg.overspeed_soft_margin_mps
@@ -4975,7 +4993,7 @@ class MPCController:
             self.hard_since = now if self.hard_since is None else self.hard_since
         else:
             self.hard_since = None
-        self.overspeed_state = ("cut" if speed > line + cfg.overspeed_cut_margin_mps
+        self.overspeed_state = ("ok" if not fresh else "cut" if speed > line + cfg.overspeed_cut_margin_mps
                                 else "soft" if speed > line else "ok")
         return ((self.overspeed_since is not None
                  and now - self.overspeed_since >= cfg.overspeed_cut_timeout_s - 1e-9)
@@ -5117,9 +5135,13 @@ class MPCController:
                 self.restarts = 0
         elif self.phase == "tracking" and breakaway:
             self.phase, self.start_since, self.tracking_since = "starting", None, None
-            self.restarts += 1
+            if (cfg.restart_merge_s <= 0 or self.last_restart_s is None
+                    or self.clock_s - self.last_restart_s >= cfg.restart_merge_s - 1e-9):
+                self.restarts += 1
+                self.last_restart_s = self.clock_s
             if not cfg.shadow and self.restarts > cfg.max_restarts:
                 return reject("stop", "too_many_restarts")
+        d["restarts"] = self.restarts
         d["phase"] = self.phase
         if soft:
             must_stop = self.overspeed_check(speed_mps, speed_fresh, d["dt"])
@@ -5203,6 +5225,9 @@ class MPCController:
             extra.update(speed_targets=speed_targets, allow_braking=planned_stop)
         if soft and self.overspeed_state != "ok":
             extra["drive_floor_zero"] = True
+        if cfg.high_speed_drive_max > 0 and speed_mps >= cfg.high_speed_mps:
+            extra["drive_cap"] = cfg.high_speed_drive_max
+        d["drive_cap"] = extra.get("drive_cap", self.vehicle.drive_max)
         try:
             solution, reason = self.solver.solve(traj["points"], z0, cap, self.applied_drive, self.nominal, **extra)
         except MPCStop as exc:

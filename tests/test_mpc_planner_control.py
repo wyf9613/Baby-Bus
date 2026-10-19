@@ -357,8 +357,9 @@ class DeployProfileChecks(unittest.TestCase):
         for car, on in (("05", True), ("27", False)):
             p = deploy["build"]("mpc-shadow-lattice21", 1.0, cones="yellow-left", car=car)[0]
             mpc = p["/**/ai4r_policy"]["ros__parameters"]["mpc"]
-            self.assertEqual((mpc["wheel_hold_stale_s"], mpc["switch_hold_s"]),
-                             (0.5, 0.25) if on else (0.0, 0.0))
+            self.assertEqual((mpc["wheel_hold_stale_s"], mpc["switch_hold_s"], mpc["restart_merge_s"],
+                              mpc["high_speed_drive_max"]),
+                             (0.5, 0.25, 2.0, 0.35) if on else (0.0, 0.0, 0.0, 0.0))
             cns["MPCSettings"](**mpc)
 
     def test_lattice21_profile_selects_the_lattice_on_the_stand_in_node(self):

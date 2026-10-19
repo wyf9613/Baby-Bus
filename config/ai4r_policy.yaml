@@ -377,6 +377,11 @@
       breakaway_ramp_per_s: 0.0    # start drive rises from vehicle.drive_breakaway (capped at drive_max)
       max_restarts: 3
       restart_count_reset_s: 0.0   # tracking this long clears the restart count (0 = never)
+      restart_merge_s: 0.0         # a restart this soon after the last counted one is not counted again
+      # Speed-dependent drive cap (0 = off): at or above high_speed_mps the drive bound is
+      # high_speed_drive_max instead of vehicle.drive_max (more drive only when slow).
+      high_speed_drive_max: 0.0
+      high_speed_mps: 0.15
       # Integral action: drive bias from the model's one-step speed residual (0 gain = off).
       drive_bias_gain: 0.0
       drive_bias_max: 0.05

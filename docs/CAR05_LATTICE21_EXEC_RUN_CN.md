@@ -23,9 +23,9 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
 **0.20 m/s 版**（2026-10-19：`ai4r_policy_mpc_car05.yaml` 的限速上限从 0.15 提到 0.20，0.15 包的哈希不变；依据是同日 Gym 扫描中 0.20 是最好的一档，见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md)）：
 
 ```text
-.verification\car05-lattice21-exec-v020-1m        yaml 38ff5861…  policy_node 8a1f6013…   1 m / 60 s
-.verification\car05-lattice21-exec-v020-5m        yaml 33e59193…  policy_node 8a1f6013…   5 m / 60 s
-.verification\car05-lattice21-exec-v020-nolimit   yaml 3877cc86…  policy_node 8a1f6013…   不限 / 不限
+.verification\car05-lattice21-exec-v020-1m        yaml d8841971…  policy_node c78d1b39…   1 m / 60 s
+.verification\car05-lattice21-exec-v020-5m        yaml f373d0fd…  policy_node c78d1b39…   5 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit   yaml f6d555da…  policy_node c78d1b39…   不限 / 不限
 ```
 
 同日现场改了 5 号车模型（16:55 后）：`vehicle.drive_deadband` 0.30 → 0.24（满电时 0.25 的请求就能维持约 0.255 m/s），`mpc.overspeed_cut_timeout_s` 1.0 → 2.0；0.40/0.2 s 硬停不变。上表是改后的哈希；0.15 包也随之变化，用前重新生成。车上 `traxxas_vehicle_interface` 的转向区间必须是 ±1.0（10-19 发现被改回 ±0.5，转向只施加一半）。
@@ -41,6 +41,12 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
   - `vehicle.drive_deadband` 0.24 → 0.25，`mpc.drive_bias_max` 0.05 → 0.10，覆盖 0.15–0.35，满电和用过一阵的电池都在范围内；
   - `mpc.max_restarts` 5 → 8；
   - `vehicle.drive_max` 仍是 0.35。
+- 18:20 那两次之后（同一个表的哈希）：
+  - 读数过期时，超速保护不再切油门，也不再放开油门下限（只保留 0.40 硬停）；
+  - 重新起步后 2 s 内再掉回起步状态，不重复计数（`restart_merge_s` 2.0），`max_restarts` 10；
+  - 车速低于 0.15 时油门上限 0.40，高于 0.15 时 0.35（`vehicle.drive_max` 0.40、`mpc.high_speed_drive_max` 0.35）；
+  - 起步油门从 0.35 开始，每秒加 0.05，最多到 0.40。
+  - `mpc_debug` 新字段：`restarts`、`drive_cap`。
 - 看包时：弯道里出现 `speed_override=stall` 之后应该是 `phase=starting`、油门 0.35，车随即重新动起来；`reference_gate=baseline_jump` 期间分支是 `plan_hold`，转向不应再从 -1 打到 +1。
 
 用 `--v-exec-max 0.2`、`--out .verification\car05-lattice21-exec-v020-*` 生成。0.20 版下软超速线是 0.25，0.28 以上强制油门为 0，硬停 0.40；第 3 步"车速在 0.10–0.20 之间"改为 0.15–0.25，"明显超过 0.25 就 Disable"改为 0.30。

@@ -1886,6 +1886,16 @@ class HeldWheelReading(unittest.TestCase):
                 t += 0.05
         self.assertEqual(ctrl.last_debug["reject_reason"], "overspeed")
 
+    def test_held_reading_neither_cuts_nor_releases_the_drive(self):
+        ctrl = self.soft_controller()
+        _, t = self.drive(ctrl, [0.1])
+        ref = straight_trajectory(speed=0.15, stamp=self.NOW+t)
+        out = ctrl.step(ref, 0.30, 0.05, self.NOW+t, False, speed_fresh=False)    # above the cut line
+        self.assertEqual((out["debug"]["overspeed_state"], out["drive"]), ("ok", 0.31))
+        self.assertFalse(ctrl.solver.calls[-1].get("drive_floor_zero", False))
+        out = ctrl.step(ref, 0.30, 0.05, self.NOW+t+0.05, False)                  # fresh: cut as before
+        self.assertEqual((out["debug"]["overspeed_state"], out["drive"]), ("cut", 0.0))
+
     def test_held_reading_does_not_move_the_drive_bias(self):
         ctrl = self.soft_controller(drive_bias_gain=2.0, overspeed_soft_margin_mps=0.0, overspeed_hard_mps=0.0)
         _, t = self.drive(ctrl, [0.1, 0.12])
@@ -1896,13 +1906,46 @@ class HeldWheelReading(unittest.TestCase):
             t += 0.05
         self.assertEqual(ctrl.bias, bias)
 
+    def test_a_restart_soon_after_the_last_is_the_same_episode(self):
+        def ride(speeds, merge_s):
+            ctrl = verified(vehicle=newcar(), max_restarts=1, restart_merge_s=merge_s)
+            for k, speed in enumerate(speeds):
+                ctrl.step(straight_trajectory(speed=0.2), speed, 0.0 if k == 0 else 0.05, self.NOW, k == 0)
+            return ctrl
+        twice = [0.0, 0.1, 0.0, 0.1] + [0.1]*10 + [0.0]          # second dip 0.6 s after the first
+        self.assertEqual(ride(twice, 2.0).last_debug["restarts"], 1)
+        with self.assertRaises(Stop):
+            ride(twice, 0.0)
+        later = [0.0, 0.1, 0.0, 0.1] + [0.1]*40 + [0.0]          # 2.1 s later: counted
+        with self.assertRaises(Stop):
+            ride(later, 2.0)
+
+    def test_drive_cap_applies_only_at_speed(self):
+        ctrl = self.soft_controller(high_speed_drive_max=0.35, high_speed_mps=0.15)
+        ctrl.vehicle = newcar(drive_max=0.40, drive_breakaway=0.35)
+        _, t = self.drive(ctrl, [0.1])
+        self.assertNotIn("drive_cap", ctrl.solver.calls[-1])
+        self.assertEqual(ctrl.last_debug["drive_cap"], 0.40)
+        self.drive(ctrl, [0.16], t=t)
+        self.assertEqual(ctrl.solver.calls[-1]["drive_cap"], 0.35)
+        solver = Solver(Settings(), newcar(drive_max=0.40))
+        self.assertEqual(solver.input_bounds(drive_cap=0.35)[0][1], 0.35)
+        self.assertEqual(solver.input_bounds()[0][1], 0.40)
+        low, high = solver.input_bounds(newcar(drive_max=0.40, drive_deadband=0.37, drive_breakaway=0.38), moving=True,
+                                       drive_cap=0.35)[0]
+        self.assertEqual((low, high), (0.37, 0.37))           # never below the deadband floor
+        traj = straight_trajectory(speed=0.3)
+        capped, _ = solver.solve(traj["points"], [0.0, 0.0, 0.0, 0.2, 0.0], 0.3, 0.3, moving=True, drive_cap=0.30)
+        self.assertLessEqual(max(d for d, _ in capped["inputs"]), 0.30+1e-6)
+
     def test_wheel_hold_and_switch_settings_are_checked(self):
         for kwargs in ({"wheel_hold_stale_s": -0.1}, {"wheel_hold_stale_s": 2.5},
                        {"wheel_hold_stale_s": 1.0, "wheel_hold_straight_s": 0.5},
                        {"wheel_stall_yaw_rps": 0.0}, {"wheel_stall_min_steer": 1.5},
                        {"switch_hold_s": 0.3}, {"switch_hold_s": 0.3, "reference_dropout_tolerance_s": 0.3},
                        {"switch_hold_s": 0.6, "reference_dropout_tolerance_s": 0.5},
-                       {"switch_max_epsi_rad": 0.0}, {"switch_max_dey_m": 0.0}):
+                       {"switch_max_epsi_rad": 0.0}, {"switch_max_dey_m": 0.0},
+                       {"restart_merge_s": -1.0}, {"high_speed_drive_max": 1.5}, {"high_speed_mps": 0.0}):
             with self.assertRaises(ValueError, msg=str(kwargs)):
                 Settings(**kwargs)
         Settings(switch_hold_s=0.3, reference_dropout_tolerance_s=0.5)
