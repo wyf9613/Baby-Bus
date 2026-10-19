@@ -20,7 +20,7 @@
 - 全部本地测试通过（mpc 125、planner_control 17、real_frames 15、shadow_lattice 30、planner_execution 10、control 45、estimation 65、planning 18、release_contract 4、lattice 45）；
 - Gym（lattice21 + 车 05，0.20）：死区 0.23 的仿真车 29/30（改前 28/30），死区 0.289 的 23/30（改前 21/30），都没有超速锁停。
 
-Gym 和 replay 工具的方法清单加了 `_mpc_jump_guard`；只抽取部分代码的测试替身没有这个方法时跳过保护。部署包 `car05-lattice21-exec-v020-*` 已重新生成：policy_node 为 `2ff849ac…`，yaml 分别为 `a0bed939…` / `60236ee0…` / `261f6abf…`。上车前要跑 WSL 门禁。
+Gym 和 replay 工具的方法清单加了 `_mpc_jump_guard`；只抽取部分代码的测试替身没有这个方法时跳过保护。部署包 `car05-lattice21-exec-v020-*` 已重新生成：policy_node 为 `5b6b6027…`，yaml 分别为 `a0bed939…` / `60236ee0…` / `261f6abf…`。上车前要跑 WSL 门禁。
 
 ## 2026-10-19（现场，续）：`d19a0d5` 实车结果，nolimit 连续 32 s
 
