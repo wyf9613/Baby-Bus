@@ -3,6 +3,8 @@
 当前实现位于 [mvp21_policy/](mvp21_policy/README.md)，两个 script 名称均进入同一套
 最新 MVP2.1 模块。ROS 与原虚拟车辆环境共用同一执行管理器、PID 回退函数和
 `config/ai4r_policy.yaml`。默认 native 规划 1 Hz、控制 20 Hz，暂不接入学习 policy。
+单文件交付使用环境要求的唯一名称 [scripts/policy_node.py](scripts/policy_node.py)，
+由模块源码生成；2026-10-20 的交付未包含学习评分器或模型权重。
 保留 MVP2.1 的部分道路、边界来源、滚动检查与中线降级行为；本地补入结果顺序隔离。
 每周期记录实际参考来源，到达终点与 native-only 验收分别报告。
 合并边界和结果见[统一执行说明](offline/mvp21_sim/SHARED_EXECUTION_CN.md)。

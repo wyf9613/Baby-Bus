@@ -7,6 +7,35 @@ C* remains a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
 Historical planner/controller/physical evidence below remains separate.
 
+## Single-file delivery without learned policy, 2026-10-20
+
+Pulled `feature/mvp21-sim-integration-20261015` at
+`9d5730bc46985595802c2017e0abaddd9daf0913`. At the user's request, the
+delivery keeps the environment's required name, `scripts/policy_node.py`.
+It is generated from `scripts/mvp21_policy_node.py` with `tools/bundle_python.py`,
+`--root . --output scripts/policy_node.py --resource config/ai4r_policy.yaml`.
+The module sources, common YAML, native planner and PID behavior are unchanged.
+The bundle contains 15 source files and the existing YAML snapshot, with no
+learned scorer, model weights, offline runtime or unresolved dynamic imports.
+The YAML snapshot does not change the existing ROS parameter-loading workflow.
+
+Artifact: 438034 bytes; SHA-256
+`fbf0637c11bd72a4fb88b75463140b7d2b0db3ddb3ca33eebd8a14bbf391367d`.
+Embedded source/configuration bytes and hashes match the source checkout;
+rebuilding with the same command produces identical bytes. Copied alone to a
+temporary directory and run with Python isolated mode (`-I`), the exact file
+recovers from malformed JSON and processes all 20 recorded worker inputs with
+the same selected paths/costs and source fingerprint as the modular planner.
+
+The portable bundler/module/compatibility/execution checks pass (44 tests and
+39 subtests); one symlink test is skipped because Windows cannot create its
+test symlink. The initial relocation check required creating the missing local
+`.verification` scratch directory, then passed. The required CONTRIBUTING ROS
+fast command was attempted in WSL Ubuntu and stops before build at the missing
+pinned `dream_interfaces` directory. ROS installation/launch and hardware tests
+are not run. This delivery does not deploy, activate a learned policy, merge,
+or change any live system configuration.
+
 ## Multi-start recurrent retraining, 2026-10-19
 
 The new batch contains 36 physical roads, 144 stratified start attempts, 644

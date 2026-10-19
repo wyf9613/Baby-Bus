@@ -55,14 +55,19 @@ flowchart LR
 ```powershell
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source perception --output .verification/modular-centerline-new
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --output .verification/modular-one-hz-new
-../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B tools/bundle_python.py scripts/mvp21_policy_node.py --root . --output build/mvp21_policy_single.py
+python -B tools/bundle_python.py scripts/mvp21_policy_node.py --root . --output scripts/policy_node.py --resource config/ai4r_policy.yaml
 ```
 
 单文件工具来自`feature/python-single-file-bundler`的`66eaea923a7b040de4908975ffecda118795f393`，
 原样带入脚本、说明和17项测试。它保留模块层级并恢复到临时目录，支持worker子进程；
 不是把算法拼接到一个共享全局命名空间。ROS及其他外部依赖仍由运行环境提供。
-完整参数与可选profiling见[打包说明](../tools/BUNDLE_PYTHON.md)。生成文件位于
-忽略的`build/`，每次由模块重新构建，不作为另一份算法源码维护。
+完整参数与可选profiling见[打包说明](../tools/BUNDLE_PYTHON.md)。2026-10-20 按用户要求，
+交付文件固定为环境接受的 `scripts/policy_node.py` 并提交到当前分支；每次从模块重新
+生成，不直接维护其中的算法副本。此文件包含 ROS/worker 的 15 个源码文件和共同 YAML
+快照，不包含离线学习评分器或模型权重。YAML 快照用于留存配置，不自动替代 ROS 的
+参数加载；运行仍沿用现有 launch/`--ros-args --params-file` 配置方式，并需要目标环境
+提供 ROS 2 Jazzy 与对应消息包。上述构建入口及 `mvp21_policy/` 目录无需随单文件复制。
+当前单文件验证及完整 ROS gate 的限制见[验收记录](../docs/acceptance.md)。
 
 仿真日志同时保存上游原文件指纹和`runtime_modules`实际源码指纹。worker返回的
 `source_sha256`现按`source_sha256_format=mvp21_worker_geometry_lattice_v2`计算，覆盖

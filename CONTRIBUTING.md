@@ -5,7 +5,9 @@ Use an Ubuntu 24.04 / ROS 2 Jazzy environment. On the simulation branch, the
 imported MVP2.1 implementation is developed in `mvp21_policy/`, with a separate
 `scripts/mvp21_policy_node.py` entry. Keep explanations beside code/configuration
 and use `tools/bundle_python.py` when a single-file delivery is required. The
-`scripts/policy_node.py` is a compatibility entry for the same latest backend.
+`scripts/policy_node.py` is the generated single-file delivery of that backend;
+keep this required executable name. Rebuild it from the modular entry rather
+than editing embedded sources; see the module guide for the exact command.
 The learned scorer consumes only current state, current road/obstacles and the
 candidate trajectory. Its input schema is independent of native planner costs.
 See [the module guide](mvp21_policy/README.md) for ownership,
