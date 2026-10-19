@@ -1,0 +1,17 @@
+{
+  "name": "checkpoint-user-good-motion-steer050-20261019-073353",
+  "status": "User reports this version performs well; no independent hardware result claimed.",
+  "revision": "local-feedback-lattice21-motion-20261019",
+  "steering_normalized_limit": 0.5,
+  "steering_gain_rad": -0.3142,
+  "files": {
+    "scripts/policy_node.py": "a37f97f5275f4114a42d0b39f1a91cdc36da83fad6d9f2c457ab022c3b1894ca",
+    "config/ai4r_policy.yaml": "984de173705670ccc540defd3f47d0e006cef9a6e5a1b14d1ac8ded9671701d5",
+    "config/ai4r_policy_speed_feedback.yaml": "e9bf22629e9e16987fa99e0cf67e79aa61abcb17844b1e46c9aeacb8ed292553",
+    "config/ai4r_policy_lattice_feedback.yaml": "f00e0c6d6156d6daa4130f9418ba293e67965c0b5443063aeeddffa108066099",
+    "CMakeLists.txt": "b1ba7487a263d581081732fc488b3b9b7d21f3174f60a6af63009e4f06c7d5ec",
+    "package.xml": "d8b3ae10c4dfc938b94c9704866ab288a36670846285dbfb77d16dc58fb367f9",
+    "launch/ai4r_policy.launch.py": "13fcc0083b6f9ba1883ebfe71f9832b5f5520373f70456c1a551a1a76e81ed7e",
+    "docs/LOCAL_FEEDBACK_MOTION_20261019.md": "9e26bbf26e92ef00f126e801f6d83bef4ca065ff7712510c752ed4d5a915644b"
+  }
+}

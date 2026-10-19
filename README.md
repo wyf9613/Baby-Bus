@@ -1,3 +1,11 @@
+# 本分支 MPC 实车 checkpoint（2026-10-19）
+
+本分支保存 Zhenyu 的可回退 MPC checkpoint：转向 ±0.50，左黄右蓝，MPC 转向与轮速反馈纵向控制，支持中心线及新 lattice 接入。用户实测跟随改善；道路末端、急弯及观测不完整仍可能触发停车，尚未完成全程验收。
+
+当前状态、已知限制及部署说明见 [MPC checkpoint 说明](docs/MPC_CHECKPOINT_STATUS_20261019.md)。使用时须同步 policy 和所选 YAML；基础 YAML 是 shadow，执行配置为 ai4r_policy_lattice_feedback.yaml。原有 vehicle_model.py 与辨识验证文件保留。下文保留历史说明，其零动作起始策略描述不代表当前 checkpoint。
+
+---
+
 # Baby Bus · ai4r_policy
 
 团队策略仓库，基于 DREAM 课程框架。先看 [三个子组与代码的对应关系](docs/baby-bus-team.md)。当前保留老师的零动作起始策略，团队算法尚未实现。下文为上游使用说明。

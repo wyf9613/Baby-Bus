@@ -1,0 +1,25 @@
+{
+  "revision": "local-feedback-lattice21-20261018",
+  "upstream": "cd378520a6e52c328b6eefe460f15670b4be6d71",
+  "baseline_sha256": "9476f3ac606f27b513c22e76ba7dc508f9e39c9d4c8df3c446170f66446bd3af",
+  "protected_definition_sha256": {
+    "VehicleParamsSettings": "c79b26505cd0acc17ca1c2d06f1606e5128a37a183d3485fca789d9408da7c74",
+    "course_simulation_vehicle_params": "e002e1680cff1c3849184c580354832399a6c3c8314a6c9552bf213b33a4543b",
+    "course_model_step": "52cd40e1504927464aadcb0d8c424d27b02d2dee10dcccac41736af39b2c9e4b",
+    "MPCSettings": "c03cc61b39eaafe721497c494546dc48c0c107e0f69c15d428017bea866c2ea0",
+    "mpc_vehicle_params": "321ec85357919e7990207838dc0f2e8e1dad2c0e82a0bdd27e2276fba184f763",
+    "reference_trajectory_from_planning": "00fede6dcc68391dfa11159202f29c6b8fb6654f67206f8991bd09123f053491",
+    "reference_trajectory_from_road": "781bac4d2bbae955bb73af5b278334ce35b44fb5e27b000990eb555f44dbe6ed",
+    "mpc_reference_errors": "4fe2e27a840196adb22a3ed16da5ec4ab35e15ff4b82b351d633fd26cba52495",
+    "mpc_path_projector": "73e0492ba0a0a72620f92343bfe982ab232090ba21a2077219c1dfe7a6ee0d3e",
+    "VehicleModelMPC": "8b347e1c3b87c2234808160c4ee892232854cd77778b9ca97a588967247d57df",
+    "MPCController": "394fb10e22c77b35a81cc320d91d86987d7822d9b8f039cefa37ce49df63427f",
+    "RunDistanceLimiter": "cbc5f6a68e9b0e702ccdd15c143dbd1fbf37c5af7f84d5af793ea0754df1e19d",
+    "ControlSettings": "c4ec302c444029d6777abeea52525d15dd5660d864c4d98bf4dc1d351bc26f74",
+    "EstimationSettings": "34f27288c84e4b6db894d200374cef27f908e61418ca77764eb894eb0be8ec9d",
+    "EstimationPipeline": "834dd67e9a84758c9e47def60e5dd53740c90a1358a8d31423852a42a738f9f2",
+    "RoadCenterlinePlanner": "6fcca90b0cd92628adf67aefb6dea2302a438e30a314413e94fb0118e0eb2dbe"
+  },
+  "baseline_config_sha256": "255d67e5eee78fe220c6627b3f3a72d20dc7bbd50b3dc44a9e424b76a78d1334",
+  "original_parameters_unchanged": true
+}

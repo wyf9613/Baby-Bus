@@ -1,0 +1,42 @@
+{
+  "before_sha256": "ecb7a5b790d4f8d01c4dfe7e2fee0c208c9b4e189f3591c60c57f61ef6ced01d",
+  "intentional_changes": {
+    "VehicleModelMPC": [
+      "_linearise",
+      "_solve_qp",
+      "_solve_dense",
+      "solve"
+    ],
+    "MPCController": [
+      "step",
+      "initial_state"
+    ]
+  },
+  "preserved_methods": {
+    "VehicleModelMPC": {
+      "__init__": "deb65295f62a7bc37932722b105e0855150fb74af9d641dea15bdc778ef0f90e",
+      "effective": "af621815d4b8e0ed316cca0f4952a1f19f299047ce3011c988e2c009b635386c",
+      "input_bounds": "36fa7811da5919ba5df6734d3d928145026b8e0bde612a98a3ed7b0ed27a8c32",
+      "steady_drive": "538767f43a5e1b9ac625630ff5bfb1020728bf8712a6bdb29481c5eeb98bc29f",
+      "reset": "91e2996598f182087bb841959cf34c951cdb802e1fe5f2bc074533dfe97127d8"
+    },
+    "MPCController": {
+      "__init__": "5c9897cde5650890f76fbfe0bba3539300abcdc780b52386d1019d7ae24697f1",
+      "reset": "fd687d8050d12110023cf16eebd7c45134c8482586265b772939c49c086b510b",
+      "speed_feedback_drive": "d0657eb774672dc096727a5e24086f5f9607aa18d201bc6af5786c34c9369774",
+      "predicted_speed": "577ec2df96c046eae89ea60edce50bdb3f0531fa67cf7b6295ffc278b981bc64",
+      "update_bias": "05efdf927490fdfa04654755aba0e03b85969664d1c6c4118c3a5d3b8aee0bb8",
+      "command_at": "08040255bcf8165369490cab3a1b9baf95d6c9c35bd7996fb01ac9ac4975d612",
+      "gate_problem": "723373e7824323bf7f4c1de7d364f8d6f0ee903a4788f13fdea46fb381aa8408",
+      "_start_bridge_geometry": "d1cac2f903beba7cdee14aa20e40212e1191b54b3e4f24d254d8e3e807073e33"
+    }
+  },
+  "authorized_definition_sha256": {
+    "mpc_reference_errors": "e7e6ab93cb1c1a99aceb44f44de4981156b712c7fc3be0499443e41a568d9572",
+    "mpc_path_projector": "6648ed7fc6f36d174d08b224d73341279c1410e343d2b5c0d895ff4142a40bf4",
+    "MPCSettings": "2be37043e817b83ab81e7f6fdd1b3fdd9f32251295168eeae1c99f29a11d5fa5"
+  },
+  "reference_repair_reason": "Use the admitted fitted start ray for start-domain checks; distinguish clamped start from actual extension. Preserve all finite-path and end checks.",
+  "authorized_baseline_config_sha256": "e9bf22629e9e16987fa99e0cf67e79aa61abcb17844b1e46c9aeacb8ed292553",
+  "prediction_change": "Explicit measured-speed-hold steering prediction; actual speed PI and vehicle parameters unchanged. Original force prediction remains default when switch off."
+}
