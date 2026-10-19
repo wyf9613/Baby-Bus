@@ -119,7 +119,7 @@ from rclpy.time import Time
 from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
 from sensor_msgs.msg import Imu, LaserScan
 from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import Path
+from nav_msgs.msg import OccupancyGrid, Path
 from std_msgs.msg import Float32, Int8, String, UInt16
 from dream_interfaces.msg import (ConeDetection, ConeDetections, DriveAndSteer,
                                   FiducialDetections)
@@ -3858,6 +3858,155 @@ class PlannerExecutionManager:
             "simulation_only": False, "original_input_stamp_s": active["stamp_s"]}
 
 
+@dataclass
+class LocalGridSettings:
+    """Forward-only 3 m x 3 m map. No clustering/confidence admission gates."""
+    enabled: bool = False
+    resolution_m: float = 0.05
+    history_s: float = 0.3
+    inflation_radius_m: float = 0.10
+
+    def __post_init__(self):
+        if not isinstance(self.enabled, bool):
+            raise ValueError("local_grid.enabled must be boolean")
+        if (not finite_number(self.resolution_m) or not 0.02 <= self.resolution_m <= 0.5
+                or abs(3/self.resolution_m-round(3/self.resolution_m)) > 1e-6):
+            raise ValueError("local_grid.resolution_m must divide 3 m, in [0.02, 0.5]")
+        if not finite_number(self.history_s) or not 0 <= self.history_s <= 0.5:
+            raise ValueError("local_grid.history_s must be in [0, 0.5] seconds")
+        if not finite_number(self.inflation_radius_m) or not 0 <= self.inflation_radius_m <= 1.5:
+            raise ValueError("local_grid.inflation_radius_m must be in [0, 1.5] metres")
+
+
+def _local_grid_ray(origin, endpoint, resolution, cells):
+    """Clip to the forward rectangle, then visit cells using Bresenham.
+
+    Endpoints outside the rectangle still provide free-space evidence INSIDE it.
+    The ray starts at the acquisition-time lidar origin, moved with its endpoint.
+    """
+    xmin, xmax, ymin, ymax = 0.0, 3.0-1e-9, -1.5, 1.5-1e-9
+    x, y = origin
+    dx, dy = endpoint[0]-x, endpoint[1]-y
+    begin, end = 0.0, 1.0
+    for p, q in ((-dx, x-xmin), (dx, xmax-x), (-dy, y-ymin), (dy, ymax-y)):
+        if p == 0:
+            if q < 0:
+                return
+        elif p < 0:
+            begin = max(begin, q/p)
+        else:
+            end = min(end, q/p)
+        if begin > end:
+            return
+    ix = min(cells-1, max(0, math.floor((x+begin*dx)/resolution)))
+    iy = min(cells-1, max(0, math.floor((y+begin*dy+1.5)/resolution)))
+    ex = min(cells-1, max(0, math.floor((x+end*dx)/resolution)))
+    ey = min(cells-1, max(0, math.floor((y+end*dy+1.5)/resolution)))
+    ax, ay = abs(ex-ix), abs(ey-iy)
+    sx, sy = (1 if ix < ex else -1), (1 if iy < ey else -1)
+    error = ax-ay
+    while True:
+        yield iy*cells+ix
+        if ix == ex and iy == ey:
+            return
+        twice = 2*error
+        if twice > -ay:
+            error -= ay
+            ix += sx
+        if twice < ax:
+            error += ax
+            iy += sy
+
+
+class LocalOccupancyGrid:
+    """Short scan history reprojected into the CURRENT body frame on each render.
+
+    Unknown=-1, free=0, hit=100. Newer observed free space clears older hits;
+    within one scan hits take precedence over clearing rays. Unobserved cells
+    lose history back to UNKNOWN, never automatically to free. No object tracker,
+    SLAM, per-beam deskew, car-size expansion or actuator output is implemented.
+    """
+    def __init__(self, settings):
+        self.settings = settings
+        self.cells = round(3/settings.resolution_m)
+        radius = settings.inflation_radius_m/settings.resolution_m
+        reach = math.ceil(radius)
+        self.inflation_offsets = [(dx, dy) for dy in range(-reach, reach+1)
+                                  for dx in range(-reach, reach+1)
+                                  if dx*dx+dy*dy <= radius*radius+1e-9]
+        self.clear()
+
+    def clear(self):
+        self.scans = []
+        self.last_stamp_s = None
+
+    def add_scan(self, stamp_s, origin, points):
+        if not finite_number(stamp_s) or not all(finite_number(v) for v in origin):
+            return False
+        if self.last_stamp_s is not None and stamp_s <= self.last_stamp_s:
+            return False  # Cached control/timer reads are not new measurements.
+        rays = [(float(p[0]), float(p[1])) for p in points
+                if len(p) >= 2 and finite_number(p[0]) and finite_number(p[1])]
+        self.last_stamp_s = stamp_s
+        self.scans.append((stamp_s, tuple(origin), rays))
+        self.scans = [s for s in self.scans if stamp_s-s[0] <= self.settings.history_s+1e-9][-16:]
+        return True
+
+    def empty(self, now_s, reason):
+        unknown = [-1]*(self.cells*self.cells)
+        return {"data": unknown, "inflated_data": list(unknown), "timestamp_s": now_s,
+                "valid": False, "time_aligned": False, "status": reason,
+                "measurement_timestamp_s": None, "source_age_s": None,
+                "scan_count": 0, "occupied_cells": 0}
+
+    def render(self, now_s, motion):
+        if not self.scans:
+            return self.empty(now_s, "NO_SCAN")
+        latest = self.scans[-1]
+        latest_pose, problem = motion.pose_between(latest[0], now_s)
+        aligned = problem is None
+        # Without motion history we can still inspect a correctly timestamped
+        # SINGLE scan while parked. It is explicitly not a current-time map.
+        scans = ([s for s in self.scans if now_s-s[0] <= self.settings.history_s+1e-9
+                  or s is latest] if aligned else [latest])
+        data, used = [-1]*(self.cells*self.cells), 0
+        for stamp, origin, points in scans:
+            if aligned:
+                pose, error = (latest_pose, None) if stamp == latest[0] else motion.pose_between(stamp, now_s)
+                if error is not None:
+                    continue
+                origin = motion.transform_xy(origin, pose)
+                points = [motion.transform_xy(point, pose) for point in points]
+            free, occupied = set(), set()
+            for endpoint in points:
+                free.update(_local_grid_ray(origin, endpoint, self.settings.resolution_m, self.cells))
+                if 0 <= endpoint[0] < 3 and -1.5 <= endpoint[1] < 1.5:
+                    col = min(self.cells-1, math.floor(endpoint[0]/self.settings.resolution_m))
+                    row = min(self.cells-1, math.floor((endpoint[1]+1.5)/self.settings.resolution_m))
+                    occupied.add(row*self.cells+col)
+            for index in free:
+                data[index] = 0
+            for index in occupied:
+                data[index] = 100
+            used += 1
+        inflated = list(data)
+        hits = [index for index, value in enumerate(data) if value == 100]
+        for index in hits:
+            row, col = divmod(index, self.cells)
+            for dx, dy in self.inflation_offsets:
+                x, y = col+dx, row+dy
+                if 0 <= x < self.cells and 0 <= y < self.cells:
+                    target = y*self.cells+x
+                    if inflated[target] != 100:
+                        inflated[target] = 90  # Margin cost, distinct from measured hits.
+        return {"data": data, "inflated_data": inflated,
+                "timestamp_s": now_s if aligned else latest[0],
+                "measurement_timestamp_s": latest[0], "source_age_s": max(0.0, now_s-latest[0]),
+                "valid": True, "time_aligned": aligned,
+                "status": "ALIGNED" if aligned else "SCAN_ONLY_NO_MOTION",
+                "scan_count": used, "occupied_cells": len(hits)}
+
+
 class PolicyNode(Node):
     def __init__(self, **kwargs):
         super().__init__("ai4r_policy", **kwargs)
@@ -3917,6 +4066,17 @@ class PolicyNode(Node):
         self.estimation_settings = EstimationSettings(**estimation_values)
         self.estimation_output = None
         self.motion_history = EstimationMotionHistory(self.estimation_settings)
+
+        grid_values = {}
+        for name, default in vars(LocalGridSettings()).items():
+            parameter_name = f"local_grid.{name}"
+            self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
+            grid_values[name] = self.get_parameter(parameter_name).value
+        self.local_grid_settings = LocalGridSettings(**grid_values)
+        self.local_grid = LocalOccupancyGrid(self.local_grid_settings)
+        self.local_grid_output = None
+        self._local_grid_motion_reset_id = self.motion_history.reset_id
+        self._lidar_grid_origin = None
 
         planning_values = {}
         for name, default in vars(PlanningSettings()).items():
@@ -4059,6 +4219,14 @@ class PolicyNode(Node):
         if self.policy_update_mode == "timer":
             self.policy_timer = self.create_timer(
                 1.0 / self.policy_update_rate_hz, self.run_policy_step, clock=self.steady_clock)
+        self.local_grid_timer = None
+        if self.local_grid_settings.enabled:
+            self.local_grid_publisher = self.create_publisher(OccupancyGrid, "local_occupancy_grid", reliable_one)
+            self.local_inflated_grid_publisher = self.create_publisher(OccupancyGrid, "local_inflated_grid", reliable_one)
+            self.local_grid_status_publisher = self.create_publisher(String, "local_grid_status", reliable_one)
+            # Independent perception/display update, including in zero-action
+            # state. This timer never calls run_policy_step or enables motion.
+            self.local_grid_timer = self.create_timer(0.1, self._local_grid_tick, clock=self.steady_clock)
         self.publish_zero_actions()
         self.publish_state()
         self.get_logger().info(
@@ -4380,7 +4548,57 @@ class PolicyNode(Node):
                 raise ValueError("Cartesian lidar point is not finite")
             points.append(point)
             indices.append(index)
+        self._lidar_grid_origin = (float(offsets[0]), float(offsets[1]))
         return {"points_xyz": points, "scan_indices": indices, "frame_id": self.policy_frame_id}
+
+    def _local_grid_tick(self):
+        """Publish perception only; map failures do not enter the control FSM."""
+        try:
+            self._local_grid_update()
+        except Exception as error:
+            self._warn("local_grid_publish", f"Local grid publication unavailable: {error}")
+
+    def _local_grid_update(self):
+        started = time.perf_counter()
+        now, ros_now = self._times()
+        now_s = ros_now/1e9
+        try:
+            if self.motion_history.reset_id != self._local_grid_motion_reset_id:
+                self.local_grid.clear()
+                self._local_grid_motion_reset_id = self.motion_history.reset_id
+            if not self._fresh("lidar_cartesian", now, ros_now) or self._lidar_grid_origin is None:
+                self.local_grid.clear()
+                result = self.local_grid.empty(now_s, "SCAN_OR_TF_UNAVAILABLE")
+            else:
+                observation = self.observations["lidar_cartesian"]
+                self.local_grid.add_scan(observation.stamp_ns/1e9, self._lidar_grid_origin,
+                                         observation.value["points_xyz"])
+                result = self.local_grid.render(now_s, self.motion_history)
+                result["source_age_s"] = self._age(observation, now, ros_now)
+        except Exception as error:
+            self.local_grid.clear()
+            result = self.local_grid.empty(now_s, "MAP_ERROR")
+            self._warn("local_grid", f"Local grid unavailable: {error}")
+        self.local_grid_output = result
+        for publisher, field in ((self.local_grid_publisher, "data"),
+                                 (self.local_inflated_grid_publisher, "inflated_data")):
+            message = OccupancyGrid()
+            message.header.frame_id = self.policy_frame_id
+            message.header.stamp = Time(nanoseconds=round(result["timestamp_s"]*1e9)).to_msg()
+            message.info.map_load_time = message.header.stamp
+            message.info.resolution = float(self.local_grid_settings.resolution_m)
+            message.info.width = message.info.height = self.local_grid.cells
+            message.info.origin.position.y = -1.5
+            message.info.origin.orientation.w = 1.0
+            message.data = result[field]
+            publisher.publish(message)
+        result["update_time_s"] = time.perf_counter()-started
+        status = {key: value for key, value in result.items() if key not in ("data", "inflated_data")}
+        status.update(frame_id=self.policy_frame_id, resolution_m=self.local_grid_settings.resolution_m,
+                      origin_xy_m=[0.0, -1.5], size_m=[3.0, 3.0],
+                      inflation_radius_m=self.local_grid_settings.inflation_radius_m,
+                      inflation_includes_vehicle_size=False, deskewed=False)
+        self.local_grid_status_publisher.publish(String(data=json.dumps(status, allow_nan=False)))
 
     def wheel_speed_callback(self, msg):
         now, ros_now = self._times()

@@ -1,5 +1,15 @@
 # Baby Bus · ai4r_policy
 
+2026-10-20：新增前方 **3 m × 3 m** 雷达局部栅格：`x∈[0,3)`、
+`y∈[-1.5,1.5)`，默认 5 cm/格、10 Hz 更新。`local_grid` 配置默认开启；
+发布 `/car/local_occupancy_grid`、`/car/local_inflated_grid` 和
+`/car/local_grid_status`，本机内部结果为 `self.local_grid_output`。
+新 Foxglove 布局增加 **Local grid** 标签，见
+[显示及接口说明](tools/foxglove_road_visualization/README.md)。
+地图在停车状态也可查看，不需要 Enable / Run；当前只提供地图，不参与控制或绕行。
+已有轮速/gyro 历史时重投影最近 0.3 秒扫描；缺少运动历史时只显示最新单帧，
+保留采样时间并标记 `SCAN_ONLY_NO_MOTION`，不能当成当前时刻的运动补偿地图。
+
 `mvp2.1` 增加独立 lattice，默认 1 Hz，`shadow.rate_hz` 可调。当前分支随车测试配置
 已设 `planner_control.enabled: true`，让同一 PID 跟踪 lattice 轨迹；设为 false 可回到基线，
 执行层随 20 Hz 运动对齐、滚动检查和管理预瞄覆盖，不可用时同周期退回基线。

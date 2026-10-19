@@ -76,6 +76,8 @@ def make_node(monkeypatch):
         node.supervision_timer.cancel()
         if node.policy_timer:
             node.policy_timer.cancel()
+        if node.local_grid_timer:
+            node.local_grid_timer.cancel()
         clock = ControlledClock()
         node._monotonic = lambda: clock.monotonic
         monkeypatch.setattr(node, "get_clock", lambda: clock)
@@ -799,6 +801,49 @@ def lidar_mount(node):
     transform.transform.rotation.w = 1.0
     node.tf_buffer.set_transform_static(transform, "test")
     return transform
+
+
+def test_local_grid_real_messages_work_without_run_and_expire(make_node):
+    node = make_node(**{"local_grid.enabled": True})
+    for name in ("local_grid", "local_inflated_grid", "local_grid_status"):
+        setattr(node, name+"_publisher", Recorder())
+    transform = lidar_mount(node)
+    transform.transform.rotation.w = 0.0
+    transform.transform.rotation.z = 1.0  # Real C1 mount yaw is 180 degrees.
+    node.tf_buffer.set_transform_static(transform, "test")
+    message = scan(node)
+    message.angle_min, message.angle_max = math.pi, math.pi+0.1
+    node.lidar_callback(message)
+    actions_before = len(node.action_publisher.messages)
+    node._local_grid_tick()
+    grid = node.local_grid_publisher.messages[-1]
+    assert grid.header.frame_id == "base_link"
+    assert grid.info.width == grid.info.height == 60
+    assert grid.info.resolution == pytest.approx(0.05)
+    assert grid.info.origin.position.x == 0.0
+    assert grid.info.origin.position.y == -1.5
+    assert grid.info.origin.orientation.w == 1.0
+    assert len(grid.data) == 3600 and 100 in grid.data
+    assert node.fsm_state == 2 and len(node.action_publisher.messages) == actions_before
+    node._local_grid_tick()
+    assert len(node.local_grid.scans) == 1
+    node.test_clock.advance(0.5)
+    node._local_grid_tick()
+    assert set(node.local_grid_publisher.messages[-1].data) == {-1}
+    assert set(node.local_inflated_grid_publisher.messages[-1].data) == {-1}
+    status = json.loads(node.local_grid_status_publisher.messages[-1].data)
+    assert not status["valid"] and status["status"] == "SCAN_OR_TF_UNAVAILABLE"
+
+
+def test_local_grid_publication_failure_does_not_change_actions_or_fsm(make_node, monkeypatch):
+    node = make_node(**{"local_grid.enabled": True})
+    def broken_publish(message):
+        raise RuntimeError("synthetic display transport failure")
+    monkeypatch.setattr(node.local_grid_publisher, "publish", broken_publish)
+    actions_before = len(node.action_publisher.messages)
+    node._local_grid_tick()
+    assert node.fsm_state == 2
+    assert len(node.action_publisher.messages) == actions_before
 
 
 def test_lidar_conversion_filters_preserves_indices_and_transforms_all_axes(make_node, monkeypatch):

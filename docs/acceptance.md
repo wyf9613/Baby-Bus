@@ -1,5 +1,53 @@
 # AI4R policy acceptance
 
+## Forward local occupancy grid, 2026-10-20
+
+User requested a first working perception-only map, limited to 3 m ahead and
+3 m wide, with few settings. Shipped `local_grid.enabled=true` adds a 10 Hz
+perception timer in both stopped and running states; it does not invoke the
+policy, enable hardware or feed the planner/controller. Existing control
+settings, control/estimation/planner class ASTs and original Foxglove tab
+contents were compared with HEAD and are unchanged.
+
+The map covers body x=[0,3), y=[-1.5,1.5), with 0.05 m cells (60x60).
+`local_occupancy_grid` and `local_inflated_grid` are standard OccupancyGrid
+messages; `local_grid_status` carries JSON metadata. Raw values are -1 unknown,
+0 observed free and 100 hit. Inflation adds cost 90 within the configured
+0.10 m cell-centre radius and explicitly excludes vehicle dimensions.
+The independent layer preserves raw observations; planners must check their
+footprint, unknown-space semantics, map time, validity and source age.
+
+Finite in-range rays inherit the existing acquisition-time mounting conversion.
+Ray tracing clips to the forward rectangle and begins at the transformed lidar
+origin, not the CG. Within a scan hits win over clearing; newer free evidence
+clears old hits. Repeated timestamps add no evidence. Up to 0.3 s of scans are
+reprojected from their original points rather than repeatedly warping a raster.
+History leaves unobserved cells unknown when it expires. Missing motion permits
+latest-scan display only, with the original stamp and `time_aligned=false`;
+missing/expired scan or mounting TF clears both layers to unknown. Existing
+sensor freshness limits are reused. Motion-history reset/clock rewind discards
+old map history. No clustering, minimum-point or confidence admission gates.
+
+Final local validation: **265 portable checks passed**, including 17 new map
+geometry/envelope checks. Checks cover lidar-origin clearing, external endpoints,
+occlusion, straight/turning ego motion, same-frame hit priority, newer free-space
+clearing, unknown expiry, deduplication, inflation separation, bounded history,
+single-scan fallback, stale-map clearing and publication-error isolation.
+Actual core benchmark on this Windows development computer: four 720-ray scans,
+30 renders, median 9.324 ms / maximum 9.855 ms. This excludes ROS serialization
+and is not a Jetson timing result. Synthetic raw/inflated preview was rendered
+and visually inspected. Reproducible local report and preview are in ignored
+`.verification/local-grid-checks.json` and `.verification/local-grid-preview.png`.
+
+Two additional real-ROS grid checks are registered in the existing suite but
+were **not run here**. The required fast-gate command was attempted and stopped
+because `AI4R_INTERFACES_SOURCE` is not provisioned; this Windows host also lacks
+ROS 2 Jazzy and a Linux WSL distribution. No vehicle deployment, live Foxglove
+import, powered test, metric mounting calibration or stopping test was performed.
+The new Foxglove Local grid tab uses the documented native OccupancyGrid display;
+existing controls, plots and tabs are preserved. Scan/path overlays retain their
+own timestamps and are not a synchronized external-localization measurement.
+
 ## Opt-in lattice control execution adapter, 2026-10-15
 
 After the checks below, the user explicitly selected planner_control.enabled=true

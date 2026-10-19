@@ -123,6 +123,18 @@
     # is not supported by this initial package or the live vehicle/IMU drivers.
     use_sim_time: false
 
+    # Forward rectangle only: x=[0,3), y=[-1.5,1.5), metres in base_link.
+    # Runs at 10 Hz even while policy is stopped. No changes to driving admission.
+    # Raw: -1 unknown / 0 free / 100 hit. Inflated: also 90 for margin cells.
+    # The 10 cm margin does NOT include vehicle dimensions; planner checks its
+    # own footprint. Finite in-range rays clear free space; invalid/no-return
+    # rays stay unknown. No clustering, point-count or confidence thresholds.
+    local_grid:
+      enabled: true
+      resolution_m: 0.05
+      history_s: 0.3
+      inflation_radius_m: 0.10
+
     # Estimation prototype. Adds tuning to this existing policy settings file;
     # no vehicle calibration or physical output limits are inferred from it.
     # The GitHub course framework's inputs/actions/timing/settings take priority.

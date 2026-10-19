@@ -1,5 +1,42 @@
 # 控制参考与影子规划轨迹
 
+2026-10-20 新增 **Local grid** 标签页：在现有 `layout.json` 基础上增加俯视地图，
+保留原有控制按钮、道路图和其他标签。重新导入此文件后切换到 Local grid。
+地图为车体坐标前方 `x=[0,3)`、`y=[-1.5,1.5)`，5 cm 一格，即 60×60 格。
+固定参考系为 `base_link`；同时显示原始雷达点及绿色/蓝色 Path，路径和原始扫描
+仍各自保留自己的观测时刻，叠加视图不代表严格同步的定位测量。
+
+| 话题 | 类型 / 含义 |
+| --- | --- |
+| `/car/local_occupancy_grid` | `nav_msgs/msg/OccupancyGrid`；-1 未知、0 已观测空闲、100 命中 |
+| `/car/local_inflated_grid` | 同类型；增加 90 表示膨胀余量，原命中仍为 100 |
+| `/car/local_grid_status` | `std_msgs/msg/String` JSON；状态、观测年龄、时间、耗时及占据格数 |
+
+图层使用 Foxglove 内置 Costmap 配色。原始图默认可见，膨胀图默认关闭；
+在 3D 面板话题设置中切换两者，避免重合图层遮住颜色。膨胀半径默认 0.10 m，
+**只包含余量，不包含车辆长宽**，规划端应检查完整车身并明确处理未知/过期数据。
+无论策略是否处于 Run，地图都独立以 10 Hz 更新；启动雷达和策略即可停车看单帧。
+要看随车运动对齐，需启动已有轮速及 IMU gyro；无需启动车辆自主动作。
+
+`local_grid` 只有 enabled、resolution_m、history_s、inflation_radius_m 四个设置。
+有限且在原扫描距离范围内的点参与射线清除和命中标记，没有聚类数量或置信度门限。
+每个扫描时间戳只融合一次，同帧命中优先于清除，后帧空闲可清除旧障碍；
+命中后方、无效/无返回射线不凭空清空。射线从雷达扫描原点出发，与端点一起运动对齐。
+默认重建最近 0.3 s 的扫描历史；未重观测的旧证据退出历史后恢复未知。
+
+状态 `ALIGNED` 表示对齐到地图消息的当前车体时刻；`SCAN_ONLY_NO_MOTION` 表示
+只有最新单帧，消息时间是原采样时间，`time_aligned=false`。
+`SCAN_OR_TF_UNAVAILABLE` / `MAP_ERROR` 时两个图全部变为未知。
+雷达过期复用原有 `sensor_timeout_s.lidar_scan/lidar_cartesian`，不增加停车门限。
+控制状态重置或 ROS 时钟回退会丢弃跨坐标代次的扫描历史。
+二维扫描空闲只描述雷达扫描截面；本版没有逐束去畸变、目标速度估计或自动车身回波屏蔽。
+
+新增 17 项离线几何/适配检查，另有 2 项真实 ROS 消息检查接入原有 ROS gate。
+本机只有 Windows，尚未运行 ROS gate、实际 Foxglove 导入或车端测试；离线结果见
+[验收记录](../../docs/acceptance.md)。
+
+---
+
 导入同目录 `layout.json`，在原来的 `Cone locations` 图里显示一条绿色轨迹。
 话题为 `/car/policy_trajectory`，类型是标准 `nav_msgs/msg/Path`。
 布局直接读取 `poses[:].pose.position.x/y`，无需 Foxglove 消息脚本。
