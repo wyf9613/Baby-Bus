@@ -2,6 +2,17 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-19（现场）：0.20 实车的三个问题和现场修正
+
+bag：`car-evidence/car05-lattice21-20261019-161732-197/`。
+1. **转向只施加一半**：车上 `src/ai4r_policy/config/traxxas_vehicle_interface.yaml` 是课程默认 ±0.5（10-15 19:27 被改；main/mvp2.1 给 5 号车的是 ±1.0，10-15 的 MPC 运行也是 ±1.0）。驱动层把 [-1,1] 线性压进该区间。现场换回 main 的版本（只差这两行）。本分支的这个文件仍是 ±0.5，待决定是否跟 main 统一。
+2. **超速锁停**：
+   - 模型死区 0.30 偏高：满电的 5 号车 0.25 请求就维持约 0.255 m/s，MPC 以为在滑行，车停在软限线上方，`bias` 顶到 -0.05；
+   - 轮速驱动在轮子变慢/停下时保持最后读数约 3 s（0.2901 卡 3.0 s 后跳 0），切油门后误判仍超速。
+   - 现场改 `drive_deadband` 0.30 → 0.24、`overspeed_cut_timeout_s` 1.0 → 2.0，硬停 0.40/0.2 s 不变。Gym（仿真车死区设 0.23 模拟满电）：旧配置 17/30、超速锁停 10 次；新配置 28/30、0 次。仿真车死区 0.289（偏弱）时新配置无超速锁停，失败都在估计层。
+   - 轮速卡值的根本修复（读数不变时按过期处理）留到代码改动。
+3. **一次 Disarm**：`write completion expired`，主机与 MCU 的链路断约 3.4 s 后自动重连，MCU `boot_id` 不变（没有复位）。起步瞬间发生，原因待查（USB 线/干扰或主机卡顿）。
+
 ## 2026-10-19（续）：lattice 2.1 + MPC 提速 Gym 扫描（0.15 / 0.20 / 0.25 / 0.30）
 
 `car_readiness_centerline.py` 新增 `--speed`，同时覆盖 `mpc.v_exec_max_mps` 和 `planning.cruise_speed_mps`（lattice 2.1 只给路径，速度来自后者）。其余参数不变，都用 `--lattice21 --car05-mpc`、.27 车模型、10 个种子。结果：`results/car_readiness_lattice21_car05_v{015,020,025,030}.md`。

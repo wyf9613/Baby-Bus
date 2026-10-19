@@ -32,7 +32,9 @@
       source: "car05_20261015_start035_db030_27model_20steering_UNVERIFIED"
       drive_breakaway: 0.35          # tested fixed request on THIS car; not applied telemetry
       drive_max: 0.35                # preserve the previous hard request ceiling
-      drive_deadband: 0.30           # between car 05's 17:53 (0.289 sags) and 18:18 (0.32 overspeeds) execs; bias +/-0.05 still applies
+      drive_deadband: 0.24           # 2026-10-19 (fresh battery): request 0.25 held ~0.255 m/s, 0.28 -> 0.24, 0.30 -> 0.27;
+                                     # 0.30 left the MPC coasting at 0.25 above the soft line (bias pinned at -0.05).
+                                     # Was 0.30 (10-15: 0.289 sagged, 0.32 overspeeds); bias +/-0.05 still covers 0.19-0.29
       steering_gain_rad: -0.3142       # car .20, 2026-10-12 protractor measurement
       steering_offset_rad: 0.0         # not measured on either car; assumed centred
       steering_min_rad: -0.3142
@@ -51,7 +53,7 @@
       overspeed_margin_mps: 0.10      # unused while the soft margin is > 0 (old lock: 0.22 m/s)
       overspeed_soft_margin_mps: 0.05 # above 0.20 m/s the QP may cut drive below the deadband
       overspeed_cut_margin_mps: 0.03  # above 0.23 m/s drive is forced to 0
-      overspeed_cut_timeout_s: 1.0    # lock if still above 0.20 m/s after 1 s
+      overspeed_cut_timeout_s: 2.0    # lock if still above cap+soft after 2 s (was 1 s; 10-19 locks: model/battery drift, held wheel readings)
       overspeed_hard_mps: 0.40        # or above 0.40 m/s for 0.2 s (0.35 drive cap, ~0.5 m/s steady)
       overspeed_hard_persist_s: 0.2
       breakaway_ramp_per_s: 0.0      # start at the tested request; do not slowly ramp from 0.30
