@@ -1,0 +1,252 @@
+# AI4R policy settings. This file is part of the student programming interface.
+# Edit values under ros__parameters, then restart ONLY the policy node.
+# Restarting returns to publishing-zero state; it does not enable the vehicle.
+# The selector applies to the ai4r_policy node in any robot namespace.
+/**/ai4r_policy:
+  ros__parameters:
+    # What causes ONE execution of your policy calculation?
+    #   cone_detection: each accepted fresh cone-detection batch (default).
+    #   fiducial_detection: each accepted fresh fiducial-detection batch.
+    #   lidar:          each accepted fresh lidar scan.
+    #   timer:          a timer at policy_update_rate_hz, using cached sensors.
+    # Other callbacks only store observations. There is no automatic fallback
+    # to timer mode if the chosen sensor stops, and no simultaneous triggers.
+    # Integrated control uses ONE 20 Hz timer. Cones are still measured at the
+    # detector's rate; estimation re-aligns the cached geometry using motion
+    # history. This leaves margin under the planner's 0.2 s reference deadline.
+    policy_update_mode: timer
+
+    # Timer-mode frequency in Hz (positive finite double; default 50.0).
+    # Ignored outside timer mode. More steps do NOT mean more sensor measurements.
+    # Use the measured dt supplied to your policy, not 1/frequency.
+    # Your action interval must leave margin below the VEHICLE command timeout
+    # (normally 0.5 s); a very slow policy can cause the vehicle to disable.
+    policy_update_rate_hz: 20.0
+
+    # Which observations MUST be present and fresh before/during your policy?
+    # Valid names: cone_detections, fiducial_detections, lidar_scan,
+    #              lidar_cartesian, wheel_speed,
+    #              imu_orientation, imu_angular_velocity, imu_specific_force.
+    # Each IMU field is independent: a new gyro message is not a new heading.
+    # Missing/stale REQUIRED data stops the policy in publishing-zero state.
+    # Recovery needs another explicit state-3 request. Optional missing/expired
+    # values are None in the student code (arrays have an availability flag).
+    # cone_detection mode must require cone_detections; fiducial_detection mode
+    # must require fiducial_detections; lidar mode must require lidar_scan,
+    # lidar_cartesian, or both. lidar_scan requires the original radial scan;
+    # lidar_cartesian also needs its successfully transformed body-frame points.
+    # Conversion always runs: this list selects requirements, not processing.
+    # The old sensor name lidar is now lidar_scan; the update mode stays lidar.
+    # Timer mode may use [] for a deliberate open-loop experiment.
+    required_sensors: [cone_detections, wheel_speed, imu_angular_velocity]
+
+    # COPYABLE EXERCISES: replace the active settings above; do not add a second
+    # active copy of the same key. A sensor-driven mode needs no rate setting.
+    # Lidar-only track using body-frame Cartesian points, with no cone detector:
+    #   policy_update_mode: lidar
+    #   required_sensors: [lidar_cartesian]
+    # For a radial-only policy, use required_sensors: [lidar_scan]. A missing
+    # mounting transform then does not prevent raw scans from reaching policy.
+    # Wheel-speed-controller tuning, with no cone detector or lidar:
+    #   policy_update_mode: timer
+    #   policy_update_rate_hz: 50.0
+    #   required_sensors: [wheel_speed]
+    # Cone-following with heading and speed feedback:
+    #   policy_update_mode: cone_detection
+    #   required_sensors: [cone_detections, imu_orientation, wheel_speed]
+    # ArUco marker observations, with no cone requirement:
+    #   policy_update_mode: fiducial_detection
+    #   required_sensors: [fiducial_detections]
+
+    # Maximum accepted age of each sensor in seconds (positive finite doubles).
+    # Defaults are 0.5 s. Expiry occurs at age >= the value. Smaller values stop
+    # sooner but tolerate less scheduling/transport delay. Stamped data must be
+    # fresh by BOTH receipt time and its ROS sample stamp. Wheel speed has no
+    # header, so only receipt age is available. Optional expired data is withheld.
+    # wheel_speed measures telemetry freshness, NOT time between encoder ticks;
+    # it must still arrive when the car is standing still.
+    sensor_timeout_s:
+      cone_detections: 0.5
+      fiducial_detections: 0.5
+      # Rename any old lidar timeout to lidar_scan. Cartesian data must pass
+      # BOTH deadlines and always match the latest accepted raw scan. A failed
+      # conversion makes it unavailable immediately, without waiting for expiry.
+      lidar_scan: 0.5
+      lidar_cartesian: 0.5
+      wheel_speed: 0.5
+      imu_orientation: 0.5
+      imu_angular_velocity: 0.5
+      imu_specific_force: 0.5
+
+    # How long can required cone data contain NO cones? Seconds, positive finite
+    # double, default 1.0. A valid empty frame refreshes stream freshness above,
+    # but not this timer. These are two different failure conditions.
+    # At startup, at least one recent nonempty batch is required before driving.
+    # Brief empty batches can reach your policy: always handle num_cones == 0.
+    # Ignored when cone_detections is not in required_sensors.
+    cone_empty_timeout_s: 1.0
+
+    # Independent watchdog and zero-command cadence in Hz (positive double).
+    # Default 20 Hz checks roughly every 0.05 s, subject to executor scheduling.
+    # It runs in ALL modes, but never runs student code or repeats a cached
+    # driving action. Keep the zero-command interval below the vehicle timeout.
+    # A hung student calculation blocks this Python timer too; the separate
+    # vehicle command watchdog remains essential. Pan holds its target on stop.
+    supervision_rate_hz: 20.0
+
+    # Periodic policy state/status publication, seconds, positive double.
+    # Default 0.5 s (2 Hz), rounded up to a supervision tick. State transitions
+    # are reported immediately. This does NOT control the policy calculation rate.
+    status_period_s: 0.5
+
+    # Tolerance for a ROS sample stamp slightly in the future, seconds, finite
+    # and >= 0 (default 0.05). Larger offsets, zero stamps, stale stamps, and
+    # repeated/older samples are rejected. This does not extend stale deadlines.
+    timestamp_tolerance_s: 0.05
+
+    # Coordinate frame expected for cone positions and used for transformed
+    # fiducial poses, Cartesian lidar points and body-frame IMU
+    # observations (nonempty, no leading slash/whitespace). Normally base_link:
+    # +x forwards, +y left, +z up, with its origin at nominal ground directly
+    # below the agreed vehicle CG. Cone z is a detected point's nominal height
+    # above that ground plane, not cone total height. DREAM must configure the
+    # detector consistently and supply IMU and lidar mounting TF. The fixed camera pose
+    # does not compensate for terrain or vehicle pitch; physical panning
+    # invalidates it until measured dynamic TF is available. Raw lidar remains
+    # in its message frame with its existing origin. A ROS namespace does not
+    # prefix a frame ID. Changing this string does not rotate or move a sensor.
+    policy_frame_id: base_link
+
+    # Live robot only. true is rejected; simulated-clock/bag playback operation
+    # is not supported by this initial package or the live vehicle/IMU drivers.
+    use_sim_time: false
+
+    # Estimation prototype. Adds tuning to this existing policy settings file;
+    # no vehicle calibration or physical output limits are inferred from it.
+    # The GitHub course framework's inputs/actions/timing/settings take priority.
+    # Only new internal group records follow the Word meeting draft:
+    # state.speed_mps/yaw_rate_rps and road.centerline_xy/boundaries/width.
+    # v_mps/yaw_rate_radps aliases support the supplied planning screenshots.
+      # Internal records are self.estimation_output; the integrated controller
+      # below consumes the planner reference only after all validity checks.
+    estimation:
+      # One-pole filter time constants, seconds. Larger is smoother but slower.
+      # New accepted samples update once; repeated cached samples do not.
+      speed_tau_s: 0.15
+      yaw_rate_tau_s: 0.08
+      # Source age, seconds; cannot relax the framework's sensor deadlines.
+      # Original acquisition/receipt metadata remains after time alignment.
+      max_source_age_s: 0.5
+      # Align geometry using bounded wheel/gyro history on the ROS clock.
+      # Forward no-slip planar model; wheel time is receipt, NOT acquisition.
+      # Missing/old motion or a gap rejects geometry instead of retimestamping.
+      motion_max_gap_s: 0.15
+      motion_max_interval_s: 0.4
+      # Dimensionless confidence threshold in [0,1]. Colour convention for this
+      # prototype is BLUE left / YELLOW right, as in the supplied course road.
+      min_cone_confidence: 0.75
+      # Local y(x) support and sample spacing, metres. No extrapolation beyond
+      # measured inlier coverage. Sampling is bounded to at most 201 points.
+      road_forward_max_m: 3.0
+      road_min_coverage_m: 0.5
+      road_sample_spacing_m: 0.1
+      road_max_gap_m: 1.5
+      # Huber residual transition, metres; fitting work is bounded, with up to
+      # 64 cones per side and 8 iterations. All values are prototype tuning.
+      huber_delta_m: 0.08
+      # Plausibility limits for local road width, metres, NOT vehicle dimensions.
+      road_width_min_m: 0.4
+      road_width_max_m: 2.0
+      # Maximum abs(dy/dx), dimensionless. Steep/non-function geometry is rejected.
+      road_max_abs_slope: 1.0
+      # 0.0 means unknown: single-sided road is invalid. Set a measured road
+      # width (m), or a known simulation width, before using single-side inference.
+      known_lane_width_m: 0.0
+
+    # V1 straight-centerline reference, consumed by the controller below.
+    # self.planning_output / planning_diagnostics are internal records, no topic.
+    # MVP mode checks current road/state geometry and freshness, and does not
+    # require the calibrated footprint/braking profile. V1 has no obstacle
+    # response; use a short straight corridor with both cone boundaries.
+    planning:
+      cruise_speed_mps: 0.2
+      max_source_age_s: 0.4
+      reference_lifetime_s: 0.2
+      # Actual supported x range, metres; do not extrapolate to the car origin.
+      max_near_x_m: 0.9
+      min_forward_x_m: 1.0
+      max_fit_error_m: 0.06
+      max_curvature_1pm: 0.25
+      max_lateral_offset_m: 0.2
+      max_heading_error_rad: 0.25
+      max_sample_gap_m: 0.25
+      max_alignment_dt_s: 0.1
+      # Explicit approximate constant speed/body yaw integration. Default false:
+      # source geometry must already have the current frame timestamp. Enabling
+      # is an experiment assumption; it does not establish measured odometry.
+      compensate_constant_twist: false
+      # Default consumes measured upstream limits. Selecting course_simulation
+      # is explicit and marks references simulation_only; do not select on a car.
+      # Notebook geometry: wheelbase 0.33 m, CG front/rear extent 0.297/0.198 m,
+      # width 0.25 m. The following motion limits are OFFLINE assumptions, not
+      # notebook measurements, PWM limits, or identified physical capabilities.
+      vehicle_limits_source: upstream
+      simulation_speed_max_mps: 0.5
+      simulation_braking_deceleration_mps2: 0.5
+      simulation_actuation_delay_s: 0.1
+      simulation_safety_margin_m: 0.05
+
+    # Single-file control integration. Bare node defaults remain the teaching
+    # starter (disabled); this supplied configuration selects closed-loop code.
+    # Startup is still state 2, with separate vehicle Enable and policy state 3.
+    # MVP mode directly computes normalized steering; it does not claim a
+    # calibrated steering/footprint/braking model and uses no simulation fallback.
+    control:
+      enabled: true
+      mode: mvp
+      # Optional calibrated mode only: must match planning's simulation profile.
+      # MVP uses direct normalized steering and ignores this geometry selector.
+      vehicle_params_source: upstream
+      # Distance is raw-wheel-speed integration per explicit policy run. At
+      # >=0.5 m the framework enters continuous-zero state 2; state 3 must be
+      # requested explicitly to reset the budget and run again. Coasting/slip
+      # and encoder scaling affect the physical final stopping position.
+      max_distance_m: 3.0
+      # Backup cutoff if the wheel estimator reports fresh zero throughout.
+      max_run_time_s: 30.0
+      # Direct normalized/m and normalized/rad gains, no angle-to-servo mapping.
+      mvp_lateral_kp: 1.5
+      mvp_lateral_ki: 0.0
+      mvp_heading_kp: 1.0
+      # Assumes positive policy steering turns left; reverse after checking the
+      # actual small-angle response if the particular car has the opposite sign.
+      mvp_steering_direction: -1.0
+      # New-car measured candidate sustaining effort; stop still sends zero.
+      mvp_drive_feedforward: 0.30
+      # Offline selected candidate gains, not measured real-car tuning.
+      speed_kp: 0.35
+      speed_ki: 0.08
+      speed_kd: 0.0
+      lateral_kp: 1.2
+      lateral_ki: 0.1
+      lateral_kd: 0.0
+      heading_kp: 0.8
+      derivative_tau_s: 0.15
+      # Forward-only effort. Stop/invalid/expired reference transitions to
+      # continuous zero actions; the simulated negative-drive hold is NOT used.
+      drive_max: 0.35
+      steering_max_normalized: 0.5
+      max_dt_s: 0.2
+      # Before FIRST control only: neutral priming of delayed camera history.
+      # Once tracking, any invalid path stops and needs an explicit resume.
+      startup_grace_s: 0.5
+
+    # The optional measured vehicle.* inlet is used only by the later calibrated
+    # profile; MVP does not require completing that record. No hardware-node
+    # configuration is changed by this policy.
+
+    # ADD YOUR OWN PARAMETER: also declare and read it in policy_node.py.
+    # Example for the commented controller in that file:
+    # speed_kp: 0.2
+    # Explain its units/range here. A YAML entry alone does not declare a ROS
+    # parameter. Use 0.2/0.0 for doubles; integer 0 has a different ROS type.

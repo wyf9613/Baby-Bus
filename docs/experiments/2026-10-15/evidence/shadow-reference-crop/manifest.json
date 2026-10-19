@@ -1,0 +1,21 @@
+{
+  "scope": "rolling fused reference crop only",
+  "targeted_checks": {
+    "passed": 9,
+    "failed": 0,
+    "elapsed_s": 0.51
+  },
+  "recorded_inputs": 44,
+  "available_road_valid": 43,
+  "empty_road_no_road": 1,
+  "source_sha256": "ea9f4a50d56c14f7421133fe118a09217480621a761166bdfc6742b5adfb96af",
+  "pre_crop_sha256": "62b624acd8108af58cf8faadd385cf7bf10942149925b167911351d63f0c8a02",
+  "ros_gate": "not run per user instruction",
+  "push_or_deployment": "not performed",
+  "sha256": {
+    "scripts/policy_node.py": "ea9f4a50d56c14f7421133fe118a09217480621a761166bdfc6742b5adfb96af",
+    "config/ai4r_policy.yaml": "4cd9d96489997e1f8636d0e77ac7877133cc4170d861d87379a32c320a2d1095",
+    "tests/test_shadow_lattice.py": "90a0aa4c13ab08c026fb6aebc104f81fa7709dae44a9c0f6c4324f946376c919",
+    "docs/experiments/2026-10-15/evidence/shadow-reference-crop/replay.json": "f1d77f6aea18b55e66d3307726f3220ca00687c3533583ca27b7c45ae2f3ad81"
+  }
+}

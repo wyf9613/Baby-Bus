@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-15",
+  "branch": "mvp2.1",
+  "base_commit": "0c8593a087f8f26229f9aa7277459285ff1c3521",
+  "portable": {
+    "tests": 210,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "ros_gate": "not run: user requested no ROS gate on this Windows host",
+  "physical_test": "not run",
+  "source_sha256": {
+    "scripts/policy_node.py": "b24828da5b457f0a36588a71a8973af7d3495339f06b2297eb63bf4f2ab268f0",
+    "config/ai4r_policy.yaml": "6e74693cf3366ce23619ca4cd585312891e58e5554717e2b847f31a625a94d7e",
+    "tests/test_shadow_lattice.py": "3353c58d17af04650797e24d68397ab374850e176fb6339d4859aa30a7e4b336",
+    "tests/test_policy_node.py": "54712fd639d8a63c3c3f6da8d4af4e49b5659cc2d281aee7c5d72bf500fd9690",
+    "CMakeLists.txt": "1dc89256df51f193a639ddb0fbc31d95fd4a890c12345106439c96dadf8539e6",
+    "offline/shadow_lattice/evaluate.py": "05a6749a1b9bf3b041e1b2fd285df2e6280492bacc389b7d88757fac768740b4"
+  },
+  "baseline_ast_unchanged": [
+    "EstimationSettings",
+    "EstimationPipeline",
+    "EstimationMotionHistory",
+    "PlanningSettings",
+    "RoadCenterlinePlanner",
+    "ControlSettings",
+    "ControlPID",
+    "PolicyController",
+    "RunDistanceLimiter"
+  ],
+  "baseline_yaml_unchanged_outside_shadow": true,
+  "latest_change": "control isolation audit; baseline zero precedes shadow display clearing; 40-tick shipped-YAML comparison and fault/stop/shutdown tests",
+  "benchmarks": [
+    "timing-single-side.json",
+    "segment150/timing-single-side.json"
+  ],
+  "paired_before_snapshot": "new shadow prototype only; local .verification/shadow-before; SHA recorded in benchmark",
+  "benchmark_source_sha256": "8d36678e2fe749c72e0c9a1c1f0b47c6051f2050e311ff4753afe72b4e59dd22",
+  "control_isolation_audit": "control-isolation-audit.json",
+  "benchmark_note": "Previously measured planner source hash retained above; current source differs only in stop display ordering, not shadow planning algorithm. Timing benchmarks not repeated."
+}

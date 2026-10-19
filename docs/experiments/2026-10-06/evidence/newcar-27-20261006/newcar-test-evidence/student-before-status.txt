@@ -1,0 +1,32 @@
+## student
+ M .gitignore
+ M AGENTS.md
+ M CHANGELOG.md
+ M CMakeLists.txt
+ M CONTRIBUTING.md
+ M README.md
+ M ci/dependencies.repos
+ M config/ai4r_policy.yaml
+ M config/oakd_cone_detector.yaml
+ M config/traxxas_vehicle_interface.yaml
+ M docs/acceptance.md
+ M package.xml
+ M scripts/policy_node.py
+ M tests/test_policy_node.py
+ M tests/test_release_contract.py
+ M tools/package_source.py
+?? .DS_Store
+?? ai4r_team/
+?? config/aruco_detector.yaml
+?? config/lidar_mount.yaml
+?? docs/release-v0.2.0.md
+?? docs/release-v0.3.0.md
+?? dream_interfaces.required.json
+?? foxglove/
+?? tests/test_calibration_tools.py
+?? tests/test_team_guidance.py
+?? tools/calibrate.py
+?? tools/calibration/
+?? tools/car.sh
+?? tools/record.py
+?? tools/recording/

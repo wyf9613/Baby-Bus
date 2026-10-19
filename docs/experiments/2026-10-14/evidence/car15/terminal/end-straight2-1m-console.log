@@ -1,0 +1,52 @@
+Waiting for fresh sensors, valid RC signals and zero commands (up to 90 seconds)
+Starting continuous drive; distance/time test budgets disabled
+{"run_seconds": 0.0, "distance_m": null, "path_error_m": null, "wheel_mps": 0.0, "steer": 0.0, "trajectory_points": null, "trajectory_frame": null, "steering_trim": 0.0, "policy_text": "Publishing zero actions: Startup: waiting for an explicit policy request"}
+{"run_seconds": 5.0, "distance_m": 0.8904969692230225, "path_error_m": 0.4528362452983856, "wheel_mps": 0.22936463356018066, "steer": 0.1015779972076416, "trajectory_points": 26, "trajectory_frame": "base_link", "steering_trim": 0.0, "policy_text": "Publishing policy actions: Operator request"}
+{"run_seconds": 10.0, "distance_m": 1.8848904371261597, "path_error_m": 0.2121061384677887, "wheel_mps": 0.22280670702457428, "steer": 0.2641098201274872, "trajectory_points": 24, "trajectory_frame": "base_link", "steering_trim": 0.0, "policy_text": "Publishing policy actions: Operator request"}
+{"run_seconds": 15.0, "distance_m": 2.860412359237671, "path_error_m": 0.014025392010807991, "wheel_mps": 0.23278413712978363, "steer": -0.15862907469272614, "trajectory_points": 18, "trajectory_frame": "base_link", "steering_trim": 0.0, "policy_text": "Publishing policy actions: Operator request"}
+{"run_seconds": 20.0, "distance_m": 3.8694777488708496, "path_error_m": 0.02563108503818512, "wheel_mps": 0.19730454683303833, "steer": 0.0, "trajectory_points": 0, "trajectory_frame": "base_link", "steering_trim": 0.0, "policy_text": "Publishing policy actions: End straight: 1.000 m after insufficient boundary geometry"}
+{
+  "result": "completed",
+  "stop_reason": "Publishing zero actions: End straight distance reached; explicit resume required",
+  "run_seconds": 24.594376703999842,
+  "seen_active": true,
+  "final_steering_trim": 0.0,
+  "nonempty_path_messages": 150,
+  "max_path_points": 35,
+  "trajectory_cleared": false,
+  "stop_telemetry_confirmed": true,
+  "imu_diagnostics": {
+    "message": "none",
+    "firmware.lifecycle_state": "CALIBRATING",
+    "host_publication_ready": "true",
+    "reason": "none"
+  },
+  "max_wheel_speed_mps": 0.3367760479450226,
+  "max_requested_drive": 0.3499999940395355,
+  "max_distance_debug_m": 4.862828731536865,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: End straight distance reached; explicit resume required",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1",
+    "selected_source": "2",
+    "host_seq": "52670",
+    "host_fresh": "1",
+    "host_permitted": "1",
+    "applied_drive_normalized": "0.000000",
+    "applied_steer_normalized": "0.000000",
+    "steering_trim": "0.000000",
+    "rc_steer_us": "1488",
+    "drive_pwm_us": "1500",
+    "rc_drive_us": "1508",
+    "last_positive_vehicle_ack": "52671",
+    "last_written_vehicle_command": null
+  }
+}

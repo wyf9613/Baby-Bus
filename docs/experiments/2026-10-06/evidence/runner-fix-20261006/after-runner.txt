@@ -1,0 +1,70 @@
+Tue Oct  6 11:38:34 2026    /home/ai4r/runner-fix-evidence/after-runner.pstats
+
+         13470805 function calls (12999059 primitive calls) in 16.579 seconds
+
+   Ordered by: cumulative time
+   List reduced from 785 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.000    0.000   16.631   16.631 runtime_runner.py:674(main)
+        1    0.000    0.000   16.627   16.627 runtime_runner.py:306(run)
+        1    0.001    0.001   16.411   16.411 runtime_runner.py:631(_supervise)
+  277/242    0.002    0.000   16.177    0.067 runtime_runner.py:369(_try)
+1790/1336    0.005    0.000   12.765    0.010 {built-in method builtins.next}
+      224    0.012    0.000   12.240    0.055 runtime_state.py:1292(_open_run)
+      222    0.001    0.000   12.137    0.055 runtime_state.py:1835(_open_exact_run)
+       71    0.006    0.000    8.677    0.122 runtime_runner.py:432(_owned_group)
+  499/272    0.001    0.000    8.457    0.031 contextlib.py:132(__enter__)
+       35    0.002    0.000    8.443    0.241 runtime_runner.py:506(_control)
+       73    0.001    0.000    8.245    0.113 runtime_state.py:1349(read_runner)
+     1138    0.007    0.000    7.618    0.007 runtime_parameters.py:662(parameter_file_bytes)
+     1138    0.010    0.000    7.609    0.007 __init__.py:263(safe_dump)
+      764    0.075    0.000    7.608    0.010 runtime_state.py:4577(_validate_metadata)
+     1138    0.030    0.000    7.599    0.007 __init__.py:215(dump_all)
+     1138    0.005    0.000    7.499    0.007 representer.py:26(represent)
+      245    0.011    0.000    7.294    0.030 runtime_state.py:3297(_refresh_loaded_runtime_run)
+      374    0.016    0.000    6.933    0.019 runtime_state.py:2801(_load_runtime_candidate)
+     1138    0.017    0.000    6.858    0.006 serializer.py:46(serialize)
+66004/1138    0.530    0.000    6.673    0.006 serializer.py:78(serialize_node)
+    75108    0.247    0.000    5.757    0.000 emitter.py:111(emit)
+      764    0.053    0.000    5.587    0.007 runtime_parameters.py:622(validate_snapshot)
+      390    0.017    0.000    4.354    0.011 runtime_state.py:3246(_require_compatible_runtime_snapshot)
+  499/272    0.001    0.000    4.305    0.016 contextlib.py:141(__exit__)
+       35    0.001    0.000    4.289    0.123 runtime_runner.py:416(_poll)
+       35    0.000    0.000    4.287    0.122 runtime_runner.py:423(<lambda>)
+       36    0.001    0.000    4.048    0.112 runtime_state.py:1373(read_stop_request)
+    35278    0.122    0.000    3.678    0.000 emitter.py:395(expect_block_mapping_key)
+    66004    0.249    0.000    2.646    0.000 emitter.py:232(expect_node)
+    25813    0.624    0.000    2.038    0.000 runtime_state.py:529(verify)
+
+
+Tue Oct  6 11:38:34 2026    /home/ai4r/runner-fix-evidence/after-runner.pstats
+
+         13470805 function calls (12999059 primitive calls) in 16.579 seconds
+
+   Ordered by: internal time
+   List reduced from 785 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+       34    1.704    0.050    1.704    0.050 {built-in method time.sleep}
+    61452    1.249    0.000    1.723    0.000 emitter.py:626(analyze_scalar)
+4086600/4082427    0.935    0.000    0.937    0.000 {built-in method builtins.len}
+    61452    0.837    0.000    1.297    0.000 emitter.py:1080(write_plain)
+    25813    0.624    0.000    2.038    0.000 runtime_state.py:529(verify)
+66004/1138    0.530    0.000    6.673    0.006 serializer.py:78(serialize_node)
+1516066/1490090    0.522    0.000    0.701    0.000 {built-in method builtins.isinstance}
+   110182    0.366    0.000    0.366    0.000 {built-in method posix.stat}
+   138361    0.349    0.000    0.349    0.000 {built-in method posix.fstat}
+    31864    0.284    0.000    0.462    0.000 emitter.py:580(prepare_tag)
+    66004    0.249    0.000    2.646    0.000 emitter.py:232(expect_node)
+    75108    0.247    0.000    5.757    0.000 emitter.py:111(emit)
+   266666    0.246    0.000    0.363    0.000 runtime_state.py:4549(_require_directory_details)
+   127456    0.226    0.000    0.349    0.000 resolver.py:143(resolve)
+   464797    0.199    0.000    0.199    0.000 {method 'append' of 'list' objects}
+    31864    0.177    0.000    2.002    0.000 emitter.py:437(check_simple_key)
+    61452    0.162    0.000    1.680    0.000 emitter.py:266(expect_scalar)
+    26071    0.161    0.000    0.199    0.000 {built-in method posix.lstat}
+   254077    0.146    0.000    0.146    0.000 {method 'startswith' of 'str' objects}
+66004/1138    0.143    0.000    0.636    0.001 representer.py:33(represent_data)
+
+

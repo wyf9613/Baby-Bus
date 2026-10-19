@@ -1,0 +1,106 @@
+{
+  "result": "stopped",
+  "stop_reason": "Publishing zero actions: Planning: invalid_estimates",
+  "run_seconds": 0.022421206999979404,
+  "seen_active": true,
+  "max_wheel_speed_mps": 0.0,
+  "max_requested_drive": 0.0,
+  "max_distance_debug_m": 0.0,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: Planning: invalid_estimates",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1",
+    "selected_source": "2",
+    "host_seq": "72695",
+    "host_fresh": "1",
+    "host_permitted": "1",
+    "applied_drive_normalized": "0.000000",
+    "drive_pwm_us": "1500",
+    "rc_drive_us": "1510",
+    "last_positive_vehicle_ack": "72696",
+    "last_written_vehicle_command": null
+  },
+  "latest_cones": {
+    "counts": {
+      "1": 9,
+      "2": 4
+    },
+    "stamp_s": 1791248245.5860322,
+    "latency_s": 0.195208525,
+    "positions": [
+      [
+        0.9221397159648351,
+        -0.11629663848876948,
+        1
+      ],
+      [
+        0.6616857254473705,
+        -0.13420808410644536,
+        1
+      ],
+      [
+        0.836102277550844,
+        0.5139898071289062,
+        2
+      ],
+      [
+        0.6115477318491883,
+        0.46736331176757806,
+        2
+      ],
+      [
+        1.2836548955948457,
+        -0.0942683105468749,
+        1
+      ],
+      [
+        1.6513723831534515,
+        -0.08759839630126942,
+        1
+      ],
+      [
+        1.2227447556313153,
+        -0.11966651153564456,
+        1
+      ],
+      [
+        1.161609464503825,
+        0.5324627075195314,
+        2
+      ],
+      [
+        4.607715757186551,
+        0.36597955322265663,
+        1
+      ],
+      [
+        2.751368362338983,
+        -0.058386062622070356,
+        1
+      ],
+      [
+        1.3435296646989148,
+        0.5303708496093749,
+        2
+      ],
+      [
+        3.356423343077005,
+        -0.020904048919677676,
+        1
+      ],
+      [
+        1.8422213164860206,
+        -0.08368701934814471,
+        1
+      ]
+    ]
+  }
+}

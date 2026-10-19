@@ -1,0 +1,293 @@
+{
+  "dreamgym_version": "0.4.0",
+  "python_version": "3.12.13",
+  "numpy_version": "2.5.2",
+  "source_sha256": {
+    "tune.py": "137d85798b50a70b9fdfb2ea01ad84aa69262e1456133284df8a18d39ccb63ae",
+    "controller.py": "dc4ed8e5febb51931697c0e713525582da9f146cb755050c3eeb19fe0aadfea1",
+    "notebook_model.py": "c0927803e70b8f3fa10671157d01e084c2eb7823b39744084442032296262dbf"
+  },
+  "notebook_sha256": "2bb6e89fc3a37fbc027dc0863b3da492d6af34b8a543672c5833b488c1a5d9c6",
+  "model": {
+    "axle_geometry": {
+      "front_axle_distance_from_center_of_mass_m": 0.198,
+      "rear_axle_distance_from_center_of_mass_m": 0.132
+    },
+    "mass_properties": {
+      "mass_kg": 3.0,
+      "yaw_moment_of_inertia_kg_m2": 0.05562500000000001
+    },
+    "longitudinal_force_model": {
+      "normalized_motor_command_force_gain_n": 10.0,
+      "quadratic_aerodynamic_drag_coefficient_kg_per_m": 1.0,
+      "direction_change_latch": {
+        "forward_to_reverse": true
+      }
+    },
+    "steering": {
+      "physical_front_wheel_angle_offset_from_request_rad": 0.0,
+      "requested_front_wheel_angle_magnitude_limit_rad": 0.7853981633974483,
+      "physical_front_wheel_angle_rate_bounds_rad_per_s": {
+        "lower": -1.5707963267948966,
+        "upper": 1.5707963267948966
+      }
+    },
+    "kinematic_dynamic_transition": {
+      "body_longitudinal_speed_range_mps": {
+        "lower": 138.88888888888889,
+        "upper": 166.66666666666666
+      }
+    },
+    "body_geometry": {
+      "front_extent_from_center_of_mass_m": 0.29700000000000004,
+      "rear_extent_from_center_of_mass_m": 0.198,
+      "width_m": 0.25
+    }
+  },
+  "integration": {
+    "method": "rk4",
+    "environment_step_duration_s": 0.05,
+    "substep_count": 1
+  },
+  "validation_scenarios": [
+    {
+      "name": "notebook_05",
+      "road": "notebook",
+      "speed": 0.5,
+      "initial_y": 0.15,
+      "initial_heading": 0.08,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": false
+    },
+    {
+      "name": "notebook_10",
+      "road": "notebook",
+      "speed": 1.0,
+      "initial_y": 0.15,
+      "initial_heading": 0.08,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": false
+    },
+    {
+      "name": "s_bend_05",
+      "road": "s_bend",
+      "speed": 0.5,
+      "initial_y": -0.2,
+      "initial_heading": -0.15,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": false
+    },
+    {
+      "name": "s_bend_12",
+      "road": "s_bend",
+      "speed": 1.2,
+      "initial_y": 0.2,
+      "initial_heading": 0.15,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": false
+    },
+    {
+      "name": "noisy_reference",
+      "road": "s_bend",
+      "speed": 0.8,
+      "initial_y": 0.15,
+      "initial_heading": 0.08,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.015,
+      "heading_noise_rad": 0.015,
+      "speed_noise_mps": 0.02,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": false
+    },
+    {
+      "name": "plant_mismatch",
+      "road": "s_bend",
+      "speed": 0.8,
+      "initial_y": 0.15,
+      "initial_heading": 0.08,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 0.7,
+      "drag_scale": 1.5,
+      "steering_scale": 0.85,
+      "steering_offset_rad": -0.05235987755982989,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": false
+    },
+    {
+      "name": "command_delay_100ms",
+      "road": "s_bend",
+      "speed": 0.8,
+      "initial_y": 0.15,
+      "initial_heading": 0.08,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 2,
+      "dt": 0.05,
+      "dropout": false
+    },
+    {
+      "name": "dt_100ms",
+      "road": "s_bend",
+      "speed": 0.8,
+      "initial_y": 0.15,
+      "initial_heading": 0.08,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 0,
+      "dt": 0.1,
+      "dropout": false
+    },
+    {
+      "name": "reference_dropout",
+      "road": "s_bend",
+      "speed": 0.8,
+      "initial_y": 0.15,
+      "initial_heading": 0.08,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": true
+    }
+  ],
+  "validation_seeds": [
+    101,
+    202,
+    303
+  ],
+  "training_scenarios": [
+    {
+      "name": "train_notebook",
+      "road": "notebook",
+      "speed": 0.8,
+      "initial_y": 0.15,
+      "initial_heading": 0.08,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": false
+    },
+    {
+      "name": "train_s_bend",
+      "road": "s_bend",
+      "speed": 0.8,
+      "initial_y": -0.2,
+      "initial_heading": -0.12,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 1.0,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.0,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": false
+    },
+    {
+      "name": "train_offset",
+      "road": "s_bend",
+      "speed": 0.8,
+      "initial_y": 0.2,
+      "initial_heading": 0.12,
+      "initial_speed": 0.0,
+      "reference_noise_m": 0.0,
+      "heading_noise_rad": 0.0,
+      "speed_noise_mps": 0.0,
+      "motor_scale": 0.8,
+      "drag_scale": 1.0,
+      "steering_scale": 1.0,
+      "steering_offset_rad": 0.03490658503988659,
+      "delay_steps": 0,
+      "dt": 0.05,
+      "dropout": false
+    }
+  ],
+  "reference": "oracle road -> local cubic; not cone-based perception",
+  "gains": {
+    "speed_kp": 1.4,
+    "speed_ki": 0.6,
+    "speed_kd": 0.0,
+    "lateral_kp": 1.2,
+    "lateral_ki": 0.1,
+    "lateral_kd": 0.0,
+    "heading_kp": 0.8,
+    "derivative_tau_s": 0.15,
+    "drive_min": -0.3,
+    "drive_max": 0.35,
+    "wheelbase_m": 0.33,
+    "rear_axle_from_cg_m": 0.132,
+    "steering_limit_rad": 0.7853981633974483
+  }
+}

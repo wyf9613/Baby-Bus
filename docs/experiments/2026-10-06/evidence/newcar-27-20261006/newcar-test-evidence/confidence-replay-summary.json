@@ -1,0 +1,23 @@
+{
+  "0.75": {
+    "total": 437,
+    "valid": 117,
+    "fit_ok": 117,
+    "curvature_ok": 117,
+    "coverage_ok": 117
+  },
+  "0.8": {
+    "total": 437,
+    "valid": 119,
+    "fit_ok": 119,
+    "curvature_ok": 119,
+    "coverage_ok": 119
+  },
+  "0.85": {
+    "total": 437,
+    "valid": 177,
+    "fit_ok": 177,
+    "curvature_ok": 173,
+    "coverage_ok": 177
+  }
+}

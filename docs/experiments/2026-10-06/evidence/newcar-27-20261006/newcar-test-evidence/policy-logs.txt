@@ -1,0 +1,17 @@
+[INFO] [launch]: All log files can be found below /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T014255Z-88c9516d-718c-4679-a76c-f0ade297f05e/ros_logs/2026-10-06-12-42-58-835805-localhost.localdomain-14258
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [policy_node.py-1]: process started with pid [14280]
+[policy_node.py-1] [INFO] [1791250980.893629545] [car.ai4r_policy]: Policy update source: timer; required sensors: ['cone_detections', 'wheel_speed', 'imu_angular_velocity']; namespace: /car
+[policy_node.py-1] [WARN] [1791250983.810175670] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791250990.973621129] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791250994.677982510] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251000.590892153] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251004.056079308] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251008.775048625] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251011.934077449] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251015.549655501] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251020.195955191] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251025.956087810] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251032.016887887] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251037.060341585] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[policy_node.py-1] [WARN] [1791251044.941480628] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample

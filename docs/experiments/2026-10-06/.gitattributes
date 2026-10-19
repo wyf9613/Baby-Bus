@@ -1,0 +1,2 @@
+# Preserve console output and unified-diff context exactly as recorded.
+evidence/** whitespace=-blank-at-eol,-blank-at-eof

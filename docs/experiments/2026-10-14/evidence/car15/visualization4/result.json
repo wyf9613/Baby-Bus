@@ -1,0 +1,76 @@
+{
+  "result": "stopped",
+  "stop_reason": "Publishing zero actions: Planning: invalid_road_insufficient_geometry",
+  "run_seconds": 19.746044987999994,
+  "seen_active": true,
+  "final_steering_trim": 0.0,
+  "nonempty_path_messages": 147,
+  "max_path_points": 34,
+  "trajectory_cleared": false,
+  "stop_telemetry_confirmed": true,
+  "imu_diagnostics": {
+    "message": "none",
+    "firmware.lifecycle_state": "CALIBRATING",
+    "host_publication_ready": "true",
+    "reason": "none"
+  },
+  "max_wheel_speed_mps": 0.30968230962753296,
+  "max_requested_drive": 0.3499999940395355,
+  "max_distance_debug_m": 3.816903591156006,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: Planning: invalid_road_insufficient_geometry",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "2",
+    "session_id": "2",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1",
+    "selected_source": "2",
+    "host_seq": "2384",
+    "host_fresh": "1",
+    "host_permitted": "1",
+    "applied_drive_normalized": "0.000000",
+    "applied_steer_normalized": "0.000000",
+    "steering_trim": "0.000000",
+    "rc_steer_us": "1486",
+    "drive_pwm_us": "1500",
+    "rc_drive_us": "1508",
+    "last_positive_vehicle_ack": "2384",
+    "last_written_vehicle_command": null
+  },
+  "latest_cones": {
+    "counts": {
+      "1": 1,
+      "2": 2
+    },
+    "stamp_s": 1791956157.3483174,
+    "latency_s": 0.194883189,
+    "positions": [
+      [
+        0.7325887695796567,
+        0.5395712280273437,
+        0.020152504574536267,
+        1,
+        0.95068359375
+      ],
+      [
+        0.576031575536542,
+        -0.42301495361328123,
+        0.04967042908817659,
+        2,
+        0.94921875
+      ],
+      [
+        0.7766358789844324,
+        -0.4100016784667968,
+        0.06551893184105245,
+        2,
+        0.9482421875
+      ]
+    ]
+  }
+}

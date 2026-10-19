@@ -1,0 +1,138 @@
+{"elapsed_s": 0.3565, "time_unix_s": 1791247570.9002507, "kind": "cones", "value": {"counts": {"2": 13, "1": 12}, "stamp_s": 1791247570.686112, "latency_s": 0.207844095}}
+{"elapsed_s": 0.449, "time_unix_s": 1791247570.9928231, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247570.786111, "latency_s": 0.20408272}}
+{"elapsed_s": 0.5539, "time_unix_s": 1791247571.0976872, "kind": "cones", "value": {"counts": {"2": 13, "1": 12}, "stamp_s": 1791247570.8861008, "latency_s": 0.204847168}}
+{"elapsed_s": 0.6415, "time_unix_s": 1791247571.1853054, "kind": "cones", "value": {"counts": {"2": 13, "1": 12}, "stamp_s": 1791247570.9860668, "latency_s": 0.193614236}}
+{"elapsed_s": 0.744, "time_unix_s": 1791247571.2877946, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247571.0861075, "latency_s": 0.193921061}}
+{"elapsed_s": 0.8389, "time_unix_s": 1791247571.3826861, "kind": "cones", "value": {"counts": {"2": 13, "1": 12}, "stamp_s": 1791247571.1860719, "latency_s": 0.19397873}}
+{"elapsed_s": 0.9404, "time_unix_s": 1791247571.4841456, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247571.2861128, "latency_s": 0.194144621}}
+{"elapsed_s": 1.0398, "time_unix_s": 1791247571.58361, "kind": "cones", "value": {"counts": {"2": 13, "1": 12}, "stamp_s": 1791247571.3860836, "latency_s": 0.194589448}}
+{"elapsed_s": 1.1454, "time_unix_s": 1791247571.689146, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247571.4861174, "latency_s": 0.195824649}}
+{"elapsed_s": 1.24, "time_unix_s": 1791247571.7838082, "kind": "cones", "value": {"counts": {"2": 13, "1": 12}, "stamp_s": 1791247571.5860817, "latency_s": 0.193596902}}
+{"elapsed_s": 1.3524, "time_unix_s": 1791247571.896152, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247571.6861224, "latency_s": 0.206269852}}
+{"elapsed_s": 1.6891, "time_unix_s": 1791247572.2328718, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247571.7860825, "latency_s": 0.194676972}}
+{"elapsed_s": 1.6897, "time_unix_s": 1791247572.2335017, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.69, "time_unix_s": 1791247572.2338216, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.7006, "time_unix_s": 1791247572.2444277, "kind": "cones", "value": {"counts": {"2": 13, "1": 12}, "stamp_s": 1791247571.8861039, "latency_s": 0.197575823}}
+{"elapsed_s": 1.7069, "time_unix_s": 1791247572.250728, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247571.9860678, "latency_s": 0.195196423}}
+{"elapsed_s": 1.711, "time_unix_s": 1791247572.2547538, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 1.7135, "time_unix_s": 1791247572.257263, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 1.717, "time_unix_s": 1791247572.260798, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 1.7185, "time_unix_s": 1791247572.2623043, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 1.7489, "time_unix_s": 1791247572.2926757, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 1.7513, "time_unix_s": 1791247572.295124, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247572.0861337, "latency_s": 0.204579196}}
+{"elapsed_s": 1.76, "time_unix_s": 1791247572.3037906, "kind": "vehicle_diagnostics", "value": {"state": "Disabled", "reason": "disable requested", "connected": "1", "ready": "1", "connection_attempts": "3", "session_id": "3", "rc_drive_status": "1", "rc_steer_status": "1"}}
+{"elapsed_s": 1.7934, "time_unix_s": 1791247572.3371587, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.8033, "time_unix_s": 1791247572.3470938, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.8394, "time_unix_s": 1791247572.3831403, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247572.1860726, "latency_s": 0.193982654}}
+{"elapsed_s": 1.8537, "time_unix_s": 1791247572.3975177, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 1.8954, "time_unix_s": 1791247572.4391472, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 1.9053, "time_unix_s": 1791247572.4491081, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 1.9528, "time_unix_s": 1791247572.4965887, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247572.2861133, "latency_s": 0.204011536}}
+{"elapsed_s": 1.9594, "time_unix_s": 1791247572.5031636, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 1.9987, "time_unix_s": 1791247572.5424948, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.0263, "time_unix_s": 1791247572.5701003, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.0506, "time_unix_s": 1791247572.594354, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247572.3860784, "latency_s": 0.206049186}}
+{"elapsed_s": 2.0647, "time_unix_s": 1791247572.6084912, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 2.1131, "time_unix_s": 1791247572.6569042, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.1341, "time_unix_s": 1791247572.6778984, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.144, "time_unix_s": 1791247572.687836, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247572.4861035, "latency_s": 0.196632288}}
+{"elapsed_s": 2.1695, "time_unix_s": 1791247572.7132864, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 2.2278, "time_unix_s": 1791247572.771635, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.2532, "time_unix_s": 1791247572.7970157, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247572.5860703, "latency_s": 0.207753062}}
+{"elapsed_s": 2.2567, "time_unix_s": 1791247572.8004577, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.2773, "time_unix_s": 1791247572.8210464, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 2.3396, "time_unix_s": 1791247572.883377, "kind": "cones", "value": {"counts": {"2": 13, "1": 13}, "stamp_s": 1791247572.6861053, "latency_s": 0.193641345}}
+{"elapsed_s": 2.3452, "time_unix_s": 1791247572.8890374, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.3782, "time_unix_s": 1791247572.9219491, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.3862, "time_unix_s": 1791247572.9299634, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 2.4449, "time_unix_s": 1791247572.9887004, "kind": "cones", "value": {"counts": {"2": 13, "1": 11}, "stamp_s": 1791247572.7860632, "latency_s": 0.196774313}}
+{"elapsed_s": 2.4504, "time_unix_s": 1791247572.9941928, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.4928, "time_unix_s": 1791247573.0365708, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 2.4951, "time_unix_s": 1791247573.03893, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.4984, "time_unix_s": 1791247573.0422251, "kind": "actions", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.5004, "time_unix_s": 1791247573.0442164, "kind": "policy_state", "value": 2}
+{"elapsed_s": 2.502, "time_unix_s": 1791247573.0457485, "kind": "policy_text", "value": "Publishing zero actions: Startup: waiting for an explicit policy request"}
+{"elapsed_s": 2.5074, "time_unix_s": 1791247573.051151, "kind": "gyro", "value": {"z": -0.003906, "stamp_s": 1791247573.0267174}}
+{"elapsed_s": 2.5388, "time_unix_s": 1791247573.0826313, "kind": "cones", "value": {"counts": {"1": 11, "2": 14}, "stamp_s": 1791247572.8861217, "latency_s": 0.19471552}}
+{"elapsed_s": 2.5595, "time_unix_s": 1791247573.103259, "kind": "parameters", "value": {"control.enabled": true, "control.mode": "mvp", "control.max_distance_m": 3.0, "control.max_run_time_s": 30.0, "planning.cruise_speed_mps": 0.2, "control.drive_max": 0.15, "control.steering_max_normalized": 0.5}}
+{"elapsed_s": 2.56, "time_unix_s": 1791247573.103732, "kind": "phase", "value": "Enable vehicle"}
+{"elapsed_s": 2.5733, "time_unix_s": 1791247573.1170945, "kind": "vehicle_diagnostics", "value": {"state": "Pre-enable", "reason": "awaiting new neutral action and confirmed host neutral", "connected": "1", "ready": "1", "connection_attempts": "3", "session_id": "3", "rc_drive_status": "1", "rc_steer_status": "1"}}
+{"elapsed_s": 2.5737, "time_unix_s": 1791247573.1174874, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.5739, "time_unix_s": 1791247573.1177018, "kind": "vehicle_state", "value": "Pre-enable"}
+{"elapsed_s": 2.5747, "time_unix_s": 1791247573.1185122, "kind": "vehicle_state", "value": "Pre-enable"}
+{"elapsed_s": 2.5882, "time_unix_s": 1791247573.1319747, "kind": "vehicle_state", "value": "Pre-enable"}
+{"elapsed_s": 2.5962, "time_unix_s": 1791247573.1399364, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.6159, "time_unix_s": 1791247573.159664, "kind": "vehicle_state", "value": "Enabled"}
+{"elapsed_s": 2.6161, "time_unix_s": 1791247573.1598406, "kind": "phase", "value": "Start policy once"}
+{"elapsed_s": 2.6177, "time_unix_s": 1791247573.1615155, "kind": "gyro", "value": {"z": -0.005859, "stamp_s": 1791247573.1459866}}
+{"elapsed_s": 2.618, "time_unix_s": 1791247573.16175, "kind": "vehicle_state", "value": "Enabled"}
+{"elapsed_s": 2.623, "time_unix_s": 1791247573.1668196, "kind": "policy_state", "value": 3}
+{"elapsed_s": 2.6233, "time_unix_s": 1791247573.1671007, "kind": "policy_text", "value": "Publishing policy actions: Operator request"}
+{"elapsed_s": 2.6433, "time_unix_s": 1791247573.1870592, "kind": "cones", "value": {"counts": {"2": 13, "1": 12}, "stamp_s": 1791247572.9860866, "latency_s": 0.193673631}}
+{"elapsed_s": 2.6598, "time_unix_s": 1791247573.2035992, "kind": "actions", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.6863, "time_unix_s": 1791247573.2300963, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.6933, "time_unix_s": 1791247573.237041, "kind": "vehicle_state", "value": "Enabled"}
+{"elapsed_s": 2.711, "time_unix_s": 1791247573.2548373, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.7192, "time_unix_s": 1791247573.2629683, "kind": "gyro", "value": {"z": -0.005859, "stamp_s": 1791247573.2462206}}
+{"elapsed_s": 2.741, "time_unix_s": 1791247573.2847943, "kind": "cones", "value": {"counts": {"1": 13, "2": 14}, "stamp_s": 1791247573.0861328, "latency_s": 0.195149776}}
+{"elapsed_s": 2.7756, "time_unix_s": 1791247573.319431, "kind": "vehicle_diagnostics", "value": {"state": "Enabled", "reason": "enabled after neutral barrier", "connected": "1", "ready": "1", "connection_attempts": "3", "session_id": "3", "rc_drive_status": "1", "rc_steer_status": "1"}}
+{"elapsed_s": 2.8018, "time_unix_s": 1791247573.3455877, "kind": "actions", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.8031, "time_unix_s": 1791247573.3468883, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.8034, "time_unix_s": 1791247573.347148, "kind": "vehicle_state", "value": "Enabled"}
+{"elapsed_s": 2.8152, "time_unix_s": 1791247573.3589904, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.828, "time_unix_s": 1791247573.3718262, "kind": "gyro", "value": {"z": -0.005859, "stamp_s": 1791247573.3638587}}
+{"elapsed_s": 2.8384, "time_unix_s": 1791247573.382197, "kind": "cones", "value": {"counts": {"1": 12, "2": 15}, "stamp_s": 1791247573.186092, "latency_s": 0.193617022}}
+{"elapsed_s": 2.9021, "time_unix_s": 1791247573.4458528, "kind": "actions", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.9032, "time_unix_s": 1791247573.4470317, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 2.905, "time_unix_s": 1791247573.4487834, "kind": "vehicle_state", "value": "Enabled"}
+{"elapsed_s": 2.9335, "time_unix_s": 1791247573.4773397, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 2.9383, "time_unix_s": 1791247573.4820843, "kind": "gyro", "value": {"z": -0.001953, "stamp_s": 1791247573.466271}}
+{"elapsed_s": 2.9399, "time_unix_s": 1791247573.4837153, "kind": "cones", "value": {"counts": {"1": 12, "2": 13}, "stamp_s": 1791247573.286131, "latency_s": 0.194635455}}
+{"elapsed_s": 2.9527, "time_unix_s": 1791247573.4965048, "kind": "distance", "value": 0.0}
+{"elapsed_s": 3.0041, "time_unix_s": 1791247573.547933, "kind": "actions", "value": {"units": 1, "drive": 0.15000000596046448, "steer": 4.122242444282165e-06}}
+{"elapsed_s": 3.0128, "time_unix_s": 1791247573.5565464, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.014, "time_unix_s": 1791247573.557785, "kind": "vehicle_state", "value": "Enabled"}
+{"elapsed_s": 3.0431, "time_unix_s": 1791247573.5868645, "kind": "applied", "value": {"units": 1, "drive": 0.11599999666213989, "steer": 0.0}}
+{"elapsed_s": 3.0476, "time_unix_s": 1791247573.5913792, "kind": "cones", "value": {"counts": {"1": 11, "2": 12}, "stamp_s": 1791247573.3860981, "latency_s": 0.203643836}}
+{"elapsed_s": 3.0497, "time_unix_s": 1791247573.5935242, "kind": "gyro", "value": {"z": 0.001953, "stamp_s": 1791247573.5835974}}
+{"elapsed_s": 3.0568, "time_unix_s": 1791247573.6005964, "kind": "policy_state", "value": 2}
+{"elapsed_s": 3.0573, "time_unix_s": 1791247573.601044, "kind": "policy_text", "value": "Publishing zero actions: Control reference expired; explicit resume required"}
+{"elapsed_s": 3.0574, "time_unix_s": 1791247573.6011524, "kind": "phase", "value": "Stop policy and Disable vehicle"}
+{"elapsed_s": 3.0752, "time_unix_s": 1791247573.6189487, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 3.0779, "time_unix_s": 1791247573.6216521, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 3.0805, "time_unix_s": 1791247573.624264, "kind": "vehicle_diagnostics", "value": {"state": "Disabled", "reason": "disable requested", "connected": "1", "ready": "1", "connection_attempts": "3", "session_id": "3", "rc_drive_status": "1", "rc_steer_status": "1"}}
+{"elapsed_s": 3.113, "time_unix_s": 1791247573.6568294, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.1241, "time_unix_s": 1791247573.6678636, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 3.1377, "time_unix_s": 1791247573.681542, "kind": "cones", "value": {"counts": {"1": 11, "2": 11}, "stamp_s": 1791247573.486136, "latency_s": 0.193596804}}
+{"elapsed_s": 3.1439, "time_unix_s": 1791247573.6876686, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.1484, "time_unix_s": 1791247573.6922302, "kind": "actions", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.1562, "time_unix_s": 1791247573.7, "kind": "gyro", "value": {"z": 0.0, "stamp_s": 1791247573.6853693}}
+{"elapsed_s": 3.233, "time_unix_s": 1791247573.7767513, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.2334, "time_unix_s": 1791247573.7771735, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 3.2375, "time_unix_s": 1791247573.7812932, "kind": "cones", "value": {"counts": {"1": 12, "2": 13}, "stamp_s": 1791247573.5861006, "latency_s": 0.193519101}}
+{"elapsed_s": 3.255, "time_unix_s": 1791247573.7987943, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.2689, "time_unix_s": 1791247573.8126638, "kind": "gyro", "value": {"z": 0.003906, "stamp_s": 1791247573.803383}}
+{"elapsed_s": 3.298, "time_unix_s": 1791247573.841746, "kind": "actions", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.3384, "time_unix_s": 1791247573.8821545, "kind": "cones", "value": {"counts": {"1": 12, "2": 12}, "stamp_s": 1791247573.686141, "latency_s": 0.193451792}}
+{"elapsed_s": 3.3388, "time_unix_s": 1791247573.8825824, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.339, "time_unix_s": 1791247573.8828144, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 3.3568, "time_unix_s": 1791247573.9006307, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.3736, "time_unix_s": 1791247573.9174201, "kind": "gyro", "value": {"z": 0.005859, "stamp_s": 1791247573.9043713}}
+{"elapsed_s": 3.3995, "time_unix_s": 1791247573.9432702, "kind": "actions", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.4376, "time_unix_s": 1791247573.9814084, "kind": "cones", "value": {"counts": {"1": 12, "2": 12}, "stamp_s": 1791247573.7861202, "latency_s": 0.193594809}}
+{"elapsed_s": 3.4428, "time_unix_s": 1791247573.9866388, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.4432, "time_unix_s": 1791247573.9870136, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 3.4746, "time_unix_s": 1791247574.0184257, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.4872, "time_unix_s": 1791247574.030977, "kind": "gyro", "value": {"z": 0.001953, "stamp_s": 1791247574.0227242}}
+{"elapsed_s": 3.5557, "time_unix_s": 1791247574.0994513, "kind": "cones", "value": {"counts": {"1": 12, "2": 14}, "stamp_s": 1791247573.886134, "latency_s": 0.210488049}}
+{"elapsed_s": 3.5562, "time_unix_s": 1791247574.0999782, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.5565, "time_unix_s": 1791247574.1002378, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 3.5567, "time_unix_s": 1791247574.1004827, "kind": "actions", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.583, "time_unix_s": 1791247574.126777, "kind": "applied", "value": {"units": 1, "drive": 0.0, "steer": 0.0}}
+{"elapsed_s": 3.5932, "time_unix_s": 1791247574.1369984, "kind": "gyro", "value": {"z": 0.003906, "stamp_s": 1791247574.1241968}}
+{"elapsed_s": 3.5988, "time_unix_s": 1791247574.1426182, "kind": "policy_state", "value": 2}
+{"elapsed_s": 3.6003, "time_unix_s": 1791247574.1440842, "kind": "policy_text", "value": "Publishing zero actions: Control reference expired; explicit resume required"}
+{"elapsed_s": 3.6483, "time_unix_s": 1791247574.1921244, "kind": "cones", "value": {"counts": {"1": 13, "2": 15}, "stamp_s": 1791247573.9860978, "latency_s": 0.203595181}}
+{"elapsed_s": 3.653, "time_unix_s": 1791247574.196772, "kind": "vehicle_state", "value": "Disabled"}
+{"elapsed_s": 3.663, "time_unix_s": 1791247574.2068293, "kind": "wheel", "value": 0.0}
+{"elapsed_s": 3.683, "time_unix_s": 1791247574.2267864, "kind": "result", "value": {"result": "stopped", "stop_reason": "Publishing zero actions: Control reference expired; explicit resume required", "run_seconds": 0.4412604280000778, "seen_active": true, "max_wheel_speed_mps": 0.0, "max_requested_drive": 0.15000000596046448, "max_distance_debug_m": 0.0, "final_policy_state": 2, "final_vehicle_state": "Disabled", "final_policy_text": "Publishing zero actions: Control reference expired; explicit resume required", "vehicle_diagnostics": {"state": "Disabled", "reason": "disable requested", "connected": "1", "ready": "1", "connection_attempts": "3", "session_id": "3", "rc_drive_status": "1", "rc_steer_status": "1"}, "latest_cones": {"counts": {"1": 13, "2": 15}, "stamp_s": 1791247573.9860978, "latency_s": 0.203595181}}}

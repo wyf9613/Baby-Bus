@@ -1,0 +1,37 @@
+ERROR: BNO08x firmware: host rejected
+Preparing bundled GPU model (model configuration is missing): /tmp/tmpctn3w146/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmp2yw6444r/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (generated model is incomplete or corrupt: engine checksum mismatch): /tmp/tmp2yw6444r/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmp2yw6444r/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmphsbymj49/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (generated model is incomplete or corrupt: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)): /tmp/tmphsbymj49/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (generated model is incomplete or corrupt: Expected a JSON object: /tmp/tmphsbymj49/.local/share/dream/models/oakd_gpu_cone_detector/model.engine.json): /tmp/tmphsbymj49/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (generated model is incomplete or corrupt: metadata checksum mismatch): /tmp/tmphsbymj49/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmpp_egqdt1/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmpcnhntus4/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmpugfcj9rj/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmpxi9zg54b/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmprhf66mm8/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (engine inputs differ from the selected bundled model): /tmp/tmprhf66mm8/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (engine inputs differ from the selected bundled model): /tmp/tmprhf66mm8/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (engine tensorrt_version changed: built for 10.16, found 10.17): /tmp/tmprhf66mm8/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmpclyd4vyk/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmpgxwwyw5k/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Preparing bundled GPU model (model configuration is missing): /tmp/tmpbo7oiz86/.local/share/dream/models/oakd_gpu_cone_detector/model.json
+Rebuilding selected generated output: /tmp/tmptl53gfj2/ros2_ws/build/traxxas_vehicle_interface
+Rebuilding selected generated output: /tmp/tmptl53gfj2/ros2_ws/install/traxxas_vehicle_interface
+Rebuilding selected generated output: /tmp/tmptl53gfj2/ros2_ws/build/traxxas_vehicle_interface
+Rebuilding selected generated output: /tmp/tmptl53gfj2/ros2_ws/install/traxxas_vehicle_interface
+Rebuilding selected generated output: /tmp/tmptl53gfj2/ros2_ws/build/traxxas_vehicle_interface
+Rebuilding selected generated output: /tmp/tmptl53gfj2/ros2_ws/install/traxxas_vehicle_interface
+Rebuilding selected generated output: /tmp/tmpa95oug0g/ros2_ws/build/traxxas_vehicle_interface
+Rebuilding selected generated output: /tmp/tmpa95oug0g/ros2_ws/install/traxxas_vehicle_interface
+Rebuilding selected generated output: /tmp/tmp9yx2kehj/ros2_ws/build/traxxas_vehicle_interface
+Rebuilding selected generated output: /tmp/tmp9yx2kehj/ros2_ws/install/traxxas_vehicle_interface
+From /tmp/tmp7ch623jl/provider
+   e614f19..7d27a50  dev        -> origin/dev
+----------------------------------------------------------------------
+Ran 1264 tests in 253.831s
+
+OK
+verify-fast: PASS

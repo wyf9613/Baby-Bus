@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-15",
+  "branch": "mvp2.1",
+  "base_commit": "f11428b5444ac4c714a95e86e71662086b3187bd",
+  "working_tree_changes": "uncommitted; not pushed or deployed",
+  "portable_checks": {
+    "tests": 227,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "suites": [
+      "test_estimation",
+      "test_planning",
+      "test_control",
+      "test_centerline_follow",
+      "test_shadow_lattice"
+    ]
+  },
+  "replay_command": "python -B offline/shadow_lattice/replay_temporal.py --output .verification/shadow-temporal/replay.json",
+  "recorded_current_inputs": 20,
+  "partial_history_provenance": "shadow_quality_run_0.mcap SHA256 4cbad393115d521da65c8a21ebc73192a416e1f48488877146a65ad8c67e3761. Exact 20 current planner inputs; partial history reconstructed from recorded baseline Path, deduplicated by latest received raw cone epoch. Wheel + linearly interpolated 1Hz body-yaw snapshots; no TF in bag, not an exact 20Hz perception replay. Historical metadata unavailable is marked baseline_reference_only; known hard boundaries always exact current input. First incomplete motion interval uses a separate epoch.",
+  "original_outputs_reproduced": true,
+  "fused_valid": 20,
+  "raw_fallbacks_in_normal_replay": 0,
+  "forced_fusion_failure_raw_valid": 20,
+  "hard_boundaries_unchanged": true,
+  "ros_gate": "not run: user requested no ROS gate",
+  "files": {
+    "scripts/policy_node.py": "62b624acd8108af58cf8faadd385cf7bf10942149925b167911351d63f0c8a02",
+    "config/ai4r_policy.yaml": "bf82cbdf7c04d4e78fa0fc1f89b357c0806f1024cfd489eb36dbae8f046f3e5a",
+    "tests/test_shadow_lattice.py": "499d34d6b2a7c40b536866f317244be549e0ae1d194c806edfbb8b814f8b999b",
+    "offline/shadow_lattice/replay_temporal.py": "ace1a5703e6cff04123c9d9943395a59ee234bbd069d9c6a780cf0aa71f3c090",
+    "tests/fixtures/shadow_temporal_recorded_run.json": "c58fe02f6bfd2e6afdd247c0d011bc9afef575b1ab8b54b857748dacf597395f",
+    "docs/experiments/2026-10-15/evidence/shadow-temporal/isolation-audit.json": "21925084477e2a7c750c2f79f3267497fc0ab4d411297503c9dc380174d5c8b3",
+    "docs/experiments/2026-10-15/evidence/shadow-temporal/portable-checks.log": "0102e6355dd149fe910fe3d614142a6aa63c4302c60758cf52fe7592b12f376d",
+    "docs/experiments/2026-10-15/evidence/shadow-temporal/replay.json": "88802dad15752cd87fabbfa24af842484495ffd8493144ffd76be3f7548480f7"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "result": "completed",
+  "stop_reason": "Dry run completed 12 seconds",
+  "run_seconds": 12.001616194000007,
+  "seen_active": true,
+  "max_wheel_speed_mps": 0.0,
+  "max_requested_drive": 0.15000000596046448,
+  "max_distance_debug_m": 0.0,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: Operator request",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1"
+  },
+  "latest_cones": {
+    "counts": {
+      "2": 11,
+      "1": 12
+    },
+    "stamp_s": 1791248037.7857802,
+    "latency_s": 0.193807097
+  }
+}

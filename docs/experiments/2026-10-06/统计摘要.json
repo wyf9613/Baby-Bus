@@ -1,0 +1,115 @@
+{
+  "policy_timing": {
+    "duration_ms": {
+      "n": 266,
+      "min": 2.3154020000220044,
+      "median": 3.4999040000229797,
+      "p95": 5.174149999902511,
+      "p99": 6.311755000069752,
+      "max": 7.566386999997121
+    },
+    "interval_ms": {
+      "n": 262,
+      "min": 46.194028999934744,
+      "median": 49.959607000005235,
+      "p95": 51.725312000144186,
+      "p99": 53.242800999896644,
+      "max": 54.456405999872004
+    },
+    "valid_for_s": {
+      "n": 266,
+      "min": 0.0,
+      "median": 0.12820299149999997,
+      "p95": 0.137774497,
+      "p99": 0.13902482999983476,
+      "max": 0.14217057
+    }
+  },
+  "road_status_counts": {
+    "missing_motion_history": 16,
+    "motion_interval_too_long": 1,
+    "observed": 249
+  },
+  "planning_reason_counts": {
+    "invalid_estimates": 17,
+    "mvp_centerline_available": 247,
+    "unsupported_road_curvature": 2
+  },
+  "cpu_by_process": [
+    {
+      "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51 ",
+      "n": 9,
+      "mean_percent": 73.46237475304318,
+      "min_percent": 69.93514734637533,
+      "max_percent": 77.27630556138708
+    },
+    {
+      "command": "python3 /home/ai4r/ai4r_student_workspace/install/ai4r_policy/lib/ai4r_policy/policy_node.py --ros-args -r __node:=ai4r_policy -r __ns:=/car --params-file /home/ai4r/ai4r_student_workspace/install/ai4r_policy/share/ai4r_policy/config/ai4r_policy.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/ai4r_policy/20261006T004005Z-35ac94a9-238e-4bab-8430-fd80bcc81b51/parameters.yaml ",
+      "n": 9,
+      "mean_percent": 32.235243560388184,
+      "min_percent": 29.341964688251494,
+      "max_percent": 36.951930043262934
+    },
+    {
+      "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/bno08x_imu_interface/20261006T004044Z-0c889e1e-c69a-4a40-b82f-28f522eda17a ",
+      "n": 9,
+      "mean_percent": 68.3753102107477,
+      "min_percent": 61.262410334883285,
+      "max_percent": 72.38540014610942
+    },
+    {
+      "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/traxxas_vehicle_interface/20261006T004047Z-cf370f54-66a4-4974-846f-35aae16cdf75 ",
+      "n": 9,
+      "mean_percent": 74.32413998407765,
+      "min_percent": 71.8511787805226,
+      "max_percent": 77.8702424827374
+    },
+    {
+      "command": "/home/ai4r/dream_system/ros2_ws/install/traxxas_vehicle_interface/lib/traxxas_vehicle_interface/traxxas_vehicle_interface --ros-args -r __node:=traxxas_vehicle_interface -r __ns:=/car --params-file /home/ai4r/dream_system/ros2_ws/install/traxxas_vehicle_interface/share/traxxas_vehicle_interface/config/defaults.yaml --params-file /home/ai4r/.local/state/dream/runtime/ai4r/traxxas_vehicle_interface/20261006T004047Z-cf370f54-66a4-4974-846f-35aae16cdf75/parameters.yaml ",
+      "n": 9,
+      "mean_percent": 11.24537707358694,
+      "min_percent": 9.733914710079045,
+      "max_percent": 13.613868963307398
+    },
+    {
+      "command": "/home/ai4r/.local/share/dream/venvs/ros2_jazzy/bin/python3 -B -m dream_command.runtime_runner --run-dir /home/ai4r/.local/state/dream/runtime/ai4r/oakd_cone_detector/20261006T004049Z-b12834e5-06d7-46c0-a34e-33b8b63f856d ",
+      "n": 9,
+      "mean_percent": 72.48095742619293,
+      "min_percent": 66.12450639320735,
+      "max_percent": 76.28910818945388
+    }
+  ],
+  "mean_of_four_runner_means_percent": 72.16069559351536,
+  "scan_benchmark": {
+    "before_scan_seconds": 0.07595921893332995,
+    "after_scan_seconds": 0.0017021590666672637,
+    "speedup": 44.625217713673514
+  },
+  "idle_counts": {
+    "wheel": 294,
+    "diag": 6,
+    "applied": 285,
+    "pan": 284,
+    "state": 57
+  },
+  "final_stop": {
+    "time_unix_s": 1791251009.626632,
+    "counts": {
+      "wheel": 271,
+      "vehicle": 54,
+      "applied": 270,
+      "policy": 9,
+      "requested": 88
+    },
+    "vehicle_states": [
+      "Disabled"
+    ],
+    "last_vehicle_state": "Disabled",
+    "policy_states": [
+      2
+    ],
+    "max_abs_wheel": 0.0,
+    "zero_requested": true,
+    "zero_applied": true
+  }
+}

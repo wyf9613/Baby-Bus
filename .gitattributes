@@ -1,1 +1,6 @@
 * text=auto eol=lf
+# Preserve recorded evidence bytes: manifests contain hashes of these files.
+docs/experiments/2026-10-15/evidence/planner-control/** -text whitespace=cr-at-eol
+docs/experiments/2026-10-15/evidence/shadow-reference-crop/** -text whitespace=cr-at-eol
+docs/experiments/2026-10-15/evidence/shadow-temporal/** -text whitespace=cr-at-eol
+tests/fixtures/shadow_temporal_recorded_run.json -text whitespace=cr-at-eol

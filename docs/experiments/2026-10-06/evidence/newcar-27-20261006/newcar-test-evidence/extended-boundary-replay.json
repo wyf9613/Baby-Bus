@@ -1,0 +1,871 @@
+[
+  {
+    "time": 1791250807.3323894,
+    "original_status": "observed",
+    "original_curve": -0.17796852621369239,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.15942102557602955,
+        "x_range_m": [
+          0.4860573221977643,
+          1.8464068866158594
+        ],
+        "fit_rms_m": 0.040598206479350224
+      },
+      "0.75": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.17796852621369239,
+        "x_range_m": [
+          0.4860573221977643,
+          2.1231514945818857
+        ],
+        "fit_rms_m": 0.040598206479350224
+      },
+      "0.8": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.09430247548828286,
+        "x_range_m": [
+          0.4860573221977643,
+          2.1231514945818857
+        ],
+        "fit_rms_m": 0.02009605763238057
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.08593296807977159,
+        "x_range_m": [
+          0.4860573221977643,
+          1.179916131640871
+        ],
+        "fit_rms_m": 0.022938897151244954
+      }
+    }
+  },
+  {
+    "time": 1791250807.4342303,
+    "original_status": "observed",
+    "original_curve": -0.1790270652841568,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.1790270652841568,
+        "x_range_m": [
+          0.5086261358402263,
+          1.8357125082912695
+        ],
+        "fit_rms_m": 0.04367811302877001
+      },
+      "0.75": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.1790270652841568,
+        "x_range_m": [
+          0.5086261358402263,
+          1.8357125082912695
+        ],
+        "fit_rms_m": 0.04367811302877001
+      },
+      "0.8": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.18824905330569847,
+        "x_range_m": [
+          0.5086261358402263,
+          2.158464240522583
+        ],
+        "fit_rms_m": 0.04367811302877001
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.1353335457167128,
+        "x_range_m": [
+          0.5086261358402263,
+          1.1640981172574962
+        ],
+        "fit_rms_m": 0.03647385876563321
+      }
+    }
+  },
+  {
+    "time": 1791250807.5248768,
+    "original_status": "observed",
+    "original_curve": -0.18270635348128425,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.75": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.18270635348128425,
+        "x_range_m": [
+          0.5234124575160093,
+          1.8067481003442005
+        ],
+        "fit_rms_m": 0.05031382338333363
+      },
+      "0.8": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.18270635348128425,
+        "x_range_m": [
+          0.5234124575160093,
+          1.8067481003442005
+        ],
+        "fit_rms_m": 0.05031382338333363
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.19773975221189008,
+        "x_range_m": [
+          0.5234124575160093,
+          2.1520974673954885
+        ],
+        "fit_rms_m": 0.05289911929834997
+      }
+    }
+  },
+  {
+    "time": 1791250807.6323237,
+    "original_status": "observed",
+    "original_curve": -0.1770030782269791,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.062417741996961845,
+        "x_range_m": [
+          0.4995853653771958,
+          1.7835923160459592
+        ],
+        "fit_rms_m": 0.03812520664173806
+      },
+      "0.7": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.09254649683429116,
+        "x_range_m": [
+          0.4995853653771958,
+          1.7835923160459592
+        ],
+        "fit_rms_m": 0.06115526519064744
+      },
+      "0.75": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.1770030782269791,
+        "x_range_m": [
+          0.4995853653771958,
+          1.7835923160459592
+        ],
+        "fit_rms_m": 0.04595727815017225
+      },
+      "0.8": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.19554271364000084,
+        "x_range_m": [
+          0.4995853653771958,
+          2.069703797503798
+        ],
+        "fit_rms_m": 0.048433740538264276
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.21207025730781803,
+        "x_range_m": [
+          0.4995853653771958,
+          2.069703797503798
+        ],
+        "fit_rms_m": 0.04068882652094712
+      }
+    }
+  },
+  {
+    "time": 1791250807.7380958,
+    "original_status": "observed",
+    "original_curve": -0.06118241127946376,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.039155015460197444,
+        "x_range_m": [
+          0.4771574519123635,
+          1.797315936495146
+        ],
+        "fit_rms_m": 0.041074439290362634
+      },
+      "0.7": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.06161084560860845,
+        "x_range_m": [
+          0.4771574519123635,
+          1.797315936495146
+        ],
+        "fit_rms_m": 0.0638819755008986
+      },
+      "0.75": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.06118241127946376,
+        "x_range_m": [
+          0.4771574519123635,
+          1.797315936495146
+        ],
+        "fit_rms_m": 0.03845641543007355
+      },
+      "0.8": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.08784096355200878,
+        "x_range_m": [
+          0.4771574519123635,
+          2.0566229843169386
+        ],
+        "fit_rms_m": 0.03845641543007355
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.16577240956252906,
+        "x_range_m": [
+          0.4771574519123635,
+          1.797315936495146
+        ],
+        "fit_rms_m": 0.03444256630170141
+      }
+    }
+  },
+  {
+    "time": 1791250807.8214543,
+    "original_status": "observed",
+    "original_curve": -0.07527704485013498,
+    "comparisons": {
+      "0.5": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.034373701698667145,
+        "x_range_m": [
+          0.47515425987799575,
+          1.763078532319394
+        ],
+        "fit_rms_m": 0.015853755429057776
+      },
+      "0.6": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.08686863481081644,
+        "x_range_m": [
+          0.47515425987799575,
+          1.763078532319394
+        ],
+        "fit_rms_m": 0.05573775300848969
+      },
+      "0.7": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.09544748902260775,
+        "x_range_m": [
+          0.47515425987799575,
+          2.0273571640684
+        ],
+        "fit_rms_m": 0.05573775300848969
+      },
+      "0.75": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.07527704485013498,
+        "x_range_m": [
+          0.47515425987799575,
+          1.8911469970434478
+        ],
+        "fit_rms_m": 0.015718382854296952
+      },
+      "0.8": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.08580656878419772,
+        "x_range_m": [
+          0.5381652260588267,
+          1.8911469970434478
+        ],
+        "fit_rms_m": 0.015718382854296952
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.07881721504221391,
+        "x_range_m": [
+          0.5381652260588267,
+          1.763078532319394
+        ],
+        "fit_rms_m": 0.012032741339711031
+      }
+    }
+  },
+  {
+    "time": 1791250807.9205456,
+    "original_status": "single_side_width_unknown",
+    "original_curve": null,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.75": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.8": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.85": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      }
+    }
+  },
+  {
+    "time": 1791250808.0295098,
+    "original_status": "single_side_width_unknown",
+    "original_curve": null,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.75": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.8": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.20304669462302238,
+        "x_range_m": [
+          0.49829792916107096,
+          1.9688266683310593
+        ],
+        "fit_rms_m": 0.0383528404436234
+      }
+    }
+  },
+  {
+    "time": 1791250808.1259694,
+    "original_status": "single_side_width_unknown",
+    "original_curve": null,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.75": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.8": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.20403793077777646,
+        "x_range_m": [
+          0.48883471628094277,
+          1.9612082060212672
+        ],
+        "fit_rms_m": 0.03666449699973859
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.20578186585380723,
+        "x_range_m": [
+          0.48883471628094277,
+          1.9612082060212672
+        ],
+        "fit_rms_m": 0.039083474114595396
+      }
+    }
+  },
+  {
+    "time": 1791250808.228786,
+    "original_status": "single_side_width_unknown",
+    "original_curve": null,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.75": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.8": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.1464784771977002,
+        "x_range_m": [
+          0.4815708567597138,
+          1.7451914656370562
+        ],
+        "fit_rms_m": 0.019568287320583046
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.12277166521511262,
+        "x_range_m": [
+          0.4815708567597138,
+          1.6892636707421027
+        ],
+        "fit_rms_m": 0.019754616395676754
+      }
+    }
+  },
+  {
+    "time": 1791250808.3185675,
+    "original_status": "single_side_width_unknown",
+    "original_curve": null,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.75": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.8": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.85": {
+        "valid": true,
+        "status": "observed",
+        "visibility": "both",
+        "local_curvature_1pm": -0.24546618261585973,
+        "x_range_m": [
+          0.4960870379294552,
+          1.9180965579945193
+        ],
+        "fit_rms_m": 0.02857757182747898
+      }
+    }
+  },
+  {
+    "time": 1791250808.4309576,
+    "original_status": "single_side_width_unknown",
+    "original_curve": null,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.75": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.8": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.85": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      }
+    }
+  },
+  {
+    "time": 1791250808.5270777,
+    "original_status": "single_side_width_unknown",
+    "original_curve": null,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.75": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.8": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.85": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      }
+    }
+  },
+  {
+    "time": 1791250808.6310947,
+    "original_status": "single_side_width_unknown",
+    "original_curve": null,
+    "comparisons": {
+      "0.5": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.6": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.7": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.75": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.8": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      },
+      "0.85": {
+        "valid": false,
+        "status": "single_side_width_unknown",
+        "visibility": "right_only",
+        "local_curvature_1pm": null,
+        "x_range_m": null,
+        "fit_rms_m": null
+      }
+    }
+  }
+]

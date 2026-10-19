@@ -1,0 +1,12 @@
+[INFO] [1791248318.485718431] [car.ai4r_policy]: Policy update source: timer; required sensors: ['cone_detections', 'wheel_speed', 'imu_angular_velocity']; namespace: /car
+[WARN] [1791248324.573463153] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248333.032914133] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248365.179628430] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248369.489493708] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248403.929179667] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248410.755113095] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248425.900778057] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248439.603057290] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248447.729671551] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248466.208701776] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample
+[WARN] [1791248472.954266370] [car.ai4r_policy]: Ignoring stale, future, repeated, or out-of-order imu_specific_force sample

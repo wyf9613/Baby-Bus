@@ -1,0 +1,83 @@
+ERROR: BNO08x firmware: host rejected
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/lib/python3.12/unittest/__main__.py", line 18, in <module>
+    main(module=None)
+  File "/usr/lib/python3.12/unittest/main.py", line 105, in __init__
+    self.runTests()
+  File "/usr/lib/python3.12/unittest/main.py", line 281, in runTests
+    self.result = testRunner.run(self.test)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/unittest/runner.py", line 240, in run
+    test(result)
+  File "/usr/lib/python3.12/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/unittest/suite.py", line 122, in run
+    test(result)
+  File "/usr/lib/python3.12/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/unittest/suite.py", line 122, in run
+    test(result)
+  File "/usr/lib/python3.12/unittest/suite.py", line 84, in __call__
+    return self.run(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/unittest/suite.py", line 122, in run
+    test(result)
+  File "/usr/lib/python3.12/unittest/case.py", line 690, in __call__
+    return self.run(*args, **kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/unittest/case.py", line 634, in run
+    self._callTestMethod(testMethod)
+  File "/usr/lib/python3.12/unittest/case.py", line 589, in _callTestMethod
+    if method() is not None:
+       ^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/tests/command/test_runtime_process_contract.py", line 457, in test_interrupt_publishes_exact_utc_interval_once_and_never_escalates
+    result = f.backend.interrupt(f.run, f.unit, operation_id=OPERATION_ID_2, timeout_seconds=2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_process.py", line 221, in interrupt
+    observed = self._snapshot(run, unit, budget, now=now)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_process.py", line 322, in _snapshot
+    terminal = self._terminal(run, budget)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_process.py", line 397, in _terminal
+    result = budget.call(self._artifacts.read_process_result, run)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_process.py", line 60, in call
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 1432, in read_process_result
+    with self._open_exact_run(run) as loaded:
+  File "/usr/lib/python3.12/contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 1839, in _open_exact_run
+    with self._open_run(run.path, expected=run) as loaded:
+  File "/usr/lib/python3.12/contextlib.py", line 137, in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 1312, in _open_run
+    _validate_manager_run_tree(run_directory)
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 2908, in _validate_manager_run_tree
+    before = capture()
+             ^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 2905, in capture
+    return _capture_reserved_temporary_topology(directory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 3109, in _capture_reserved_temporary_topology
+    for name in _manager_scan_names(directory, allowance):
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 2881, in _manager_scan_names
+    return directory.scandir_names()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 678, in scandir_names
+    self.verify()
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 542, in verify
+    _require_directory_details(opened, "anchored runtime directory")
+  File "/tmp/dream-runner-fix-20261006/lib/dream_command/runtime_state.py", line 4550, in _require_directory_details
+    if stat.S_ISLNK(details.st_mode) or not stat.S_ISDIR(details.st_mode):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

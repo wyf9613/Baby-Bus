@@ -1,0 +1,80 @@
+{
+  "input": "docs/experiments/2026-10-14/evidence/car15/visualization4/run.jsonl",
+  "mode": "static geometry replay, not sensor-time or closed-loop replay",
+  "cone_records": 254,
+  "configuration": "current MVP2.1 YAML",
+  "controller_history": "zero initial filter/integral in each hypothetical candidate; real controller history not replayed",
+  "samples": [
+    {
+      "cone_record_index": 0,
+      "status": "VALID",
+      "candidate_count": 48,
+      "feasible_count": 48,
+      "speed_mps": 0.0,
+      "check_length_m": 0.0,
+      "elapsed_s": 0.16930909996153787,
+      "known_boundary_sides": [
+        "left",
+        "right"
+      ],
+      "road_status": "observed",
+      "preparation_offset_m": 0.050563326544232685
+    },
+    {
+      "cone_record_index": 65,
+      "status": "VALID",
+      "candidate_count": 48,
+      "feasible_count": 48,
+      "speed_mps": 0.22112992405891418,
+      "check_length_m": 0.24324291646480561,
+      "elapsed_s": 0.20566499995766208,
+      "known_boundary_sides": [
+        "left"
+      ],
+      "road_status": "single_side_inferred",
+      "preparation_offset_m": 0.08577981630709473
+    },
+    {
+      "cone_record_index": 130,
+      "status": "VALID",
+      "candidate_count": 48,
+      "feasible_count": 48,
+      "speed_mps": 0.176059290766716,
+      "check_length_m": 0.1936652198433876,
+      "elapsed_s": 0.18892420001793653,
+      "known_boundary_sides": [
+        "left",
+        "right"
+      ],
+      "road_status": "observed",
+      "preparation_offset_m": -0.025745478483098688
+    },
+    {
+      "cone_record_index": 195,
+      "status": "VALID",
+      "candidate_count": 48,
+      "feasible_count": 48,
+      "speed_mps": 0.1965264081954956,
+      "check_length_m": 0.21617904901504517,
+      "elapsed_s": 0.18089469999540597,
+      "known_boundary_sides": [
+        "left",
+        "right"
+      ],
+      "road_status": "observed",
+      "preparation_offset_m": -0.008003620801182824
+    },
+    {
+      "cone_record_index": 253,
+      "status": "NO_ROAD",
+      "candidate_count": null,
+      "feasible_count": null,
+      "speed_mps": null,
+      "check_length_m": null,
+      "elapsed_s": null,
+      "known_boundary_sides": null,
+      "road_status": null,
+      "preparation_offset_m": null
+    }
+  ]
+}

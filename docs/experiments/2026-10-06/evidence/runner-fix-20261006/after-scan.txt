@@ -1,0 +1,70 @@
+Tue Oct  6 11:37:15 2026    /home/ai4r/runner-fix-evidence/after-scan.pstats
+
+         113311 function calls in 0.117 seconds
+
+   Ordered by: cumulative time
+   List reduced from 58 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+       30    0.011    0.000    0.117    0.004 runtime_runner.py:181(group_members)
+    18150    0.016    0.000    0.052    0.000 __init__.py:169(fullmatch)
+     8070    0.016    0.000    0.045    0.000 runtime_runner.py:146(_proc_pids)
+     8460    0.011    0.000    0.037    0.000 runtime_runner.py:84(_proc_integer)
+    18150    0.015    0.000    0.023    0.000 __init__.py:280(_compile)
+       30    0.001    0.000    0.018    0.001 runtime_runner.py:160(identity)
+    18150    0.013    0.000    0.013    0.000 {method 'fullmatch' of 're.Pattern' objects}
+       90    0.001    0.000    0.009    0.000 runtime_runner.py:138(_read_proc_text)
+    18690    0.008    0.000    0.008    0.000 {built-in method builtins.isinstance}
+     8040    0.008    0.000    0.008    0.000 {built-in method posix.getpgid}
+       90    0.000    0.000    0.006    0.000 pathlib.py:1007(open)
+       90    0.002    0.000    0.006    0.000 {built-in method _io.open}
+       30    0.002    0.000    0.004    0.000 runtime_runner.py:105(_parse_status)
+      120    0.000    0.000    0.004    0.000 pathlib.py:447(__fspath__)
+      120    0.001    0.000    0.004    0.000 pathlib.py:437(__str__)
+       90    0.000    0.000    0.003    0.000 pathlib.py:551(drive)
+       90    0.000    0.000    0.002    0.000 pathlib.py:407(_load_parts)
+       60    0.000    0.000    0.002    0.000 runtime_runner.py:90(_parse_stat)
+      120    0.000    0.000    0.002    0.000 pathlib.py:719(__truediv__)
+      120    0.000    0.000    0.002    0.000 pathlib.py:711(joinpath)
+     8820    0.002    0.000    0.002    0.000 {built-in method builtins.len}
+       90    0.002    0.000    0.002    0.000 {method 'read' of '_io.BufferedReader' objects}
+      120    0.000    0.000    0.002    0.000 pathlib.py:380(with_segments)
+      120    0.000    0.000    0.001    0.000 pathlib.py:1159(__init__)
+      270    0.000    0.000    0.001    0.000 runtime_runner.py:112(<genexpr>)
+       90    0.001    0.000    0.001    0.000 pathlib.py:387(_parse_path)
+      120    0.001    0.000    0.001    0.000 pathlib.py:357(__init__)
+       90    0.001    0.000    0.001    0.000 <frozen posixpath>:71(join)
+     1770    0.001    0.000    0.001    0.000 {method 'partition' of 'str' objects}
+       90    0.001    0.000    0.001    0.000 {method '__exit__' of '_io._IOBase' objects}
+
+
+Tue Oct  6 11:37:15 2026    /home/ai4r/runner-fix-evidence/after-scan.pstats
+
+         113311 function calls in 0.117 seconds
+
+   Ordered by: internal time
+   List reduced from 58 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    18150    0.016    0.000    0.052    0.000 __init__.py:169(fullmatch)
+     8070    0.016    0.000    0.045    0.000 runtime_runner.py:146(_proc_pids)
+    18150    0.015    0.000    0.023    0.000 __init__.py:280(_compile)
+    18150    0.013    0.000    0.013    0.000 {method 'fullmatch' of 're.Pattern' objects}
+     8460    0.011    0.000    0.037    0.000 runtime_runner.py:84(_proc_integer)
+       30    0.011    0.000    0.117    0.004 runtime_runner.py:181(group_members)
+    18690    0.008    0.000    0.008    0.000 {built-in method builtins.isinstance}
+     8040    0.008    0.000    0.008    0.000 {built-in method posix.getpgid}
+       90    0.002    0.000    0.006    0.000 {built-in method _io.open}
+     8820    0.002    0.000    0.002    0.000 {built-in method builtins.len}
+       90    0.002    0.000    0.002    0.000 {method 'read' of '_io.BufferedReader' objects}
+       30    0.002    0.000    0.004    0.000 runtime_runner.py:105(_parse_status)
+     1770    0.001    0.000    0.001    0.000 {method 'partition' of 'str' objects}
+       30    0.001    0.000    0.018    0.001 runtime_runner.py:160(identity)
+       90    0.001    0.000    0.001    0.000 {method '__exit__' of '_io._IOBase' objects}
+      120    0.001    0.000    0.004    0.000 pathlib.py:437(__str__)
+      120    0.001    0.000    0.001    0.000 pathlib.py:357(__init__)
+       90    0.001    0.000    0.001    0.000 pathlib.py:387(_parse_path)
+       90    0.001    0.000    0.001    0.000 <frozen posixpath>:71(join)
+       90    0.001    0.000    0.009    0.000 runtime_runner.py:138(_read_proc_text)
+
+

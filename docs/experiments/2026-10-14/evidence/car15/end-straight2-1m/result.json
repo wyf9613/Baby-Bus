@@ -1,0 +1,51 @@
+{
+  "result": "completed",
+  "stop_reason": "Publishing zero actions: End straight distance reached; explicit resume required",
+  "run_seconds": 24.594376703999842,
+  "seen_active": true,
+  "final_steering_trim": 0.0,
+  "nonempty_path_messages": 150,
+  "max_path_points": 35,
+  "trajectory_cleared": false,
+  "stop_telemetry_confirmed": true,
+  "imu_diagnostics": {
+    "message": "none",
+    "firmware.lifecycle_state": "CALIBRATING",
+    "host_publication_ready": "true",
+    "reason": "none"
+  },
+  "max_wheel_speed_mps": 0.3367760479450226,
+  "max_requested_drive": 0.3499999940395355,
+  "max_distance_debug_m": 4.862828731536865,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "final_policy_text": "Publishing zero actions: End straight distance reached; explicit resume required",
+  "vehicle_diagnostics": {
+    "state": "Disabled",
+    "reason": "disable requested",
+    "connected": "1",
+    "ready": "1",
+    "connection_attempts": "3",
+    "session_id": "3",
+    "rc_drive_status": "1",
+    "rc_steer_status": "1",
+    "selected_source": "2",
+    "host_seq": "52670",
+    "host_fresh": "1",
+    "host_permitted": "1",
+    "applied_drive_normalized": "0.000000",
+    "applied_steer_normalized": "0.000000",
+    "steering_trim": "0.000000",
+    "rc_steer_us": "1488",
+    "drive_pwm_us": "1500",
+    "rc_drive_us": "1508",
+    "last_positive_vehicle_ack": "52671",
+    "last_written_vehicle_command": null
+  },
+  "latest_cones": {
+    "counts": {},
+    "stamp_s": 1791958161.9384694,
+    "latency_s": 0.182296363,
+    "positions": []
+  }
+}

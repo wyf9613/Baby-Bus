@@ -1,0 +1,69 @@
+{
+  "trial": "visualization4",
+  "run_seconds": 19.746044987999994,
+  "wheel_integral_m": 3.816903591156006,
+  "peak_wheel_speed_mps": 0.30968230962753296,
+  "stop_reason": "Publishing zero actions: Planning: invalid_road_insufficient_geometry",
+  "stop_telemetry_confirmed": true,
+  "final_policy_state": 2,
+  "final_vehicle_state": "Disabled",
+  "live_trim_values": [
+    0.0
+  ],
+  "trim_set_or_increment_commands_recorded": 0,
+  "median_applied_steer_minus_0_8_requested": 3.634318709372364e-05,
+  "matched_samples": 178,
+  "tracking_source_counts": {
+    "two_boundaries": 27,
+    "left_boundary_inward_offset": 8,
+    "right_boundary_inward_offset": 2
+  },
+  "tracking_samples": 37,
+  "nonempty_paths": 147,
+  "maximum_path_points": 34,
+  "path_clear_recorded": false,
+  "last_recorder_frame_before_stop": {
+    "counts": {
+      "2": 2,
+      "1": 2
+    },
+    "stamp_s": 1791956153.3484235,
+    "latency_s": 0.19163364,
+    "positions": [
+      [
+        0.6519648693746444,
+        -0.4218406066894531,
+        0.059568465879307364,
+        2,
+        0.95703125
+      ],
+      [
+        0.5949197552915066,
+        0.4772392272949219,
+        0.01650441128946495,
+        1,
+        0.94970703125
+      ],
+      [
+        0.8043398877865474,
+        0.5297283935546877,
+        0.03086528456141252,
+        1,
+        0.94482421875
+      ],
+      [
+        0.8548058287573163,
+        -0.41140493774414055,
+        0.07513543549222307,
+        2,
+        0.9404296875
+      ]
+    ]
+  },
+  "last_frame_x_spans_m": {
+    "1": 0.20942013249504077,
+    "2": 0.20284095938267188
+  },
+  "operator_feedback": "完美完美，直接push这版本",
+  "limitations": "One retest with positive on-site bend feedback. Wheel integral and internal errors are not independent position ground truth. Stop recorder frame is not proven identical to the policy-consumed fault frame. Path clear was not confirmed in this run. No repeated-lap acceptance."
+}

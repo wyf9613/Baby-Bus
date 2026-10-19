@@ -1,0 +1,3 @@
+[INFO] [launch]: All log files can be found below /home/ai4r/.local/state/dream/runtime/ai4r/traxxas_vehicle_interface/20261006T010556Z-1c9364d2-94eb-458f-8623-fcf53802dba1/ros_logs/2026-10-06-12-05-58-520564-localhost.localdomain-5632
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [traxxas_vehicle_interface-1]: process started with pid [5705]

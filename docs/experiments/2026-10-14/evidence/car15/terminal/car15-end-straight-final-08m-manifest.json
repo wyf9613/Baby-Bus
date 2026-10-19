@@ -1,0 +1,36 @@
+{
+  "base_commit": "a38a4d79a0574cf1c70b38b132aca11ff963e154",
+  "deployed": true,
+  "configuration": {
+    "control.end_straight_distance_m": 0.8,
+    "control.end_straight_drive_normalized": 0.3,
+    "control.end_straight_max_time_s": 8.0
+  },
+  "telemetry": {
+    "vehicle": "Disabled",
+    "wheel": 0.0,
+    "trim": 0.0,
+    "applied": [
+      0.0,
+      0.0
+    ],
+    "policy": 2
+  },
+  "driving_requested_for_final_tuning": false,
+  "physical_test": "not run at 0.80 m by user request; prior 0.30 m and 1.0 m trials reached terminal distance stop",
+  "latest_gate": {
+    "configuration": "1.0 m / drive 0.30 / timeout 8 s",
+    "checks": 258,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "repeated_after_08m_tuning": false
+  },
+  "files": {
+    "scripts/policy_node.py": "79505042755c81f0434370ccd7f7275887125d5dd09d6eec9b82da71fb454d2f",
+    "config/ai4r_policy.yaml": "b5c475e29955ee05cd2d9e49129f972041b3eb3f481e6bdaf919b093c665c92f",
+    "package.xml": "d8b3ae10c4dfc938b94c9704866ab288a36670846285dbfb77d16dc58fb367f9",
+    "tests/test_centerline_follow.py": "b84e25177eb116cc41fa14529224c1b722dd1a05414d3241dc87422157c80777",
+    "tests/test_policy_node.py": "efd0d5579b7570aba0c2f582e389a5fea69cc82b085184d166154b55f7a26e55"
+  }
+}

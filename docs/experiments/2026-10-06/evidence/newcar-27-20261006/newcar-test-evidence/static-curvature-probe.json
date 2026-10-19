@@ -1,0 +1,119 @@
+[
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.027153761488865866,
+    "x_range_m": [
+      0.6265102099411866,
+      1.8528167487482317
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.02996036800736431,
+    "x_range_m": [
+      0.6200731685005697,
+      1.854763756966165
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.016838579819064108,
+    "x_range_m": [
+      0.6192042254547614,
+      1.8625905850540567
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.036345431422286446,
+    "x_range_m": [
+      0.6229849185981581,
+      1.854763756966165
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.02902769018191315,
+    "x_range_m": [
+      0.6273969483140963,
+      1.8625905850540567
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.019627094496079644,
+    "x_range_m": [
+      0.624743271531304,
+      1.866527620363946
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.022776105924767073,
+    "x_range_m": [
+      0.6285825835427509,
+      1.8625905850540567
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.0219926379444615,
+    "x_range_m": [
+      0.6303683418286617,
+      1.8567146342786192
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.03449832429551976,
+    "x_range_m": [
+      0.6238630147923973,
+      1.8645571785993669
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.037587971549799946,
+    "x_range_m": [
+      0.6303683418286617,
+      1.8685020772444974
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.04409213568918132,
+    "x_range_m": [
+      0.6183373302021039,
+      1.8645571785993669
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.029925526606804233,
+    "x_range_m": [
+      0.6265102099411866,
+      1.8567146342786194
+    ]
+  },
+  {
+    "valid": true,
+    "status": "observed",
+    "local_curvature_1pm": 0.019124523617017292,
+    "x_range_m": [
+      0.6229849185981581,
+      1.8586693806855954
+    ]
+  }
+]

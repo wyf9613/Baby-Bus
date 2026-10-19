@@ -1,0 +1,36 @@
+{
+  "trial": "end-straight2-1m",
+  "run_seconds": 24.594376703999842,
+  "total_wheel_integral_m": 4.862828731536865,
+  "stop_reason": "Publishing zero actions: End straight distance reached; explicit resume required",
+  "terminal_duration_receipt_s": 4.639445543289185,
+  "terminal_started_run_seconds": 19.954916954040527,
+  "first_distance_after_terminal_marker_m": 3.8596081733703613,
+  "last_distance_before_terminal_marker_m": 3.828427791595459,
+  "observer_terminal_distance_range_m": [
+    1.003220558166504,
+    1.0344009399414062
+  ],
+  "terminal_command_samples": 35,
+  "terminal_drive_values": [
+    0.30000001192092896
+  ],
+  "terminal_steer_values": [
+    0.0
+  ],
+  "terminal_empty_path_messages": 36,
+  "tracking_source_counts": {
+    "two_boundaries": 28,
+    "left_boundary_inward_offset": 8,
+    "right_boundary_inward_offset": 2
+  },
+  "live_trim_values": [
+    0.0
+  ],
+  "stop_telemetry_confirmed": true,
+  "final_vehicle_state": "Disabled",
+  "final_policy_state": 2,
+  "fresh_post_stop_path_clear_confirmed": false,
+  "operator_feedback": "Requested final distance 0.8 m, no further trial; a more complex track will be tried later.",
+  "limitations": "Wheel integral is not independent physical position. Terminal marker and debug2 receipts are asynchronous; distance range brackets neighboring samples and is an observer estimate, not a precise policy activation odometer. Command samples exclude transition boundaries."
+}

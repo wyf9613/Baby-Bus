@@ -35,6 +35,22 @@ def fixture(offset=0.0, slope=0.0):
 
 
 class PlanningChecks(unittest.TestCase):
+    def test_mvp_reference_without_calibration_keeps_geometry_and_freshness_checks(self):
+        args = list(fixture(0.1, 0.05))
+        args[3] = {"valid": False, "source": "unmeasured"}
+        ref, diag = Planner(Settings()).plan(*args, mvp=True)
+        self.assertTrue(ref["valid"], ref["reason"])
+        self.assertEqual(ref["operating_profile"], "mvp_low_speed")
+        self.assertFalse(ref["simulation_only"])
+        self.assertEqual(ref["target_speed_mps"], 0.2)
+        self.assertFalse(diag["calibration_required"])
+        self.assertFalse(diag["stopping_model_enabled"])
+        args[0]["source_age_s"] = 0.2
+        self.assertFalse(Planner(Settings()).plan(*args, mvp=True)[0]["valid"])
+        args = list(fixture(0.3))
+        args[3] = {"valid": False}
+        self.assertFalse(Planner(Settings()).plan(*args, mvp=True)[0]["valid"])
+
     def test_offset_and_linear_coefficients_are_preserved(self):
         for offset in (-0.15, 0.0, 0.15):
             args = fixture(offset, 0.05)
@@ -136,15 +152,14 @@ class PlanningChecks(unittest.TestCase):
 
     def test_history_aligned_estimator_output_is_not_compensated_twice(self):
         args = api["input_record"](speed=0.1, yaw=0.0)
-        xs = [0.2+0.1*i for i in range(27)]
+        xs = [-0.3+0.1*i for i in range(32)]
         args[0]["cone_detections"] = api["cones"](
-            [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
+            [(x, 0.5) for x in xs if x >= 0.5], [(x, -0.5) for x in xs if x >= 0.5])
         # Forward-only startup has no observed support at the body origin.
         # Reject it before testing same-epoch consumption of a valid corridor.
         front_only = api["Pipeline"](api["Settings"]()).update(*args, 10.05)
         self.assertFalse(front_only["road"]["valid"])
         self.assertEqual(front_only["road"]["status"], "near_field_unobserved")
-        xs = [-0.3, -0.2, -0.1, 0.0] + xs
         args[0]["cone_detections"] = api["cones"](
             [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
         out = api["Pipeline"](api["Settings"]()).update(*args, 10.05)
@@ -170,6 +185,9 @@ class PlanningChecks(unittest.TestCase):
 
     def test_actual_entry_with_simulation_limits_exports_reference_and_zero_actions(self):
         obs, ages, stamps, receipts = api["input_record"](speed=0.1, yaw=0.0)
+        xs = [-0.3+0.1*i for i in range(34)]
+        obs["cone_detections"] = api["cones"](
+            [(x, 0.5) for x in xs], [(x, -0.5) for x in xs])
         for key in ("fiducial_detections", "lidar_scan", "imu_orientation", "imu_specific_force"):
             obs[key] = None
         node = SimpleNamespace(estimation_settings=api["Settings"](), policy_frame_id="base_link",
@@ -244,7 +262,7 @@ class PlanningChecks(unittest.TestCase):
                 normal_right = (cy-(0.1+0.08*cx-0.5))/math.hypot(1, 0.08)
                 self.assertGreaterEqual(min(normal_left, normal_right), cfg.simulation_safety_margin_m)
 
-    def test_planning_yaml_matches_declared_defaults(self):
+    def test_planning_yaml_selects_valid_simple_follower_settings(self):
         # Restricted scalar subtree, parsed without ROS/PyYAML provisioning.
         import re
         config = Path(__file__).resolve().parents[1]/"config"/"ai4r_policy.yaml"
@@ -262,7 +280,12 @@ class PlanningChecks(unittest.TestCase):
             value = match[2]
             scalars[match[1]] = (value == "true" if value in ("true", "false") else
                                  float(value) if value[0] in "-0123456789" else value)
-        self.assertEqual(scalars, vars(Settings()))
+        self.assertTrue(set(scalars).issubset(vars(Settings())))
+        settings = Settings(**scalars)
+        self.assertEqual(settings.algorithm, "road_centerline")
+        self.assertEqual(settings.cruise_speed_mps, 0.2)
+        self.assertTrue(settings.allow_forward_only)
+        self.assertEqual(settings.max_source_age_s, 1.5)
 
 
 if __name__ == "__main__":

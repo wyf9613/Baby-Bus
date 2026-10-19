@@ -1,0 +1,20 @@
+{
+  "time_unix_s": 1791251009.626632,
+  "counts": {
+    "wheel": 271,
+    "vehicle": 54,
+    "applied": 270,
+    "policy": 9,
+    "requested": 88
+  },
+  "vehicle_states": [
+    "Disabled"
+  ],
+  "last_vehicle_state": "Disabled",
+  "policy_states": [
+    2
+  ],
+  "max_abs_wheel": 0.0,
+  "zero_requested": true,
+  "zero_applied": true
+}

@@ -1,0 +1,10 @@
+Composition: ai4r
+UNIT                       STATE    READINESS    DETAIL
+foxglove_bridge            stopped  not_checked  stopped
+rplidar_c1                 stopped  not_checked  stopped
+bno08x_imu_interface       running  not_checked
+traxxas_vehicle_interface  running  not_checked
+oakd_cone_detector         running  not_checked  debug images: off
+oakd_gpu_cone_detector     stopped  not_checked  stopped
+aruco_detector             stopped  not_checked
+ai4r_policy                running  not_checked

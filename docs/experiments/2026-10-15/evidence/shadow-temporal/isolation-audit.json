@@ -1,0 +1,34 @@
+{
+  "base_commit": "0c8593a087f8f26229f9aa7277459285ff1c3521",
+  "previous_shadow_commit": "f11428b5444ac4c714a95e86e71662086b3187bd",
+  "source_sha256": "62b624acd8108af58cf8faadd385cf7bf10942149925b167911351d63f0c8a02",
+  "baseline_classes_identical": {
+    "EstimationSettings": true,
+    "EstimationPipeline": true,
+    "EstimationMotionHistory": true,
+    "PlanningSettings": true,
+    "RoadCenterlinePlanner": true,
+    "ControlSettings": true,
+    "ControlPID": true,
+    "PolicyController": true,
+    "RunDistanceLimiter": true
+  },
+  "baseline_methods_identical": {
+    "calculate_policy_actions": true,
+    "_publish_actions": true,
+    "publish_zero_actions": true,
+    "supervision_callback": true,
+    "_control_health_problem": true,
+    "_control_problem": true,
+    "fsm_transition_request_callback": true
+  },
+  "original_shadow_geometry_algorithm_identical": true,
+  "run_policy_step_identical_to_previous_shadow": true,
+  "yaml_existing_values_unchanged": true,
+  "launch_identical": true,
+  "shadow_writes_to_baseline": [],
+  "shadow_actuator_calls": [],
+  "executable_line_endings": "LF",
+  "ros_gate": "not run: user requested no ROS gate",
+  "deployment": "not run"
+}
