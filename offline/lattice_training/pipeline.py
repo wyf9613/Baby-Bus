@@ -45,6 +45,10 @@ class PipelineSettings:
     initial_start_mode: str = 'default'
     use_scenario_width_prior: bool = False
     obstacle_layout: str | None = None
+    cruise_speed_mps: float = .2
+    random_selection_probability: float = 1.0
+    width_range_m: tuple | None = None
+    single_side_dropout_probability: float = 0.0
 
     def __post_init__(self):
         known = {"randomized", "straight", "left_curve", "right_curve", "obstacle", "blocked", *SUITE_KINDS, *VALIDATION_KINDS}
@@ -79,12 +83,18 @@ class PipelineSettings:
             raise ValueError('terminal_support_m must be nonnegative')
         if self.road_input_mode not in {'perception', 'no_centerline'}:
             raise ValueError('Invalid road-input mode')
-        if self.initial_start_mode not in {'default', 'road_start'}:
+        if self.initial_start_mode not in {'default', 'road_start', 'stratified_random'}:
             raise ValueError('Invalid initial-start mode')
         if not isinstance(self.use_scenario_width_prior, bool):
             raise ValueError('Scenario width prior must be boolean')
         if self.obstacle_layout not in (None, 'near_center_alternating'):
             raise ValueError('Invalid explicit obstacle layout')
+        if not math.isfinite(self.cruise_speed_mps) or self.cruise_speed_mps<=0:
+            raise ValueError('Invalid collection cruise speed')
+        for value in (self.random_selection_probability,self.single_side_dropout_probability):
+            if not math.isfinite(value) or not 0<=value<=1:raise ValueError('Invalid collection probability')
+        if self.width_range_m is not None and (len(self.width_range_m)!=2 or
+                not 0<self.width_range_m[0]<=self.width_range_m[1]):raise ValueError('Invalid random road width range')
 
 
 def initial_progress_intervals(spec, body, *, low, high, margin_m=.02):
@@ -128,7 +138,8 @@ def draw_progress(rng, intervals):
 
 def make_environment(kind, seed, *, max_steps, initial_index=0, initial_count=1,
                      initialization_attempt=0, road_settings=None, initial_safety_margin_m=.02, terminal_support_m=0.,
-                     initial_start_mode='default', use_scenario_width_prior=False, obstacle_layout=None):
+                     initial_start_mode='default', use_scenario_width_prior=False, obstacle_layout=None,
+                     width_range_m=None,single_side_dropout_probability=0.):
     """Vary scene/initial conditions; preserve notebook vehicle and RK4 parameters."""
     if kind not in {"randomized", "straight", "left_curve", "right_curve", "obstacle", "blocked", *SUITE_KINDS, *VALIDATION_KINDS}:
         raise ValueError("Unknown scene kind")
@@ -206,7 +217,34 @@ def make_environment(kind, seed, *, max_steps, initial_index=0, initial_count=1,
         config.road_spec['obstacles'] = [dict(geometry=dict(type='rectangle', length_m=.26, width_m=.20),
             placement=dict(reference_line_progress_m=station, lateral_offset_m=first_side*(-1)**index*.12,
                            heading_offset_rad=0.)) for index, station in enumerate((1.8, length-1.8))]
+    variation=None
+    if width_range_m is not None or single_side_dropout_probability:
+        from .scenarios import vary_road
+        config.road_spec,variation=vary_road(config.road_spec,seed,width_range_m=width_range_m,
+            dropout_probability=single_side_dropout_probability,uturn=kind.startswith('uturn'))
     route_length = road_length(config.road_spec)
+    initial_sampling=None
+    if initial_start_mode == 'stratified_random':
+        # Draw once from physical road support after geometry/width variation.
+        # Perception/planner/C* rejection never selects a different initial state.
+        episode_seed=int(np.random.SeedSequence([seed,initial_index,initialization_attempt]).generate_state(1)[0])
+        initial_rng=np.random.default_rng(episode_seed)
+        goal=route_length-body['front_extent_from_center_of_mass_m']-.2
+        maximum=goal-1.5
+        if maximum<=safe_start:raise ValueError('Road is too short for stratified collection starts')
+        low=safe_start+(maximum-safe_start)*initial_index/initial_count
+        high=safe_start+(maximum-safe_start)*(initial_index+1)/initial_count
+        intervals=initial_progress_intervals(config.road_spec,body,low=low,high=high,margin_m=initial_safety_margin_m)
+        start=draw_progress(initial_rng,intervals)
+        config.initial_state_config['pose']['progress'].update(lower=start,upper=start)
+        offset=float(initial_rng.uniform(-.12,.12));heading=float(initial_rng.uniform(-.035,.035))
+        speed=float(initial_rng.uniform(.08,.25))
+        config.initial_state_config['pose']['lateral_offset_m'].update(lower=offset,upper=offset)
+        config.initial_state_config['pose']['heading_error_rad'].update(lower=heading,upper=heading)
+        config.initial_state_config['body_motion']['longitudinal_velocity']['value_mps'].update(lower=speed,upper=speed)
+        initial_sampling=dict(mode=initial_start_mode,stratum_index=initial_index,strata=initial_count,
+            stratum_bounds_m=[low,high],physical_intervals_m=intervals,drawn_progress_m=start,
+            maximum_progress_m=maximum,minimum_remaining_to_goal_m=1.5,draws=1)
     config.road_spec = with_terminal_support(config.road_spec, terminal_support_m)
     from offline.mvp21_sim.source import parameters
     estimator_settings=parameters()['estimation']
@@ -219,6 +257,8 @@ def make_environment(kind, seed, *, max_steps, initial_index=0, initial_count=1,
         period_steps={"cone_detections": 2}, delay_steps={"cone_detections": 1}))
     environment.collection_route_length_m = route_length
     environment.collection_terminal_support_m = terminal_support_m
+    environment.collection_road_variation=variation
+    environment.collection_initial_sampling=initial_sampling
     if fixed_case is not None:
         environment.fixed_validation_case = fixed_case
     return environment
@@ -254,14 +294,14 @@ def make_planner(profile="standard", *, cruise_speed=.2, sample_count=None, rate
 
 
 
-def candidates_at(planner, observation, model=None):
+def candidates_at(planner, observation, model=None, *, hidden_state=None):
     condition = (model.provenance.get('execution_condition') or {}) if model is not None else {}
     if condition and not math.isclose(planner.settings.cruise_speed_mps,
                                      condition['cruise_speed_mps'], rel_tol=0., abs_tol=1e-9):
         raise ValueError('Untimed policy checkpoint requires its training cruise-speed condition')
     estimates=observation["estimation"]
     context=scene_features(observation) if model is not None else None
-    scorer=(lambda candidate:model.score(encode_candidate(observation,candidate,context=context))) if model is not None else None
+    scorer=(lambda candidate:model.step(encode_candidate(observation,candidate,context=context),hidden_state)[0]) if model is not None else None
     return planner.plan(estimates["road"],estimates["state"],estimates["obstacles"],estimates["vehicle_limits"],
         observation["timestamp_s"],source_timeout_s={"road":1.5,"wheel_speed":.25,"imu_angular_velocity":.25},
         collect_candidates=True,candidate_scorer=scorer)
@@ -276,7 +316,8 @@ def initialize_episode(kind, seed, initial_index, settings, objective, road_sett
         initial_index=initial_index, initial_count=settings.starts_per_road, road_settings=road_settings,
         initial_safety_margin_m=(solver_settings or SolverSettings()).safety_margin_m,
         terminal_support_m=settings.terminal_support_m, initial_start_mode=settings.initial_start_mode,
-        use_scenario_width_prior=settings.use_scenario_width_prior, obstacle_layout=settings.obstacle_layout)
+        use_scenario_width_prior=settings.use_scenario_width_prior, obstacle_layout=settings.obstacle_layout,
+        width_range_m=settings.width_range_m,single_side_dropout_probability=settings.single_side_dropout_probability)
     episode_seed = int(np.random.SeedSequence([seed, initial_index, 0]).generate_state(1)[0])
     observation, _ = environment.reset(seed=episode_seed if kind == "randomized" else seed)
     observation, _, terminated, truncated, _ = environment.step((0.0, 0.0))
@@ -287,6 +328,7 @@ def initialize_episode(kind, seed, initial_index, settings, objective, road_sett
         "physical_road_length_m": road_length(environment.config.road_spec),
         "terminal_support_m": settings.terminal_support_m,
         "known_lane_width_prior_m": environment.estimator.settings.known_lane_width_m,
+        "initial_sampling":getattr(environment,'collection_initial_sampling',None),
         "initial_region":terminal_region(environment,solver_settings or SolverSettings())}
 
 
@@ -294,6 +336,14 @@ def road_goal_progress(environment):
     """Same finite-road, body-safe destination for collection and evaluation."""
     length = getattr(environment, 'collection_route_length_m', road_length(environment.config.road_spec))
     return length-environment._backend.car._body_front_extent_from_center_of_mass_m-.2
+
+
+def balance_terminal_horizon(planner, remaining, nominal_length, nominal_preview):
+    """Share the offline full-path destination rule between collection and evaluation."""
+    if remaining <= 0:
+        raise ValueError('Terminal horizon requires positive remaining distance')
+    planner.cfg.length_m = remaining/math.ceil(remaining/nominal_length)
+    planner.settings.preview_m = min(nominal_preview, planner.cfg.length_m)
 
 
 def terminal_region(environment, solver_settings):
@@ -367,23 +417,26 @@ def simulate_segment(environment, candidate, solution, previous_action, objectiv
             transition["reason"] = "full_path_endpoint_not_reached"
             return None, transition
         transition["actual_loss"], transition["loss_terms"] = tracking_loss(
-            plan["states"],states,[row["action"] for row in trace],previous_action,objective)
+            plan["states"],states,[row["action"] for row in trace],previous_action,objective,
+            road_progress_m=checker.road_progress(states) if objective.road_progress_weight else None)
         transition["reason"] = None
         return branch.snapshot(), transition
 
 
 def sample_successor(environment, choices, solved, previous_action, objective, solver_settings,
-                     chooser, attempts):
+                     chooser, attempts, *, random_probability=1.0):
     """Uniform feasible-candidate order; accept only a complete legal replay.
 
     Failed solver results remain supervised examples, but cannot be executed to
     advance the state. No rule, policy or C* reward is used in the random draw.
     """
     transitions = []
-    eligible = [c for c in choices if solved[c['candidate_id']].get('status') == 'approximate']
+    behavior='random' if random_probability==1. or chooser.random()<random_probability else 'planner'
+    candidates=choices if behavior=='random' else choices[:1]
+    eligible = [c for c in candidates if solved[c['candidate_id']].get('status') == 'approximate']
     excluded = [c['candidate_id'] for c in choices if solved[c['candidate_id']].get('status') != 'approximate']
     if not eligible:
-        return None, None, dict(attempts=[], accepted=False, reason='no_cstar_feasible_successor',
+        return None, None, dict(attempts=[], accepted=False, reason='no_cstar_feasible_successor',behavior=behavior,
                                solver_excluded_candidate_ids=excluded, eligible_candidates=0)
     for index in chooser.permutation(len(eligible))[:attempts]:
         chosen = eligible[int(index)]
@@ -391,9 +444,9 @@ def sample_successor(environment, choices, solved, previous_action, objective, s
                                                 previous_action, objective, solver_settings)
         transitions.append(transition)
         if snapshot is not None:
-            return chosen, snapshot, dict(attempts=transitions, accepted=True, reason=None,
+            return chosen, snapshot, dict(attempts=transitions, accepted=True, reason=None,behavior=behavior,
                 solver_excluded_candidate_ids=excluded, eligible_candidates=len(eligible))
-    return None, None, dict(attempts=transitions, accepted=False,
+    return None, None, dict(attempts=transitions, accepted=False,behavior=behavior,
         reason='legal_successor_search_budget_exhausted' if attempts < len(eligible) else 'no_legal_executable_successor',
         solver_excluded_candidate_ids=excluded, eligible_candidates=len(eligible))
 
@@ -407,6 +460,9 @@ def _collection_label_source(settings, objective, solver_settings, road_settings
                 "initial_sampling_domain": "physical_free_space_v2",
                 "goal_progress_tolerance_m": objective.completion_tolerance_m,
                 "end_horizon": "remaining_goal_balanced_over_whole_native_segments"}
+    if settings.random_selection_probability!=1.:
+        sampling.update(selection='per_decision_bernoulli_random_or_native',random_probability=settings.random_selection_probability,
+                        no_policy_or_reward_selection=True,native_failure_fallback=False)
     return {"name": "internal_cstar_native_env", "version": INTERNAL_LABEL_VERSION, "execution_assumption": "cstar",
                     "solver_settings": asdict(solver_settings),
                     "objective_sha256": objective_hash(specification),
@@ -467,7 +523,7 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                             with environment:
                                 episode_started = time.perf_counter()
                                 planner = make_planner(profile, sample_count=settings.planner_sample_count,
-                                                       rate_hz=settings.planner_rate_hz)
+                                                       rate_hz=settings.planner_rate_hz,cruise_speed=settings.cruise_speed_mps)
                                 nominal_length, nominal_preview = planner.cfg.length_m, planner.settings.preview_m
                                 chooser = np.random.default_rng(initialization["episode_seed"])
                                 decisions, faults, previous_action, terminal_behavior = 0, [], (0.0, 0.0), None
@@ -495,9 +551,7 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                     if settings.until_road_end:
                                         # This only changes the offline native job. No path is refitted
                                         # or truncated, and the plant/control timestep stays unchanged.
-                                        remaining = goal-current
-                                        planner.cfg.length_m = remaining/math.ceil(remaining/nominal_length)
-                                        planner.settings.preview_m = min(nominal_preview, planner.cfg.length_m)
+                                        balance_terminal_horizon(planner, goal-current, nominal_length, nominal_preview)
                                     decision_started = time.perf_counter()
                                     observation = road_input(observation, settings.road_input_mode)
                                     reference, diagnostics = candidates_at(planner, observation)
@@ -531,7 +585,8 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                                 "decision_wall_s": time.perf_counter()-decision_started})
                                     successor_started = time.perf_counter()
                                     chosen, snapshot, successor = sample_successor(environment, choices, solved, previous_action,
-                                        objective, solver_settings, chooser, settings.segment_resampling_attempts)
+                                        objective, solver_settings, chooser, settings.segment_resampling_attempts,
+                                        random_probability=settings.random_selection_probability)
                                     timings["successor_s"] = time.perf_counter()-successor_started
                                     record = {"format": DECISION_FORMAT, "planner_source_sha256": planner_source_sha256(),
                                         "group_id": f"{episode_id}:segment:{segment}", "scene_id": base_id, "split": split,
@@ -542,7 +597,7 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                             "initial_start_mode": settings.initial_start_mode,
                                             "use_scenario_width_prior": settings.use_scenario_width_prior,
                                             "obstacle_layout": settings.obstacle_layout,
-                                            "initial_index": initial_index, "behavior": "uniform_random", "lattice_profile": profile,
+                                            "initial_index": initial_index, "behavior": successor['behavior'], "lattice_profile": profile,
                                             "road_length_m": initialization['route_length_m'],
                                             "physical_road_length_m": initialization['physical_road_length_m'],
                                             "terminal_support_m": settings.terminal_support_m,
@@ -601,7 +656,8 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                     "goal_remaining_m": goal-final_progress,
                                     "goal_progress_tolerance_m": objective.completion_tolerance_m,
                                     "wall_s": time.perf_counter()-episode_started,
-                                    "initialization": initialization, "behavior": "uniform_random", "lattice_profile": profile,
+                                    "initialization": initialization, "behavior": "uniform_random" if settings.random_selection_probability==1. else 'mixed_random_native', "lattice_profile": profile,
+                                    "road_variation":getattr(environment,'collection_road_variation',None),
                                     "road_input_mode": settings.road_input_mode, "kind": kind, "road_seed": seed,
                                     "initial_start_mode": settings.initial_start_mode,
                                     "use_scenario_width_prior": settings.use_scenario_width_prior,
@@ -784,7 +840,10 @@ def closed_loop_episode(kind, seed, model, objective, solver_settings, steps, *,
     settings = settings or replace(PipelineSettings(), kinds=(kind,), starts_per_road=1, evaluation_steps=steps)
     environment, _, initialization = initialize_episode(kind,seed,initial_index,settings,objective,road_settings,solver_settings)
     with environment:
-        evaluator=RoadEvaluation(environment, model=model, objective=objective, solver_settings=solver_settings, seed=seed, performance=performance_profile(seed + 1234))
+        evaluator=RoadEvaluation(environment, model=model, objective=objective, solver_settings=solver_settings, seed=seed,
+            performance=performance_profile(seed + 1234),cruise_speed=settings.cruise_speed_mps,
+            planner_sample_count=settings.planner_sample_count,planner_rate_hz=settings.planner_rate_hz,
+            balance_terminal=settings.until_road_end)
         report=evaluator.run(max_control_steps=steps)
     report.update(scene_id=f"{kind}:{seed}:initial:{initial_index}",initialization=initialization,
                   render_seed=initialization["episode_seed"] if kind=="randomized" else seed,
@@ -821,7 +880,7 @@ def evaluate_closed_loop(model, settings, objective, solver_settings, output, pr
 
 def run_pipeline(output, *, settings=None, objective=None, solver_settings=None,
                  epochs=150, hidden=32, seed=0, learning_rate=0.005, progress=None,
-                 road_settings=None):
+                 road_settings=None,recurrent=False,warm_start=None):
     settings = settings or PipelineSettings()
     objective = objective or CStarTrackingSettings()
     solver_settings = solver_settings or SolverSettings()
@@ -831,7 +890,7 @@ def run_pipeline(output, *, settings=None, objective=None, solver_settings=None,
     collection=json.loads((output/'decisions.collection.json').read_text(encoding='utf-8'))
     metadata=json.loads((output/'dataset'/'metadata.json').read_text(encoding='utf-8'))
     model, training = train_model(output / "dataset", output / "model.json", epochs=epochs,
-                                  hidden=hidden, seed=seed, learning_rate=learning_rate)
+                                  hidden=hidden, seed=seed, learning_rate=learning_rate,recurrent=recurrent,warm_start=warm_start)
     if progress:
         progress({"stage": "training_complete", "splits": training["splits"]})
     ranking = evaluate_policy(model, output / "dataset", output / "evaluation.json")

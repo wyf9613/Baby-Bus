@@ -7,6 +7,71 @@ C* remains a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
 Historical planner/controller/physical evidence below remains separate.
 
+## Multi-start recurrent retraining, 2026-10-19
+
+The new batch contains 36 physical roads, 144 stratified start attempts, 644
+decisions and 4982 candidates (3175/938/869 Train/Validation/Test). All starts of
+a physical road remain in one split. Earlier lower-budget labels are not merged.
+The external encoder, 1841-parameter RNN, sigmoid regression loss and 0.5 m/s
+execution condition remain unchanged. Fixed collected branches are replayed with
+current weights and BPTT. No main/default model path is replaced.
+
+An explicit optional checkpoint rule prioritizes Validation avoidable nominal
+C* failures, then raw return regret, then score RMSE, with rank-based patience.
+Warm-start learning rates 0.001/0.0002 and fresh initialization at 0.003 are
+compared on Validation. The selected warm 0.0002 run stops at 60 full-batch steps
+and retains step 2. Follow-up fitting uses a development dataset with no Test rows;
+automatically generated Test results from the initial run are not used to select.
+
+On the new Test set, exact-best choices improve only 66/108 to 67/108; avoidable
+failed selections stay at 3/108. Paired autonomous C* suffix evaluations complete
+5/6 families for both old and retrained models with identical trajectories;
+the right U-turn still fails. These random-start suffix results do not establish
+entrance-to-goal success or improvement over the different previous road batch.
+
+All 4982 recurrent scores survive save/load exactly; the old model and 56 protected
+files pass integrity checks. The pre-push portable regression passes 122 tests
+covering recurrent fitting, features, collection, runtime selection and modular
+validation. Staged checkpoint bytes match the evaluated local files. A separate short
+20 Hz perception/control, 1 Hz planner/policy MVP interface check completes with
+47 planner and 5 baseline reference uses; clock checks pass, native-only success
+is not claimed. The required ROS fast gate stops before build because the pinned
+dream_interfaces checkout is absent. No hardware test, main activation or push.
+See the local [retraining report](../offline/lattice_training/artifacts/2026-10-19-multistart-policy/REPORT_CN.md).
+
+## Recurrent fine tuning with speed/progress labels, 2026-10-19
+
+The external state/road/obstacle/path encoding is unchanged. The new 1841-parameter
+checkpoint adds a 16-channel recurrent state: all candidates share the preceding
+state, only the executed branch advances it, and training replays recorded branches
+with current weights and BPTT. Fine tuning starts from the preserved October 17
+checkpoint and normalization. New labels use a common 0.5 m/s reference plus signed
+road-reference progress in both C* optimization and actual replay scoring.
+
+Ninety-six seeded roads with randomized widths and physical partial single-side
+cone gaps yield 377 decisions and 2919 labels (2260 feasible nominal trials).
+Train/Validation/Test have 1861/440/618 candidate rows; failed labels are retained.
+Collection draws random/native choice independently per decision (195/182 draws).
+Only 34/96 collected roads complete; none of the 32 U-turn collection attempts
+reach the goal. This remains an incomplete source of later U-turn supervision.
+
+Validation RMSE selects epoch 300 without Test-based checkpoint choice. On 71
+Test decisions with multiple choices and a feasible option, exact-best C* selection
+is 35 versus native 18, while avoidable failure choices remain 7 for both. Memory
+reset changes no Test selections, so improvement is not attributed to recurrence.
+The matched eight-candidate, terminal-balanced paired C* evaluation completes
+3/6 road families for both selectors; U-turns and the sampled random road still
+fail. The separate default 48-candidate evaluation is not pooled with this result.
+
+All 2919 recurrent scores survive save/load exactly; the old checkpoint, 56
+protected files, native algorithms, common configuration and external feature
+encoder are unchanged. Portable regression evidence and the current-clock MVP
+controller interface check are recorded locally. The required ROS fast gate
+remains blocked before build on the missing pinned dream_interfaces checkout.
+No ROS/main policy activation, commit or push is part of this round. See the
+[workflow](../offline/lattice_training/RECURRENT_TRAINING_CN.md) and local
+[report](../offline/lattice_training/artifacts/2026-10-19-recurrent-policy/REPORT_CN.md).
+
 ## Observed single-boundary output, 2026-10-17
 
 The simulation branch now retains a successfully fitted ordered single boundary

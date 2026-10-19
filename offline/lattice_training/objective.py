@@ -34,6 +34,8 @@ class CStarTrackingSettings:
     stop_speed_tolerance_mps: float = 0.02
     stop_settle_s: float = 0.5
     failure_loss: float = 1e6
+    road_progress_weight: float = 0.0
+    road_progress_scale_m: float = 1.0
 
     def __post_init__(self):
         for name, value in asdict(self).items():
@@ -41,7 +43,7 @@ class CStarTrackingSettings:
                 raise ValueError(f"{name} must be finite")
             if value < 0 or (name not in {"heading_weight", "speed_weight", "drive_rate_weight",
                                          "steering_rate_weight", "speed_reward_weight", "terminal_position_weight",
-                                         "terminal_speed_weight", "stop_settle_s"} and value == 0):
+                                         "terminal_speed_weight", "stop_settle_s", "road_progress_weight"} and value == 0):
                 raise ValueError(f"Invalid C* objective setting: {name}")
         if not 0 < self.discount <= 1 or not 1 <= self.horizon_s/self.dt_s <= 10000:
             raise ValueError("Invalid C* discount or horizon/sample count")
@@ -55,9 +57,12 @@ class CStarTrackingSettings:
         return round(self.horizon_s/self.dt_s)
 
     def specification(self):
-        return {"id": CSTAR_OBJECTIVE, "direction": "maximize", "discount": self.discount,
+        settings=asdict(self)
+        if not self.road_progress_weight:
+            settings.pop('road_progress_weight');settings.pop('road_progress_scale_m')
+        result={"id": CSTAR_OBJECTIVE, "direction": "maximize", "discount": self.discount,
                 "horizon_s": self.horizon_s,
-                "definition": {"type": CSTAR_OBJECTIVE, "settings": asdict(self),
+                "definition": {"type": CSTAR_OBJECTIVE, "settings": settings,
                                "target": CSTAR_TARGET,
                                "state_columns": ["x_m", "y_m", "motion_heading_rad", "speed_mps"],
                                "control_columns": ["drive_normalized", "steer_normalized"],
@@ -70,6 +75,10 @@ class CStarTrackingSettings:
                                "constraints": "native_dynamics_input_and_safety_hard_constraints",
                                "zero_speed_heading": "body_heading_plus_kinematic_steering_direction",
                                "failure_encoding": "declared_failure_loss_not_a_feasible_solution"}}
+        if self.road_progress_weight:
+            result['definition']['road_progress_utility']='signed_terminal_minus_initial_road_reference_station_over_scale'
+            result['definition']['progress_reference']='hinted_native_road_projection_no_global_branch_fallback'
+        return result
 
     @classmethod
     def from_specification(cls, objective):
@@ -160,7 +169,7 @@ def path_completion(candidate, actual_states, settings=None, *, plan=None):
             "planned_stop": plan["planned_stop"]}
 
 
-def tracking_loss(reference_states, actual_states, controls, initial_control, settings=None):
+def tracking_loss(reference_states, actual_states, controls, initial_control, settings=None, *, road_progress_m=None):
     """One stage objective for C* search, actual execution labels and evaluation."""
     cfg = settings or CStarTrackingSettings()
     shape = np.asarray(reference_states).shape
@@ -191,6 +200,9 @@ def tracking_loss(reference_states, actual_states, controls, initial_control, se
     terms = {name: float(np.dot(weights, value)) for name, value in stage.items()}
     terms["terminal_position"] = cfg.terminal_position_weight*float(np.sum(error[-1,:2]**2))/cfg.position_scale_m**2
     terms["terminal_speed"] = cfg.terminal_speed_weight*float(error[-1,3]**2)/cfg.speed_scale_mps**2
+    if cfg.road_progress_weight:
+        progress=_array(road_progress_m,(steps+1,),"road reference progress")
+        terms['road_progress']=-cfg.road_progress_weight*float(progress[-1]-progress[0])/cfg.road_progress_scale_m
     value = float(sum(terms.values()))
     if not math.isfinite(value) or value >= cfg.failure_loss:
         raise ValueError("Feasible tracking loss must be finite and below declared failure_loss")
@@ -230,7 +242,8 @@ def cstar_trial_returns(candidate, trials, objective):
             actual = _array(trial.get("states"), target.shape, "actual states")
             if not np.allclose(actual[0], initial, atol=1e-8, rtol=0):
                 raise ValueError("C* initial state differs from its execution trace")
-            value, terms = tracking_loss(target, actual, trial.get("controls"), previous, cfg)
+            value, terms = tracking_loss(target, actual, trial.get("controls"), previous, cfg,
+                                         road_progress_m=trial.get('road_progress_m'))
             if not path_completion(candidate,actual,cfg)["reached"]:
                 raise ValueError("Successful C* trial did not reach the full planned path endpoint")
         returns.append(-value)

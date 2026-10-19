@@ -5,6 +5,53 @@ import numpy as np
 SUITE_KINDS = ('suite_straight', 'suite_left', 'suite_right', 'uturn_left', 'uturn_right')
 
 
+def vary_road(spec,seed,*,width_range_m=None,dropout_probability=0.,uturn=False):
+    """Change physical lane widths and remove cones over seeded local intervals."""
+    from .roads import road_length
+    road=deepcopy(spec);rng=np.random.default_rng(np.random.SeedSequence([seed,0x52AA]))
+    old_length=road_length(road)
+    old_width=road['elements'][0]['lanes']['reference_lane']['width_m']['start']
+    width=float(rng.uniform(*width_range_m)) if width_range_m else old_width
+    ratio=width/old_width
+    for element in road['elements']:
+        lane=(element.get('lanes') or {}).get('reference_lane')
+        if lane and width_range_m:lane['width_m'].update(start=width,end=width)
+        if uturn and width_range_m and element['geometry']['type']=='circular_arc':
+            element['geometry']['curvature_per_m']/=ratio
+    new_length=road_length(road)
+    for obstacle in road.get('obstacles',[]):
+        obstacle['placement']['lateral_offset_m']*=ratio
+        obstacle['placement']['reference_line_progress_m']*=new_length/old_length
+    elements=[];gaps=[];station=0.;active={}
+    for element in road['elements']:
+        geometry=element['geometry'];arc=geometry['type']=='circular_arc'
+        length=abs(np.deg2rad(geometry['sweep_angle_deg'])/geometry['curvature_per_m']) if arc else geometry['length_m']
+        active=deepcopy(element.get('active_cone_paths',active))
+        # A U-turn's intrinsic outer-only arc already has a single visible side.
+        # Additional deletion is limited to sections containing both sides.
+        if len(active)>=2 and length>.8 and rng.random()<dropout_probability:
+            start=float(rng.uniform(.15,max(.151,length-.55)))
+            end=min(length-.1,start+float(rng.uniform(.4,1.4)))
+            side=('left_boundary','right_boundary')[int(rng.integers(2))]
+            gaps.append(dict(start_progress_m=station+start,end_progress_m=station+end,side=side))
+            cuts=[0.,start,end,length]
+        else:cuts=[0.,length];side=None
+        for low,high in zip(cuts,cuts[1:]):
+            part=deepcopy(element);part['active_cone_paths']=deepcopy(active)
+            if arc:part['geometry']['sweep_angle_deg']*=float((high-low)/length)
+            else:part['geometry']['length_m']=float(high-low)
+            lane=(part.get('lanes') or {}).get('reference_lane')
+            if lane:
+                original=element['lanes']['reference_lane']['width_m'];a,b=original['start'],original['end']
+                lane['width_m']=dict(start=float(a+(b-a)*low/length),end=float(a+(b-a)*high/length))
+            if side is not None and low==cuts[1]:part['active_cone_paths'].pop(side,None)
+            elements.append(part)
+        station+=length
+    road['elements']=elements
+    return road,dict(width_m=width,dropout_probability=dropout_probability,physical_cone_gaps=gaps,
+                     intrinsic_uturn_single_side=uturn,seed=seed)
+
+
 def expanded_road_spec(kind, seed):
     if kind not in SUITE_KINDS:
         raise ValueError('Unknown expanded scene family')

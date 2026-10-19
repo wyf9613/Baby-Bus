@@ -38,6 +38,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
         latency_steps=round(validation_config['camera_latency_s']*rates['physics'])
         delivery_delay_s=validation_config['planner_latency_s'];terminal_support_m=validation_config['terminal_support_m']
         planner_rate_hz=rates['planner'];config['policy_update_rate_hz']=rates['control']
+        config['planning']['cruise_speed_mps']=validation_config['cruise_speed_mps']
         policy_model_path=validation_config['model_path'] if validation_config['modules']['policy']=='model' else None
     if path_source is None:
         path_source = 'lattice' if config['planner_control']['enabled'] else 'perception'
@@ -210,6 +211,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                     else:
                         startup_baseline += 1
                 ever_native |= mode == 'planner'
+                if selector is not None and mode=='planner':selector.commit(manager.diagnostics.get('job_id'))
                 # Like ROS, offer only after selecting the action. Snapshot
                 # collection is idempotent at the current state timestamp.
                 if shadow_enabled and settings.enabled:
@@ -341,6 +343,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
             policy_ranking_calls=selector.ranking_calls if selector is not None else 0,
             policy_candidate_calls=selector.candidate_calls if selector is not None else 0,
             policy_errors=selector.errors if selector is not None else 0,
+            policy_state_commits=selector.state_commits if selector is not None else 0,
             real_time_qualified=False,
             hardware_tested=False, deployed=False, speed_tracking_qualified=False)
         write_json(output/'summary.json', summary)

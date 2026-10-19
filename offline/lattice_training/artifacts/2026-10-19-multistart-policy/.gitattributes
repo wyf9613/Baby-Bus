@@ -1,0 +1,2 @@
+# Preserve frozen model bytes independently of host newline settings.
+* -text whitespace=cr-at-eol

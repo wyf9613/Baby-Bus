@@ -40,18 +40,19 @@ def world_points(points, pose):
     return points @ np.array([[c,s],[-s,c]])+np.asarray(pose[:2])
 
 
-def candidate_panel(planner, observation, pose, *, model=None, progress_m=None, objective=None):
+def candidate_panel(planner, observation, pose, *, model=None, progress_m=None, objective=None,hidden_state=None):
     from .pipeline import candidates_at
-    ref,diag = candidates_at(planner,observation,model)
+    ref,diag = candidates_at(planner,observation,model,hidden_state=hidden_state)
     rows=[]
     for candidate in diag.get("candidate_references",[]):
-        score = model.score(encode_candidate(observation,candidate)) if model else candidate['descriptor']['score']
+        score,next_hidden = model.step(encode_candidate(observation,candidate),hidden_state) if model else (candidate['descriptor']['score'],None)
         plan=reference_plan(candidate,objective)
         rows.append({"candidate_id":candidate['candidate_id'],"admitted":True,"score":score,"reason":"feasible",
                      "descriptor":candidate['descriptor'],"points":world_points(candidate['trajectory_xy_m'],pose).tolist(),
                      "selected":candidate['candidate_id']==diag.get('selected_candidate_id'),
                      "speed_profile":candidate['reference']['speed_profile'],
-                     "full_path_duration_s":plan['duration_s'],"spatial_span_m":plan['spatial_span_m']})
+                     "full_path_duration_s":plan['duration_s'],"spatial_span_m":plan['spatial_span_m'],
+                     "next_hidden":next_hidden.tolist() if model and model.network.recurrent else None})
     if rows:
         best=max(rows,key=lambda row:row['score'])
         for row in rows: row['selected']=row['candidate_id']==best['candidate_id']
@@ -73,7 +74,8 @@ def candidate_panel(planner, observation, pose, *, model=None, progress_m=None, 
 
 class RoadEvaluation:
     def __init__(self, environment, *, model=None, objective=None, solver_settings=None,
-                 profile='standard', seed=0, performance=None, cruise_speed=.2):
+                 profile='standard', seed=0, performance=None, cruise_speed=.2,
+                 planner_sample_count=None, planner_rate_hz=1., balance_terminal=False):
         from .pipeline import make_planner
         self.env,self.model,self.seed=environment,model,seed
         self.objective=objective or (CStarTrackingSettings.from_specification(model.provenance['objective'])
@@ -81,7 +83,10 @@ class RoadEvaluation:
         if model is not None and self.objective.specification()!=model.provenance['objective']:
             raise ValueError('Evaluation C* objective differs from the policy checkpoint')
         self.solver=CStarSolver(self.objective,solver_settings)
-        self.planner=make_planner(profile, cruise_speed=cruise_speed)
+        self.planner=make_planner(profile, cruise_speed=cruise_speed,
+            sample_count=planner_sample_count,rate_hz=planner_rate_hz)
+        self.nominal_length,self.nominal_preview=self.planner.cfg.length_m,self.planner.settings.preview_m
+        self.balance_terminal=balance_terminal
         self.cruise_speed=cruise_speed
         self.profile=profile
         self.performance=performance or performance_profile(seed,nominal=True)
@@ -90,14 +95,16 @@ class RoadEvaluation:
         self.report=None
 
     def run(self, *, max_segments=100, max_control_steps=None, goal_progress=None, progress=None):
-        from .pipeline import simulate_segment,road_goal_progress
+        from .pipeline import simulate_segment,road_goal_progress,balance_terminal_horizon
         started=time.perf_counter(); env=self.env
         spec=env.config.road_spec; length=road_length(spec)
         goal=goal_progress if goal_progress is not None else road_goal_progress(env)
+        goal_tolerance=self.objective.completion_tolerance_m if self.balance_terminal else 0.
         initial=float(env._info['evaluation']['ground_truth']['reference_line_progress_m'])
         start_pose=list(env._backend.car._state_values()[:3])
         trace,segments,panels=[],[],[]
         previous=(0.0,0.0); fault=None; completion=None
+        hidden=self.model.initial_state() if self.model else None
         initial_margins=NativePrediction(env,self.solver.settings).margins(env._backend.car._state_values())
         for number in range(max_segments):
             if min(initial_margins.values()) < -1e-7:
@@ -107,12 +114,14 @@ class RoadEvaluation:
             if max_control_steps is not None and len(trace)>=max_control_steps:
                 completion='complete_segment_budget_reached';break
             current=float(env._info['evaluation']['ground_truth']['reference_line_progress_m'])
-            if current>=goal:
+            if goal-current<=goal_tolerance:
                 completion='road_goal_reached';break
+            if self.balance_terminal:
+                balance_terminal_horizon(self.planner,goal-current,self.nominal_length,self.nominal_preview)
             self.snapshots[len(trace)]=env.snapshot()
             observation=env._frame
             panel,ref,diag=candidate_panel(self.planner,observation,env._backend.car._state_values()[:3],
-                                          model=self.model,progress_m=current,objective=self.objective)
+                                          model=self.model,progress_m=current,objective=self.objective,hidden_state=hidden)
             panels.append(panel)
             if not ref.get('valid'):
                 fault='planning:'+str(ref.get('reason'));break
@@ -136,20 +145,24 @@ class RoadEvaluation:
             if snapshot is None:
                 fault=transition['reason'];break
             env.restore(snapshot);previous=tuple(transition['final_control'])
+            if self.model and self.model.network.recurrent:
+                hidden=np.asarray(next(row['next_hidden'] for row in panel['candidates'] if row['selected']))
             if ref['planned_stop']:
                 completion='planned_stop_reference_complete';break
         else:
             fault='maximum_segments_reached'
         final=float(env._info['evaluation']['ground_truth']['reference_line_progress_m'])
         if trace: final=trace[-1]['progress_m']
-        if final>=goal and fault is None: completion='road_goal_reached'
+        if goal-final<=goal_tolerance and fault is None: completion='road_goal_reached'
         collision=any(row['constraint_margins']['obstacle_contact_margin']<0 for row in trace)
         offroad=any(row['constraint_margins']['road_clearance_m']<0 for row in trace)
         costs=[s['actual_loss'] for s in segments if s['actual_loss'] is not None]
         self.report={'format':'lattice_full_road_evaluation_v1','road_id':road_identity(spec),'road_spec':spec,
             'seed':self.seed,'selector':'learned' if self.model else 'rule','lattice_profile':self.profile,
             'cruise_speed_mps':self.cruise_speed,
-            'planner_profile':{'length_m':self.planner.cfg.length_m,
+            'planner_profile':{'length_m':self.planner.cfg.length_m,'nominal_length_m':self.nominal_length,
+                'sample_count':self.planner.cfg.sample_count,'rate_hz':self.planner.cfg.rate_hz,
+                'balance_terminal_horizon':self.balance_terminal,'goal_tolerance_m':goal_tolerance,
                 'collision_coverage':self.planner.cfg.collision_coverage,'score_coverage':self.planner.cfg.score_coverage},
             'candidate_representation':'policy_frenet_candidate_v1',
             'objective':self.objective.specification(),'performance':self.performance,'trace':trace,'segments':segments,
@@ -181,7 +194,13 @@ class RoadEvaluation:
             source='local_initial_observation'
         with branch:
             current=float(branch._info['evaluation']['ground_truth']['reference_line_progress_m'])
-            planner=make_planner(self.profile, cruise_speed=self.cruise_speed)
+            planner=make_planner(self.profile, cruise_speed=self.cruise_speed,
+                sample_count=self.planner.cfg.sample_count,rate_hz=self.planner.cfg.rate_hz)
+            if self.balance_terminal:
+                from .pipeline import balance_terminal_horizon,road_goal_progress
+                remaining=road_goal_progress(branch)-current
+                if remaining>0:
+                    balance_terminal_horizon(planner,remaining,self.nominal_length,self.nominal_preview)
             panel,_,_=candidate_panel(planner,branch._frame,branch._backend.car._state_values()[:3],
                                       model=self.model,progress_m=current,objective=self.objective)
             panel['requested_progress_m']=progress_m;panel['state_source']=source

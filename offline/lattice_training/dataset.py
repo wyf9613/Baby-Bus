@@ -255,6 +255,13 @@ def import_dataset(records_path, output, *, required_splits=None, allow_collecti
             raise ValueError("Rule-selected candidate is absent from the admitted candidate set")
         context = scene_features(record["observation"])
         shared_initial = None
+        episode=record.get('episode') or {}
+        episode_id=episode.get('id',group)
+        step=episode.get('segment',0)
+        behavior_id=episode.get('selected_candidate_id')
+        if behavior_id is not None and behavior_id not in [e['candidate']['candidate_id'] for e in record['candidates']]:
+            raise ValueError('Executed candidate is absent from decision')
+        if not isinstance(episode_id,str) or type(step) is not int or step<0:raise ValueError('Invalid recurrent episode ordering')
         for entry in record["candidates"]:
             candidate = entry["candidate"]
             computed, initial = cstar_trial_returns(candidate, entry.get("cstar_trials"), objective)
@@ -279,7 +286,8 @@ def import_dataset(records_path, output, *, required_splits=None, allow_collecti
                          "y": value, "group": group, "scenario": scene, "split": split,
                          "candidate": candidate["candidate_id"], "trials": trials,
                          "rule_score": _finite_number(candidate["descriptor"]["score"], "rule score"),
-                         "rule_selected": candidate["candidate_id"] == selected})
+                         "rule_selected": candidate["candidate_id"] == selected,
+                         "episode":episode_id,"step":step,"behavior_selected":candidate['candidate_id']==behavior_id})
     if not rows or set(scene_splits.values()) != required_splits:
         raise ValueError('Data must provide exactly these nonempty splits: ' + ', '.join(sorted(required_splits)))
     np.savez_compressed(output / "data.npz", X=pack_inputs([row["X"] for row in rows]),
@@ -288,7 +296,9 @@ def import_dataset(records_path, output, *, required_splits=None, allow_collecti
         candidate_ids=np.asarray([row["candidate"] for row in rows]),
         rule_scores=np.asarray([row["rule_score"] for row in rows]),
         rule_selected=np.asarray([row["rule_selected"] for row in rows], dtype=bool),
-        label_trials=np.asarray([row["trials"] for row in rows], dtype=int))
+        label_trials=np.asarray([row["trials"] for row in rows], dtype=int),
+        episode_ids=np.asarray([row['episode'] for row in rows]),sequence_steps=np.asarray([row['step'] for row in rows],dtype=int),
+        behavior_selected=np.asarray([row['behavior_selected'] for row in rows],dtype=bool))
     partial_records.replace(output / 'decisions.jsonl')
     readiness = training_readiness({'splits': np.asarray([row['split'] for row in rows])})
     metadata = {"format": DATASET_FORMAT, "feature_version": FEATURE_VERSION,
@@ -408,6 +418,7 @@ def score_decisions(model, records_path, output):
     """Offline inference from admitted candidates; no plant/controller is loaded."""
     results = []
     seen = set()
+    states={};steps={}
     for record in read_decisions(records_path):
         if record["group_id"] in seen:
             raise ValueError("Decision group_id repeats")
@@ -423,8 +434,16 @@ def score_decisions(model, records_path, output):
             if (condition is not None and 'speed_profile' in reference and 'longitudinal_profile' in reference
                     and fixed_execution_condition(candidate) != condition):
                 raise ValueError('Scoring record differs from the policy fixed execution condition')
-        scores = [model.score(encode_candidate(record["observation"], candidate, context=context))
-                  for candidate in candidates]
+        episode=record.get('episode') or {};identity=episode.get('id',record['group_id'])
+        step=episode.get('segment',0)
+        if model.network.recurrent and step!=steps.get(identity,0):raise ValueError('Scoring recurrent episode is not contiguous')
+        outputs=[model.step(encode_candidate(record['observation'],candidate,context=context),states.get(identity))
+                 for candidate in candidates]
+        scores=[value for value,_ in outputs]
+        selected=episode.get('selected_candidate_id')
+        if model.network.recurrent and selected is not None:
+            position=next(i for i,c in enumerate(candidates) if c['candidate_id']==selected)
+            states[identity]=outputs[position][1].copy();steps[identity]=step+1
         index = int(np.argmax(scores))
         results.append({"group_id": record["group_id"],
                         "selected_candidate_id": candidates[index]["candidate_id"],
@@ -476,4 +495,10 @@ def load_dataset(directory):
         for identity in np.unique(data[field]):
             if len(set(data["splits"][data[field] == identity])) != 1:
                 raise ValueError("Dataset leaks decisions/scenes across splits")
+    sequence_fields={'episode_ids','sequence_steps','behavior_selected'}
+    if sequence_fields & data.keys():
+        if not sequence_fields<=data.keys() or any(data[k].shape!=data['y'].shape for k in sequence_fields):
+            raise ValueError('Invalid recurrent dataset row arrays')
+        for identity in np.unique(data['episode_ids']):
+            if len(set(data['splits'][data['episode_ids']==identity]))!=1:raise ValueError('Recurrent episode leaks across splits')
     return data, metadata

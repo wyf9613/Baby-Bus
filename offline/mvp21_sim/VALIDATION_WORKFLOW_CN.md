@@ -52,6 +52,7 @@ $py = '../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe'
   "terminal_support_m": 2,
   "max_steps": 2400,
   "stop_tail_s": 1,
+  "cruise_speed_mps": 0.2,
   "model_path": "offline/lattice_training/artifacts/2026-10-17-expanded-collection/model.json",
   "cstar_solver": {},
   "cstar_objective": {}
@@ -85,6 +86,12 @@ C* 使用原 native plant/道路/障碍真值做预测约束；这是显式仿�
 不保证弯道通行；碰撞和共享执行检查仍生效。未改动任一算法以抬高完成率。
 
 ## 自动更新
+
+新一轮 RNN 模型使用 0.5 m/s 标签条件，显式选择
+`--config offline/mvp21_sim/workspace/examples/recurrent-model.json` 后才启用。
+该配置仍使用实际 MVP control；可切换 `control` 为 `cstar` 做同目标速度的仿真对照。
+RNN 仅在共享执行模块实际采用新 job 时提交一次状态；候选评分及被拒绝的结果不更新记忆。
+工作区默认 native 选择和 common/ROS 参数不受该实验配置影响。
 
 `serve` 默认监听源码、common YAML、模型、工作区配置及道路，变化稳定 1 秒后
 用新 Python 进程重新导入当前模块。新增/修改道路优先验证对应文件；模块或配置

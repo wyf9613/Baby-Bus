@@ -74,6 +74,20 @@ class NativePrediction:
         self.polygons = self.backend._obstacle_polygons_m[self.backend._obstacle_active_mask].copy()
         self.road = self.backend.road
         self.road_length_m = road_length(environment.config.road_spec)
+        self.progress_limit_m=getattr(environment,'collection_route_length_m',self.road_length_m)
+
+    def road_progress(self,states):
+        """Project world poses on the same local road branch, using native hints."""
+        c,s=math.cos(self.anchor[2]),math.sin(self.anchor[2])
+        previous=self.road.find_closest_point_to(float(self.anchor[0]),float(self.anchor[1]))[4]
+        values=[]
+        for x,y,*_ in states:
+            px=self.anchor[0]+c*x-s*y;py=self.anchor[1]+s*x+c*y
+            previous=float(self.road.find_closest_point_to(float(px),float(py),
+                reference_line_progress_hint=previous,reference_line_progress_search_radius_m=1.,
+                allow_global_closest_point_fallback=False)[4])
+            values.append(min(self.progress_limit_m,max(0.,previous)))
+        return values
 
     def margins(self, raw, previous=None, dt_s=None):
         cfg, car = self.settings, self.initial_car
@@ -211,7 +225,8 @@ class CStarSolver:
                 violation += max(0.0,completion["endpoint_error_m"]-self.objective.completion_tolerance_m)
                 if completion["planned_stop"]:
                     violation += max(0.0,completion["final_speed_mps"]-self.objective.stop_speed_tolerance_mps)
-                loss, terms = tracking_loss(target, states, actions, previous_action, self.objective)
+                progress=prediction.road_progress(states) if self.objective.road_progress_weight else None
+                loss, terms = tracking_loss(target, states, actions, previous_action, self.objective,road_progress_m=progress)
                 item = {"controls": actions.copy(), "states": states, "loss": loss,
                         "loss_terms": terms, "margins": margins, "violation": violation, "completion": completion}
                 if violation <= 1e-7 and (best is None or loss < best["loss"]):
@@ -344,7 +359,9 @@ def execute_trial(environment, candidate, solution, previous_action, objective, 
         if not completion["reached"]:
             reason = "full_path_endpoint_not_reached"
     if reason is None and len(states) == steps+1:
-        loss, terms = tracking_loss(target, states, actions, previous_action, objective)
+        road_progress=checker.road_progress(states) if objective.road_progress_weight else None
+        loss, terms = tracking_loss(target, states, actions, previous_action, objective,road_progress_m=road_progress)
+        if road_progress is not None:trial['road_progress_m']=road_progress
         nominal = profile.get("nominal", False)
         difference = float(np.max(np.abs(np.asarray(states)-solution["states"]))) if nominal else None
         if nominal and difference > 1e-7:

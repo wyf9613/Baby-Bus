@@ -1,9 +1,14 @@
 # 单条空间路径的 policy 输入
 
-当前唯一输入契约为 `spatial_path_policy_v1`，模型格式为
-`spatial_path_attention_policy_v1`。评分入口是
+当前外部输入契约为 `spatial_path_policy_v1`，无记忆冻结模型格式为
+`spatial_path_attention_policy_v1`。其评分入口是
 `SpatialPathPolicy.score(encode_candidate(observation, candidate))`，每次一条候选。
 `predict(records)` 只是独立逐条调用，训练中的批量与组内损失不构成候选间输入。
+
+2026-10-19 新一轮增加 `spatial_path_recurrent_policy_v1`，外部三组特征不变，
+通过模型内部 16 维 RNN 保存已执行候选的上下文。训练按固定采集执行序列重放并进行 BPTT，
+推理由选路/执行端显式提交状态；见[循环训练说明](RECURRENT_TRAINING_CN.md)。
+下文 0.2 m/s 标签说明描述历史冻结批次，新一轮明确使用 0.5 m/s 和道路进度增量奖励。
 
 | 组 | 实际输入 |
 |---|---|

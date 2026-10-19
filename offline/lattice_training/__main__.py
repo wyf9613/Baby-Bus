@@ -37,6 +37,7 @@ def main():
     run.add_argument("--max-segments", type=int, default=100,
                      help="Safety ceiling for until-road-end; exhausting it is reported as a failure")
     run.add_argument("--starts-per-road", type=int, default=2)
+    run.add_argument('--initial-start-mode',choices=('default','road_start','stratified_random'),default='default')
     run.add_argument("--planner-profiles", default="standard,conservative")
     run.add_argument('--planner-sample-count', type=int,
                      help='Explicit offline native candidate count; minimum 8')
@@ -44,6 +45,10 @@ def main():
                      help='Native job horizon parameter; collection itself advances once per full segment')
     run.add_argument('--terminal-support-m', type=float, default=0.,
                      help='Explicit sensor-support road extension beyond the unchanged collection goal')
+    run.add_argument('--cruise-speed-mps',type=float,default=.2)
+    run.add_argument('--random-selection-probability',type=float,default=1.)
+    run.add_argument('--width-range-m',type=lambda s:tuple(map(float,s.split(','))))
+    run.add_argument('--single-side-dropout-probability',type=float,default=0.)
     run.add_argument("--segment-resampling-attempts", type=int, default=6,
                      help="Try random C*-feasible candidates until a complete legal execution is found")
     run.add_argument("--trials", type=int, default=2)
@@ -69,6 +74,8 @@ def main():
     run.add_argument("--hidden", type=int, default=32)
     run.add_argument("--seed", type=int, default=0)
     run.add_argument("--learning-rate", type=float, default=0.005)
+    run.add_argument('--recurrent',action='store_true')
+    run.add_argument('--warm-start',type=Path)
     train = commands.add_parser("train", help="Train the same policy on an existing frozen C* dataset")
     train.add_argument("--dataset", type=Path, required=True)
     train.add_argument("--output", type=Path, required=True)
@@ -76,6 +83,10 @@ def main():
     train.add_argument("--hidden", type=int, default=32)
     train.add_argument("--seed", type=int, default=0)
     train.add_argument("--learning-rate", type=float, default=.005)
+    train.add_argument('--recurrent',action='store_true')
+    train.add_argument('--warm-start',type=Path)
+    train.add_argument('--checkpoint',choices=('validation_rmse','validation_feasible_then_return'),default='validation_rmse')
+    train.add_argument('--early-stopping-patience',type=int)
     score = commands.add_parser("score", help="Score admitted candidates using a C*-trained policy")
     score.add_argument("--records", type=Path, required=True)
     score.add_argument("--model", type=Path, required=True)
@@ -119,7 +130,8 @@ def main():
             raise FileExistsError(f"Training output already exists: {args.output}")
         progress({'stage':'training_start','dataset':str(args.dataset),'epochs':args.epochs})
         model,report=train_model(args.dataset,output,epochs=args.epochs,hidden=args.hidden,seed=args.seed,
-                                 learning_rate=args.learning_rate)
+                                 learning_rate=args.learning_rate,recurrent=args.recurrent,warm_start=args.warm_start,progress=progress,
+                                 checkpoint=args.checkpoint,early_stopping_patience=args.early_stopping_patience)
         plot_training(report,args.output)
         evaluate_policy(model,args.dataset,args.output/'evaluation.json')
         progress({'stage':'training_complete','model':str(output),'best_epoch':model.provenance['best_epoch'],
@@ -134,6 +146,11 @@ def main():
         configuration = CStarTrackingSettings.from_specification(json.loads(args.objective.read_text(encoding="utf-8")))
         settings = PipelineSettings(kinds=tuple(args.kinds.split(',')), train_seeds=args.train_seeds, validation_seeds=() if args.command == 'augment' else args.validation_seeds, test_seeds=() if args.command == 'augment' else args.test_seeds, train_only=args.command == 'augment', decisions=args.decisions, until_road_end=args.until_road_end, max_segments=args.max_segments, trials=args.trials, evaluation_steps=args.evaluation_steps, starts_per_road=args.starts_per_road, planner_profiles=tuple(args.planner_profiles.split(',')), segment_resampling_attempts=args.segment_resampling_attempts, planner_sample_count=args.planner_sample_count, planner_rate_hz=args.planner_rate_hz, terminal_support_m=args.terminal_support_m)
         road_settings = RoadRandomizationSettings(**json.loads(args.road_settings.read_text(encoding="utf-8")))
+        from dataclasses import replace
+        settings=replace(settings,cruise_speed_mps=args.cruise_speed_mps,
+            initial_start_mode=args.initial_start_mode,
+            random_selection_probability=args.random_selection_probability,width_range_m=args.width_range_m,
+            single_side_dropout_probability=args.single_side_dropout_probability)
         solver = SolverSettings(population=args.population, iterations=args.iterations,
             max_evaluations=args.max_evaluations, max_wall_s=args.solver_wall_s,
             safety_margin_m=args.safety_margin_m, speed_max_mps=args.speed_max_mps,
@@ -157,7 +174,7 @@ def main():
             summary = run_pipeline(args.output, settings=settings, objective=configuration, solver_settings=solver,
                                    epochs=args.epochs, hidden=args.hidden, seed=args.seed,
                                    learning_rate=args.learning_rate, progress=progress,
-                                   road_settings=road_settings)
+                                   road_settings=road_settings,recurrent=args.recurrent,warm_start=args.warm_start)
         except CollectionCoverageError as error:
             progress({'stage':'collection_incomplete',**error.summary})
             raise SystemExit(2) from error

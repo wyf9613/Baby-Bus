@@ -9,7 +9,7 @@ DEFAULT = dict(schema='module_validation_v1',
     frequencies_hz=dict(physics=20.,perception=20.,planner=1.,policy=1.,control=20.),
     camera_latency_s=.05,planner_latency_s=.1,terminal_support_m=2.,
     max_steps=2400,stop_tail_s=1.,model_path=str(DEFAULT_MODEL),
-    cstar_solver={},cstar_objective={})
+    cstar_solver={},cstar_objective={},cruise_speed_mps=.2)
 
 
 def configuration(value=None):
@@ -37,6 +37,8 @@ def configuration(value=None):
     if not math.isclose(result['camera_latency_s']*base,round(result['camera_latency_s']*base),abs_tol=1e-8):
         raise ValueError('Camera latency must be integer physics ticks')
     if type(result['max_steps']) is not int or result['max_steps']<1:raise ValueError('Positive max_steps required')
+    if not isinstance(result['cruise_speed_mps'],(int,float)) or not math.isfinite(result['cruise_speed_mps']) or result['cruise_speed_mps']<=0:
+        raise ValueError('Positive cruise_speed_mps required')
     if result['modules']['control']=='cstar':
         from offline.lattice_training.cstar import SolverSettings
         from offline.lattice_training.objective import CStarTrackingSettings

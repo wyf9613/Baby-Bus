@@ -47,7 +47,7 @@ preferences. Ordinary implementation requests authorize in-scope edits/checks.
   the known perception/branch/direction/partial-output limits in
   docs/SIMULATION_LIMITATIONS_CN.md; policy integration does not repair them.
   Preserve three-layer cone/detection/road views, shared execution admission and
-  actual MVP control/fallback. No retraining or hidden truth/width inputs.
+  actual MVP control/fallback. That frozen evaluation did not retrain or add hidden truth/width inputs.
 - User authorized the offline modular validation workspace and working-tree
   bundle. Keep one shared runtime; selectable observed/perfect perception,
   native/fixed-one-straight planner, native/frozen-model selection and MVP/C*
@@ -55,7 +55,27 @@ preferences. Ordinary implementation requests authorize in-scope edits/checks.
   current 20 Hz perception/control and 1 Hz generation/selection. Replay reads
   immutable indexed evidence only; source changes trigger fresh-process
   validation, never reinterpret old trajectories. C* plant/map truth and perfect
-  perception must be labelled. Policy quality is not this round's goal.
+  perception must be labelled. The 2026-10-18 framework packaging did not target policy quality.
+- On 2026-10-19 the user authorized a new recurrent policy training round:
+  random physical road widths and partial single-side cone gaps, left/right
+  bends and U-turns, a common 0.5 m/s C* execution condition and an additional
+  signed road-reference progress gain. Keep external scene/path features
+  unchanged. All candidates at a decision share one preceding hidden state;
+  commit only the actually executed candidate's next state. Train by replaying
+  the fixed collected execution sequence with current weights and BPTT, never
+  cache numerical hidden states across optimizer steps. Collection independently
+  draws 50% random / 50% native choice at each decision within a road. Preserve
+  failed candidates, report coverage and selection failures, and keep generated
+  traces local. No ROS/main policy enable or automatic push is requested.
+  The user subsequently authorized additional collection from multiple randomized
+  starting positions on each physical road. Keep all starts of a road in one
+  split, reset recurrent state per independent rollout, record physical support
+  and failed initial/planning cases, and distinguish suffix completion from a
+  complete entrance-to-goal drive. Preserve the earlier batch and model weights.
+  The user then authorized retraining on the new multi-start batch. Produce a
+  separate checkpoint, keep previous artifacts and main/default execution intact,
+  and select only on Validation. Failed-selection priority and early stopping are
+  explicit training options; they must not change the external feature contract.
 
 - The policy never enables the vehicle. DREAM owns hardware services,
   calibrated facts and admitted component overrides. Its camera TF is fixed at

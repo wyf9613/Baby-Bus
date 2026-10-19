@@ -11,6 +11,9 @@
 候选评分。每次一条空间路径，不读取速度曲线；模型内编码原生线段与场景，障碍按八片区
 记录最近点位置，缺中线可评分。[训练入口](offline/lattice_training/README.md)与[输入协议](offline/lattice_training/POLICY_INPUT.md)
 说明固定数据编码。旧评分特征、历史路径输入及旧模型/候选兼容代码已删除。
+新一轮[循环 policy 训练](offline/lattice_training/RECURRENT_TRAINING_CN.md)保持外部特征，
+在模型内部保存实际执行候选的 16 维状态，使用随机宽度/缺桶道路、0.5 m/s C* 与道路进度奖励。
+候选共享前序状态，训练沿固定采集执行序列重放并进行 BPTT；未启用主线 policy。
 历史权重、数据与上游来源快照保留作档案，当前入口不加载它们。
 [新协议首批流程记录](offline/lattice_training/artifacts/2026-10-16-new-protocol-batch/REPORT_CN.md)
 包含采集、C* 标签、训练及冻结候选评估；尚未接入主线。

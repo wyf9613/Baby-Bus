@@ -76,6 +76,9 @@ def audit_failures(model_path, dataset, output):
     if model.provenance['execution_condition'] != metadata['execution_condition']:
         raise ValueError('Model execution condition differs')
     rows = []
+    predicted=model.predict_dataset(data)
+    lookup={(str(group),str(candidate)):float(score) for group,candidate,score in
+            zip(data['groups'],data['candidate_ids'],predicted)}
     nominal_status, reason_counts = defaultdict(int), defaultdict(int)
     feasible_targets, failure_targets = [], []
     for record in read_decisions(dataset/'decisions.jsonl'):
@@ -95,7 +98,7 @@ def audit_failures(model_path, dataset, output):
             width_prior=bool(episode.get('use_scenario_width_prior')),
             layout=episode.get('obstacle_layout'),
             candidate_ids=[e['candidate']['candidate_id'] for e in entries],
-            scores=[model.score(encode_candidate(record['observation'], e['candidate'])) for e in entries],
+            scores=[lookup[(record['group_id'],e['candidate']['candidate_id'])] for e in entries],
             nominal_failed=failed,
             any_failed=[any(t['solver_status'] != 'approximate' for t in e['cstar_trials']) for e in entries],
             failure_reasons=[[t.get('reason') for t in e['cstar_trials'] if t['solver_status'] != 'approximate'] for e in entries],

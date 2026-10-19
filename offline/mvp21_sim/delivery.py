@@ -39,6 +39,7 @@ class SimulatedPlannerWorker:
         except Exception as error:
             result = dict(status='WORKER_ERROR',error=str(error),selected=None)
         native_wall=time.perf_counter()-started
+        result['job_id']=job['job_id']
         if self.candidate_selector is not None:
             result=self.candidate_selector.select(result,job.get('policy_observation'))
         wall = time.perf_counter()-started

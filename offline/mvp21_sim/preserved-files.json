@@ -43,7 +43,6 @@
     "offline/lattice_training/artifacts/2026-10-15-native-diagnosis/recorded-road.json": "632e083c7904e6ce41bcd1961f131a10850a10a5fb5958e9bec5ecbf003716a8",
     "offline/lattice_training/artifacts/2026-10-15-native-diagnosis/road.png": "ee6d2713a72c8643d0e999a724360e45fa6b67002916cb312a8f441e140b561e",
     "offline/lattice_training/artifacts/2026-10-15-native-diagnosis/verification.json": "4c978ecc5d84b3daefb221010fdc1a7c7603dc6a5e74a8f1133c8c753ad19e6b",
-    "offline/lattice_training/cstar.py": "8b05c1cd51b6457d11372f51210ee5c0042e824046c0ff31adab5a6924e919b2",
     "offline/lattice_training/log_audit.py": "eec191199bab7ac43aba91ee279d7fac0a3c20d1cdbeaa77f89f9559700c063f",
     "offline/lattice_training/log_road.py": "65cf1a3fbb4091aeca76848888885b7d90e596923871d320d97f09cc081afedc",
     "offline/lattice_training/native_recorded_road.json": "72e5b9eed2ed27dd10e4a72fa0bc277a7e3e00c9a22987ec2429945fe588c904",
@@ -61,6 +60,7 @@
   },
   "text_normalization": "CRLF to LF for known text types; binary files use exact bytes",
   "authorized_migrations": {
+    "offline/lattice_training/cstar.py": "8b05c1cd51b6457d11372f51210ee5c0042e824046c0ff31adab5a6924e919b2",
     "config/ai4r_policy.yaml": "0cc413b2714ec81b275a6f8443e0ef0fa5029a4631d8e9126a7e4498aa0ccade",
     "offline/lattice_training/README.md": "6d6b662a9de72c62e1c538eb7e25ea051ebab0967e19d1324d3994984271b221",
     "offline/lattice_training/__main__.py": "f3b642f7755ec63e705f093bef3b8c515bc09527644f85a3c0e8f3cd621cc4cb",
@@ -79,5 +79,5 @@
     "offline/lattice_training/INTEGRATION_CN.md": "abc7ce001e5ca176c6ee8bc3a60197471986f02d6d0bf8f2ebf1c26d26a1721f",
     "offline/lattice_training/cstar_objective.json": "befea3b4f6fc371fc37aab6cf1bca4d529b623d43485b043e9edd34ee03f7515"
   },
-  "migration_reason": "User authorized retiring V2 and replacing policy input with current state, current road/obstacles and candidate trajectory; legacy model/data readers and planner-score/history features removed. Historical artifacts, plant and C* solver remain protected."
+  "migration_reason": "User authorized retiring V2 and replacing external policy inputs with current state, current road/obstacles and candidate trajectory. On 2026-10-19 the user authorized recurrent executed-branch memory, randomized road widths/cone gaps, 0.5 m/s labels and adding actual road-progress gain to C* optimization and scoring. Historical artifacts and the native plant remain protected."
 }

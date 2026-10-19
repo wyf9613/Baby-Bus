@@ -23,6 +23,13 @@ class FrozenPolicySelector:
         if cruise_speed_mps is not None and not math.isclose(cruise_speed_mps,condition['cruise_speed_mps'],abs_tol=1e-9,rel_tol=0.):
             raise ValueError('Untimed policy requires the frozen training cruise-speed condition')
         self.ranking_calls=self.candidate_calls=self.errors=0
+        self.hidden_state=self.model.initial_state();self.pending_states={};self.committed_job=None;self.state_commits=0
+
+    def commit(self,job_id):
+        """Advance memory once when the shared execution port uses this job."""
+        if not self.model.network.recurrent or job_id==self.committed_job or job_id not in self.pending_states:return
+        self.hidden_state=self.pending_states[job_id].copy();self.committed_job=job_id;self.state_commits+=1
+        self.pending_states={key:value for key,value in self.pending_states.items() if key>job_id}
 
     def provenance(self):
         return dict(model_path=str(self.path),model_sha256=self.sha256,
@@ -34,6 +41,8 @@ class FrozenPolicySelector:
             training_execution_condition=self.model.provenance['execution_condition'],
             training_objective=self.model.provenance['objective'],
             score_semantics=self.model.prediction_space,tie_break='lowest_numeric_candidate_id',
+            recurrent_state_enabled=self.model.network.recurrent,
+            recurrent_state_commit='first_actual_execution_of_selected_job',
             retrained=False,simulation_only=True)
 
     def select(self, result, observation):
@@ -48,6 +57,7 @@ class FrozenPolicySelector:
         try:
             if not feasible:raise ValueError('Native VALID result contains no admitted candidate')
             context=scene_features(observation)
+            next_states={}
             for candidate in feasible:
                 # The existing encoder reads only this spatial contract. Never
                 # synthesize a timed C* reference for runtime model inference.
@@ -55,13 +65,18 @@ class FrozenPolicySelector:
                     candidate=from_lattice(candidate,result))))
                 encoded=encode_candidate(observation,proposal,context=context)
                 self.candidate_calls+=1
-                score=float(self.model.score(encoded))  # exactly one path per call
+                score,state=(self.model.step(encoded,self.hidden_state) if self.model.network.recurrent else
+                             (float(self.model.score(encoded)),None))  # exactly one path per call
+                next_states[candidate['id']]=state
                 if not math.isfinite(score):raise ValueError('Nonfinite policy score')
                 digest=hashlib.sha256(json.dumps(encoded,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
                 info['scores'].append(dict(candidate_id=candidate['id'],score=score,input_sha256=digest))
             scores={row['candidate_id']:row['score'] for row in info['scores']}
             selected=max(feasible,key=lambda c:(scores[c['id']],-int(c['id'])))
             result['selected']=selected
+            if self.model.network.recurrent:
+                self.pending_states[result['job_id']]=next_states[selected['id']].copy()
+                info['hidden_before']=self.hidden_state.tolist();info['hidden_selected']=next_states[selected['id']].tolist()
             ordered=sorted(scores.values(),reverse=True)
             info.update(status='SELECTED',reason='highest_frozen_policy_score',selected_id=selected['id'],
                 changed_from_native=selected['id']!=native_id,feasible_count=len(feasible),

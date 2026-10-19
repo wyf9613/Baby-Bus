@@ -143,6 +143,8 @@ class CStarController:
                 def __getattr__(self,name):return getattr(original,name)
             backend=HoldBackend()
             proxy=SimpleNamespace(_backend=backend,dt_s=period,config=self.env.config)
+            if hasattr(self.env,'collection_route_length_m'):
+                proxy.collection_route_length_m=self.env.collection_route_length_m
             objective=CStarTrackingSettings(**{**self.config['cstar_objective'],'dt_s':period})
             solver=CStarSolver(objective,SolverSettings(**self.config['cstar_solver']))
             candidate=timed_candidate(reference,max(0.,float(state['speed_mps'])))
