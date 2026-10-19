@@ -1,5 +1,42 @@
 # AI4R policy acceptance
 
+## Lidar stop-only candidate, 2026-10-19
+
+The subsequent display increment adds standard PoseArray hit/candidate topics
+and a Path ROI outline to the existing XY layout. It separates confirmed/sparse
+hits, keeps exact integer acquisition stamps, clears unavailable point arrays
+and retains the configured ROI. Display exceptions are contained and the shared
+visualization switch does not disable the stop guard. No dependency, control
+algorithm, stop threshold, state semantics or vehicle configuration changed.
+The source/layout and message-construction-port checks passed locally; real-ROS
+message/transport and Foxglove GUI/hardware rendering remain **not run**.
+
+The `feature/lidar-obstacle-stop` candidate starts at fetched main `0c8593a`;
+no main/other-branch update, deployment or vehicle command was performed. Existing
+vehicle-identification working-tree changes remain in their original checkout.
+The candidate adds body-frame ROI filtering, ray-adjacent clustering, explicit
+UNKNOWN handling and a non-resuming zero-output guard. Both lidar forms are
+required by the shipped YAML. Original controller, speed target, selected trigger
+and vehicle YAML are unchanged. Metadata retains the original mounting-TF ray
+origin/bases; raw scans and the estimator's obstacle output are not replaced.
+
+On local Windows / bundled Python 3.12, the new 27 portable detector/lifecycle/display
+checks and 188 existing estimator/planner/control/follower checks passed (215
+total). Coverage includes raw 180-degree mounting, ROI boundaries, sparse/invalid
+returns, stale/mismatched samples, independent supervisor stops, explicit restart
+and no bypass through cone recovery or terminal straight mode.
+New real-ROS callback/configuration/display tests are provided but **not run**.
+The pinned CONTRIBUTING fast gate is **not run**: this host has no bash/ROS Jazzy,
+WSL distribution or pinned dream_interfaces checkout. Portable AST-source tests
+do not establish DDS, installed launch/configuration or physical behavior.
+
+The 0.25 m width / 0.297 m front extent come from the prior identification car;
+current-car geometry, TF, 1.0 m stop ROI, finite-ray threshold and stopping
+clearance remain **unverified**. Zero effort is not active braking. Full-circle,
+near-level scans are required; no-return-dominated ROI is UNKNOWN, not clear.
+Physical lidar, false-stop rate, stop/coast distance and operator recovery tests
+are **not run**. Human diff review is still required before merge/deployment.
+
 ## Main bend-version integration, 2026-10-14
 
 The operator explicitly selected aggressive-bend checkpoint 5e8d1b8 as main's

@@ -79,7 +79,8 @@ def make_node(monkeypatch):
         node._monotonic = lambda: clock.monotonic
         monkeypatch.setattr(node, "get_clock", lambda: clock)
         node._last_status_at = -math.inf
-        for name in ("action", "pan", "state", "state_text", "heading", "debug1", "debug2", "trajectory"):
+        for name in ("action", "pan", "state", "state_text", "heading", "debug1", "debug2", "trajectory",
+                     "lidar_obstacle_points", "lidar_obstacle_candidates", "lidar_stop_roi"):
             setattr(node, name + "_publisher", Recorder())
         node.test_clock = clock
         return node
@@ -153,6 +154,86 @@ def request(node, state):
 
 def driving_policy(*args):
     return 0.4, -0.2, None, None, None
+
+
+@pytest.mark.parametrize("display_enabled", [True, False])
+def test_lidar_stop_real_callback_supervision_and_explicit_resume(make_node, display_enabled):
+    node = make_node(required=("lidar_scan", "lidar_cartesian"),
+                     **{"lidar_obstacle.enabled": True, "visualization.enabled": display_enabled})
+    node.calculate_policy_actions = driving_policy
+
+    def send(obstructed=False):
+        msg = scan(node, frame="base_link")
+        msg.angle_min = 0.0
+        msg.angle_increment = 2*math.pi/720
+        msg.angle_max = 719*msg.angle_increment
+        msg.ranges = [4.0]*720
+        if obstructed:
+            msg.ranges[1:4] = [0.8]*3
+        node.lidar_callback(msg)
+
+    request(node, 3)
+    assert node.fsm_state == 2  # No scan, no start.
+    send()
+    request(node, 3)
+    node.run_policy_step()
+    assert node.action_publisher.messages[-1].drive == 0.4
+    node.test_clock.advance(0.05)
+    send(True)
+    node.supervision_callback()  # No policy calculation required to stop.
+    assert node.fsm_state == 2
+    assert node.action_publisher.messages[-1].drive == 0.0
+    assert node.lidar_obstacle_output["status"] == "OBSTACLE"
+    if display_enabled:
+        points = node.lidar_obstacle_points_publisher.messages[-1]
+        assert isinstance(points, policy.PoseArray)
+        assert len(points.poses) == 3
+        assert points.header.frame_id == "base_link"
+        assert node._stamp_ns(points.header) == node.observations["lidar_scan"].stamp_ns
+        assert points.poses[0].position.x == pytest.approx(0.8*math.cos(2*math.pi/720))
+        roi = node.lidar_stop_roi_publisher.messages[-1]
+        assert len(roi.poses) == 5
+        assert roi.poses[0].pose.position == roi.poses[-1].pose.position
+    node.test_clock.advance(0.05)
+    send()
+    node.supervision_callback()
+    assert node.lidar_obstacle_output["status"] == "CLEAR"
+    assert node.fsm_state == 2
+    if display_enabled:
+        assert node.lidar_obstacle_points_publisher.messages[-1].poses == []
+    request(node, 3)
+    assert node.fsm_state == 3
+    node.test_clock.advance(0.5)
+    node.supervision_callback()
+    assert node.fsm_state == 2
+    assert node.lidar_obstacle_output["status"] == "UNKNOWN"
+    if not display_enabled:
+        assert node.lidar_obstacle_points_publisher.messages == []
+        assert node.lidar_obstacle_candidates_publisher.messages == []
+        assert node.lidar_stop_roi_publisher.messages == []
+
+
+def test_lidar_display_failure_does_not_prevent_stop(make_node):
+    node = make_node(required=("lidar_scan", "lidar_cartesian"),
+                     **{"lidar_obstacle.enabled": True})
+
+    class FailingDisplay:
+        def publish(self, _):
+            raise RuntimeError("display transport unavailable")
+
+    node.lidar_obstacle_points_publisher = FailingDisplay()
+    node.fsm_state = policy.FSM_STATE_PUBLISHING_POLICY_ACTION
+    node.supervision_callback()  # Missing lidar must still latch zero despite display failure.
+    assert node.fsm_state == 2
+    assert node.action_publisher.messages[-1].drive == 0.0
+
+
+def test_lidar_stop_rejects_unsafe_integration_configuration(make_node):
+    with pytest.raises(ValueError, match="requires lidar_scan and lidar_cartesian"):
+        make_node(required=("lidar_cartesian",), **{"lidar_obstacle.enabled": True})
+    with pytest.raises(ValueError, match="requires policy_frame_id=base_link"):
+        make_node(required=("lidar_scan", "lidar_cartesian"),
+                  **{"lidar_obstacle.enabled": True, "policy_frame_id": "laser"})
 
 
 def test_integrated_control_real_ros_callbacks_stop_and_resume(make_node):
@@ -906,7 +987,9 @@ def test_lidar_empty_converted_scan_is_valid_and_identity_needs_no_tf(make_node,
     request(node, 3)
     assert node.fsm_state == 3
     value = node.observations["lidar_cartesian"].value
-    assert value == {"points_xyz": [], "scan_indices": [], "frame_id": "base_link"}
+    assert value == {"points_xyz": [], "scan_indices": [], "frame_id": "base_link",
+                     "ray_origin_xyz_m": (0.0, 0.0, 0.0),
+                     "ray_axes_xyz": ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0))}
     node.test_clock.advance(0.1)
     node.lidar_callback(scan(node, frame="base_link"))
     assert node.observations["lidar_cartesian"].value["points_xyz"] == [(1.0, 0.0, 0.0)]
@@ -1311,7 +1394,9 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.get_fully_qualified_name() == "/namespaced/ai4r_policy"
         assert node.policy_update_mode == "timer"
         assert node.policy_update_rate_hz == 20.0
-        assert node.required_sensors == ["cone_detections", "wheel_speed", "imu_angular_velocity"]
+        assert node.required_sensors == ["cone_detections", "wheel_speed", "imu_angular_velocity",
+                                         "lidar_scan", "lidar_cartesian"]
+        assert node.lidar_obstacle_settings.enabled
         assert node.control_settings.enabled is True
         assert node.control_settings.mode == "mvp"
         assert node.control_settings.robustness_enabled is False

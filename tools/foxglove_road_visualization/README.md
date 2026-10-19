@@ -1,4 +1,37 @@
-# 一条控制参考轨迹
+# 参考轨迹与雷达障碍显示
+
+## 当前雷达分支
+
+重新导入同目录 `layout.json`，原 `Cone locations` 图变为 `Cones, reference and lidar obstacles`。
+不需要 Foxglove 自定义消息脚本；控制按钮和其他面板保持不变。
+
+| 图形 | 含义 | ROS 话题与类型 |
+| --- | --- | --- |
+| 紫点 | 相机锥桶 | 原 `/car/cone_detections` |
+| 绿线 | 控制器当前参考路径 | `/car/policy_trajectory`，Path |
+| 红点 | 检测区内的障碍簇回波 | `/car/lidar_obstacle_points`，PoseArray |
+| 橙点 | 未确认的零散回波，同样触发停车 | `/car/lidar_obstacle_candidates`，PoseArray |
+| 灰框 | 配置的停车检测区域，不代表安全 | `/car/lidar_stop_roi`，Path |
+
+新增话题是标准 `geometry_msgs/msg/PoseArray` 和 `nav_msgs/msg/Path`，已有依赖无需增加。
+PoseArray 的 XY 字段是 `poses[:].position.x/y`，Path 则是 `poses[:].pose.position.x/y`。
+每条曲线分别设置自己的 X-value；点不连线，检测框闭合连线。
+
+新扫描和检测状态变化时更新；停车时仍显示当前障碍。无障碍或雷达过期时发送空点集清旧点，
+灰框保持不变。完整状态和原因仍查看 `/car/lidar_obstacles` 或策略状态字符串。
+没有红点不一定安全：橙点、雷达未知、断连都不能当作畅通。若节点/网络完全断开，
+界面可能保留最后图像；必须结合连接状态和时间戳判断，图形不作为车辆安全联锁。
+
+`visualization.enabled: false` 关闭路径及障碍图形，但**不关闭检测和停车**；参数修改后重启。
+先同步当前分支的 `scripts/policy_node.py` 与 `config/ai4r_policy.yaml`，按原流程重建、重启策略，
+再导入布局。没有自动传输或部署到实车。验证范围见 `docs/acceptance.md`。
+
+原路径与相机、雷达点保留各自测量/参考时刻，不是同步定位真值；运动时叠加只供调试。
+当前布局沿用已有 Foxglove 消息路径格式，实际版本的 GUI 导入与清点效果尚未验证。
+
+## main 原有轨迹模块与历史验证
+
+以下是原轨迹模块的历史记录，不是本次雷达显示的上车验证。
 
 导入同目录 `layout.json`，在原来的 `Cone locations` 图里显示一条绿色轨迹。
 话题为 `/car/policy_trajectory`，类型是标准 `nav_msgs/msg/Path`。
