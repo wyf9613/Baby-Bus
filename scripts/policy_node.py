@@ -5014,7 +5014,7 @@ class MPCController:
             return "planning_bypass_not_acknowledged"
         return None
 
-    def step(self, traj, speed_mps, dt, now_s, is_first, speed_fresh=True):
+    def step(self, traj, speed_mps, dt, now_s, is_first, speed_fresh=True, speed_raw=None):
         cfg, t0 = self.cfg, time.perf_counter()
         d = {"branch": None, "reject_reason": None, "shadow": cfg.shadow, "dt": dt,
              "speed_mps": speed_mps, "v_ref_mps": None, "v_ref_end_mps": None,
@@ -5225,7 +5225,11 @@ class MPCController:
             extra.update(speed_targets=speed_targets, allow_braking=planned_stop)
         if soft and self.overspeed_state != "ok":
             extra["drive_floor_zero"] = True
-        if cfg.high_speed_drive_max > 0 and speed_mps >= cfg.high_speed_mps:
+        # The raw wheel reading leads the filtered speed by ~0.1-0.2 s; taking the larger
+        # drops the low-speed cap as soon as the car pulls away (10-19 18:45: 0.09 -> 0.47
+        # m/s out of a hairpin while the filtered speed still allowed 0.40).
+        pace = max(speed_mps, speed_raw) if finite_number(speed_raw) else speed_mps
+        if cfg.high_speed_drive_max > 0 and pace >= cfg.high_speed_mps:
             extra["drive_cap"] = cfg.high_speed_drive_max
         d["drive_cap"] = extra.get("drive_cap", self.vehicle.drive_max)
         try:
@@ -8124,7 +8128,8 @@ class PolicyNode(Node):
             traj, gate = guard(traj, speed, dt, guard=planner_traj is None) if guard else (traj, None)
             try:
                 mpc_result = self.mpc_controller.step(traj, speed, dt, state["timestamp_s"], is_first_policy_step,
-                                                      speed_fresh=hold["fresh"])
+                                                      speed_fresh=hold["fresh"],
+                                                      speed_raw=observations.get("wheel_speed"))
             finally:
                 self.mpc_controller.last_debug.update(reference_held=held_age is not None,
                                                       reference_held_age_s=held_age,

@@ -18,9 +18,9 @@
 #     on 05. Fixed request 0.35 was tested on 05 at 17:06: reported applied 0.324,
 #     first wheel speed >0.05 at ~0.79 s, speed guard returned zero at ~0.17 m/s.
 #     This supports the start request only, not a validated 0.12 m/s tracking model.
-#   - Steering gain/offset/limits/rate: car .20's 2026-10-12 protractor measurement
-#     (offline/vehicle_identification/vehicle_params.py steering_gain_rad=-0.3142,
-#     i.e. 18 deg at full deflection, positive request turns right), NOT measured on 05.
+#   - Steering gain/limits: car 05's own driving on 2026-10-19 (curvature from IMU yaw rate
+#     over wheel speed, 4 bags): 23-25 deg at full deflection on both sides; -0.37 rad is a
+#     midpoint with car .20's -0.3142 (sign kept from it). Offset and rate still .20's.
 #   - Geometry (wheelbase/body extents): the course placeholder, which happens to equal
 #     .20's own measured geometry -- the one piece of overlap across the two substitutions.
 # valid: true still admits an incomplete, cross-car model by the on-site decision;
@@ -29,9 +29,10 @@
   ros__parameters:
     vehicle:
       valid: true
-      source: "car05_20261015_start035_db030_27model_20steering_UNVERIFIED"
+      source: "car05_20261019_start035_db025_27model_05steering_UNVERIFIED"
       drive_breakaway: 0.35          # tested fixed request on THIS car; not applied telemetry
-      drive_max: 0.40                # below mpc.high_speed_mps only; 0.35 above it (mpc.high_speed_drive_max).
+      drive_max: 0.38                # below mpc.high_speed_mps only; 0.35 above it (mpc.high_speed_drive_max).
+                                     # 0.40 on a fresh battery (18:45) shot from 0.09 to 0.47 m/s out of a hairpin.
                                      # 10-19 18:24 (used battery): 0.35 did not start the car in 2.5 s and
                                      # 0.28-0.31 stalled it in moderate turns. A flat 0.40 overshot to 0.56 m/s
                                      # out of U-turns on a fresh-battery Gym plant, hence the speed split
@@ -39,10 +40,14 @@
                                      # fresh (16:50) a 0.25 request held ~0.255 m/s and 0.30 left the MPC coasting
                                      # above the soft line (bias at -0.05); used (17:55) the bias sat at +0.05 on
                                      # 0.24 and the car stalled in turns. Was 0.30, then 0.24
-      steering_gain_rad: -0.3142       # car .20, 2026-10-12 protractor measurement
-      steering_offset_rad: 0.0         # not measured on either car; assumed centred
-      steering_min_rad: -0.3142
-      steering_max_rad: 0.3142
+      steering_gain_rad: -0.37         # car 05 driving, 2026-10-19 (4 bags, IMU yaw / wheel speed): full lock
+                                       # 23-25 deg (0.42 rad) both sides, 23-29 deg per unit below it. Was -0.3142
+                                       # (car .20 protractor, 18 deg): the MPC over-steered and reversed lock.
+                                       # 21 deg is a midpoint: on a 24 deg Gym plant 0.37 gave the smallest
+                                       # U-turn error without 0.42's 0.52 m right-angle excursion
+      steering_offset_rad: 0.0         # measured within +/-2 deg, sign varying between bags
+      steering_min_rad: -0.37
+      steering_max_rad: 0.37
       steering_rate_limit_rad_s: 1.21
       steering_delay_s: 0.03
     mpc:
@@ -60,13 +65,13 @@
       overspeed_cut_timeout_s: 2.0    # lock if still above cap+soft after 2 s (was 1 s; 10-19 locks: model/battery drift, held wheel readings)
       overspeed_hard_mps: 0.40        # or above 0.40 m/s for 0.2 s (0.35 drive cap, ~0.5 m/s steady)
       overspeed_hard_persist_s: 0.2
-      breakaway_ramp_per_s: 0.05     # start at the tested 0.35, rising to drive_max 0.40 after 1 s (low battery)
+      breakaway_ramp_per_s: 0.05     # start at the tested 0.35, rising to drive_max 0.38 after 0.6 s (low battery)
       breakaway_timeout_s: 2.5       # was 1.5: fixed 0.35 produced feedback at ~0.79 s; margin for a low battery
       max_restarts: 10               # was 3, 5, 8: loop runs restart after occasional turn stalls
       restart_merge_s: 2.0           # a stall restart that dips below 0.05 m/s again while pulling away
                                      # counted twice (10-19 18:20: 4 of 9 restarts)
       high_speed_drive_max: 0.35     # the drive cap at or above high_speed_mps (vehicle.drive_max below it)
-      high_speed_mps: 0.15
+      high_speed_mps: 0.12           # raw or filtered speed, whichever is larger (was 0.15)
       restart_count_reset_s: 10.0    # 10 s of tracking clears the count (long / loop runs)
       moving_speed_mps: 0.05         # unchanged: keep the existing tracking handover threshold
       drive_bias_max: 0.10           # was 0.05 (newcar27 layer); see vehicle.drive_deadband

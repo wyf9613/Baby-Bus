@@ -1926,8 +1926,10 @@ class HeldWheelReading(unittest.TestCase):
         _, t = self.drive(ctrl, [0.1])
         self.assertNotIn("drive_cap", ctrl.solver.calls[-1])
         self.assertEqual(ctrl.last_debug["drive_cap"], 0.40)
-        self.drive(ctrl, [0.16], t=t)
+        _, t = self.drive(ctrl, [0.16], t=t)
         self.assertEqual(ctrl.solver.calls[-1]["drive_cap"], 0.35)
+        ctrl.step(straight_trajectory(speed=0.15, stamp=self.NOW+t), 0.10, 0.05, self.NOW+t, False, speed_raw=0.2)
+        self.assertEqual(ctrl.solver.calls[-1]["drive_cap"], 0.35)       # the raw reading leads
         solver = Solver(Settings(), newcar(drive_max=0.40))
         self.assertEqual(solver.input_bounds(drive_cap=0.35)[0][1], 0.35)
         self.assertEqual(solver.input_bounds()[0][1], 0.40)
