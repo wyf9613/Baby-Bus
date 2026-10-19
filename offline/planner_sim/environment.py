@@ -274,7 +274,9 @@ class PlannerSimulationEnv:
             raise TypeError("Expected SimulationSnapshot")
         restored = clone_runtime(snapshot._environment)
         self._backend.close()
-        self.__dict__ = restored.__dict__
+        # Do not share a managed instance dict with the temporary clone:
+        # collecting its cycles can clear live backend state (Python 3.13).
+        self.__dict__ = dict(restored.__dict__)
         return deepcopy(self._frame), deepcopy(self._info)
 
     def fork(self):

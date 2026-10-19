@@ -1913,3 +1913,19 @@ dream_interfaces preflight. Evidence is in `offline/mvp21_sim/workspace/evidence
 See [workflow](../offline/mvp21_sim/VALIDATION_WORKFLOW_CN.md). The working-tree
 bundle includes current uncommitted source and official evidence with per-file
 hashes; no Git commit/push or release is performed.
+
+
+### Local ARM64 ROS Jazzy environment, 2026-10-20
+
+An isolated Colima profile on Apple Silicon runs the official Ubuntu Noble ARM64 ROS Jazzy image, fixed by digest in `.verification/ros2-jazzy/base-image-ref.txt`. The exact `dream_interfaces` pin and current policy build successfully. The CONTRIBUTING fast gate passes: 353 reported tests (344 pytest cases plus 9 CTest groups), zero errors/failures/skips, and installed launch arguments verified. The test-only lattice fixture now locates installed config through the ament share directory, retaining source-tree lookup for portable runs; no controller/planner behavior or YAML changed.
+
+The real generated message types import, two synthetic LaserScan messages round-trip through MCAP with acquisition stamps and ranges preserved, and 8 obstacle-stop monitor checks pass in ROS Python. Sixty affected portable fixture tests pass on Mac. A stop/restart retained compiled interfaces. Receipts and XML are under `.verification/ros2-jazzy/`; usage is in `tools/ros2_jazzy/README_CN.md`. This confirms a local synthetic ROS development environment, not ROS-node integration of the new obstacle-stop monitor, live-sensor calibration, deployment, real-time qualification or physical braking. The VM was stopped after verification to release memory.
+
+
+### Opt-in LiDAR stop through ROS, 2026-10-20
+
+The ROS node now applies the shared latched ObstacleStopMonitor before planning, startup motion priming, terminal commands or controller fallback. Defaults remain disabled; the common YAML is unchanged. Source freshness and TF availability are checked by the independent supervisor. Only a fresh explicit operator resume resets the trigger. The estimator and gate share one snapshot time, and post-calculation freshness is checked again before publication. Bounded initial alignment holds zero without running a planner or offering native jobs.
+
+The full synthetic ROS gate passes 380 reported tests (369 pytest cases plus 11 CTest groups), no failures/errors/skips. Seventeen new ROS checks include a seven-scenario real DDS/timer run using actual LaserScan, static TF, wheel/IMU/cone messages, current common MVP2.1 native/baseline execution and normalized action subscriptions. The central case used native execution, continued at 16 cm, requested zero at 14 cm, stayed zero after obstacle removal and resumed only on request. Dropouts, failed TF, stopped control timers and startup obstacles stop safely at the command/FSM layer. Tests and demos use explicit synthetic dimensions and stationary wheel telemetry; no plant dynamics or physical braking is represented.
+
+Related Mac portable checks pass 250 cases. Four offline closed-loop cases retain all 697 prior state/action frames including the coast contact failure. Evidence is indexed by `.verification/ros-lidar-stop/acceptance.json`; review and limitations are in ROS_LIDAR_STOP_CN.md. These changes are local/uncommitted and are not a hardware deployment or physical stop-distance qualification.

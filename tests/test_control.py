@@ -24,6 +24,8 @@ method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn",
                 "_select_planner_reference", "_publish_planner_execution",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
                 "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
+method_names.update({'_update_policy_estimation', '_check_obstacle_stop',
+                     '_obstacle_stop_source_fault', '_obstacle_stop_watchdog'})
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
 constants = [item for item in tree.body if isinstance(item, ast.Assign) and
              any(isinstance(target, ast.Name) and (target.id.startswith("FSM_STATE") or

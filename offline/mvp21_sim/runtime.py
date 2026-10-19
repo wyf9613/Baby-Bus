@@ -12,6 +12,7 @@ from mvp21_policy.control import PolicyController, ControlSettings
 from mvp21_policy.execution import PlannerControlSettings, PlannerExecutionManager, calculate_selected_control, priming_motion_history
 from mvp21_policy.geometry import finite_number
 from mvp21_policy.lattice import ShadowSettings
+from mvp21_policy.obstacle_stop import ObstacleStopSettings, ObstacleStopMonitor
 from mvp21_policy.planning import RoadCenterlinePlanner, PlanningSettings
 from mvp21_policy.transport import ShadowJobSource
 from offline.lattice_training.cstar import NativePrediction, SolverSettings
@@ -27,7 +28,10 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                 initial_speed=0., latency_steps=4, steering_sign=-1., path_source=None,
                 shadow_enabled=True, delivery_delay_s=.1, measured_delay=False, handoff_budget_s=None,
                 collision_coverage=None, score_coverage=None, lattice_length_m=None, planner_rate_hz=None,
-                detailed_trace=False, stop_tail_s=0., terminal_support_m=2., policy_model_path=None,validation_config=None):
+                detailed_trace=False, stop_tail_s=0., terminal_support_m=2., policy_model_path=None,validation_config=None,
+                simulation_control_overrides=None, obstacle_stop_config=None,
+                simulation_brake_drive=0., stop_timeout_s=5., stopped_hold_s=1.,
+                lidar_sensor_config=None):
     preserved, config = verify_preserved_files(), parameters()
     modular=validation_config is not None
     if modular:
@@ -39,6 +43,17 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
         delivery_delay_s=validation_config['planner_latency_s'];terminal_support_m=validation_config['terminal_support_m']
         planner_rate_hz=rates['planner'];config['policy_update_rate_hz']=rates['control']
         policy_model_path=validation_config['model_path'] if validation_config['modules']['policy']=='model' else None
+    # Explicit experiment overrides only; never rewrite the ROS/common YAML.
+    overrides = dict(simulation_control_overrides or {})
+    if set(overrides)-{'mvp_drive_feedforward', 'speed_kp', 'speed_ki', 'drive_max'}:
+        raise ValueError('Only explicit simulation longitudinal overrides are supported')
+    config['control'].update(overrides)
+    if not finite_number(simulation_brake_drive) or not -1. <= simulation_brake_drive <= 0.:
+        raise ValueError('Simulation brake drive must be in [-1, 0]')
+    if not all(finite_number(v) and v > 0 for v in (stop_timeout_s, stopped_hold_s)):
+        raise ValueError('Positive stop timeout and hold required')
+    if simulation_brake_drive < 0 and not (obstacle_stop_config or {}).get('enabled'):
+        raise ValueError('Simulation braking requires the explicit obstacle-stop experiment')
     if path_source is None:
         path_source = 'lattice' if config['planner_control']['enabled'] else 'perception'
     if path_source not in ('lattice', 'perception') or road_input not in ('perception', 'map', 'no_centerline'):
@@ -95,15 +110,32 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
     fixed = road.get('format') in ('fixed_uturn_validation_road_v1','runtime_road_fixture_v1')
     factory = fixed_road_environment if fixed else recorded_environment
     options = dict(terminal_support_m=terminal_support_m) if fixed else {}
+    if lidar_sensor_config is not None:
+        if not fixed:
+            raise ValueError('LiDAR sensor experiments require a fixed road fixture')
+        options['lidar_sensor_config'] = lidar_sensor_config
     if modular:
         if not fixed:raise ValueError('Modular validation requires a normalized road fixture')
         options.update(physics_hz=rates['physics'],perception_hz=rates['perception'])
     with factory(road, seed=seed, progress=progress, speed=initial_speed,
-            latency_steps=latency_steps, max_steps=max_steps+latency_steps+math.ceil(stop_tail_s*(rates['physics'] if modular else 20))+20,
+            latency_steps=latency_steps, max_steps=max_steps+latency_steps+math.ceil(
+                max(stop_tail_s,stop_timeout_s if (obstacle_stop_config or {}).get('enabled') else 0.)
+                *(rates['physics'] if modular else 20))+20,
             **options) as env:
         if not modular and not math.isclose(env.dt_s, 1/config['policy_update_rate_hz'], abs_tol=1e-12):
             raise ValueError('Plant and control periods differ')
         control_stride=round(1/(env.dt_s*config['policy_update_rate_hz']))
+        monitor = None
+        if obstacle_stop_config is not None:
+            if control_stride != 1:
+                raise ValueError('First LiDAR stop experiment requires physics/control at the same rate')
+            if (modular and validation_config['modules']['control'] != 'mvp') or road_input != 'perception':
+                raise ValueError('LiDAR stop requires observed perception and the actual MVP controller')
+            body=env.config.bicycle_model_config['body_geometry']
+            monitor=ObstacleStopMonitor(ObstacleStopSettings(
+                front_extent_m=body['front_extent_from_center_of_mass_m'],
+                rear_extent_m=body['rear_extent_from_center_of_mass_m'],width_m=body['width_m'],
+                **obstacle_stop_config))
         control_updates=0;reference_pose=None
         perfect=None
         if modular and road_input=='map':
@@ -139,6 +171,20 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                     from offline.lattice_training.scenarios import road_input as mask_road_input
                     observation = mask_road_input(env._frame, 'no_centerline')
                 estimates, now = observation['estimation'], observation['timestamp_s']
+                if monitor is not None:
+                    decision = monitor.evaluate(estimates.get('obstacles'), now)
+                    if decision['stop_required']:
+                        # Admit a stop before planning, baseline rejection or
+                        # startup motion-history priming can delay it. Reuse
+                        # the same execution gate as a normal control tick.
+                        controller, drive, steer, control, reference = calculate_selected_control(
+                            controller, None, None, estimates['state'], estimates['vehicle_params'],
+                            now, 0. if step == 0 else env.dt_s, manager,
+                            obstacle_stop=monitor, obstacles=estimates.get('obstacles'))
+                        control_updates += 1
+                        fault, failure = 'control:'+control['reason'], dict(step=step,
+                            reference=reference, control=control, observation=observation)
+                        break
                 ages = observation['sensor_age_s']
                 fresh = {name: observation['sensor_available'].get(name, False)
                     and finite_number(ages.get(name)) and ages[name] < config['sensor_timeout_s'][name]
@@ -180,13 +226,13 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                 if not requested and control_due:
                     manager.diagnostics = dict(mode='baseline', fallback=False, reason='baseline_selected')
                 if control_due:priming = native is None and priming_motion_history(baseline, estimates, has_control, step*env.dt_s, controller.settings)
-                if control_due and native is None and not baseline['valid'] and not priming:
+                if control_due and native is None and not baseline['valid'] and not priming and not (monitor and monitor.latched):
                     fault, failure = 'planning:'+baseline['reason'], dict(step=step, observation=observation,
                         baseline=baseline, execution=dict(manager.diagnostics))
                     break
                 if not control_due:
                     pass  # Actuator holds the last published control, with its original reference frame.
-                elif priming:
+                elif priming and not (monitor and monitor.latched):
                     drive = steer = 0.
                     reference = None
                     control = dict(valid=False, stop_requested=False, reason='priming_motion_history')
@@ -194,12 +240,14 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                 else:
                     controller, drive, steer, control, reference = calculate_selected_control(
                         controller, baseline, native, estimates['state'], estimates['vehicle_params'],
-                        now, 0. if step == 0 else control_stride*env.dt_s, manager if requested else None)
+                        now, 0. if step == 0 else control_stride*env.dt_s, manager if requested else None,
+                        obstacle_stop=monitor, obstacles=estimates.get('obstacles'))
                     has_control = control['valid'] and not control['stop_requested']
                 if control_due:
                     reference_pose=list(env._backend.car._state_values()[:3]);control_updates+=1
                 if control_due and not priming and (not control['valid'] or control['stop_requested']):
-                    fault, failure = 'control:'+control['reason'], dict(step=step, reference=reference, control=control)
+                    fault, failure = 'control:'+control['reason'], dict(step=step, reference=reference, control=control,
+                        observation=observation)
                     break
                 mode = manager.diagnostics['mode']
                 modes[mode] += 1
@@ -261,6 +309,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                 fault = 'maximum_steps_reached'
         final = float(env._info['evaluation']['ground_truth']['reference_line_progress_m'])
         zero_rows = []
+        held_still_s = 0.
         if fault is not None:
             controller.clear()
             failure = failure or dict(fault=fault)
@@ -271,26 +320,43 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
             if detailed_trace and road_input=='no_centerline':failure['perception_road']=perception_road
             # The live FSM keeps publishing zero until explicit resume. Model
             # its actuator consequence, including coasting, without auto-retry.
+            lidar_stopping = monitor is not None and monitor.latched
             with (output/'trace.jsonl').open('a', encoding='utf-8') as stream:
-                for index in range(math.ceil(stop_tail_s/env.dt_s)):
+                for index in range(math.ceil((stop_timeout_s if lidar_stopping else stop_tail_s)/env.dt_s)):
                     if env._done:
                         break
                     before = list(env._backend.car._state_values())
                     obs = env._frame
                     if perfect is not None:obs=perfect.apply(env,obs,step+index)
-                    _, _, terminated, truncated, info = env.step((0., 0.))
+                    # Negative drive is a documented Dream Gym brake command,
+                    # selected ONLY by this explicit offline experiment. The
+                    # shared stop request and unchanged ROS node output zero.
+                    wheel = obs['sensors'].get('wheel_speed')
+                    brake = (simulation_brake_drive if lidar_stopping and finite_number(wheel) and wheel > .01 else 0.)
+                    decision = monitor.evaluate(obs['estimation'].get('obstacles'), obs['timestamp_s']) if lidar_stopping else None
+                    _, _, terminated, truncated, info = env.step((brake, 0.))
                     raw = list(env._backend.car._state_values())
                     row = dict(step=len(rows)+index, timestamp_s=obs['timestamp_s'], phase='zero_hold',
                         progress_m=float(info['evaluation']['ground_truth']['reference_line_progress_m']),
                         decision_pose=before[:3], raw_state_before=before, raw_state=raw,
                         x_m=raw[0], y_m=raw[1], heading_rad=raw[2], speed_mps=math.hypot(raw[3],raw[4]),
-                        raw_action=[0.,0.], plant_action=[0.,0.], reference=None,
+                        raw_action=[brake,0.], plant_action=[brake,0.], reference=None,
                         execution=dict(mode='zero', reason=fault), control=dict(valid=False,stop_requested=True,reason=fault),
                         observation=obs if detailed_trace else None,
                         plant_corner_road_margin_m=checker.margins(raw)['road_clearance_m'])
+                    row['ground_truth_contacts'] = info['evaluation']['contacts']
+                    if lidar_stopping:
+                        row.update(phase='lidar_braking' if brake else 'lidar_stop_hold',
+                            obstacle_stop=decision, control_updated=True,
+                            stop_request_action=[0.,0.], simulation_only_brake=True)
+                        held_still_s = held_still_s+env.dt_s if finite_number(wheel) and wheel <= .01 else 0.
                     zero_rows.append(row)
                     stream.write(json.dumps(json_safe(row), allow_nan=False)+'\n')
-            failure['zero_publication_simulated_cycles'] = len(zero_rows)
+                    if lidar_stopping and held_still_s+1e-9 >= stopped_hold_s:
+                        break
+            failure['zero_publication_simulated_cycles'] = sum(r['raw_action']==[0.,0.] for r in zero_rows)
+            failure['simulation_braking_cycles'] = sum(r['raw_action'][0]<0 for r in zero_rows)
+            failure['stop_tail_simulated_cycles'] = len(zero_rows)
             failure['plant_terminated_before_zero_tail_finished'] = bool(env._done)
             write_json(output/'failure.json', failure)
             if modular and detailed_trace and not rows and not zero_rows:
@@ -304,6 +370,9 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                 snapshot['raw_estimator_road']=raw_estimator_road
                 with (output/'trace.jsonl').open('a',encoding='utf-8') as stream:
                     stream.write(json.dumps(json_safe(snapshot),allow_nan=False)+'\n')
+        trigger_progress = final
+        if monitor is not None:
+            final = float(env._info['evaluation']['ground_truth']['reference_line_progress_m'])
         completed = fault is None and final >= goal
         summary = dict(format='mvp21_shared_execution_v1', checkpoint=preserved, upstream_commit=UPSTREAM_COMMIT,
             source_sha256=SOURCE_SHA256, config_sha256=CONFIG_SHA256, upstream_config_sha256=UPSTREAM_CONFIG_SHA256,
@@ -329,7 +398,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                 delay_s=delivery_delay_s, submitted=len(submissions), accepted=accepted, submission_times_s=submissions),
             shadow=dict(enabled=shadow_enabled and settings.enabled, calls=len(worker.completed),
                 status_counts=dict(statuses), influences_actions=requested, effective_settings=vars(settings)),
-            maximum_executed_speed_mps=max((r['speed_mps'] for r in rows), default=initial_speed),
+            maximum_executed_speed_mps=max((r['speed_mps'] for r in rows+zero_rows), default=initial_speed),
             target_speed_mps=config['planning']['cruise_speed_mps'],
             minimum_plant_corner_road_margin_m=min((r['plant_corner_road_margin_m'] for r in rows), default=None),
             wall_s=time.perf_counter()-started, learned_scorer_enabled=selector is not None,
@@ -343,6 +412,25 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
             policy_errors=selector.errors if selector is not None else 0,
             real_time_qualified=False,
             hardware_tested=False, deployed=False, speed_tracking_qualified=False)
+        if monitor is not None:
+            final_raw=env._backend.car._state_values()
+            contact=env._info['evaluation']['contacts']
+            contact=bool(contact['obstacle_indices_overlapping_current_pose'] or contact['obstacle_indices_contacted_during_step']) or any(
+                (r.get('ground_truth_contacts') or {}).get('obstacle_indices_overlapping_current_pose') or
+                (r.get('ground_truth_contacts') or {}).get('obstacle_indices_contacted_during_step') for r in rows+zero_rows)
+            summary['obstacle_stop'] = dict(settings=vars(monitor.settings), trigger=monitor.trigger,
+                trigger_progress_m=trigger_progress if monitor.latched else None,
+                stop_simulation_steps=len(zero_rows),
+                final_speed_mps=math.hypot(final_raw[3],final_raw[4]),
+                stopped_hold_s=held_still_s if monitor.latched else 0.,
+                obstacle_contact=contact,simulation_brake_drive=simulation_brake_drive,
+                passed=bool(monitor.trigger and monitor.trigger['reason']=='lidar_obstacle'
+                    and held_still_s+1e-9>=stopped_hold_s and math.hypot(final_raw[3],final_raw[4])<=.01 and not contact),
+                scope='straight_forward_simulation_only',hardware_braking_qualified=False)
+            # Preserve the meaning of the legacy zero-publication counter:
+            # simulated negative braking commands are not zero commands.
+            summary['zero_publication_tail_cycles'] = sum(r['raw_action']==[0.,0.] for r in zero_rows)
+        summary['simulation_control_overrides'] = overrides
         write_json(output/'summary.json', summary)
         if modular:
             write_json(output/'module-events.json',dict(policy_ticks=worker.selection_events))

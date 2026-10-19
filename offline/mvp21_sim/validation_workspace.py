@@ -28,7 +28,8 @@ def write(path,value):
 def source_snapshot():
     paths=[*sorted((ROOT/'mvp21_policy').glob('*.py')),*sorted((ROOT/'offline/mvp21_sim').glob('*.py')),
         *sorted((ROOT/'offline/lattice_training').glob('*.py')),*sorted((ROOT/'offline/planner_sim').glob('*.py')),
-        ROOT/'config/ai4r_policy.yaml']
+        *sorted((ROOT/'offline/lidar_stop').glob('*.py')),
+        ROOT/'config/ai4r_policy.yaml', ROOT/'offline/mvp21_sim/preserved-files.json']
     hashes={p.relative_to(ROOT).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     return dict(sha256=digest(hashes),files=hashes)
 

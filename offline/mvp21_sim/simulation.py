@@ -64,7 +64,8 @@ def recorded_environment(report, *, seed=0, progress=None, speed=0., latency_ste
 
 
 def fixed_road_environment(case, *, seed=713, progress=None, speed=0., latency_steps=1,
-                           max_steps=4000, terminal_support_m=2.,physics_hz=20.,perception_hz=20.):
+                           max_steps=4000, terminal_support_m=2.,physics_hz=20.,perception_hz=20.,
+                           lidar_sensor_config=None):
     """20 Hz camera/telemetry port for saved road fixtures.
 
     Warm up only at rest. No oracle geometry or scenario width enters estimation;
@@ -83,7 +84,13 @@ def fixed_road_environment(case, *, seed=713, progress=None, speed=0., latency_s
     estimation.update(left_colour=2, right_colour=1)
     if estimation['known_lane_width_m'] != 0:
         raise ValueError('Fixed no-prior suite requires known_lane_width_m=0')
-    env = MVP21SimulationEnv(config, max_steps=max_steps, estimation_settings=estimation,
+    environment_class, experiment_options = MVP21SimulationEnv, {}
+    if lidar_sensor_config is not None:
+        from offline.lidar_stop.sensors import LidarExperimentEnv
+        environment_class = LidarExperimentEnv
+        experiment_options['lidar_sensor_config'] = lidar_sensor_config
+    env = environment_class(config, max_steps=max_steps, estimation_settings=estimation,
+        **experiment_options,
         sensor_timing=SensorTiming(period_steps={'cone_detections': round(physics_hz/perception_hz)},
                                    delay_steps={'cone_detections': latency_steps}))
     env.collection_route_length_m = case['mission_road_length_m']

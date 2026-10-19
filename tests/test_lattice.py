@@ -463,7 +463,13 @@ class ShadowIntegrationChecks(unittest.TestCase):
 
     def configure_shipped_baseline(self, node):
         import yaml
-        cfg = yaml.safe_load((source.parents[1]/"config/ai4r_policy.yaml").read_text(
+        try:
+            from ament_index_python.packages import get_package_share_directory
+        except ImportError:
+            package_share = Path(__file__).resolve().parents[1]
+        else:
+            package_share = Path(get_package_share_directory('ai4r_policy'))
+        cfg = yaml.safe_load((package_share/"config/ai4r_policy.yaml").read_text(
             encoding="utf-8"))["/**/ai4r_policy"]["ros__parameters"]
         node.estimation_settings = ns["EstimationSettings"](**cfg["estimation"])
         node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)

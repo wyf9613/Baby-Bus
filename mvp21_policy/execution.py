@@ -230,9 +230,21 @@ def priming_motion_history(baseline, estimates, has_control, elapsed_s, control)
 
 
 def calculate_selected_control(controller, baseline, planner_reference, state, vehicle_params,
-                               now_s, dt, execution=None, baseline_provider=None):
+                               now_s, dt, execution=None, baseline_provider=None,
+                               obstacle_stop=None, obstacles=None):
     """Run the existing PID with MVP2.1 same-tick rollback/fallback semantics."""
     reference = planner_reference if planner_reference is not None else baseline
+    # A body-forward stop is independent of reference choice. It must bypass
+    # the normal planner-controller rollback and same-tick baseline fallback.
+    decision = obstacle_stop.evaluate(obstacles, now_s) if obstacle_stop is not None else None
+    if decision is not None and decision['stop_required']:
+        controller.clear()
+        diagnostics = dict(valid=True, stop_requested=True, reason=decision['reason'],
+                           obstacle_stop=decision, reference_source='obstacle_stop')
+        if execution is not None:
+            execution.diagnostics.update(mode='obstacle_stop', fallback=False,
+                reason=decision['reason'], drive_action=0., steering_action=0., control_dt_s=dt)
+        return controller, 0., 0., diagnostics, reference
     previous = deepcopy(controller) if planner_reference is not None else None
     try:
         drive, steer, diagnostics = controller.calculate(reference, state, vehicle_params, now_s, dt)
@@ -250,4 +262,6 @@ def calculate_selected_control(controller, baseline, planner_reference, state, v
         diagnostics["reference_source"] = execution.diagnostics.get("mode")
         diagnostics["reference_selection_reason"] = execution.diagnostics.get("reason")
         execution.diagnostics.update(drive_action=drive, steering_action=steer, control_dt_s=dt)
+    if decision is not None:
+        diagnostics['obstacle_stop'] = decision
     return controller, drive, steer, diagnostics, reference

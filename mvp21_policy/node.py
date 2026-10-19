@@ -60,6 +60,7 @@ from .transport import (
     ShadowWorker,
 )
 from .execution import PlannerControlSettings, PlannerExecutionManager, calculate_selected_control, priming_motion_history
+from .obstacle_stop import ObstacleStopMonitor, ObstacleStopSettings
 import rclpy
 from rclpy.clock import Clock, ClockType
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
@@ -163,6 +164,21 @@ class PolicyNode(ShadowJobSource, Node):
         self.declare_parameter("planner_control.enabled", False, ParameterDescriptor(read_only=True))
         self.planner_control_settings = PlannerControlSettings(
             enabled=self.get_parameter("planner_control.enabled").value)
+        stop_values = {}
+        for name, default in vars(ObstacleStopSettings()).items():
+            if name == 'frame_id':
+                continue  # Always follow the policy's actual output frame.
+            parameter_name = 'obstacle_stop.'+name
+            self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
+            stop_values[name] = self.get_parameter(parameter_name).value
+        self.obstacle_stop_monitor = ObstacleStopMonitor(ObstacleStopSettings(
+            **stop_values, frame_id=self.policy_frame_id))
+        self.obstacle_stop_diagnostics = None
+        self._obstacle_stop_snapshot = None
+        if self.obstacle_stop_monitor.settings.enabled and (
+                not self.control_settings.enabled or self.control_settings.mode != 'mvp'
+                or self.policy_update_mode != 'timer'):
+            raise ValueError('Obstacle stop requires timer updates and enabled MVP control')
         if self.planner_control_settings.enabled and (
                 not self.shadow_settings.enabled or not self.control_settings.enabled
                 or self.control_settings.mode != "mvp"
@@ -668,7 +684,17 @@ class PolicyNode(ShadowJobSource, Node):
         self.previous_policy_step_at = now
 
         try:
-            if self._end_straight_start_distance_m is not None:
+            monitor = getattr(self, 'obstacle_stop_monitor', None)
+            stop_ready = True
+            if monitor is not None and monitor.settings.enabled:
+                self._update_policy_estimation(values, ages, stamps, first, ros_now/1e9)
+                self._obstacle_stop_snapshot = values
+                stop_ready = self._check_obstacle_stop(dt)
+            if not stop_ready:
+                result = (0.0, 0.0, None, None, None)
+                self.planner_execution.diagnostics = dict(mode='priming', fallback=False,
+                                                          reason='lidar_alignment_priming')
+            elif self._end_straight_start_distance_m is not None:
                 # Terminal mode never resumes cone following, even if cones
                 # return. The independent supervisor stops it at its budget.
                 result = (self.control_settings.end_straight_drive_normalized,
@@ -694,6 +720,8 @@ class PolicyNode(ShadowJobSource, Node):
             self.get_logger().error("Student policy failed:\n" + traceback.format_exc())
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, "Policy calculation or output was invalid")
             return
+        finally:
+            self._obstacle_stop_snapshot = None
 
         # A calculation may have taken longer than a sensor's deadline. Check
         # again after it returns; never refresh stale driving actions on a timer.
@@ -713,7 +741,7 @@ class PolicyNode(ShadowJobSource, Node):
             self._publish_planner_execution()
         # Offer AFTER the baseline action, never on its calculation/exception path.
         # This is a diagnostic side channel; failures cannot change the action/FSM.
-        if getattr(self, "shadow_worker", None) is not None:
+        if stop_ready and getattr(self, "shadow_worker", None) is not None:
             try:
                 self._shadow_offer()
             except Exception as error:
@@ -724,6 +752,75 @@ class PolicyNode(ShadowJobSource, Node):
             self.debug1_publisher.publish(Float32(data=float(debug1)))
         if debug2 is not None:
             self.debug2_publisher.publish(Float32(data=float(debug2)))
+
+    def _update_policy_estimation(self, observations, sensor_age_s, sensor_stamp_ns, first, now_s=None):
+        """One actual estimator update per policy snapshot, also before a stop."""
+        if first or not hasattr(self, 'estimator'):
+            self.estimator = EstimationPipeline(self.estimation_settings, self.policy_frame_id,
+                                               motion_history=self.motion_history)
+        receipts = {name: None if obs is None else obs.received_at
+                    for name, obs in self.observations.items()}
+        receipt_stamps = {name: None if obs is None else obs.received_ros_ns
+                          for name, obs in self.observations.items()}
+        self.estimation_output = self.estimator.update(observations, sensor_age_s, sensor_stamp_ns,
+            receipts, self.get_clock().now().nanoseconds/1e9 if now_s is None else now_s, receipt_stamps)
+        calibration = getattr(self, 'vehicle_settings', VehicleCalibrationSettings())
+        if calibration.valid:
+            params, limits = calibration.records()
+            self.estimation_output['vehicle_params'] = params
+            self.estimation_output['vehicle_limits'] = limits
+
+    def _check_obstacle_stop(self, dt):
+        monitor = getattr(self, 'obstacle_stop_monitor', None)
+        if monitor is None or not monitor.settings.enabled:
+            return True
+        estimates = self.estimation_output
+        # Geometry and age belong to ONE captured snapshot, not a second
+        # wall-clock read after estimation. The publication watchdog separately
+        # checks actual elapsed source age before sending any driving command.
+        now_s = estimates['state']['timestamp_s']
+        obstacles = estimates.get('obstacles')
+        # Initial motion alignment may need post-start telemetry. Never drive
+        # during that bounded wait. Missing/stale scans/TF are already rejected
+        # independently by the source watchdog, including during this wait.
+        if (not (obstacles or {}).get('available') and not self.control_has_run
+                and self.policy_started_at is not None
+                and self._monotonic()-self.policy_started_at < self.control_settings.startup_grace_s):
+            self.obstacle_stop_diagnostics = dict(enabled=True, stop_required=False,
+                reason='lidar_alignment_priming', drive_allowed=False)
+            return False
+        decision = monitor.evaluate(obstacles, now_s)
+        self.obstacle_stop_diagnostics = decision
+        if decision['stop_required']:
+            self.controller, _, _, self.control_diagnostics, _ = calculate_selected_control(
+                self.controller, None, None, estimates['state'], estimates['vehicle_params'],
+                now_s, dt, getattr(self, 'planner_execution', None),
+                obstacle_stop=monitor, obstacles=obstacles)
+            raise PolicyStopRequest('Control: '+decision['reason'])
+        return True
+
+    def _obstacle_stop_source_fault(self, monotonic_now, ros_now_ns):
+        for name in ('lidar_scan', 'lidar_cartesian'):
+            sample = self.observations.get(name)
+            if sample is None:
+                return 'lidar_unavailable', None
+            age = self._age(sample, monotonic_now, ros_now_ns)
+            if (not self._fresh(name, monotonic_now, ros_now_ns)
+                    or age >= self.obstacle_stop_monitor.settings.max_source_age_s):
+                return 'lidar_stale_or_bad_timestamp', age
+        if self.observations['lidar_cartesian'].value['frame_id'] != self.policy_frame_id:
+            return 'lidar_frame_or_alignment', None
+        return None, None
+
+    def _obstacle_stop_watchdog(self, monotonic_now, ros_now_ns):
+        monitor = getattr(self, 'obstacle_stop_monitor', None)
+        if monitor is None or not monitor.settings.enabled:
+            return None
+        if not monitor.latched:
+            reason, age = self._obstacle_stop_source_fault(monotonic_now, ros_now_ns)
+            if reason:
+                self.obstacle_stop_diagnostics = monitor.request_fault(reason, ros_now_ns/1e9, age)
+        return 'Control: '+monitor.trigger['reason'] if monitor.latched else None
 
     def calculate_policy_actions(self, observations, sensor_age_s, sensor_stamp_ns,
                                  dt, policy_elapsed_s, is_first_policy_step):
@@ -1003,25 +1100,11 @@ class PolicyNode(ShadowJobSource, Node):
         # "obstacles"/"vehicle_params"/"vehicle_limits"]. Valid geometry is aligned
         # to state.timestamp_s; measurement_timestamp_s keeps source time. No
         # ReferenceTrajectory or target speed is generated by the estimator.
-        if is_first_policy_step or not hasattr(self, "estimator"):
-            self.estimator = EstimationPipeline(
-                self.estimation_settings, self.policy_frame_id,
-                motion_history=self.motion_history)
-        sample_receipts = {name: None if obs is None else obs.received_at
-                           for name, obs in self.observations.items()}
-        receipt_ros_ns = {name: None if obs is None else obs.received_ros_ns
-                          for name, obs in self.observations.items()}
-        self.estimation_output = self.estimator.update(
-            observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
-            self.get_clock().now().nanoseconds / 1e9, receipt_ros_ns)
-
-        # Supply explicit car calibration at the integration boundary without
-        # changing the estimator or substituting simulation for missing facts.
-        calibration = getattr(self, "vehicle_settings", VehicleCalibrationSettings())
-        if calibration.valid:
-            params, limits = calibration.records()
-            self.estimation_output["vehicle_params"] = params
-            self.estimation_output["vehicle_limits"] = limits
+        if getattr(self, '_obstacle_stop_snapshot', None) is not observations:
+            self._update_policy_estimation(observations, sensor_age_s, sensor_stamp_ns, is_first_policy_step)
+        if getattr(self, 'obstacle_stop_monitor', None) is not None:
+            if not self._check_obstacle_stop(dt):
+                return 0.0, 0.0, None, None, None
 
         if is_first_policy_step or not hasattr(self, "planner"):
             planner_type = (RoadCenterlinePlanner if self.planning_settings.algorithm == "road_centerline"
@@ -1195,6 +1278,10 @@ class PolicyNode(ShadowJobSource, Node):
         return cfg.enabled and cfg.mode == "mvp" and cfg.robustness_enabled
 
     def _control_health_problem(self, monotonic_now, ros_now_ns):
+        if getattr(self, 'obstacle_stop_monitor', None) is not None:
+            stop = self._obstacle_stop_watchdog(monotonic_now, ros_now_ns)
+            if stop:
+                return stop
         problem = self.health_problem(monotonic_now, ros_now_ns)
         if (getattr(self, "_end_straight_start_distance_m", None) is not None
                 and problem == "No recent nonempty cone detections"):
@@ -1253,11 +1340,18 @@ class PolicyNode(ShadowJobSource, Node):
             return  # No accidental heading/integrator/time reset on a repeat.
         if requested == FSM_STATE_PUBLISHING_POLICY_ACTION:
             problem = self.health_problem(now, ros_now)
+            monitor = getattr(self, 'obstacle_stop_monitor', None)
+            if monitor is not None and monitor.settings.enabled:
+                fault, _ = self._obstacle_stop_source_fault(now, ros_now)
+                problem = problem or fault
             if problem:
                 self.state_reason = f"Policy start refused: {problem}"
                 self.get_logger().warning(self.state_reason)
                 self.publish_state()
                 return
+            if monitor is not None and monitor.settings.enabled:
+                monitor.reset()  # Only an admitted explicit operator resume.
+                self.obstacle_stop_diagnostics = None
             self.heading_reference = None
             if self._fresh("imu_orientation", now, ros_now):
                 self.heading_reference = roll_pitch_yaw(self.observations["imu_orientation"].value)[2]

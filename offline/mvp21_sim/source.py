@@ -58,4 +58,5 @@ def verify_preserved_files():
         raise ValueError('Preserved files changed: ' + ', '.join(changed))
     return dict(checkpoint_commit=manifest['checkpoint_commit'],checked_files=len(manifest['sha256_lf']),
                 unchanged=True,authorized_migrations=len(manifest.get('authorized_migrations',{})),
+                adapter_repairs=manifest.get('adapter_repairs',{}),
                 migration_reason=manifest.get('migration_reason'))

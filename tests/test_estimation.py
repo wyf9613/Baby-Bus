@@ -29,7 +29,8 @@ namespace={**vars(modules),**vars(contracts),'math':math,'deepcopy':deepcopy,
            'time':__import__('time'),'ConeDetection':SimpleNamespace(COLOR_BLUE=2,COLOR_YELLOW=1)}
 tree=ast.parse(SOURCE.read_text(encoding='utf-8'))
 policy_class=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='PolicyNode')
-methods=[n for n in policy_class.body if isinstance(n,ast.FunctionDef) and n.name in ('calculate_policy_actions','_store')]
+methods=[n for n in policy_class.body if isinstance(n,ast.FunctionDef) and n.name in
+         ('calculate_policy_actions','_store','_update_policy_estimation')]
 exec(compile(ast.Module(body=methods,type_ignores=[]),str(SOURCE),'exec'),namespace)
 
 Settings = namespace["EstimationSettings"]
@@ -365,6 +366,7 @@ class EstimationChecks(unittest.TestCase):
                                                                received_ros_ns=10_000_000_000) for k in obs},
                                get_clock=lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_050_000_000)))
         method = namespace["calculate_policy_actions"]
+        node._update_policy_estimation = namespace['_update_policy_estimation'].__get__(node)
         result = method(node, obs, ages, stamps, 0.0, 0.0, True)
         self.assertEqual(result, (0.0, 0.0, None, None, None))
         self.assertTrue(node.estimation_output["road"]["valid"])

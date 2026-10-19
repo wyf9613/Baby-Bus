@@ -191,6 +191,7 @@ class PlanningChecks(unittest.TestCase):
                                                received_ros_ns=10_000_000_000) for key in obs},
             get_clock=lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=10_050_000_000)))
         method = api["namespace"]["calculate_policy_actions"]
+        node._update_policy_estimation = api['namespace']['_update_policy_estimation'].__get__(node)
         self.assertEqual(method(node, obs, ages, stamps, receipts["wheel_speed"], 0.0, True),
                          (0.0, 0.0, None, None, None))
         self.assertTrue(node.planning_output["valid"], node.planning_output["reason"])

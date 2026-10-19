@@ -54,7 +54,7 @@
     "offline/lattice_training/viewer.html": "0232f4a0d24b82fabcb6784c06dda15853bdc2627eb9f62925b7bf7eacb03962",
     "offline/planner_sim/__init__.py": "0958004f32657aad402e477e4784ac3e66c2c12d3d40f8fe2e236e053b87ddc7",
     "offline/planner_sim/__main__.py": "c28128ff39c6b96f9571c74f87a6e38f5810ad4d76d1775308afe49a14f85ab4",
-    "offline/planner_sim/environment.py": "a07e251246b3fe85a84b287fe8d70d30701cb2f2918deea655650737640b2899",
+    "offline/planner_sim/environment.py": "3ee279f2a2e9e79d3bfdb60be304e6bd75e43de6d965a0cf3fc9333e780ca4f3",
     "offline/planner_sim/notebook.py": "f4a13bc351ad8ed3b646cff2e776087602d768ce83f00844a1a63d7bb3be5741",
     "offline/planner_sim/requirements.txt": "a3605177ab638a8402f47bf005e2c9f517e5e9b3925ebeff743ae45cc7f4fe5a",
     "offline/planner_sim/snapshot.py": "dace91600e093161501d87755ec11ca8e02b72d91a5dbbe0f228b240195f44f4"
@@ -79,5 +79,14 @@
     "offline/lattice_training/INTEGRATION_CN.md": "abc7ce001e5ca176c6ee8bc3a60197471986f02d6d0bf8f2ebf1c26d26a1721f",
     "offline/lattice_training/cstar_objective.json": "befea3b4f6fc371fc37aab6cf1bca4d529b623d43485b043e9edd34ee03f7515"
   },
-  "migration_reason": "User authorized retiring V2 and replacing policy input with current state, current road/obstacles and candidate trajectory; legacy model/data readers and planner-score/history features removed. Historical artifacts, plant and C* solver remain protected."
+  "migration_reason": "User authorized retiring V2 and replacing policy input with current state, current road/obstacles and candidate trajectory; legacy model/data readers and planner-score/history features removed. Historical artifacts, plant and C* solver remain protected.",
+  "adapter_repairs": {
+    "offline/planner_sim/environment.py": {
+      "original_sha256": "a07e251246b3fe85a84b287fe8d70d30701cb2f2918deea655650737640b2899",
+      "current_sha256": "3ee279f2a2e9e79d3bfdb60be304e6bd75e43de6d965a0cf3fc9333e780ca4f3",
+      "reason": "User-authorized LiDAR simulation hardening: copy the restored instance dict so cyclic garbage collection cannot clear live plant state. No plant dynamics, sensor pipeline or historical artifacts changed.",
+      "baseline_commit": "465e581bd744c35c23ebe67891003b9e3a7bd453",
+      "regression": "tests.test_lidar_stop_sim.LidarSimulationChecks.test_original_environment_restore_survives_garbage_collection"
+    }
+  }
 }
