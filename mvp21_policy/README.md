@@ -69,6 +69,10 @@ python -B tools/bundle_python.py scripts/mvp21_policy_node.py --root . --output 
 提供 ROS 2 Jazzy 与对应消息包。上述构建入口及 `mvp21_policy/` 目录无需随单文件复制。
 当前单文件验证及完整 ROS gate 的限制见[验收记录](../docs/acceptance.md)。
 
+同日从 `feature/mpc-model@15724bc` 选取合入 planner 的二分弧长查找和每次规划内的
+采样帧缓存，再生成上述单文件。候选、评分、当前 PID 执行与 YAML 保持原语义；
+MPC 控制器和学习评分不随这两项优化接入。
+
 仿真日志同时保存上游原文件指纹和`runtime_modules`实际源码指纹。worker返回的
 `source_sha256`现按`source_sha256_format=mvp21_worker_geometry_lattice_v2`计算，覆盖
 `worker.py`、`geometry.py`、`frenet.py`、`lattice.py`，不把原单文件的hash当作模块运行版本。

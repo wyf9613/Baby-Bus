@@ -21,6 +21,7 @@ sys.path.insert(0, str(PACKAGE_ROOT))
 from mvp21_policy import api
 from mvp21_policy.execution import PlannerExecutionManager
 from mvp21_policy.lattice import ShadowLatticePlanner, ShadowSettings
+from mvp21_policy.frenet import _shadow_at, _shadow_lengths
 
 
 def upstream():
@@ -50,6 +51,37 @@ def packet(road=None):
 
 
 class MVP21CompatibilityChecks(unittest.TestCase):
+    def test_arc_lookup_matches_legacy_at_knots_neighbors_and_tails(self):
+        for points in ([(.6, .03)], [(0., 0.), (1., 0.)],
+                       [(0., 0.), (.3, .2), (.7, .5), (1., .4)],
+                       [(0., 0.), (0., .5), (-.3, .5), (-.3, -.3)]):
+            lengths = _shadow_lengths(points)
+            stations = [-.4, 0., .04, lengths[-1]+.4]
+            for knot in lengths:
+                stations.extend((math.nextafter(knot, -math.inf), knot,
+                                 math.nextafter(knot, math.inf)))
+            for station in stations:
+                with self.subTest(points=points, station=station):
+                    self.assertEqual(_shadow_at(points, lengths, station),
+                                     BASE['_shadow_at'](points, lengths, station))
+
+    def test_all_candidates_match_legacy_across_reused_planner_jobs(self):
+        baseline = BASE['ShadowLatticePlanner'](BASE['ShadowSettings'](sample_count=48))
+        merged = ShadowLatticePlanner(ShadowSettings(sample_count=48))
+        straight = [(0., 0.), (.5, 0.), (1., 0.)]
+        curves = (straight, [(0., .1), (.4, .13), (.75, .35), (1., .75)],
+                  [(.2, -.2), (.2, .5), (-.3, .7), (-.5, .2)], straight)
+        for centerline, speed in zip(curves, (0., .2, .8, .1)):
+            job = packet()
+            job['road']['centerline_xy'] = centerline
+            job['state']['speed_mps'] = speed
+            expected = baseline.plan(deepcopy(job))
+            actual = merged.plan(deepcopy(job))
+            with self.subTest(centerline=centerline, speed=speed):
+                self.assertEqual(actual['status'], expected['status'])
+                self.assertEqual(actual['candidates'], expected['candidates'])
+                self.assertEqual(actual['selected'], expected['selected'])
+
     def compare_plan(self, job):
         values = job.get('settings') or dict(sample_count=12)
         baseline = BASE['ShadowLatticePlanner'](BASE['ShadowSettings'](**values)).plan(deepcopy(job))

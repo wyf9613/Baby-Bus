@@ -7,6 +7,32 @@ C* remains a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
 Historical planner/controller/physical evidence below remains separate.
 
+## Planner lookup/cache optimization and rebuilt delivery, 2026-10-20
+
+Fetched `feature/mpc-model@15724bceb6b34f1e3a6723b441ffa1c3e7910a1b` and
+selectively integrated its two planner optimizations into the modular runtime:
+`frenet._shadow_at` uses binary search, and `ShadowLatticePlanner._plan_geometry`
+caches repeated knot frames within one job. The MPC execution adapter,
+controllers, parameters, learned policy and immutable upstream snapshot are not
+part of this integration. PID execution and common YAML remain unchanged.
+
+Regenerated the required `scripts/policy_node.py` using the existing documented
+command. Artifact: 438366 bytes; SHA-256
+`d59b494fc9907bb151807d3939f49eb652928459415cacdd2b129aaba9de1c15`.
+All 15 embedded sources and the configuration snapshot match the working tree,
+with no unresolved dynamic imports or learned-policy modules/weights. Isolated
+execution of the file alone processes 20 recorded worker inputs identically to
+the modular runtime, recovers from malformed JSON, and rebuilds byte-for-byte.
+
+Portable lattice, compatibility, execution, modules, bundler and Frenet-input
+checks: 104 passed, 1 Windows symlink-permission skip, 108 subtests passed.
+Added coverage compares arc lookup at exact knots, adjacent floating-point
+values and extrapolated tails against the immutable original; all 48 candidates,
+their scores and selections match across reused planner jobs with changed roads
+and horizons. The required ROS fast command was attempted again in WSL and
+stops before build on the absent pinned `dream_interfaces` checkout. Full ROS,
+live restart and physical performance are not established by these checks.
+
 ## Single-file delivery without learned policy, 2026-10-20
 
 Pulled `feature/mvp21-sim-integration-20261015` at

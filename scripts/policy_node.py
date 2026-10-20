@@ -4,7 +4,8 @@
 BUNDLE_MANIFEST = {'entry': 'scripts/mvp21_policy_node.py',
  'entry_module': 'scripts.mvp21_policy_node',
  'entry_package': '',
- 'external_dependencies': {'copy': 'runtime Python package / standard library',
+ 'external_dependencies': {'bisect': 'runtime Python package / standard library',
+                           'copy': 'runtime Python package / standard library',
                            'dataclasses': 'runtime Python package / standard library',
                            'dream_interfaces.msg': 'not found; may be an optional import',
                            'geometry_msgs.msg': 'not found; may be an optional import',
@@ -67,11 +68,11 @@ BUNDLE_MANIFEST = {'entry': 'scripts/mvp21_policy_node.py',
              'mvp21_policy/execution.py': {'encoding': 'utf-8',
                                            'sha256': 'a1b02d0683eb7988e7b0bf8a5914ab00e8c138aa50888612532417e75c52ce54'},
              'mvp21_policy/frenet.py': {'encoding': 'utf-8',
-                                        'sha256': '363bd2eee26075f57cb70cd30987af643cd2086cd24729a9d465fdd74ffee89c'},
+                                        'sha256': '179e40da9571d3e9fd5221907a9cc2942b9c387ef6f9b94cedc560b42638ae7f'},
              'mvp21_policy/geometry.py': {'encoding': 'utf-8',
                                           'sha256': '6a3fb3d04b0e4211deca5199621f665e98fa3918f09d278ab69381cddc1cd8c6'},
              'mvp21_policy/lattice.py': {'encoding': 'utf-8',
-                                         'sha256': '2461edc0894071f3c76f63e45f1e77dd60bc0fc059d3dbb07054b65b63ce1474'},
+                                         'sha256': 'd6b792718a50a2524e076fbb3a56a05c700a909f0c230f8214b92f23fee5a6d9'},
              'mvp21_policy/motion.py': {'encoding': 'utf-8',
                                         'sha256': 'daca37206a81ec0e4d10680b1ebd7d28c9c63a30a90c6561a97463800a56b889'},
              'mvp21_policy/node.py': {'encoding': 'utf-8',
@@ -2498,7 +2499,8 @@ _BUNDLE_SOURCES = {
         '    elif s >= lengths[-1]:\n'
         '        i = len(points)-2\n'
         '    else:\n'
-        '        i = next(i for i in range(len(points)-1) if s <= lengths[i+1])\n'
+        '        from bisect import bisect_left\n'
+        '        i = bisect_left(lengths, s)-1\n'
         '    u = (s-lengths[i])/(lengths[i+1]-lengths[i])\n'
         '    return tuple(points[i][k]+u*(points[i+1][k]-points[i][k]) for k in (0, 1))\n'
         '\n'
@@ -3291,13 +3293,16 @@ _BUNDLE_SOURCES = {
         '                      if value and sources.get(side) in ("observed", "observed_with_history")}\n'
         '        timing["sampling"] = time.perf_counter()-phase_started\n'
         '        candidates = []\n'
+        '        knot_frames = {}  # Identical station lookups across candidates, per job.\n'
         '        for candidate_id, (family, offsets) in enumerate(samples[:cfg.sample_count]):\n'
         '            phase_started = time.perf_counter()\n'
         '            early = 0.12 if family == "fast_center" else 0.25\n'
         '            distances = (early*horizon, 0.6*horizon, horizon)\n'
         '            knots = [(0.0, 0.0)]\n'
         '            for distance, offset in zip(distances, offsets):\n'
-        '                p, _, n = frame.at(s0+distance)\n'
+        '                if distance not in knot_frames:\n'
+        '                    knot_frames[distance] = frame.at(s0+distance)\n'
+        '                p, _, n = knot_frames[distance]\n'
         '                knots.append((p[0]+offset*n[0], p[1]+offset*n[1]))\n'
         '            path = _shadow_curve(knots, horizon, cfg.path_spacing_m)\n'
         '            next_phase = time.perf_counter()\n'

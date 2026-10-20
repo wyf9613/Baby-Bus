@@ -19,7 +19,8 @@ def _shadow_at(points, lengths, s):
     elif s >= lengths[-1]:
         i = len(points)-2
     else:
-        i = next(i for i in range(len(points)-1) if s <= lengths[i+1])
+        from bisect import bisect_left
+        i = bisect_left(lengths, s)-1
     u = (s-lengths[i])/(lengths[i+1]-lengths[i])
     return tuple(points[i][k]+u*(points[i+1][k]-points[i][k]) for k in (0, 1))
 
