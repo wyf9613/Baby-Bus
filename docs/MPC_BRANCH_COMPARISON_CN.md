@@ -78,7 +78,7 @@
 | --- | --- | --- |
 | 参考比预测时域短 | 沿最后一段直线外推，最多 0.3 m（`max_forward_extension_m`） | 自适应时域：按剩余路径缩短时域，最少 2 步，不够就减半重试 |
 | 起步时接到路径上 | `ordered_lead_in` 拟合 | `start_bridge`：对齐检查 \|e_y\| ≤ 0.20、\|e_psi\| ≤ 0.35。他自己记录过这项检查导致停车（`start_bridge_alignment`） |
-| lattice ↔ 中心线切换 | 中心线跳变保护（`switch_hold_s` 0.25）；切换后 0.4 s 内限制转向变化率（`switch_blend_s`） | 无 |
+| lattice ↔ 中心线切换 | 中心线跳变保护（`switch_hold_s` 0.25）；切换后 0.4 s 内限制转向变化率（`switch_blend_s`）。10-20 起 5 号车 lattice 的规划检查已覆盖执行窗口（`shadow.check_length_mode: travel_plus_window`，见 [LATTICE_CHECK_LENGTH_PLAN_CN.md](LATTICE_CHECK_LENGTH_PLAN_CN.md)），减少急弯里因执行检查失败退回中心线 | 无 |
 
 ### 2.4 停车、卡住、读数过期
 

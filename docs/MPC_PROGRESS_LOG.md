@@ -2,6 +2,26 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-20（再续五）：lattice 规划检查覆盖执行窗口（`shadow.check_length_mode`）🟡
+
+按 [LATTICE_CHECK_LENGTH_PLAN_CN.md](LATTICE_CHECK_LENGTH_PLAN_CN.md) 实施，即"再续四"待决定里的 (b)。**未上车，未在 Jetson 上测 lattice 耗时，WSL 门禁待跑。**
+
+**改了什么**：
+- 新增 `shadow.check_length_mode`：`travel`（默认，`speed × hold`，和原来逐位一致）、`max`（`max(speed × hold, preview + 0.15)`）、`travel_plus_window`（`speed × hold + preview + 0.15`）。
+- 新常量 `EXECUTION_TAIL_M = 0.15`，规划和执行检查（`PlannerExecutionManager.select`）共用；执行检查行为不变。
+- 规划结果新增 `check_length_mode`、`travel_check_m`、`execution_window_m`，ROS 摘要加 `check_length_mode`。
+- shadow worker 子进程和测试、`offline/shadow_lattice` 里按 AST 抽取定义的地方都加上了这个常量（否则 worker 会报 `WORKER_ERROR`）。
+- `ai4r_policy_mpc_lattice21.yaml` 声明 `travel`；`ai4r_policy_mpc_car05.yaml` 设为 `travel_plus_window`（5 号车的 shadow-lattice21 包也随之生效）。
+
+**测试**：
+- 计划第 4 节的单元测试命令：281 个通过；`unittest discover -s tests` 414 个，唯一错误是 `test_policy_node` 需要 `rclpy`（容器里没有 ROS，改动前同样）。
+- 新测试：三种模式的长度（0.22 / 0.50 / 0.72，静止 0 / 0.50 / 0.50，preview 无效时按 0.2）；前方约 0.35 m 才撞的 follow 候选只在窗口模式下被拒；`travel_plus_window` 选出的路径在车走到 0、`speed×hold/2`、`speed×hold` 时都通过执行检查，而 `travel` 选出的路径三处都是 `known_boundary_collision`；取值校验；worker 往返；部署配置（5 号车含 `-fb` 变体为 `travel_plus_window`，27 号车为 `travel`）。
+- 和改动前的源码对比 28 个规划任务（20 帧录制数据 + 合成路），`travel` 下结果逐位相同（除耗时字段和新诊断字段）。
+
+**新哈希**（7 个 `v020-*` 包，见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-20 表）：policy_node `9f136686…`；yaml `c81faa12…`（1m）、`a96a60b8…`（5m）、`d35fc3b1…`（nolimit）、`1c605ece…`（1m-fb）、`dd3d8870…`（nolimit-fb）、`3f699029…`（nolimit-fb-nomm）、`e9ac3ac9…`（nolimit-fb-soft）。
+
+**上车看什么**：`check_length_m` 约 0.7 m；急弯里 `reference_selection` 很少变成 `baseline`；`known_boundary_collision` 明显减少，同时留意 `ALL_COLLIDE` 是否变多。
+
 ## 2026-10-20（再续四）：急弯里 lattice 频繁退回中心线的原因——规划和执行的检查长度不一致
 
 **现象**：Gym 里 U 弯和直角弯每组 160–320 次 lattice/中心线切换，20–30% 的拍用中心线。

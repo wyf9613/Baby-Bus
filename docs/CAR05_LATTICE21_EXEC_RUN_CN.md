@@ -83,14 +83,16 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
 
 上面三个 joint 包和下面的 `-fb` 包都已按这一版重新生成。joint 包的 yaml 哈希也变了，因为基础配置多了新参数的默认值；行为不变。
 
+下表已按"10-20：规划检查长度"（见下）重新生成，7 个包都带 `shadow.check_length_mode: travel_plus_window`。和上一版（policy_node `34048cbf…`）相比，yaml 只多了这一行。
+
 ```text
-.verification\car05-lattice21-exec-v020-1m               yaml 3f295e82…  policy_node 34048cbf…   joint     1 m / 60 s
-.verification\car05-lattice21-exec-v020-5m               yaml 19c00051…  policy_node 34048cbf…   joint     5 m / 60 s
-.verification\car05-lattice21-exec-v020-nolimit          yaml 3b347e87…  policy_node 34048cbf…   joint     不限
-.verification\car05-lattice21-exec-v020-1m-fb            yaml bae3f20b…  policy_node 34048cbf…   feedback  1 m / 60 s
-.verification\car05-lattice21-exec-v020-nolimit-fb       yaml bf8bc3b9…  policy_node 34048cbf…   feedback  不限
-.verification\car05-lattice21-exec-v020-nolimit-fb-nomm  yaml 6103397c…  policy_node 34048cbf…   feedback，measured_motion 关
-.verification\car05-lattice21-exec-v020-nolimit-fb-soft  yaml 224a3a2e…  policy_node 34048cbf…   feedback，kp 0.15 / ki 0.1
+.verification\car05-lattice21-exec-v020-1m               yaml c81faa12…  policy_node 9f136686…   joint     1 m / 60 s
+.verification\car05-lattice21-exec-v020-5m               yaml a96a60b8…  policy_node 9f136686…   joint     5 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit          yaml d35fc3b1…  policy_node 9f136686…   joint     不限
+.verification\car05-lattice21-exec-v020-1m-fb            yaml 1c605ece…  policy_node 9f136686…   feedback  1 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit-fb       yaml dd3d8870…  policy_node 9f136686…   feedback  不限
+.verification\car05-lattice21-exec-v020-nolimit-fb-nomm  yaml 3f699029…  policy_node 9f136686…   feedback，measured_motion 关
+.verification\car05-lattice21-exec-v020-nolimit-fb-soft  yaml e9ac3ac9…  policy_node 9f136686…   feedback，kp 0.15 / ki 0.1
 ```
 
 生成命令：在 joint 包的命令后面加 `--longitudinal feedback`（或 `feedback-nomm`、`feedback-soft`）。
@@ -124,6 +126,23 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
   - `fb_command` 来回摆（统计里 `drive reversals` 明显偏高）：换 `-fb-soft`。
   - 转向比 joint 差：换 `-fb-nomm`，看是不是实测车速预测（`measured_motion`）造成的。
   - 都不行就回到 joint 包。
+
+**10-20：规划检查长度**（**还没在实车上验证**；计划和 Gym 数据见 [LATTICE_CHECK_LENGTH_PLAN_CN.md](LATTICE_CHECK_LENGTH_PLAN_CN.md)）：
+- **改了什么**：lattice 规划时的碰撞检查原来只查 `speed × hold`（约 0.22 m），执行时每拍查到车前方 `preview_m + 0.15`（约 0.5 m），急弯里 0.22 m 之后那段一到执行就撞，于是退回中心线。新增 `shadow.check_length_mode`，5 号车用 `travel_plus_window`：规划时查 `speed × hold + preview_m + 0.15`（约 0.72 m），覆盖路径使用期间每一拍的执行窗口。默认 `travel` 和原来一样，其他车不变。执行检查、lattice 其他参数和 MPC 都没改。
+- **Gym（每组 60 次）**：急弯切换从 294 / 164 / 216 次降到 22 / 30 / 30 次（U 弯 / R1.5 / R1），lattice 占比 98–99%，最大横向误差 0.29 → 0.17 m（U 弯）、0.25 → 0.07 m（R1.5）。完成 38 → 34/60，仍由估计层失败决定，差别在重跑波动附近，实车 A/B 时要留意。
+- **包**：上表 7 个包都已包含这项改动，不另出包。
+- **参数核对**（Disabled 下，在第 2 步的检查后面加）：
+
+  ```bash
+  ros2 param get "$N" shadow.check_length_mode
+  ```
+
+  预期 `travel_plus_window`。
+- **看包时看什么**：
+  - `/car/shadow_planning` 里 `check_length_m` 约 0.7 m（0.20 m/s 时；静止约 0.5 m），`check_length_mode` 为 `travel_plus_window`，`travel_check_m` 和 `execution_window_m` 是它的两部分；
+  - 急弯里 `/car/mpc_debug` 的 `reference_selection` 很少再变成 `baseline`；
+  - `/car/planner_execution` 的 `reason` 里 `known_boundary_collision` 明显减少；
+  - 窄处查得更长，可能更常出现 `ALL_COLLIDE`（同样退回中心线），要和 `known_boundary_collision` 分开数。
 
 用 `--v-exec-max 0.2`、`--out .verification\car05-lattice21-exec-v020-*` 生成。0.20 版下软超速线是 0.25，0.28 以上强制油门为 0，硬停 0.40；第 3 步"车速在 0.10–0.20 之间"改为 0.15–0.25，"明显超过 0.25 就 Disable"改为 0.30。
 
