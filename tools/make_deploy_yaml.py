@@ -17,6 +17,10 @@ Layers, merged recursively in order (the repository files stay unchanged):
     fallback; exec added 2026-10-18 after the closed-loop Gym comparison in
     offline/mpc_gym/results/car_readiness_lattice21_car05.md). Every other mode asserts
     shadow.* and planner_control.* are off.
+--longitudinal feedback (mpc-exec* with --car 05 only, 2026-10-20) adds
+ai4r_policy_mpc_car05_feedback.yaml: wheel-speed PI drive, steering-only QP. Variants for
+the car: feedback-nomm (measured_motion off, to separate its effect on steering) and
+feedback-soft (kp 0.15 / ki 0.1, if the PI drive oscillates on the car).
 --cones (required except steer-arc) writes estimation.left_colour/right_colour. Check the
 road on site first: the G2 field (2026-10-08) was blue-left, the course road on 10-13/14
 yellow-left. A swapped pair makes every road invalid_width_or_order.
@@ -66,8 +70,13 @@ def arc_test(drive):
 CONE_LAYOUTS = {"blue-left": (2, 1), "yellow-left": (1, 2)}
 
 
+# --longitudinal variants on top of ai4r_policy_mpc_car05_feedback.yaml.
+FEEDBACK_VARIANTS = {"feedback": {}, "feedback-nomm": {"measured_motion": False},
+                     "feedback-soft": {"fb_kp": 0.15, "fb_ki": 0.1}}
+
+
 def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", road_age_s=None, car="27",
-          run_time_s=None):
+          run_time_s=None, longitudinal="joint"):
     is_lattice21 = mode in ("mpc-shadow-lattice21", "mpc-exec-lattice21")
     is_shadow = mode in ("mpc-shadow", "mpc-shadow-centerline", "mpc-shadow-lattice21")
     is_exec = mode in ("mpc-exec", "mpc-exec-centerline", "mpc-exec-lattice21")
@@ -86,6 +95,10 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", roa
         # Cross-car vehicle.* substitution (never identified on this car); see
         # that overlay file's header and docs/MPC_PROGRESS_LOG.md 2026-10-15.
         layers.append(f"ai4r_policy_mpc_car{car}.yaml")
+    if longitudinal != "joint":
+        if not (is_exec and car == "05"):
+            raise ValueError("--longitudinal feedback* is for mpc-exec* modes with --car 05 only")
+        layers.append("ai4r_policy_mpc_car05_feedback.yaml")
     base = yaml.safe_load((ROOT / "config" / layers[0]).read_text(encoding="utf-8"))
     for layer in layers[1:]:
         merge(base, yaml.safe_load((ROOT / "config" / layer).read_text(encoding="utf-8")))
@@ -100,6 +113,8 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", roa
         p["sensor_timeout_s"]["cone_detections"] = max(p["sensor_timeout_s"]["cone_detections"], road_age_s)
     if is_exec:
         p["mpc"].update(shadow=False, v_exec_max_mps=min(p["mpc"]["v_exec_max_mps"], v_exec_max))
+    if longitudinal != "joint":
+        p["mpc"].update(FEEDBACK_VARIANTS[longitudinal])
     if mode == "steer-arc":
         # Identification only: no controller owns the actions.
         p["control"]["enabled"] = False
@@ -134,6 +149,7 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", roa
             assert p["planning"]["algorithm"] == "road_centerline"
         else:
             assert p["planning"]["algorithm"] != "road_centerline"
+        assert p["mpc"]["longitudinal_mode"] == ("joint" if longitudinal == "joint" else "feedback")
         if is_shadow:
             assert p["mpc"]["shadow"] is True
         else:
@@ -168,6 +184,8 @@ def main():
                         help="05: cross-car vehicle.* substitution, never identified on that car "
                              "(see config/ai4r_policy_mpc_car05.yaml); only meaningful for mpc-shadow* "
                              "/mpc-exec* modes")
+    parser.add_argument("--longitudinal", default="joint", choices=["joint", *FEEDBACK_VARIANTS],
+                        help="feedback*: wheel-speed PI drive with a steering-only QP (mpc-exec* + --car 05)")
     parser.add_argument("--out", type=Path, default=ROOT / ".verification" / "car-deploy")
     args = parser.parse_args()
     if args.cones is None:
@@ -189,8 +207,11 @@ def main():
         parser.error("--arc-drive must be in [0.29, 0.35]")
     if not 0 < args.v_exec_max <= 0.2:
         parser.error("--v-exec-max must be in (0, 0.2]")
-    params, layers = build(args.mode, args.distance, args.arc_drive, args.v_exec_max,
-                           args.cones, args.road_age_s, args.car, args.run_time_s)
+    try:
+        params, layers = build(args.mode, args.distance, args.arc_drive, args.v_exec_max,
+                               args.cones, args.road_age_s, args.car, args.run_time_s, args.longitudinal)
+    except ValueError as exc:
+        parser.error(str(exc))
     args.out.mkdir(parents=True, exist_ok=True)
     yaml_path, node_path = args.out / "ai4r_policy.yaml", args.out / "policy_node.py"
     yaml_path.write_bytes(yaml.safe_dump(params, sort_keys=False).encode("utf-8"))
@@ -200,6 +221,7 @@ def main():
                    p["sensor_timeout_s"]["cone_detections"])
     (args.out / "mode.txt").write_text(
         f"{args.mode} {args.distance} run_time_s={p['control']['max_run_time_s']} cones={args.cones} "
+        f"longitudinal={args.longitudinal} "
         f"road_age_s={road_age} layers={'+'.join(layers)}\n",
         encoding="utf-8")
     print(f"mode {args.mode}, layers {' + '.join(layers)}, max_distance_m {args.distance}, "
@@ -209,7 +231,8 @@ def main():
     if args.mode == "steer-arc":
         print("id_test", {k: p["id_test"][k] for k in ("mode", "steering_values", "drive_values", "durations_s")})
     print("control.enabled", p["control"]["enabled"], "| mpc",
-          {k: p["mpc"][k] for k in ("enabled", "shadow", "v_exec_max_mps", "qp_solver")},
+          {k: p["mpc"][k] for k in ("enabled", "shadow", "v_exec_max_mps", "qp_solver", "longitudinal_mode",
+                                    "fb_kp", "fb_ki", "measured_motion")},
           "| vehicle", p["vehicle"]["source"], "valid", p["vehicle"]["valid"])
     print("MVP2.1 lattice: shadow.enabled", p.get("shadow", {}).get("enabled", False),
           "| planner_control", p.get("planner_control", {"enabled": False}))

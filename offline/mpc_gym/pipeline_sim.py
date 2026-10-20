@@ -66,11 +66,15 @@ class NewcarPlant:
     that produces this acceleration is found by inverting the Gym's own force law.
     Steering: the car turned RIGHT for a positive request, so the Gym (left positive)
     receives the negated request plus a wheel-angle offset (rad).
+    turn_drag (default 0): d0 and u_break rise by turn_drag*|steering request in force|, the
+    cornering drag car 05 showed on 2026-10-19 (tools/car05_run_stats.py: ~0.03 more drive at
+    full lock), which the plain fit lacks.
     """
 
-    def __init__(self, a, d0, e, c, tau, u_break, t_break, steering_sign=-1.0, steering_offset_rad=0.0):
+    def __init__(self, a, d0, e, c, tau, u_break, t_break, steering_sign=-1.0, steering_offset_rad=0.0,
+                 turn_drag=0.0):
         self.a, self.d0, self.e, self.c, self.tau = a, d0, e, c, tau
-        self.u_break, self.t_break = u_break, t_break
+        self.u_break, self.t_break, self.turn_drag = u_break, t_break, turn_drag
         self.steering_sign, self.steering_offset_rad = steering_sign, steering_offset_rad
         self.queue = deque()
         self.held_for, self.stuck = 0.0, True
@@ -94,17 +98,19 @@ class NewcarPlant:
                 self.queue.popleft()
             else:
                 break
+        drag = self.turn_drag*abs(steer)
+        d0, u_break = self.d0 + drag, self.u_break + drag
         if self.stuck:
-            self.held_for = self.held_for + ENV_DT if delayed >= self.u_break else 0.0
+            self.held_for = self.held_for + ENV_DT if delayed >= u_break else 0.0
             self.stuck = self.held_for < self.t_break
         if self.stuck:
             gym_drive = 0.0
         else:
-            accel = (self.a if delayed >= self.d0 else self.e)*(delayed - self.d0) - self.c*speed*abs(speed)
+            accel = (self.a if delayed >= d0 else self.e)*(delayed - d0) - self.c*speed*abs(speed)
             target = speed + accel*ENV_DT
             if target <= 0.0:
                 target = 0.0
-                if delayed < self.u_break:
+                if delayed < u_break:
                     self.stuck, self.held_for = True, 0.0
             gym_drive = (GYM_MASS_KG*(target - speed)/ENV_DT + GYM_DRAG*speed*abs(speed))/GYM_MOTOR_N
             if speed < 0.03:

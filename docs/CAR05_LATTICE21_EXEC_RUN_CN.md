@@ -76,6 +76,55 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
   - 车 3 观察时可以在 grep 的字段里加上 `turn_drive|handover|steer_slew|applied_drive|applied_steer_action`。
 - 看包时（`tools/car05_run_stats.py`，和 10-19 对比）：重启次数里"低于 moving speed"那一类、"起步后 2.5 s 内进入软超速/切油门"的比例应该明显下降；满舵弯里不应再减速到停；baseline → planner 的 `|dsteer|` 中位数应 ≤ 0.075。
 
+**10-20：PI 油门（feedback）A/B**（**还没在实车上验证**）。新增 `mpc.longitudinal_mode: feedback`：
+- 跟踪阶段，油门由轮速 PI 决定，MPC 只决定转向。
+- 起步、卡住识别、硬停都不变。
+- 和 Zhenyu 分支的完整区别、移植了什么、为什么增益是 0.2，见 [MPC_BRANCH_COMPARISON_CN.md](MPC_BRANCH_COMPARISON_CN.md)。
+
+上面三个 joint 包和下面的 `-fb` 包都已按这一版重新生成。joint 包的 yaml 哈希也变了，因为基础配置多了新参数的默认值；行为不变。
+
+```text
+.verification\car05-lattice21-exec-v020-1m               yaml 3f295e82…  policy_node 0fd5b2bc…   joint     1 m / 60 s
+.verification\car05-lattice21-exec-v020-5m               yaml 19c00051…  policy_node 0fd5b2bc…   joint     5 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit          yaml 3b347e87…  policy_node 0fd5b2bc…   joint     不限
+.verification\car05-lattice21-exec-v020-1m-fb            yaml bae3f20b…  policy_node 0fd5b2bc…   feedback  1 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit-fb       yaml bf8bc3b9…  policy_node 0fd5b2bc…   feedback  不限
+.verification\car05-lattice21-exec-v020-nolimit-fb-nomm  yaml 6103397c…  policy_node 0fd5b2bc…   feedback，measured_motion 关
+.verification\car05-lattice21-exec-v020-nolimit-fb-soft  yaml 224a3a2e…  policy_node 0fd5b2bc…   feedback，kp 0.15 / ki 0.1
+```
+
+生成命令：在 joint 包的命令后面加 `--longitudinal feedback`（或 `feedback-nomm`、`feedback-soft`）。
+
+- **`-fb` 包的超速线**：软线 0.30、切油门 0.35，硬停仍是 0.40 / 0.2 s。现场"明显超过 0.25 就 Disable"对 `-fb` 包仍然适用。
+- **核对参数**（Disabled 下）：
+
+  ```bash
+  for p in mpc.longitudinal_mode mpc.fb_kp mpc.fb_ki mpc.measured_motion mpc.overspeed_soft_margin_mps mpc.turn_drive_per_steer; do
+    printf "%-32s " "$p"; ros2 param get "$N" "$p"
+  done
+  ```
+
+  `-fb` 包预期依次为 feedback、0.2、0.2、true、0.1、0.06。joint 包是 joint、0.2、0.2、false、0.05、0.06。
+- **`mpc_debug` 新字段**：
+  - `longitudinal_mode`；
+  - `prediction_mode`：起步阶段是 `force_model`，跟踪阶段是 `measured_speed_hold`；
+  - `fb_target`、`fb_error`、`fb_integral`、`fb_command`：跟踪时 `applied_drive` 等于 `fb_command`；起步时 `fb_command` 为 null；
+  - `fb_frozen`：读数过期时为 true，期间油门和积分都不变。
+- **步骤**：
+  1. 先跑 `-1m-fb`：确认能起步；交接后油门从 0.35 平滑下降；`fb_command` 没有周期性来回摆动。
+  2. 再做 A/B：同一条赛道（小弯 + 直线 + 急弯），`v020-nolimit` 和 `v020-nolimit-fb` 交替各跑 2 次，至少 3 轮，记下电量或时间，全部录包。
+- **判定**（`tools/car05_run_stats.py`，按模式分组）。10-19 joint 的基线是：重启 21 次；起步后 2.5 s 内冲到软线 17/22；跟踪车速标准差 0.063；21% 的时间处在软线或切油门状态。
+
+  `-fb` 包要同时满足下面四条，5 号车才改用 feedback：
+  - 重启次数减半以上；
+  - 车速标准差和处在软线的比例都下降；
+  - 没有新的停车原因；
+  - planner/baseline 的 e_y、e_psi p95 不变差。
+- **出问题时**：
+  - `fb_command` 来回摆（统计里 `drive reversals` 明显偏高）：换 `-fb-soft`。
+  - 转向比 joint 差：换 `-fb-nomm`，看是不是实测车速预测（`measured_motion`）造成的。
+  - 都不行就回到 joint 包。
+
 用 `--v-exec-max 0.2`、`--out .verification\car05-lattice21-exec-v020-*` 生成。0.20 版下软超速线是 0.25，0.28 以上强制油门为 0，硬停 0.40；第 3 步"车速在 0.10–0.20 之间"改为 0.15–0.25，"明显超过 0.25 就 Disable"改为 0.30。
 
 重新生成的命令（距离和时间分别换成 `1.0 60`、`5.0 60`、`0 0`）：

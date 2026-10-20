@@ -1,0 +1,27 @@
+# Overlay: car 05 with the wheel-speed PI drive (mpc.longitudinal_mode feedback), 2026-10-20.
+# Layer order: ... -> ai4r_policy_mpc_car05.yaml -> this file
+# (tools/make_deploy_yaml.py --car 05 --longitudinal feedback). The joint packages stay as
+# the A/B control; see docs/CAR05_LATTICE21_EXEC_RUN_CN.md.
+#
+# Why: on 10-19 the joint QP's drive (model + bias + turn drag + handover cap) ran car 05 in
+# a stop-go cycle. Ported from origin/feature/mpc-model 15724bc: the fixed-drive QP (steering
+# only), the PI core and measured-speed prediction -- not its start pulse, acceleration
+# anticipation, 2 s motion-lost stop, +/-0.5 steering or disabled overspeed lock.
+#
+# Values from the 10-20 sweep (car-like plant: .27 drive fit, deadband 0.25, 0.26 s delay,
+# wheel readings every 0.15-0.4 s, bend drag 0.03-0.10 per unit steering, battery -0.03..+0.04,
+# motor gain x0.7-1.4): kp 0.5 (15724bc) oscillated into the cut line; kp = ki = 0.2 with the
+# turn drag as feedforward and soft 0.10 / cut 0.05 had no restarts on 54 plants. With the
+# 0.05 / 0.03 joint margins the cut's drop to 0 itself drove a stop-go cycle. Simulation only.
+/**/ai4r_policy:
+  ros__parameters:
+    mpc:
+      longitudinal_mode: feedback
+      fb_kp: 0.2
+      fb_ki: 0.2
+      fb_sustain_drive: 0.0          # = vehicle.drive_deadband (0.25); + turn_drive_per_steer 0.06 * |s|
+      fb_integral_max: 0.12          # battery drift (+/-0.10 seen 10-19) and model error
+      fb_slew_per_s: 1.5
+      measured_motion: true
+      overspeed_soft_margin_mps: 0.10  # soft line 0.30, cut 0.35 at v_exec_max 0.20; hard 0.40 / 0.2 s unchanged
+      overspeed_cut_margin_mps: 0.05

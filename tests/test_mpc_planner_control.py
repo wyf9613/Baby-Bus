@@ -84,13 +84,15 @@ class SyncWorker:
         pass
 
 
-def deployed(mode="mpc-shadow-centerline"):
-    params = deploy["build"](mode, 3.0, v_exec_max=0.12, cones="yellow-left", car="05")[0]
+def deployed(mode="mpc-shadow-centerline", longitudinal="joint"):
+    params = deploy["build"](mode, 3.0, v_exec_max=0.12, cones="yellow-left", car="05",
+                             longitudinal=longitudinal)[0]
     return params["/**/ai4r_policy"]["ros__parameters"]
 
 
-def make_node(shadow_enabled=False, planner=False, worker=None, mode="mpc-shadow-centerline", **planner_cfg):
-    p = deployed(mode)
+def make_node(shadow_enabled=False, planner=False, worker=None, mode="mpc-shadow-centerline",
+              longitudinal="joint", **planner_cfg):
+    p = deployed(mode, longitudinal)
     node = control["make_node"](simulated=False, mvp=True)
     for name in METHODS:
         setattr(node, name, method_ns[name].__get__(node))
@@ -367,6 +369,25 @@ class DeployProfileChecks(unittest.TestCase):
                 self.assertEqual((mpc["handover_drive_margin"], mpc["switch_steer_rate_per_s"]), (0.04, 1.5))
             cns["MPCSettings"](**mpc)
 
+    def test_car05_feedback_packages_switch_only_the_longitudinal_settings(self):
+        joint = deployed("mpc-exec-lattice21")
+        self.assertEqual((joint["mpc"]["longitudinal_mode"], joint["mpc"]["measured_motion"]), ("joint", False))
+        for variant, changes in (("feedback", {}), ("feedback-nomm", {"measured_motion": False}),
+                                 ("feedback-soft", {"fb_kp": 0.15, "fb_ki": 0.1})):
+            with self.subTest(variant):
+                p = deployed("mpc-exec-lattice21", variant)
+                expect = {"longitudinal_mode": "feedback", "fb_kp": 0.2, "fb_ki": 0.2, "measured_motion": True,
+                          "overspeed_soft_margin_mps": 0.10, "overspeed_cut_margin_mps": 0.05, **changes}
+                self.assertEqual({k: p["mpc"][k] for k in expect}, expect)
+                rest = {k: v for k, v in p["mpc"].items() if k not in expect}
+                self.assertEqual(rest, {k: v for k, v in joint["mpc"].items() if k not in expect})
+                self.assertEqual({k: v for k, v in p.items() if k != "mpc"},
+                                 {k: v for k, v in joint.items() if k != "mpc"})
+                cns["MPCSettings"](**p["mpc"])
+        for mode, car in (("mpc-shadow-lattice21", "05"), ("mpc-exec-lattice21", "27"), ("mvp", "05")):
+            with self.assertRaises(ValueError, msg=(mode, car)):
+                deploy["build"](mode, 1.0, cones="yellow-left", car=car, longitudinal="feedback")
+
     def test_lattice21_profile_selects_the_lattice_on_the_stand_in_node(self):
         node = make_node(shadow_enabled=True, planner=True, mode="mpc-shadow-lattice21")
         records = run(node, 30)
@@ -389,6 +410,21 @@ class CarFiveGuards(unittest.TestCase):
         self.assertGreaterEqual(stalled[0]["wheel_held_s"], 1.5-1e-9)
         self.assertEqual((stalled[0]["phase"], stalled[0]["applied_drive"], stalled[0]["speed_raw_mps"]),
                          ("starting", node.vehicle_settings.drive_breakaway, 0.12))
+        self.assertEqual(node.fsm_state, 3)
+
+    def test_feedback_package_drives_with_the_pi_on_the_stand_in_node(self):
+        node = make_node(mode="mpc-exec-centerline", longitudinal="feedback")
+        records = run(node, 1, speed=0.0)
+        for k in range(12):
+            records = run(node, 1, speed=0.10 + 0.005*k)
+        tracking = [r for r in records if r["phase"] == "tracking"]
+        self.assertTrue(tracking)
+        for r in tracking:
+            self.assertEqual((r["longitudinal_mode"], r["prediction_mode"], r["branch"]),
+                             ("feedback", "measured_speed_hold", "solved"))
+            self.assertEqual(r["applied_drive"], r["fb_command"])
+            self.assertFalse(r["fb_frozen"])
+        self.assertEqual(records[0]["fb_command"], None)                     # start phase: no PI
         self.assertEqual(node.fsm_state, 3)
 
     def shifted(self, traj, dy):

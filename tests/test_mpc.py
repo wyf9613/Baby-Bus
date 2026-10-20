@@ -8,6 +8,7 @@ the course model and modest mismatch, not that the real car behaves the same way
 """
 import ast
 import gc
+import gzip
 from pathlib import Path
 import json
 import math
@@ -2075,6 +2076,275 @@ class TurnDragHandoverBlend(unittest.TestCase):
         ctrl.applied_steer = -0.2                                               # no limit by default
         out, _ = self.drive(ctrl, [0.1], t=t+0.1)
         self.assertEqual((out["steer"], out["debug"]["steer_slew"]), (0.1, None))
+
+
+class FeedbackLongitudinal(unittest.TestCase):
+    """2026-10-20: mpc.longitudinal_mode feedback (wheel-speed PI drive, steering-only QP) and
+    mpc.measured_motion, ported from origin/feature/mpc-model 15724bc without its start pulse,
+    acceleration anticipation, motion-lost stop or disabled overspeed lock."""
+    NOW = RelaxedGuards.NOW
+    RUNS = ROOT/"tests"/"fixtures"/"car05_20261019_runs"
+    recording, soft_controller, drive = (RelaxedGuards.recording, RelaxedGuards.soft_controller,
+                                         RelaxedGuards.drive)
+
+    def echo(self):
+        """Solver double: returns the fixed drive it was given (or 0.31) and steering .steer."""
+        class Echo:
+            calls = []
+            steer = 0.1
+
+            def solve(self, *args, **kwargs):
+                Echo.calls.append(kwargs)
+                drive, steer = kwargs.get("fixed_drive", 0.31), self.steer
+                return {"inputs": [(drive, steer)]*10, "drive0": drive, "steer0": steer, "delta0": -0.02,
+                        "iterations": 1, "solve_s": 0.0, "pred_e_y": [0.0], "pred_v": [0.15]}, None
+        return Echo()
+
+    def controller(self, **changes):
+        cfg = dict(v_exec_max_mps=0.2, overspeed_soft_margin_mps=0.05, overspeed_hard_mps=0.40,
+                   reference_dropout_tolerance_s=0.5, longitudinal_mode="feedback")
+        cfg.update(changes)
+        ctrl = verified(vehicle=newcar(drive_deadband=0.25, drive_max=0.38, drive_breakaway=0.35), **cfg)
+        ctrl.solver = self.echo()
+        return ctrl
+
+    def step(self, ctrl, speed, t, fresh=True, ref_speed=0.2):
+        first = t == 0.0
+        return ctrl.step(straight_trajectory(speed=ref_speed, stamp=self.NOW+t), speed, 0.0 if first else 0.05,
+                         self.NOW+t, first, speed_fresh=fresh)
+
+    def test_defaults_are_joint_and_settings_are_checked(self):
+        cfg = Settings()
+        self.assertEqual((cfg.longitudinal_mode, cfg.measured_motion), ("joint", False))
+        for kwargs in ({"longitudinal_mode": "pi"}, {"fb_kp": -0.1}, {"fb_ki": 4.0},
+                       {"fb_integral_max": 0.3}, {"fb_slew_per_s": 0.0}, {"fb_sustain_drive": 1.5},
+                       {"measured_motion": True}, {"measured_motion": 1, "longitudinal_mode": "feedback"}):
+            with self.assertRaises(ValueError, msg=str(kwargs)):
+                Settings(**kwargs)
+        Settings(longitudinal_mode="feedback", measured_motion=True)
+
+    def test_joint_mode_passes_no_feedback_arguments(self):
+        ctrl = self.soft_controller()
+        out, _ = self.drive(ctrl, [0.0, 0.1, 0.1])
+        self.assertNotIn("fixed_drive", ctrl.solver.calls[-1])
+        self.assertNotIn("hold_speed", ctrl.solver.calls[-1])
+        self.assertEqual((out["debug"]["longitudinal_mode"], out["debug"]["fb_command"]), ("joint", None))
+
+    def test_start_phase_is_unchanged_and_the_handover_slews_down_from_the_start_drive(self):
+        ctrl = self.controller()
+        out = self.step(ctrl, 0.0, 0.0)
+        self.assertEqual((out["debug"]["phase"], out["drive"], out["debug"]["fb_command"]), ("starting", 0.35, None))
+        self.assertNotIn("fixed_drive", ctrl.solver.calls[-1])
+        out = self.step(ctrl, 0.08, 0.05)                                     # wheels move
+        self.assertEqual(out["debug"]["phase"], "tracking")
+        integral = 0.2*(0.2-0.08)*0.05                                       # learned from 0, not matched
+        self.assertAlmostEqual(out["debug"]["fb_integral"], integral)
+        self.assertAlmostEqual(out["drive"], 0.25 + 0.2*0.12 + integral)    # within a slew step of 0.35
+        self.assertGreaterEqual(out["drive"], 0.35 - 1.5*0.05 - 1e-9)
+        self.assertAlmostEqual(ctrl.solver.calls[-1]["fixed_drive"], out["drive"])
+        out = self.step(ctrl, 0.12, 0.10)
+        self.assertAlmostEqual(out["drive"], 0.25 + 0.2*0.08 + out["debug"]["fb_integral"])
+
+    def test_held_readings_freeze_the_integral_and_the_drive(self):
+        ctrl = self.controller()
+        t = 0.0
+        for speed in (0.0, 0.1, 0.12, 0.14):
+            out = self.step(ctrl, speed, t)
+            t += 0.05
+        integral, drive = out["debug"]["fb_integral"], out["drive"]
+        for _ in range(10):
+            out = self.step(ctrl, 0.14, t, fresh=False)
+            t += 0.05
+            self.assertEqual((out["debug"]["fb_frozen"], out["debug"]["fb_integral"], out["drive"]),
+                             (True, integral, drive))
+
+    def test_integral_saturates_and_stays_within_its_limit(self):
+        ctrl = self.controller(fb_ki=3.0, fb_slew_per_s=10.0)
+        t = 0.0
+        for speed in [0.0] + [0.06]*200:                                       # crawling: drive maxed
+            out = self.step(ctrl, speed, t)
+            t += 0.05
+        self.assertAlmostEqual(out["drive"], 0.38)
+        self.assertLessEqual(out["debug"]["fb_integral"], 0.12 + 1e-12)
+        # Anti-windup: at the drive limit the integral stops growing well below its own limit.
+        ctrl = self.controller(fb_ki=3.0, fb_slew_per_s=10.0, fb_integral_max=0.2)
+        t = 0.0
+        for speed in [0.0] + [0.06]*200:
+            out = self.step(ctrl, speed, t)
+            t += 0.05
+        # Saturates at 0.38 - 0.25 - kp*0.14, plus at most the last step's ki*err*dt.
+        self.assertLess(out["debug"]["fb_integral"], 0.38 - 0.25 - 0.2*0.14 + 3.0*0.14*0.05 + 1e-9)
+
+    def test_overspeed_soft_caps_cut_zeroes_and_the_hard_line_still_locks(self):
+        ctrl = self.controller()
+        t = 0.0
+        for speed in (0.0, 0.1, 0.18):
+            out = self.step(ctrl, speed, t)
+            t += 0.05
+        integral = out["debug"]["fb_integral"]
+        out = self.step(ctrl, 0.26, t)                                        # soft line 0.25
+        t += 0.05
+        self.assertEqual(out["debug"]["overspeed_state"], "soft")
+        self.assertLessEqual(out["drive"], 0.25 + 1e-12)
+        self.assertLess(out["debug"]["fb_integral"], integral)
+        out = self.step(ctrl, 0.29, t)                                        # cut line 0.28
+        t += 0.05
+        self.assertEqual((out["debug"]["overspeed_state"], out["drive"]), ("cut", 0.0))
+        self.assertNotIn("drive_floor_zero", ctrl.solver.calls[-1])
+        with self.assertRaises(Stop):
+            for _ in range(6):
+                self.step(ctrl, 0.45, t)
+                t += 0.05
+        self.assertEqual(ctrl.last_debug["reject_reason"], "overspeed")
+
+    def test_high_speed_cap_applies_to_the_pi_drive(self):
+        ctrl = self.controller(high_speed_drive_max=0.30, high_speed_mps=0.12, fb_slew_per_s=10.0)
+        t = 0.0
+        for speed in (0.0, 0.13, 0.13):
+            out = self.step(ctrl, speed, t)
+            t += 0.05
+        self.assertLessEqual(out["drive"], 0.30 + 1e-12)
+        self.assertNotIn("drive_cap", ctrl.solver.calls[-1])
+
+    def test_a_restart_uses_the_start_drive_and_keeps_the_integral(self):
+        ctrl = self.controller(fb_ki=1.0)
+        t = 0.0
+        for speed in [0.0] + [0.1]*20:
+            out = self.step(ctrl, speed, t)
+            t += 0.05
+        integral = out["debug"]["fb_integral"]
+        out = self.step(ctrl, 0.0, t)                                         # stopped (or a stall override)
+        t += 0.05
+        self.assertEqual((out["debug"]["phase"], out["debug"]["restarts"], out["drive"]), ("starting", 1, 0.35))
+        self.assertIsNone(ctrl.fb_command)
+        self.assertEqual(ctrl.fb_integral, integral)
+        self.assertNotIn("fixed_drive", ctrl.solver.calls[-1])
+
+    def test_bias_and_handover_are_joint_only_and_turn_drag_is_feedforward(self):
+        ctrl = self.controller(drive_bias_gain=2.0, turn_drive_per_steer=0.06, handover_s=0.5, fb_slew_per_s=10.0)
+        ctrl.solver.steer = 0.8
+        t = 0.0
+        for speed in (0.0, 0.1, 0.11, 0.12):
+            out = self.step(ctrl, speed, t)
+            t += 0.05
+        self.assertEqual((ctrl.bias, out["debug"]["handover"]), (0.0, False))
+        self.assertNotIn("drive_bias", ctrl.solver.calls[-1])
+        self.assertAlmostEqual(out["debug"]["turn_drive"], 0.06*0.8)
+        self.assertAlmostEqual(out["drive"], 0.25 + 0.048 + 0.2*0.08 + out["debug"]["fb_integral"])
+
+    def test_closed_loop_holds_the_target_through_a_bend_and_stepped_readings(self):
+        """Car-05-like plant (.27 drive fit, deadband 0.25): 0.26 s drive delay, readings every
+        0.2 s, and a bend (steering 0.8) whose drag (0.05/unit steering) the 0.06 feedforward
+        does not match exactly. The 10-20 sweep values: soft 0.10 / cut 0.05, kp = ki = 0.2."""
+        ctrl = self.controller(overspeed_soft_margin_mps=0.10, overspeed_cut_margin_mps=0.05,
+                               turn_drive_per_steer=0.06, rest_speed_mps=0.03)
+        p = ctrl.vehicle
+        speed, reading, t = 0.0, 0.0, 0.0
+        queue, drives, speeds = [(0.0, 0.0)]*26, [], []
+        for k in range(int(20/0.05)):
+            if k % 4 == 0:
+                reading = speed
+            ctrl.solver.steer = 0.8 if 5.0 <= t < 12.0 else 0.05
+            out = self.step(ctrl, reading, t)
+            self.assertEqual(out["debug"]["branch"], "solved")
+            for _ in range(5):
+                queue.append((out["drive"], out["steer"]))
+                u, steer = queue.pop(0)
+                effort = u - p.drive_deadband - 0.05*abs(steer)
+                if speed <= 0.0 and effort < 0.05:
+                    continue                                                  # static friction
+                force = (p.motor_gain_n if effort >= 0 else p.brake_gain_n)*effort
+                speed = max(0.0, speed + 0.01*(force - p.drag_kg_per_m*speed*speed)/p.mass_kg)
+            t += 0.05
+            drives.append(out["drive"])
+            speeds.append(speed)
+        self.assertEqual(ctrl.restarts, 0)
+        for start, end in ((4.0, 5.0), (8.0, 12.0), (15.0, 20.0)):           # straight, bend, straight
+            window = slice(int(start/0.05), int(end/0.05))
+            seg = speeds[window]
+            self.assertLess(abs(sum(seg)/len(seg) - 0.2), 0.015, (start, end))
+            self.assertLess(max(seg) - min(seg), 0.03, (start, end))
+            self.assertLess(max(drives[window]) - min(drives[window]), 0.03, (start, end))
+        self.assertLess(max(speeds[int(2.0/0.05):]), 0.25)                   # past the start: below 0.25
+
+    def test_car05_recorded_speeds_keep_the_pi_bounded_and_frozen_on_held_readings(self):
+        """Open loop on the 10-19 car 05 runs: the recorded speed and freshness drive the PI."""
+        files = sorted(self.RUNS.glob("*.json.gz"))
+        self.assertTrue(files)
+        for path in files:
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                ticks = json.load(f)["ticks"]
+            ctrl = self.controller()
+            ctrl.fb_command = 0.3
+            frozen = 0
+            for row in ticks:
+                if row["speed_mps"] is None or row["v_ref_mps"] is None:
+                    continue
+                fresh = row.get("wheel_fresh") is not False
+                ctrl.overspeed_state = row.get("overspeed_state") or "ok"
+                before = (ctrl.fb_integral, ctrl.fb_command)
+                drive, info = ctrl.feedback_drive(row["speed_mps"], min(row["v_ref_mps"], 0.2), row.get("dt") or 0.05,
+                                                  fresh, 0.38)
+                self.assertTrue(0.0 <= drive <= 0.38 and math.isfinite(info["fb_integral"]), path.name)
+                self.assertLessEqual(abs(info["fb_integral"]), 0.12 + 1e-12)
+                if not fresh:
+                    frozen += 1
+                    self.assertEqual((ctrl.fb_integral, drive), before)
+            self.assertGreater(frozen, 0, path.name)
+
+
+class FixedDriveSolver(unittest.TestCase):
+    """VehicleModelMPC.solve(fixed_drive=..., hold_speed=...) on the real QP."""
+
+    def solver(self):
+        return Solver(Settings(enabled=True, longitudinal_mode="feedback"), newcar())
+
+    def solve(self, solver, **kwargs):
+        traj = arc_trajectory(0.6, speed=0.2)
+        z0 = [0.0, 0.0, 0.0, 0.18, 0.0]
+        solution, reason = solver.solve(traj["points"], z0, 0.2, 0.3, None, **kwargs)
+        self.assertIsNone(reason)
+        return solution
+
+    def test_fixed_drive_pins_every_drive_input(self):
+        solver = self.solver()
+        solution = self.solve(solver, fixed_drive=0.33)
+        self.assertEqual({round(d, 12) for d, _ in solution["inputs"]}, {0.33})
+        self.assertGreater(abs(solution["steer0"]), 0.05)                     # still steers into the arc
+
+    def test_fixed_drive_at_the_joint_choice_keeps_the_joint_steering(self):
+        joint = self.solve(self.solver())
+        fixed = self.solve(self.solver(), fixed_drive=joint["drive0"])
+        self.assertLess(abs(fixed["steer0"] - joint["steer0"]), 0.02)
+
+    def test_fixed_drive_is_clipped_into_the_drive_bounds(self):
+        solution = self.solve(self.solver(), fixed_drive=0.9)
+        self.assertAlmostEqual(solution["drive0"], newcar().drive_max)
+        solution = self.solve(self.solver(), fixed_drive=0.33, drive_cap=0.3)
+        self.assertAlmostEqual(solution["drive0"], 0.3)
+
+    def test_hold_speed_predicts_the_measured_speed(self):
+        solution = self.solve(self.solver(), fixed_drive=0.38, hold_speed=True)
+        for v in solution["pred_v"]:
+            self.assertAlmostEqual(v, 0.18, places=6)
+        solution = self.solve(self.solver(), fixed_drive=0.38)              # force model accelerates
+        self.assertGreater(solution["pred_v"][-1], 0.2)
+
+    def test_controller_holds_the_speed_through_the_delay_only_when_asked(self):
+        ctrl = verified(vehicle=newcar(drive_deadband=0.25, drive_max=0.38, drive_breakaway=0.35,
+                                       drive_delay_s=0.26),
+                        v_exec_max_mps=0.2, longitudinal_mode="feedback", measured_motion=True)
+        ctrl.history = [(-1.0, 0.38, 0.0)]
+        held, _ = ctrl.initial_state(0.15, True)
+        modelled, _ = ctrl.initial_state(0.15)
+        self.assertAlmostEqual(held[3], 0.15, places=9)
+        self.assertGreater(modelled[3], 0.16)
+        out = ctrl.step(straight_trajectory(speed=0.2), 0.0, 0.0, 10.0, True)   # starting: force model
+        self.assertEqual(out["debug"]["prediction_mode"], "force_model")
+        out = ctrl.step(straight_trajectory(speed=0.2, stamp=10.05), 0.1, 0.05, 10.05, False)
+        self.assertEqual((out["debug"]["phase"], out["debug"]["prediction_mode"]),
+                         ("tracking", "measured_speed_hold"))
+        self.assertEqual(out["debug"]["branch"], "solved")
 
 
 if __name__ == "__main__":

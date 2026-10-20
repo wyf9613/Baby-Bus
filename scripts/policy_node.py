@@ -3965,6 +3965,24 @@ class MPCSettings:
     # switch_steer_rate_per_s*dt per tick (both directions; switch_hold_s is unchanged).
     switch_blend_s: float = 0.0
     switch_steer_rate_per_s: float = 1.5
+    # Longitudinal mode (2026-10-20). "joint": the QP optimises drive and steering together
+    # (the settings above). "feedback": while tracking, drive is a wheel-speed PI --
+    # fb_sustain_drive (0 = vehicle.drive_deadband) + turn drag of the steering in force
+    # + fb_kp*error + integral (+/-fb_integral_max, frozen on held wheel readings), moving at
+    # most fb_slew_per_s -- and the QP solves steering only, with that drive fixed. The start
+    # phase, overspeed guards and the high-speed drive cap are unchanged; bias and handover
+    # are joint-only. Gains: the .27 drive fit gives ~10 m/s^2 per unit drive and the loop
+    # sees ~0.4 s of delay (0.26 s drive + held readings), so kp 0.5 (15724bc, on the Gym's
+    # 3x softer drive) oscillates; 0.2/0.2 held 0.2 m/s on 54 mismatched plants (10-20 sweep).
+    # measured_motion (feedback only): the prediction holds the measured speed instead of
+    # integrating the drive model (ported from origin/feature/mpc-model 15724bc).
+    longitudinal_mode: str = "joint"
+    fb_kp: float = 0.2
+    fb_ki: float = 0.2
+    fb_sustain_drive: float = 0.0
+    fb_integral_max: float = 0.12
+    fb_slew_per_s: float = 1.5
+    measured_motion: bool = False
     horizon_n: int = 10
     dt_pred_s: float = 0.1            # fixed prediction step; measured dt is only range-checked
     dt_max_s: float = 0.2
@@ -4007,7 +4025,7 @@ class MPCSettings:
     bypass_valid_for_s: float = 0.1
 
     def __post_init__(self):
-        for name in ("enabled", "shadow", "bypass_acknowledged", "solver_fail_tolerable"):
+        for name in ("enabled", "shadow", "bypass_acknowledged", "solver_fail_tolerable", "measured_motion"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"mpc.{name} must be bool")
         if self.reference_source not in ("planning", "estimation_centerline"):
@@ -4016,6 +4034,8 @@ class MPCSettings:
             raise ValueError("mpc.vehicle_params_source must be vehicle or course_simulation")
         if self.qp_solver not in ("osqp", "dense"):
             raise ValueError("mpc.qp_solver must be osqp or dense")
+        if self.longitudinal_mode not in ("joint", "feedback"):
+            raise ValueError("mpc.longitudinal_mode must be joint or feedback")
         for name in ("horizon_n", "sqp_iterations", "solver_max_iter", "max_restarts"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int):
@@ -4073,6 +4093,13 @@ class MPCSettings:
                 or not 0.0 <= self.handover_s <= 2.0 or not 0.0 <= self.handover_drive_margin <= 0.2
                 or not 0.0 <= self.switch_blend_s <= 2.0 or not 0.0 < self.switch_steer_rate_per_s <= 20.0):
             raise ValueError("mpc turn drag / start hysteresis / handover / switch blend settings out of range")
+        if (not 0.0 <= self.fb_kp <= 3.0 or not 0.0 <= self.fb_ki <= 3.0
+                or not 0.0 <= self.fb_sustain_drive <= 1.0 or not 0.0 <= self.fb_integral_max <= 0.2
+                or not 0.0 < self.fb_slew_per_s <= 10.0):
+            raise ValueError("mpc feedback (fb_*) settings out of range")
+        if self.measured_motion and self.longitudinal_mode != "feedback":
+            # The joint QP chooses drive through the drive model; holding speed would blind it.
+            raise ValueError("mpc.measured_motion needs longitudinal_mode feedback")
         if self.switch_hold_s > 0 and self.reference_dropout_tolerance_s <= self.switch_hold_s:
             # The guard rides on the tolerable dropout; without it a guarded tick would lock.
             raise ValueError("mpc.switch_hold_s needs reference_dropout_tolerance_s above it")
@@ -4602,20 +4629,28 @@ class VehicleModelMPC:
         p = self.vehicle if p is None else p
         return p.drive_deadband + p.drag_kg_per_m*speed*speed/p.motor_gain_n
 
-    def _linearise(self, z, u, h, p=None):
+    def motion_step(self, z, u, h, p, rate_limited=True, hold_speed=False):
+        """course_model_step; hold_speed (mpc.measured_motion) replaces the drive by the drive
+        that holds the current speed, so the prediction keeps the measured speed and only
+        steering shapes it. That drive is prediction math only, never sent to the car."""
+        if hold_speed:
+            u = (self.steady_drive(z[3], p), u[1])
+        return course_model_step(z, u, h, p, rate_limited=rate_limited)
+
+    def _linearise(self, z, u, h, p=None, hold_speed=False):
         """Forward-difference Jacobians of the unclipped step at (z, u)."""
         p, np = self.vehicle if p is None else p, self._np
-        base = course_model_step(z, u, h, p, rate_limited=False)
+        base = self.motion_step(z, u, h, p, False, hold_speed)
         A, B = np.zeros((5, 5)), np.zeros((5, 2))
         for j in range(5):
             eps = 1e-6*max(1.0, abs(z[j]))
             shifted = list(z)
             shifted[j] += eps
-            A[:, j] = (np.array(course_model_step(shifted, u, h, p, rate_limited=False))-base)/eps
+            A[:, j] = (np.array(self.motion_step(shifted, u, h, p, False, hold_speed))-base)/eps
         for j in range(2):
             shifted = list(u)
             shifted[j] += 1e-6
-            B[:, j] = (np.array(course_model_step(z, shifted, h, p, rate_limited=False))-base)/1e-6
+            B[:, j] = (np.array(self.motion_step(z, shifted, h, p, False, hold_speed))-base)/1e-6
         return base, A, B
 
     def _solve_qp(self, P, q, constraints, lower, upper):
@@ -4706,12 +4741,16 @@ class VehicleModelMPC:
         self._model = None
 
     def solve(self, points, z0, speed_cap, last_drive, nominal=None, drive_bias=0.0, moving=False,
-              speed_targets=None, allow_braking=False, drive_floor_zero=False, drive_cap=None):
+              speed_targets=None, allow_braking=False, drive_floor_zero=False, drive_cap=None,
+              fixed_drive=None, hold_speed=False):
         """Returns (solution, None) or (None, reference_reason); raises MPCStop on solver failure.
 
         drive_floor_zero (soft overspeed): while moving, drive may go below the deadband,
         into the model's drag-brake region, without planning a stop. drive_cap lowers the
-        drive bound below vehicle.drive_max (never below the deadband floor)."""
+        drive bound below vehicle.drive_max (never below the deadband floor).
+        fixed_drive (longitudinal_mode feedback): every drive input is pinned to this value
+        (clipped into the drive bounds), so the QP chooses steering only. hold_speed: see
+        motion_step."""
         np, cfg, n, h = self._np, self.cfg, self.cfg.horizon_n, self.cfg.dt_pred_s
         p = self.effective(drive_bias)
         t0 = time.perf_counter()
@@ -4723,6 +4762,10 @@ class VehicleModelMPC:
         if allow_braking and (speed_targets is None or p.brake_gain_n <= 0):
             raise MPCStop("braking_model_unavailable")
         (d_lo, d_hi), (s_lo, s_hi) = self.input_bounds(p, moving, allow_braking, drive_floor_zero, drive_cap)
+        if fixed_drive is not None:
+            if not finite_number(fixed_drive):
+                raise MPCStop("solver_nonfinite_input")
+            d_lo = d_hi = min(d_hi, max(d_lo, float(fixed_drive)))
         g, o = p.steering_gain_rad, p.steering_offset_rad
         z0 = [float(v) for v in z0]
         if not all(math.isfinite(v) for v in z0 + [speed_cap if speed_cap != math.inf else 0.0, last_drive]):
@@ -4737,7 +4780,7 @@ class VehicleModelMPC:
         for _ in range(cfg.sqp_iterations):
             states, A_list, B_list = [z0], [], []
             for k in range(n):
-                nxt, A, B = self._linearise(states[-1], U_bar[2*k:2*k+2], h, p)
+                nxt, A, B = self._linearise(states[-1], U_bar[2*k:2*k+2], h, p, hold_speed)
                 states.append(list(nxt))
                 A_list.append(A)
                 B_list.append(B)
@@ -4812,7 +4855,7 @@ class VehicleModelMPC:
         end_dir = math.atan2(end["y_m"]-before["y_m"], end["x_m"]-before["x_m"])
         forward_extension = 0.0
         for k in range(n):
-            z = course_model_step(z, U_bar[2*k:2*k+2], h, p)
+            z = self.motion_step(z, U_bar[2*k:2*k+2], h, p, hold_speed=hold_speed)
             px, py, theta, _, _, _ = project(z[0], z[1])
             predicted.append((-(z[0]-px)*math.sin(theta) + (z[1]-py)*math.cos(theta), z[3], z[4]))
             pred_xy.append((float(z[0]), float(z[1])))
@@ -4928,6 +4971,8 @@ class MPCController:
         self.hard_since = None       # clock_s of the first step above overspeed_hard_mps in a row
         self.bias = 0.0
         self.last_speed = None     # (clock_s, measured speed) of the previous step
+        self.fb_integral = 0.0     # longitudinal_mode feedback: PI integral (kept across restarts)
+        self.fb_command = None     # last PI drive; None = PI not engaged (start phase, or just reset)
         self.step_times = []
         if self.solver is not None and hasattr(self.solver, "reset"):
             self.solver.reset()
@@ -4963,6 +5008,42 @@ class MPCController:
         self.bias += cfg.drive_bias_gain*residual*(self.clock_s-last[0])
         self.bias = min(cfg.drive_bias_max, max(-cfg.drive_bias_max, self.bias))
 
+    def feedback_drive(self, speed, target, dt, fresh, drive_cap, turn=0.0):
+        """longitudinal_mode feedback: the wheel-speed PI drive and its debug fields.
+
+        The first call after the start phase (fb_command None) slews from the start drive in
+        force; the integral keeps what it learned (matching it to the start drive would carry
+        the start's overshoot on: 10-19, 74% of handovers reached the soft line). A held wheel
+        reading neither integrates nor moves the drive. Soft overspeed caps it at the sustain drive and cut sets 0; the
+        integral then only falls (the speed is above the target). drive_cap applies at once,
+        other changes at most fb_slew_per_s*dt. turn (turn_drive of the steering in force) is
+        feedforward: a bend's drag left to the integral overshoots when the bend ends.
+        """
+        c, p = self.cfg, self.vehicle
+        ff = (c.fb_sustain_drive or p.drive_deadband) + turn
+        lim, err = c.fb_integral_max, target - speed
+        top = max(0.0, min(p.drive_max, drive_cap))
+        info = {"fb_target": target, "fb_error": err, "fb_frozen": False}
+        if self.fb_command is None:
+            self.fb_command = min(top, max(0.0, self.applied_drive))
+        if not fresh:
+            self.fb_command = min(top, self.fb_command)
+            info["fb_frozen"] = True
+        else:
+            raw = ff + c.fb_kp*err + self.fb_integral
+            if 0.0 <= raw <= top or (raw < 0.0 and err > 0) or (raw > top and err < 0):
+                self.fb_integral = min(lim, max(-lim, self.fb_integral + c.fb_ki*err*dt))
+            command = min(top, max(0.0, ff + c.fb_kp*err + self.fb_integral))
+            if self.overspeed_state == "soft":
+                command = min(command, ff)
+            change = c.fb_slew_per_s*dt
+            command = min(self.fb_command + change, max(self.fb_command - change, command))
+            if self.overspeed_state == "cut":
+                command = 0.0
+            self.fb_command = min(top, max(0.0, command))
+        info.update(fb_integral=self.fb_integral, fb_command=self.fb_command)
+        return self.fb_command, info
+
     def command_at(self, time_s):
         """Applied command in force at time_s; zero before the run, held after the last."""
         command = (0.0, 0.0)
@@ -4972,12 +5053,13 @@ class MPCController:
             command = (drive, steer)
         return command
 
-    def initial_state(self, speed):
+    def initial_state(self, speed, hold_speed=False):
         """Model state when the command computed now takes effect.
 
         Steering is replayed from rest for long enough to settle, then the whole
         state is propagated over the larger actuator delay with the commands already
         sent; the channel with the shorter delay holds its last command meanwhile.
+        hold_speed (mpc.measured_motion): the speed is held through the delay instead.
         """
         p, now = self.vehicle, self.clock_s
         steer_delay, drive_delay = p.steering_delay_s, p.drive_delay_s
@@ -4997,8 +5079,10 @@ class MPCController:
             sub = delay/count
             for i in range(count):
                 t = now + i*sub
-                z = course_model_step(z, (self.command_at(t-drive_delay)[0], self.command_at(t-steer_delay)[1]),
-                                      sub, p)
+                drive = self.command_at(t-drive_delay)[0]
+                if hold_speed:
+                    drive = p.drive_deadband + p.drag_kg_per_m*z[3]*z[3]/p.motor_gain_n
+                z = course_model_step(z, (drive, self.command_at(t-steer_delay)[1]), sub, p)
         return z, delta_now
 
     def overspeed_check(self, speed, fresh=True, dt=0.0):
@@ -5066,7 +5150,11 @@ class MPCController:
              "overspeed_state": None, "overspeed_s": None, "forward_extension_m": None,
              # New 2026-10-19 (night): turn-drag deadband shift, start handover cap active, steering
              # change limit after a reference-source switch (None = none).
-             "turn_drive": 0.0, "handover": False, "steer_slew": steer_slew}
+             "turn_drive": 0.0, "handover": False, "steer_slew": steer_slew,
+             # New 2026-10-20: longitudinal mode and its wheel-speed PI (None while not engaged).
+             "longitudinal_mode": cfg.longitudinal_mode, "prediction_mode": "force_model",
+             "fb_target": None, "fb_error": None, "fb_integral": None, "fb_command": None,
+             "fb_frozen": None, "fb_bypass": None}
         soft = cfg.overspeed_soft_margin_mps > 0 and not cfg.shadow
         self.last_debug = d
         if isinstance(traj, dict):
@@ -5160,8 +5248,10 @@ class MPCController:
         if not finite_number(speed_mps) or speed_mps < 0:
             return reject("ref_invalid", "speed_invalid")
         d["dt"] = dt if not is_first else 0.0
+        feedback = cfg.longitudinal_mode == "feedback"
         if speed_fresh:
-            self.update_bias(speed_mps)
+            if not feedback:         # the PI integral takes the bias's place
+                self.update_bias(speed_mps)
         else:
             self.last_speed = None   # a held reading is no residual; restart after it
         breakaway = self.vehicle.drive_breakaway > 0
@@ -5178,6 +5268,7 @@ class MPCController:
             # Between rest_speed_mps and moving_speed_mps the phase stays as it is (hysteresis).
             self.phase, self.start_since, self.tracking_since = "starting", None, None
             self.handover_since = None
+            self.fb_command = None   # the start drive takes over; the PI re-engages bumplessly
             if (cfg.restart_merge_s <= 0 or self.last_restart_s is None
                     or self.clock_s - self.last_restart_s >= cfg.restart_merge_s - 1e-9):
                 self.restarts += 1
@@ -5259,16 +5350,25 @@ class MPCController:
         if min(d["v_ref_mps"], cap) <= 0.0:
             self.nominal, self.plan = None, None
             return accept("zero_target", self.applied_steer, 0.0)
-        z0, delta_now = self.initial_state(speed_mps)
+        # Feedback PI only while tracking (or without a start phase), and not on a shadow
+        # time profile, which needs the joint QP's drive.
+        pi = feedback and (self.phase == "tracking" or not breakaway) and speed_targets is None
+        hold = pi and cfg.measured_motion
+        if feedback:
+            d.update(fb_bypass="speed_profile" if speed_targets is not None else None,
+                     prediction_mode="measured_speed_hold" if hold else "force_model")
+        z0, delta_now = self.initial_state(speed_mps, hold) if hold else self.initial_state(speed_mps)
         d["delta_est_rad"] = delta_now
-        turn = self.turn_drive(self.applied_steer)
+        turn = self.turn_drive(self.applied_steer)   # feedback: PI feedforward, not a QP bias
         d["turn_drive"] = turn
         extra = {}
-        if self.bias or turn or self.vehicle.drive_deadband > 0:
+        if pi:
+            pass                     # drive is fixed below; no bias or deadband floor in the QP
+        elif self.bias or turn or self.vehicle.drive_deadband > 0:
             extra = {"drive_bias": self.bias + turn, "moving": self.phase == "tracking"}
         if speed_targets is not None:
             extra.update(speed_targets=speed_targets, allow_braking=planned_stop)
-        if soft and self.overspeed_state != "ok":
+        if soft and self.overspeed_state != "ok" and not pi:
             extra["drive_floor_zero"] = True
         # The raw wheel reading leads the filtered speed by ~0.1-0.2 s; taking the larger
         # drops the low-speed cap as soon as the car pulls away (10-19 18:45: 0.09 -> 0.47
@@ -5277,6 +5377,14 @@ class MPCController:
         if cfg.high_speed_drive_max > 0 and pace >= cfg.high_speed_mps:
             extra["drive_cap"] = cfg.high_speed_drive_max
         d["drive_cap"] = extra.get("drive_cap", self.vehicle.drive_max)
+        if pi:
+            fb, info = self.feedback_drive(speed_mps, min(d["v_ref_mps"], cap), d["dt"], speed_fresh,
+                                           d["drive_cap"], turn)
+            d.update(info)
+            extra.pop("drive_cap", None)   # already applied to fb
+            extra["fixed_drive"] = fb
+            if hold:
+                extra["hold_speed"] = True
         try:
             solution, reason = self.solver.solve(traj["points"], z0, cap, self.applied_drive, self.nominal, **extra)
         except MPCStop as exc:
@@ -5305,7 +5413,7 @@ class MPCController:
                 return reject("stop", "no_motion_after_breakaway")
             drive = min(self.vehicle.drive_max, self.vehicle.drive_breakaway
                         + cfg.breakaway_ramp_per_s*(self.clock_s - self.start_since))
-        if (cfg.handover_s > 0 and self.phase == "tracking" and self.handover_since is not None
+        if (cfg.handover_s > 0 and not feedback and self.phase == "tracking" and self.handover_since is not None
                 and self.clock_s - self.handover_since < cfg.handover_s - 1e-9):
             # Just pulled away: the start drive's momentum overshot (10-19: 74% of handovers
             # reached the soft overspeed line within 2.5 s). Stay near the effective deadband.

@@ -2,6 +2,43 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-20（续）：PI 油门模式（`longitudinal_mode: feedback`），移植自 Zhenyu 的分支 🟡
+
+**改了什么**：
+- 新增 `mpc.longitudinal_mode`：`joint`（默认，行为不变）或 `feedback`。feedback 模式在跟踪阶段由轮速 PI 决定油门，QP 用固定油门（`solve(fixed_drive=...)`），只求转向。
+- 新增 `mpc.measured_motion`：跟踪阶段，转向预测保持实测车速。
+- 只在 5 号车的 `-fb` 包里打开（`config/ai4r_policy_mpc_car05_feedback.yaml`，`make_deploy_yaml.py --longitudinal feedback`）。
+- 和 Zhenyu 分支的完整区别、移植了哪些、哪些没移植：[MPC_BRANCH_COMPARISON_CN.md](MPC_BRANCH_COMPARISON_CN.md)。
+
+**和他的版本不同的地方**，都来自仿真里复现的停走循环：
+- kp/ki 用 0.2/0.2，不是 0.5/1.0：kp 0.5 在 .27 的油门响应和约 0.4 s 延迟下会振荡；
+- 转弯阻力保留为前馈；
+- 起步交接时积分不反算；
+- 读数过期时冻结积分和油门；
+- `-fb` 包的软超速 / 切油门余量放宽到 0.10 / 0.05。
+
+**仿真**：
+- 纵向扫描：54 种参数不准的仿真车，跟踪阶段零重启，车速波动 ≤ 0.017 m/s。
+- Gym（4 种仿真车 × 2 种模式，每组 60 次）：
+  - 完成率相近，控制层停车都是 0；
+  - feedback 的最高车速每组都更低：0.44/0.34/0.38/0.29，joint 是 0.51/0.43/0.39/0.35。
+
+数字见对比文档第 3 节。
+
+**测试**：
+- 本机：mpc、planner_control、real_frames、shadow_lattice、planner_execution 共 227 项通过；lattice 45 项通过。新增 `FeedbackLongitudinal`、`FixedDriveSolver` 两组测试，以及部署包和替身节点上的测试。
+- 新代码另外用 dense 求解器跑了一遍，通过。
+- `test_policy_node` 本机缺 pytest，由 WSL 门禁覆盖。
+
+**部署包**：policy_node `0fd5b2bc…`。joint 包和 `-fb` 包的哈希已写进 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md)，连同 A/B 步骤和判定标准。
+
+**工具**：
+- `car05_run_stats.py`：按模式分组；新增跟踪车速标准差、处在软线的比例，以及 PI 油门来回摆动次数。
+- `export_car_run.py`：导出 `fb_*` 字段。
+- Gym：`--plant-turn-drag` 给仿真车加转弯阻力，`--feedback` 切换到 PI 油门。
+
+**待做**：WSL 门禁；实车 A/B。
+
 ## 2026-10-20：`b0c660c` 本机复核、部署包、Gym 对比
 
 - 本机测试全部通过：mpc 138、planner_control 18、real_frames 15、shadow_lattice 30、planner_execution 10、control 45、estimation 65、planning 18、release_contract 4、lattice 45。

@@ -413,6 +413,21 @@
       # switch_steer_rate_per_s * dt per tick.
       switch_blend_s: 0.0
       switch_steer_rate_per_s: 1.5
+      # Longitudinal mode (2026-10-20). joint: the QP chooses drive and steering together.
+      # feedback: while tracking, drive is a wheel-speed PI -- fb_sustain_drive
+      # (0 = vehicle.drive_deadband) + turn_drive_per_steer * |steering| (feedforward)
+      # + fb_kp * error + integral (+/- fb_integral_max, frozen on held wheel readings),
+      # changing at most fb_slew_per_s -- and the QP solves steering with that drive fixed.
+      # Start phase, overspeed guards and high_speed_drive_max are unchanged; drive_bias and
+      # handover are joint-only. kp 0.5 oscillates on the .27 drive fit with ~0.4 s delay.
+      # measured_motion (feedback only): the prediction holds the measured speed.
+      longitudinal_mode: joint
+      fb_kp: 0.2
+      fb_ki: 0.2
+      fb_sustain_drive: 0.0
+      fb_integral_max: 0.12
+      fb_slew_per_s: 1.5
+      measured_motion: false
       horizon_n: 10
       dt_pred_s: 0.1               # fixed prediction step; measured dt is only range-checked
       dt_max_s: 0.2

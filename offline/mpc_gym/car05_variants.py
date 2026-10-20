@@ -3,6 +3,7 @@
     python offline/mpc_gym/car05_variants.py                                   # committed car 05 config
     python offline/mpc_gym/car05_variants.py --plant-d0 0.31 --plant-ubreak 0.37   # used battery
     python offline/mpc_gym/car05_variants.py --set mpc.high_speed_mps=0.15 --set vehicle.drive_max=0.40
+    python offline/mpc_gym/car05_variants.py --plant-turn-drag 0.06 --feedback   # PI drive (10-20)
 
 Builds on car_readiness_centerline.py (--lattice21 --car05-mpc at --speed 0.20), and also
 takes car 05's own vehicle drive and steering record from config/ai4r_policy_mpc_car05.yaml
@@ -13,8 +14,10 @@ a fresh battery, 0.289/0.298 (the fit) and 0.31/0.37 for a used one -- and steer
 
 Lattice planning time is measured on this computer, so a repeat differs by 1-3 completions
 per 60 runs (seen 2026-10-19): compare variants on the same plant, and repeat when close.
-Simulation only, not car evidence: the plant has no cornering drag and no held wheel
-readings, which the 10-19 car runs showed (tools/car05_run_stats.py).
+--plant-turn-drag adds cornering drag (deadband + k*|steering|; 0 = none, as before 10-20).
+--feedback layers config/ai4r_policy_mpc_car05_feedback.yaml (mpc.longitudinal_mode feedback).
+Simulation only, not car evidence: the plant has no held wheel readings, which the 10-19
+car runs showed (tools/car05_run_stats.py).
 """
 import argparse
 from collections import Counter
@@ -50,6 +53,7 @@ def configure(args):
         return
     _CONFIGURED = True
     car05 = ne.layered("ai4r_policy_mpc_car05.yaml")
+    feedback = ne.layered("ai4r_policy_mpc_car05_feedback.yaml")["mpc"] if args.feedback else {}
     overrides = [s.split("=", 1) for s in args.set]
     base = c.centerline_params
 
@@ -58,6 +62,7 @@ def configure(args):
         for key, value in car05["vehicle"].items():
             if key.startswith("drive") or key.startswith("steering"):
                 p["vehicle"][key] = value
+        p["mpc"].update(feedback)
         for path, value in overrides:
             section, name = path.split(".", 1)
             p[section][name] = parse_value(value)
@@ -72,7 +77,7 @@ def configure(args):
     sim.NewcarPlant.gym_action = gym_action
 
     run = c.newcar27_run
-    plant = {"d0": args.plant_d0, "u_break": args.plant_ubreak}
+    plant = {"d0": args.plant_d0, "u_break": args.plant_ubreak, "turn_drag": args.plant_turn_drag}
     c.newcar27_run = lambda p, **kw: run(p, plant_changes=plant, **kw)
 
 
@@ -87,6 +92,8 @@ def main():
     parser.add_argument("--plant-d0", type=float, default=0.23)
     parser.add_argument("--plant-ubreak", type=float, default=0.24)
     parser.add_argument("--plant-steer-rad", type=float, default=0.42)
+    parser.add_argument("--plant-turn-drag", type=float, default=0.0)
+    parser.add_argument("--feedback", action="store_true", help="mpc.longitudinal_mode feedback (car 05 PI overlay)")
     parser.add_argument("--speed", type=float, default=0.20)
     parser.add_argument("--set", action="append", default=[], metavar="section.name=value",
                         help="override a parameter after the car 05 layers (repeatable)")
@@ -100,7 +107,7 @@ def main():
     done = sum(r["completed"] for r in rows)
     reasons = Counter(r["stop_reason"] for r in rows if not r["completed"])
     print(f"plant d0={args.plant_d0} u_break={args.plant_ubreak} steer={args.plant_steer_rad} "
-          f"set={args.set or '-'}: {done}/{len(rows)} completed, peak {max(r['peak_speed_mps'] for r in rows):.2f} m/s, "
+          f"turn_drag={args.plant_turn_drag} {'feedback' if args.feedback else 'joint'} set={args.set or '-'}: {done}/{len(rows)} completed, peak {max(r['peak_speed_mps'] for r in rows):.2f} m/s, "
           f"overspeed {reasons.get('stop:overspeed', 0)}, no_motion {reasons.get('stop:no_motion_after_breakaway', 0)}, "
           f"too_many_restarts {reasons.get('stop:too_many_restarts', 0)}")
     for road in args.roads:

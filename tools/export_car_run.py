@@ -15,7 +15,8 @@ out = Path(sys.argv[1])
 KEEP = ("branch","phase","reject_reason","speed_mps","speed_raw_mps","wheel_fresh","wheel_held_s","speed_override",
         "v_ref_mps","e_y_m","e_psi_rad","candidate_drive","applied_drive","applied_steer_action","drive_bias",
         "overspeed_state","overspeed_s","reference_selection","reference_selection_reason","reference_gate",
-        "restarts","drive_cap","dt")
+        "restarts","drive_cap","dt","turn_drive","handover","steer_slew",
+        "longitudinal_mode","prediction_mode","fb_target","fb_error","fb_integral","fb_command","fb_frozen")
 for p in sys.argv[2:]:
     t0=None; wheel=yaw=sp=fsm=None; ticks=[]; events=[]
     with open(p,"rb") as f:

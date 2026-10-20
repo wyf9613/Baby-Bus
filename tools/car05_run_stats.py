@@ -58,6 +58,8 @@ def report(doc):
               f"restarts {max(counted) if counted else 'n/a (field added in a5dad7f)'}")
     tr = [r for r in ticks if r["branch"] in ("solved", "plan_hold")]
     track = [r for r in tr if r["phase"] == "tracking"]
+    modes = Counter(r.get("longitudinal_mode") or "joint (before 10-20)" for r in tr)
+    print(f"  longitudinal mode: {dict(modes)}")
 
     # Restarts: tracking -> starting, and what preceded them.
     restarts = [(a, b) for a, b in zip(tr, tr[1:]) if a["phase"] == "tracking" and b["phase"] == "starting"]
@@ -89,6 +91,24 @@ def report(doc):
     over = sum(1 for i, b in hand if any(r.get("overspeed_state") in ("soft", "cut")
                                           for r in tr[i+1:i+60] if r["t"]-b["t"] <= 2.5))
     print(f"  start -> tracking handovers {len(hand)}, followed by soft/cut overspeed within 2.5 s: {over}")
+
+    # Speed holding while tracking (both modes): spread, time above the soft line.
+    held = [r for r in track if r["branch"] == "solved" and r.get("speed_mps") is not None]
+    if held:
+        speeds = [r["speed_mps"] for r in held]
+        above = sum(r.get("overspeed_state") in ("soft", "cut") for r in held)/len(held)
+        print(f"  tracking speed mean {st.mean(speeds):.3f} sd {st.pstdev(speeds):.3f}; "
+              f"soft/cut overspeed {above:.0%} of solved tracking ticks")
+    # Feedback PI (2026-10-20): drive reversals (a sign change of the drive's step) per second
+    # of PI time -- a periodic swing shows as many -- and ticks frozen on held readings.
+    pi = [r for r in track if r.get("fb_command") is not None]
+    if pi:
+        steps = [b["fb_command"]-a["fb_command"] for a, b in zip(pi, pi[1:])
+                 if b["t"]-a["t"] < 0.12 and abs(b["fb_command"]-a["fb_command"]) > 0.005]
+        flips = sum(1 for a, b in zip(steps, steps[1:]) if a*b < 0)
+        span = sum(b["t"]-a["t"] for a, b in zip(pi, pi[1:]) if b["t"]-a["t"] < 0.12) or 1.0
+        print(f"  PI: {len(pi)} ticks, drive reversals {flips/span:.2f}/s, frozen {sum(bool(r.get('fb_frozen')) for r in pi)}, "
+              f"integral range [{min(r['fb_integral'] for r in pi):+.3f}, {max(r['fb_integral'] for r in pi):+.3f}]")
 
     # Reference switches: steering change on the switching tick, each direction.
     for src, dst in (("planner", "baseline"), ("baseline", "planner")):
