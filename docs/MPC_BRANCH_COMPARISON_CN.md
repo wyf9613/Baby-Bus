@@ -134,6 +134,8 @@
 
 ## 4. 需要和 Zhenyu 沟通
 
+presentation 里怎么比（参数分三类对齐、两层对比）见 [MPC_COMPARISON_PLAN_CN.md](MPC_COMPARISON_PLAN_CN.md)。
+
 1. **5 号车共用。** 部署时会互相覆盖配置，尤其是 `traxxas_vehicle_interface.yaml` 的转向区间（本分支要求 ±1.0，他的 checkpoint 是 ±0.5）。约定：每次上车先核对，用完恢复。
 2. **把 5 号车实测转向告诉他**：±1.0 下满舵 23–25°。他的急弯问题很可能主要来自这里。
 3. **他的 PI 会遇到读数过期的问题**，可以用本分支的 `WheelHoldMonitor`。
