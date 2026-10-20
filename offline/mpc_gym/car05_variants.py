@@ -4,6 +4,7 @@
     python offline/mpc_gym/car05_variants.py --plant-d0 0.31 --plant-ubreak 0.37   # used battery
     python offline/mpc_gym/car05_variants.py --set mpc.high_speed_mps=0.15 --set vehicle.drive_max=0.40
     python offline/mpc_gym/car05_variants.py --plant-turn-drag 0.06 --feedback   # PI drive (10-20)
+    python offline/mpc_gym/car05_variants.py --set planning.lattice.steering_limit_rad=0.42
 
 Builds on car_readiness_centerline.py (--lattice21 --car05-mpc at --speed 0.20), and also
 takes car 05's own vehicle drive and steering record from config/ai4r_policy_mpc_car05.yaml
@@ -63,9 +64,13 @@ def configure(args):
             if key.startswith("drive") or key.startswith("steering"):
                 p["vehicle"][key] = value
         p["mpc"].update(feedback)
-        for path, value in overrides:
-            section, name = path.split(".", 1)
-            p[section][name] = parse_value(value)
+        for path, value in overrides:          # section.name or section.sub.name
+            *parents, name = path.split(".")
+            target = p
+            for key in parents:
+                target = target[key]
+            assert name in target, f"--set {path}: no such parameter"
+            target[name] = parse_value(value)
         return p
     c.centerline_params = params
 
@@ -113,7 +118,13 @@ def main():
     for road in args.roads:
         group = [r for r in rows if r["road"] == road]
         lat = max((r["lateral_max_m"] for r in group if r["completed"]), default=None)
-        print(f"  {road:17s} {sum(r['completed'] for r in group):2d}/{len(group)}  max lateral {lat}")
+        sel = Counter()
+        for r in group:
+            sel.update(r.get("reference_selection") or {})
+        share = sel.get("planner", 0)/max(1, sum(sel.values()))
+        switches = sum(r.get("reference_switches") or 0 for r in group)
+        print(f"  {road:17s} {sum(r['completed'] for r in group):2d}/{len(group)}  max lateral {lat}  "
+              f"lattice {share:.0%} of ticks, {switches} switches")
     print("  stop reasons:", dict(reasons.most_common(6)))
     return 0
 

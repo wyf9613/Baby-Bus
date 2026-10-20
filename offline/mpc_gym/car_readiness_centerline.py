@@ -89,7 +89,8 @@ def one(job):
             "elapsed_s": round(result["trace"]["t"][-1] - result["trace"]["t"][0], 2) if result["trace"]["t"] else None,
             "step_p95_ms": result.get("step_p95_ms"), "branches": result.get("branches"),
             "reference_selection": result.get("reference_selection"),
-            "selection_reasons": result.get("selection_reasons"), "lattice_results": result.get("lattice_results")}
+            "selection_reasons": result.get("selection_reasons"), "lattice_results": result.get("lattice_results"),
+            "reference_switches": result.get("reference_switches")}
 
 
 def summarise(rows):

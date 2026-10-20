@@ -380,6 +380,8 @@ def run(params, offset=0.0, heading=0.0, noise=0.0, seed=1, duration=20.0, start
             str(d.get("reference_selection_reason")).split(":")[0] for d in node.debug
             if d.get("reference_selection") == "baseline").most_common(4))
         result["lattice_results"] = dict(Counter(r.get("status") for r in node.lattice_results))
+        sources = [d.get("reference_selection") for d in node.debug if d.get("reference_selection")]
+        result["reference_switches"] = sum(1 for a, b in zip(sources, sources[1:]) if a != b)
     result.update(mpc_enabled=mpc_on, branches=dict(branches), reject_reasons=dict(reasons),
                   final_x_m=round(float(state["world_pose"]["x_m"]), 2),
                   final_y_m=round(float(state["world_pose"]["y_m"]), 3),

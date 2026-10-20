@@ -2,6 +2,28 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-20（再续三）：lattice 转向假设对齐的 Gym 检验，结论为"没有影响"
+
+**为什么做**：核对部署配置时发现，本分支 lattice 按 45° / 1.57 rad/s 规划，而 MPC 是 0.37 rad / 1.21 rad/s，实车 0.40–0.44 rad。Zhenyu 的分支把 lattice 和 MPC 对齐成 0.3142 / 1.21。见 [MPC_BRANCH_COMPARISON_CN.md](MPC_BRANCH_COMPARISON_CN.md) 2.2b。
+
+**设置**：`car05_variants.py --plant-turn-drag 0.06 --set planning.lattice.steering_limit_rad=… --set planning.lattice.steering_rate_limit_radps=…`。联合 MPC，0.20 m/s，每组 60 次。
+
+| lattice 转向假设 | 完成 | U 弯切换次数 | 直角弯 R1.5 / R1 完成 | 直角弯 R1.5 / R1 切换次数 |
+| --- | --- | --- | --- | --- |
+| 45° / 1.57（现在） | 38/60 | 294 | 3 / 2 | 164 / 216 |
+| 0.42 / 1.21（实测） | 38/60 | 294 | 5 / 1 | 184 / 163 |
+| 0.37 / 1.21（MPC 用的值） | 37/60 | 319 | 4 / 0 | 193 / 180 |
+
+**结论**：
+- **没有一致的差别**，都在同一组重跑的波动范围内。
+- **原因**：Gym 里最急的 R = 1 m 弯只需约 0.32 rad 转向，低于 0.37，所以转向上限从来没起作用。
+- **这个对齐只对比 R ≈ 0.85 m 更急的弯有意义**。为了一致性仍建议在 5 号车配置里对齐，但不能指望它减少急弯的切换。
+- **切换的主要原因在别处**：U 弯和直角弯每组 160–320 次切换，原因见 `selection_reasons`；失败大多仍停在估计层。
+
+**工具改动**：
+- `car05_variants.py` 的 `--set` 支持嵌套参数名；
+- 每条路输出 lattice 占的拍数比例和切换次数（`pipeline_sim` 新增 `reference_switches`）。
+
 ## 2026-10-20（再续二）：取消超速限制的 Gym；车包俯视图工具；IMU 安装方向
 
 **取消超速限制**（0.25 m/s，转弯阻力 0.06；软线 1.0、切油门 0、硬停关闭）：
@@ -90,7 +112,7 @@ M3 链接到这份文档。
 
 ## 2026-10-20：`b0c660c` 本机复核、部署包、Gym 对比
 
-- 本机测试全部通过：mpc 138、planner_control 18、real_frames 15、shadow_lattice 30、planner_execution 10、control 45、estimation 65、planning 18、release_contract 4、lattice 45。
+- 本机测试全部通过：mpc 138、planner_control 18、real_frames 15、shadow_lattice 30、ROSplanner_execution 10、control 45、estimation 65、planning 18、release_contract 4、lattice 45。
 - 部署包已重新生成：policy_node `3567d439…`，yaml 分别为 `24da6b96…`（1m）/ `923a3ab6…`（5m）/ `6dfc0d1c…`（nolimit），已填进现场清单。
 - `offline/mpc_gym/car05_variants.py` 修了一个 bug：进程池复用工作进程时补丁会层层嵌套，超过 `--workers` 个任务就报 `plant_changes` 重复。现在每个进程只打一次补丁。
 
