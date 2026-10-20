@@ -90,5 +90,7 @@
       handover_drive_margin: 0.04    # 48 of 65 handovers reached the soft/cut overspeed line within 2.5 s
       switch_blend_s: 0.4            # centerline -> lattice moved the steering by the QP's full step
       switch_steer_rate_per_s: 1.5   # (median 0.27-0.39); 0.075 per 0.05 s tick for 0.4 s after a switch
+    shadow:
+      check_length_mode: "travel_plus_window"  # 2026-10-20: lattice checks the execution window too (docs/LATTICE_CHECK_LENGTH_PLAN_CN.md)
     control:
       max_run_time_s: 60.0           # was 30; the distance budget comes from make_deploy_yaml --distance

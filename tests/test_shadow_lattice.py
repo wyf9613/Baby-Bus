@@ -32,13 +32,17 @@ definitions = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.Function
     and (n.name in ("ShadowSettings", "ShadowFrame", "ShadowLatticePlanner", "ShadowWorker",
                    "PlannerControlSettings", "PlannerExecutionManager")
          or n.name.startswith("_shadow_")) and n.name != "_shadow_worker_entry"]
+# mpc-car-run adaptation: the planner and PlannerExecutionManager share the
+# module constant EXECUTION_TAIL_M (2026-10-20).
+constants = [n for n in tree.body if isinstance(n, ast.Assign)
+             and [getattr(t, "id", None) for t in n.targets] == ["EXECUTION_TAIL_M"]]
 # mpc-car-run adaptation: this branch's test_estimation does not extract the
 # ordered_xy road helpers (mvp2.1's does); add the ones it lacks.
 definitions += [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name not in ns
                 and (n.name.startswith("_path_") or n.name == "_estimation_order_boundary")]
 ns["time"] = time
 ns.update(queue=queue, threading=threading, subprocess=subprocess, sys=sys, json=json)
-exec(compile(ast.Module(body=definitions, type_ignores=[]), str(source), "exec"), ns)
+exec(compile(ast.Module(body=constants+definitions, type_ignores=[]), str(source), "exec"), ns)
 # The estimator classes resolve globals in test_estimation's own namespace.
 api["namespace"].update({n.name: ns[n.name] for n in definitions if n.name not in api["namespace"]})
 Settings, Planner = ns["ShadowSettings"], ns["ShadowLatticePlanner"]
@@ -433,6 +437,126 @@ class ShadowTemporalChecks(unittest.TestCase):
                 self.assertLess(max(abs(a-b) for p,q in zip(result["selected"]["path"],
                     frame["recorded_selected"]["path"]) for a,b in zip(p,q)), 1e-12)
 
+
+def bump_job():
+    """Straight road whose left boundary juts in to y=0.10 at x 0.60-0.70.
+
+    The straight "follow" candidate's body first touches it at about 0.35 m of
+    path: past the 0.22 m "travel" check, inside the execution window.
+    """
+    record = job()
+    record["road"].update(centerline_xy=[(0.0, 0.0), (0.75, 0.0), (1.5, 0.0)],
+        left_boundary_xy=[(0.0, 0.5), (0.55, 0.5), (0.6, 0.1), (0.7, 0.1), (0.75, 0.5), (1.5, 0.5)],
+        right_boundary_xy=[(0.0, -0.5), (1.5, -0.5)])
+    return record
+
+
+class CheckLengthModeChecks(unittest.TestCase):
+    """mpc-car-run, 2026-10-20: shadow.check_length_mode (docs/LATTICE_CHECK_LENGTH_PLAN_CN.md)."""
+
+    def test_default_travel_is_mvp21_speed_times_hold(self):
+        self.assertEqual(Settings().check_length_mode, "travel")
+        self.assertEqual(ns["EXECUTION_TAIL_M"], 0.15)
+        record = job(speed=0.2)
+        default = plan(record)
+        self.assertEqual(default["check_length_m"], 0.2*(1/1.0+0.10))
+        self.assertAlmostEqual(default["check_length_m"], 0.22)
+        self.assertEqual((default["check_length_mode"], default["travel_check_m"]),
+                         ("travel", default["check_length_m"]))
+        self.assertAlmostEqual(default["execution_window_m"], 0.50)
+        explicit = plan(record, check_length_mode="travel")
+        for key in ("check_length_m", "score_length_m", "generated_length_m", "selected", "candidates"):
+            self.assertEqual(explicit[key], default[key], key)
+
+    def test_mode_lengths_including_standstill_and_missing_preview(self):
+        expected = {0.2: (0.22, 0.50, 0.72), 0.0: (0.0, 0.50, 0.50)}
+        for speed, lengths in expected.items():
+            for mode, length in zip(("travel", "max", "travel_plus_window"), lengths):
+                with self.subTest(speed=speed, mode=mode):
+                    result = plan(job(speed=speed), check_length_mode=mode)
+                    self.assertAlmostEqual(result["check_length_m"], length)
+                    self.assertEqual(result["status"], "VALID")
+                    self.assertGreaterEqual(result["generated_length_m"], result["control_read_length_m"])
+        # Invalid preview falls back to score_min_length_m (0.2), as the horizon already did.
+        for preview in (None, 0.0, -1.0, float("nan"), "0.35"):
+            record = job(speed=0.2)
+            record["preview_m"] = preview
+            for mode, length in (("travel", 0.22), ("max", 0.35), ("travel_plus_window", 0.57)):
+                with self.subTest(preview=preview, mode=mode):
+                    result = plan(record, check_length_mode=mode)
+                    self.assertAlmostEqual(result["check_length_m"], length)
+                    self.assertAlmostEqual(result["execution_window_m"], 0.35)
+        record = job(speed=0.2)
+        del record["preview_m"]
+        self.assertAlmostEqual(plan(record, check_length_mode="travel_plus_window")["check_length_m"], 0.57)
+
+    def test_window_modes_reject_a_candidate_that_hits_beyond_travel(self):
+        record = bump_job()
+        travel = plan(record)
+        window = plan(record, check_length_mode="travel_plus_window")
+        self.assertEqual((travel["status"], window["status"]), ("VALID", "VALID"))
+        self.assertEqual(travel["candidates"][0]["family"], "follow")
+        self.assertIsNone(travel["candidates"][0]["collision"])
+        self.assertEqual(travel["selected"]["family"], "follow")
+        hit = window["candidates"][0]["collision"]
+        self.assertEqual(hit["side"], "left")
+        self.assertTrue(0.3 <= hit["pose"][0] <= 0.6, hit)
+        self.assertLess(window["feasible_count"], travel["feasible_count"])
+        self.assertNotEqual(window["selected"]["family"], "follow")
+
+    def test_travel_plus_window_path_passes_execution_while_in_use(self):
+        record = bump_job()
+        selected_family = {}
+        for mode in ("travel", "travel_plus_window"):
+            result = plan(record, check_length_mode=mode)
+            result.update(job_id=1, execution_anchor={"pose": [0.0, 0.0, 0.0], "odometry_epoch": 1})
+            selected_family[mode] = result["selected"]["family"]
+            path = result["selected"]["path"]
+            arc = ns["_shadow_lengths"]([p[:2] for p in path])
+            cfg = Settings(**{**record["settings"], "check_length_mode": mode})
+            manager = ns["PlannerExecutionManager"]()
+            manager.accept(result)
+            travelled = result["travel_check_m"]
+            for tick, distance in enumerate((0.0, travelled/2, travelled), 1):
+                # The car on the planned path; the same boundaries in its current frame.
+                pose = path[min(range(len(arc)), key=lambda i: abs(arc[i]-distance))]
+                stamp = record["stamp_s"]+0.05*tick
+                road = {"timestamp_s": stamp, "frame_id": "base_link", "time_aligned": True,
+                        "boundary_source": record["road"]["boundary_source"]}
+                for side in ("left", "right"):
+                    road[side+"_boundary_xy"] = ns["_shadow_pose_points"](
+                        record["road"][side+"_boundary_xy"], (0.0, 0.0, 0.0), pose)
+                state = {"timestamp_s": stamp, "frame_id": "base_link", "speed_valid": True,
+                         "yaw_rate_valid": True, "speed_mps": 0.2, "yaw_rate_rps": 0.0}
+                reference = manager.select(road, state, pose, 1, cfg, record["preview_m"], 0.2, 0.05, 0.25)
+                with self.subTest(mode=mode, distance=distance):
+                    if mode == "travel_plus_window":
+                        self.assertIsNotNone(reference, manager.diagnostics.get("reason"))
+                        self.assertEqual(manager.diagnostics["reason"], "planner_tracking")
+                    else:       # mvp2.1's check: the execution check rejects the planned path
+                        self.assertIsNone(reference)
+                        self.assertEqual(manager.diagnostics["reason"], "known_boundary_collision")
+        self.assertEqual(selected_family["travel"], "follow")
+
+    def test_mode_must_be_one_of_the_three_strings(self):
+        for mode in ("travel", "max", "travel_plus_window"):
+            self.assertEqual(Settings(check_length_mode=mode).check_length_mode, mode)
+        for mode in ("", "Travel", "window", "travel+window", None, 0, 0.5, True, ["travel"]):
+            with self.subTest(mode=mode), self.assertRaises(ValueError):
+                Settings(check_length_mode=mode)
+
+    def test_worker_and_summary_carry_the_mode(self):
+        record = job()
+        record["settings"] = vars(Settings(sample_count=12, check_length_mode="travel_plus_window"))
+        process = subprocess.run([sys.executable, str(source), "--shadow-worker"],
+            input=json.dumps(record)+"\n", text=True, capture_output=True, timeout=15)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        response = json.loads(process.stdout)
+        self.assertEqual(response["status"], "VALID", response.get("error"))
+        self.assertEqual(response["check_length_mode"], "travel_plus_window")
+        self.assertAlmostEqual(response["check_length_m"], 0.72)
+        self.assertIn('"check_length_mode"', source.read_text(encoding="utf-8").split(
+            '"speed_mps", "hold_time_s", "check_length_m",', 1)[1].split(")}", 1)[0])
 
 if __name__ == "__main__":
     unittest.main()

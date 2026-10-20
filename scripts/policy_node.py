@@ -84,6 +84,10 @@ def _shadow_worker_entry():
     definitions = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef))
                    and (n.name in names or n.name.startswith("_shadow_"))
                    and n.name != "_shadow_worker_entry"]
+    # mpc-car-run adaptation (2026-10-20): the planner also reads the shared
+    # module constant EXECUTION_TAIL_M, defined below this entry point.
+    definitions += [n for n in tree.body if isinstance(n, ast.Assign)
+                    and [getattr(t, "id", None) for t in n.targets] == ["EXECUTION_TAIL_M"]]
     namespace = {"math": math, "dataclass": dataclass, "Real": Real,
                  "deepcopy": deepcopy, "time": time}
     exec(compile(ast.Module(body=definitions, type_ignores=[]), __file__, "exec"), namespace)
@@ -6094,6 +6098,14 @@ class PolicyController:
 # 2026-10-16. Verbatim except where marked "mpc-car-run adaptation". Keep it
 # that way so later mvp2.1 changes can be diffed in directly.
 
+# mpc-car-run adaptation (2026-10-20): the margin PlannerExecutionManager.select
+# checks past preview_m (mvp2.1 wrote 0.15 inline there). The planner's
+# check_length_mode "max"/"travel_plus_window" uses the same value so that the
+# planning-time collision check covers the execution check's window
+# (docs/LATTICE_CHECK_LENGTH_PLAN_CN.md).
+EXECUTION_TAIL_M = 0.15
+
+
 @dataclass
 class ShadowSettings:
     """New shadow-only design. No settings or code from the archived lattice.
@@ -6108,6 +6120,10 @@ class ShadowSettings:
     sample_count: int = 48
     path_spacing_m: float = 0.025
     handoff_allowance_s: float = 0.10
+    # mpc-car-run adaptation (2026-10-20): planning-time collision check length.
+    # "travel" (mvp2.1): speed*hold. "max": max(speed*hold, preview+EXECUTION_TAIL_M).
+    # "travel_plus_window": speed*hold+preview+EXECUTION_TAIL_M.
+    check_length_mode: str = "travel"
     score_min_length_m: float = 0.2
     search_half_width_m: float = 0.45
     preparation_width_fraction: float = 0.15
@@ -6136,8 +6152,11 @@ class ShadowSettings:
             raise ValueError("shadow.fusion_max_samples must be an integer in [1,128]")
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
             raise ValueError("shadow.sample_count must be an integer >=8")
+        if not isinstance(self.check_length_mode, str) or \
+                self.check_length_mode not in ("travel", "max", "travel_plus_window"):
+            raise ValueError("shadow.check_length_mode must be travel, max or travel_plus_window")
         for name, value in vars(self).items():
-            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples"):
+            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "check_length_mode"):
                 continue
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
@@ -6679,10 +6698,20 @@ class ShadowLatticePlanner:
         observed_handoff = observed_handoff if finite_number(observed_handoff) else 0.0
         handoff = max(cfg.handoff_allowance_s, observed_handoff)
         hold = 1/cfg.rate_hz+handoff
-        check = speed*hold
-        score_length = max(cfg.score_min_length_m, check)
         preview = job.get("preview_m", 0.0)
         preview = preview if finite_number(preview) and preview > 0 else cfg.score_min_length_m
+        # mpc-car-run adaptation (2026-10-20): mvp2.1 checks only speed*hold, but
+        # PlannerExecutionManager.select checks to preview+EXECUTION_TAIL_M past
+        # the car on every tick while the path is in use.
+        travel_check = speed*hold
+        execution_window = preview+EXECUTION_TAIL_M
+        if cfg.check_length_mode == "max":
+            check = max(travel_check, execution_window)
+        elif cfg.check_length_mode == "travel_plus_window":
+            check = travel_check+execution_window
+        else:
+            check = travel_check
+        score_length = max(cfg.score_min_length_m, check)
         horizon = max(cfg.length_m, score_length, check+preview)
         points = _shadow_points(road.get("centerline_xy"))
         left, right = (_shadow_points(road.get(side+"_boundary_xy")) for side in ("left", "right"))
@@ -6796,6 +6825,8 @@ class ShadowLatticePlanner:
                 "speed_mps": speed, "speed_available": finite_number(v), "hold_time_s": hold,
                 "handoff_estimate_s": handoff, "requested_rate_hz": cfg.rate_hz,
                 "check_length_m": check, "score_length_m": score_length, "generated_length_m": horizon,
+                "check_length_mode": cfg.check_length_mode, "travel_check_m": travel_check,
+                "execution_window_m": execution_window,
                 "control_read_length_m": check+preview, "known_boundary_sides": list(boundaries),
                 "body_dimensions_m": [cfg.body_front_m, cfg.body_rear_m, cfg.body_width_m],
                 "body_dimensions_source": "shadow_configuration_provisional",
@@ -7021,13 +7052,13 @@ class PlannerExecutionManager:
         # the MPC, so project the car with the same forward-branch rule and
         # treat preview_m as the distance the MPC must track (the caller passes
         # max(planning.preview_m, MPC horizon travel)). The 0.15 m margin past
-        # it is kept from mvp2.1 (there: the PID tangent window).
+        # it (EXECUTION_TAIL_M) is kept from mvp2.1 (there: the PID tangent window).
         closest = _path_project(cropped, lengths)
         if closest is None:
             return fallback("execution_branch_unavailable")
         if lengths[-1]-closest[1]+1e-9 < needed:
             return fallback("preview_coverage_exhausted")
-        check = min(lengths[-1], max(needed, closest[1]+preview_m+0.15))
+        check = min(lengths[-1], max(needed, closest[1]+preview_m+EXECUTION_TAIL_M))
         sources = road.get("boundary_source") or {}
         boundaries = {side: _shadow_points(road.get(side+"_boundary_xy"))
             for side in ("left", "right") if sources.get(side) in ("observed", "observed_with_history")
@@ -8791,7 +8822,8 @@ class PolicyNode(Node):
                 self.shadow_collection_events = [event for event in getattr(self, "shadow_collection_events", [])
                                                  if event.get("id", 0) > reset_id]
             summary = {key: result.get(key) for key in ("status", "job_id", "candidate_count", "feasible_count",
-                "speed_mps", "hold_time_s", "check_length_m", "score_length_m", "elapsed_s", "late_for_requested_period", "timing_s")}
+                "speed_mps", "hold_time_s", "check_length_m", "check_length_mode", "score_length_m", "elapsed_s",
+                "late_for_requested_period", "timing_s")}
             summary.update(selected_id=selected.get("id") if selected else None,
                 selected_family=selected.get("family") if selected else None,
                 result_age_s=self.get_clock().now().nanoseconds/1e9-stamp,

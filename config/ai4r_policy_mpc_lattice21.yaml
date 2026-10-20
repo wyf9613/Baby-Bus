@@ -37,6 +37,14 @@
       # Hypothetical time before the next reference: 1/rate + handoff allowance.
       # Check distance uses actual |wheel speed|, not the advised cruise speed.
       handoff_allowance_s: 0.10
+      # mpc-car-run addition (2026-10-20), not in mvp2.1. Planning-time collision check length:
+      #   "travel": speed * hold, as above (mvp2.1's behaviour);
+      #   "max": max(speed * hold, preview_m + 0.15), the execution check's window at planning time;
+      #   "travel_plus_window": speed * hold + preview_m + 0.15, the execution window on every tick
+      #   while the path is in use. Car 05 uses this (config/ai4r_policy_mpc_car05.yaml).
+      # The execution check reads to preview_m + 0.15 past the car, so "travel" leaves ~0.3-0.5 m
+      # unchecked and bends fall back to the centreline: docs/LATTICE_CHECK_LENGTH_PLAN_CN.md.
+      check_length_mode: "travel"
       score_min_length_m: 0.2
       search_half_width_m: 0.45
       preparation_width_fraction: 0.15

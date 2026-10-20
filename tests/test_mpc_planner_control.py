@@ -42,9 +42,13 @@ EXTRA = {"RoadCenterlinePlanner", "_estimation_order_boundary", "_path_points", 
          "PlannerExecutionManager"}
 definitions = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))
                and (n.name in EXTRA or (n.name.startswith("_shadow_") and n.name != "_shadow_worker_entry"))]
-exec(compile(ast.Module(body=definitions, type_ignores=[]), str(source), "exec"), cns)
+# The lattice planner and PlannerExecutionManager share this module constant.
+constants = [n for n in tree.body if isinstance(n, ast.Assign)
+             and [getattr(t, "id", None) for t in n.targets] == ["EXECUTION_TAIL_M"]]
+exec(compile(ast.Module(body=constants+definitions, type_ignores=[]), str(source), "exec"), cns)
 for n in definitions:
     estimation_ns.setdefault(n.name, cns[n.name])
+estimation_ns.setdefault("EXECUTION_TAIL_M", cns["EXECUTION_TAIL_M"])
 METHODS = {"_planner_preview_m", "_select_planner_reference", "_select_mpc_planner_trajectory",
            "_publish_planner_execution", "_shadow_clear", "_shadow_collect_road", "_shadow_offer",
            "_shadow_poll", "_mpc_uses_planning", "_mpc_jump_guard"}
@@ -336,7 +340,9 @@ class DeployProfileChecks(unittest.TestCase):
         self.assertFalse(p["control"]["enabled"])
         self.assertEqual(p["planning"]["algorithm"], "road_centerline")
         self.assertEqual(p["planner_control"], vars(PlannerControl(enabled=True)))
-        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
+        # Car 05's overlay (2026-10-20) switches only the planning-time check length.
+        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True,
+                                       "check_length_mode": "travel_plus_window"})
         ShadowSettings(**p["shadow"])
 
     def test_exec_lattice21_profile_executes_with_the_relaxed_car05_guards(self):
@@ -346,7 +352,8 @@ class DeployProfileChecks(unittest.TestCase):
         self.assertTrue(p["vehicle"]["valid"])
         self.assertEqual(p["planning"]["algorithm"], "road_centerline")
         self.assertTrue(p["planner_control"]["enabled"] and p["planner_control"]["require_valid_baseline"])
-        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
+        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True,
+                                       "check_length_mode": "travel_plus_window"})
         for key, value in (("v_exec_max_mps", 0.12), ("overspeed_soft_margin_mps", 0.05),
                            ("overspeed_hard_mps", 0.40), ("max_forward_extension_m", 0.3),
                            ("reference_dropout_tolerance_s", 0.5), ("solver_fail_tolerable", True)):
@@ -354,6 +361,18 @@ class DeployProfileChecks(unittest.TestCase):
         cns["MPCSettings"](**p["mpc"])
         with self.assertRaises(AssertionError):            # car 27's record is not measured
             deploy["build"]("mpc-exec-lattice21", 1.0, cones="yellow-left", car="27")
+
+    def test_lattice_check_length_mode_is_travel_plus_window_on_car05_only(self):
+        # 2026-10-20, docs/LATTICE_CHECK_LENGTH_PLAN_CN.md.
+        for variant in ("joint", "feedback", "feedback-nomm", "feedback-soft"):
+            with self.subTest(variant):
+                p = deployed("mpc-exec-lattice21", variant)
+                self.assertEqual(p["shadow"]["check_length_mode"], "travel_plus_window")
+                ShadowSettings(**p["shadow"])
+        p = deploy["build"]("mpc-shadow-lattice21", 1.0, cones="yellow-left", car="27")[0]
+        p = p["/**/ai4r_policy"]["ros__parameters"]
+        self.assertEqual(p["shadow"]["check_length_mode"], "travel")
+        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
 
     def test_car05_profiles_turn_on_the_wheel_hold_and_jump_guard(self):
         for car, on in (("05", True), ("27", False)):

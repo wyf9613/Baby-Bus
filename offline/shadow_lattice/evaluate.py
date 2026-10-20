@@ -31,6 +31,9 @@ def load(source):
     definitions = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef))
         and (n.name in ("ShadowSettings", "ShadowFrame", "ShadowLatticePlanner")
              or n.name.startswith("_shadow_")) and n.name != "_shadow_worker_entry"]
+    # The planner's shared module constant (2026-10-20).
+    definitions += [n for n in tree.body if isinstance(n, ast.Assign)
+                    and [getattr(t, "id", None) for t in n.targets] == ["EXECUTION_TAIL_M"]]
     exec(compile(ast.Module(body=definitions, type_ignores=[]), str(source), "exec"), ns)
     return ns
 
