@@ -228,3 +228,19 @@ ros2 bag record -o "$HOME/ai4r-car-bags/car05-lattice21-$(date +%Y%m%d-%H%M%S)" 
 ## 5. 下载与恢复
 
 和 V2 文档第 6 步一样。包名用 `car05-lattice21-*`，bag 拷到 `E:\26b\AI4R\car-evidence\`。
+
+**看包：俯视图**（`tools/bag_birdseye.py`，需要 `pip install mcap mcap-ros2-support matplotlib`，不需要 ROS）：
+
+```powershell
+python tools/bag_birdseye.py ..\car-evidence\<目录>\<包名>                 # 每次运行一个面板
+python tools/bag_birdseye.py ..\car-evidence\<目录>\<包名> --at 103.8      # 某一时刻的局部图
+python tools/bag_birdseye.py ..\car-evidence\<目录>\<包名> --gif 98 108    # 一段时间的动画
+```
+
+时间是从包里第一条消息开始的秒数，和 `mpc_debug` 时间线一致。输出在 `.verification\birdseye\`：
+
+- **每次运行一个面板**：车从原点出发，朝 +x。路线按车速着色；画出 2 m 内看到的所有锥桶；标出停车（附原因）、重启、超速、卡住、lattice/中心线切换的位置。
+- **局部图**（`--at`）：这一帧的锥桶检测、接受的参考路径、MPC 预测、lattice 路径，以及当时的分支、阶段、车速、油门、转向。
+
+注意：位置是用轮速和 IMU 推算的，不是真值。卡住附近的距离会偏长；每次运行单独画一个面板，是因为两次运行之间车是被搬回起点的。
+
