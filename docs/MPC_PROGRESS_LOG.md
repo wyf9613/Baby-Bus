@@ -30,7 +30,7 @@
 - 新代码另外用 dense 求解器跑了一遍，通过。
 - `test_policy_node` 本机缺 pytest，由 WSL 门禁覆盖。
 
-**部署包**：policy_node `0fd5b2bc…`。joint 包和 `-fb` 包的哈希已写进 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md)，连同 A/B 步骤和判定标准。
+**部署包**：policy_node `34048cbf…`。joint 包和 `-fb` 包的哈希已写进 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md)，连同 A/B 步骤和判定标准。
 
 **工具**：
 - `car05_run_stats.py`：按模式分组；新增跟踪车速标准差、处在软线的比例，以及 PI 油门来回摆动次数。

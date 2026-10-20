@@ -84,13 +84,13 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
 上面三个 joint 包和下面的 `-fb` 包都已按这一版重新生成。joint 包的 yaml 哈希也变了，因为基础配置多了新参数的默认值；行为不变。
 
 ```text
-.verification\car05-lattice21-exec-v020-1m               yaml 3f295e82…  policy_node 0fd5b2bc…   joint     1 m / 60 s
-.verification\car05-lattice21-exec-v020-5m               yaml 19c00051…  policy_node 0fd5b2bc…   joint     5 m / 60 s
-.verification\car05-lattice21-exec-v020-nolimit          yaml 3b347e87…  policy_node 0fd5b2bc…   joint     不限
-.verification\car05-lattice21-exec-v020-1m-fb            yaml bae3f20b…  policy_node 0fd5b2bc…   feedback  1 m / 60 s
-.verification\car05-lattice21-exec-v020-nolimit-fb       yaml bf8bc3b9…  policy_node 0fd5b2bc…   feedback  不限
-.verification\car05-lattice21-exec-v020-nolimit-fb-nomm  yaml 6103397c…  policy_node 0fd5b2bc…   feedback，measured_motion 关
-.verification\car05-lattice21-exec-v020-nolimit-fb-soft  yaml 224a3a2e…  policy_node 0fd5b2bc…   feedback，kp 0.15 / ki 0.1
+.verification\car05-lattice21-exec-v020-1m               yaml 3f295e82…  policy_node 34048cbf…   joint     1 m / 60 s
+.verification\car05-lattice21-exec-v020-5m               yaml 19c00051…  policy_node 34048cbf…   joint     5 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit          yaml 3b347e87…  policy_node 34048cbf…   joint     不限
+.verification\car05-lattice21-exec-v020-1m-fb            yaml bae3f20b…  policy_node 34048cbf…   feedback  1 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit-fb       yaml bf8bc3b9…  policy_node 34048cbf…   feedback  不限
+.verification\car05-lattice21-exec-v020-nolimit-fb-nomm  yaml 6103397c…  policy_node 34048cbf…   feedback，measured_motion 关
+.verification\car05-lattice21-exec-v020-nolimit-fb-soft  yaml 224a3a2e…  policy_node 34048cbf…   feedback，kp 0.15 / ki 0.1
 ```
 
 生成命令：在 joint 包的命令后面加 `--longitudinal feedback`（或 `feedback-nomm`、`feedback-soft`）。
