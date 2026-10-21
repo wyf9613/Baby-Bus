@@ -695,9 +695,13 @@
               "second": "RawMessages!localgridstatus",
               "splitPercentage": 58
             },
-            "second": "3D!localgrid",
+            "second": "Image!localgrid",
             "splitPercentage": 25
           }
+        },
+        {
+          "title": "Local grid 3D",
+          "layout": "3D!localgrid"
         },
         {
           "title": "Parameters",
@@ -736,22 +740,38 @@
       "followTf": "base_link",
       "fixedFrame": "base_link",
       "scene": {},
-      "transforms": {},
+      "transforms": {
+        "frame:base_link": {
+          "visible": false
+        },
+        "frame:laser": {
+          "visible": false
+        },
+        "frame:fsm300_sensor": {
+          "visible": false
+        },
+        "frame:oakd_rgb_camera_optical_frame": {
+          "visible": false
+        },
+        "frame:camera_optical_frame": {
+          "visible": false
+        }
+      },
       "topics": {
         "/car/local_occupancy_grid": {
-          "visible": true,
+          "visible": false,
           "colorMode": "costmap",
           "frameLocked": true,
           "drawBehind": false
         },
         "/car/local_inflated_grid": {
-          "visible": false,
+          "visible": true,
           "colorMode": "costmap",
           "frameLocked": true,
           "drawBehind": true
         },
         "/car/scan": {
-          "visible": true,
+          "visible": false,
           "pointSize": 3,
           "colorMode": "flat",
           "color": "#f97316"
@@ -780,7 +800,72 @@
     "Markdown!localgridguide": {
       "fontSize": 12,
       "renderMode": "static",
-      "markdown": "# Forward local grid\n\n3 m forward, 3 m wide. x: 0 to 3 m; y: -1.5 to +1.5 m. Each cell is 5 cm.\n\nThe map updates at 10 Hz, including while policy is stopped. No Enable or Run is needed to inspect it. Start LiDAR; wheel speed and gyro enable motion alignment.\n\nUse the 3D topic settings to switch between local_occupancy_grid (observed occupancy) and local_inflated_grid (adds a 10 cm margin). Inflation excludes vehicle dimensions.\n\n- ALIGNED: short scan history aligned to current body frame.\n- SCAN_ONLY_NO_MOTION: latest scan at its acquisition time.\n- SCAN_OR_TF_UNAVAILABLE: both maps become unknown.\n\nRaw data: -1 unknown, 0 observed free, 100 hit. Inflated data also uses 90 for margin cells. A free cell describes only the laser scan plane, not the full height of the car.\n\nPaths and raw scan retain their own timestamps; this view is for inspection, not a same-time localization measurement."
+      "markdown": "# 前方局部栅格\n\n**只显示前方 3 m、左右各 1.5 m。**\n\n上方是车头前方，左边是车辆左侧；车辆原点在图像底边中央。每格 5 cm。\n\n- **红色**：实际雷达命中格。\n- **橙色**：10 cm 膨胀余量，不含车辆尺寸。\n- **白色**：激光射线确认的空闲区域。\n- **浅灰**：未知，尚未观测或被遮挡；不等于障碍，也不能直接当成可通行。\n\n本页是原始栅格的固定颜色视图，不会平滑、填补或删除未知区域。扇形灰色缺口仍表示没有观测证据。\n\n地图 10 Hz 更新，停车也能看，无需 Enable / Run。车端须部署包含 local_grid_image 的新策略代码。\n\n右下状态中 scan.valid_returns / scan.total_rays 是有效回波数；positive_inf_rays 是无有效距离的正无穷槽位数。free_cells / unknown_cells 是已观测空闲与未知格数量。\n\nALIGNED：运动对齐；SCAN_ONLY_NO_MOTION：单帧采样时刻，尚未对齐；SCAN_OR_TF_UNAVAILABLE：图像全灰。\n\n需要检查原始消息或坐标时，切到 Local grid 3D；原始雷达默认隐藏，避免全周点云混入前方地图。"
+    },
+    "Image!localgrid": {
+      "cameraState": {
+        "distance": 20,
+        "perspective": true,
+        "phi": 60,
+        "target": [
+          0,
+          0,
+          0
+        ],
+        "targetOffset": [
+          0,
+          0,
+          0
+        ],
+        "targetOrientation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.5,
+        "far": 5000
+      },
+      "followMode": "follow-pose",
+      "scene": {},
+      "transforms": {
+        "frame:base_link": {
+          "visible": false
+        },
+        "frame:laser": {
+          "visible": false
+        },
+        "frame:fsm300_sensor": {
+          "visible": false
+        },
+        "frame:oakd_rgb_camera_optical_frame": {
+          "visible": false
+        },
+        "frame:camera_optical_frame": {
+          "visible": false
+        }
+      },
+      "topics": {},
+      "layers": {},
+      "publish": {
+        "type": "point",
+        "poseTopic": "/move_base_simple/goal",
+        "pointTopic": "/clicked_point",
+        "poseEstimateTopic": "/initialpose",
+        "poseEstimateXDeviation": 0.5,
+        "poseEstimateYDeviation": 0.5,
+        "poseEstimateThetaDeviation": 0.26179939
+      },
+      "imageMode": {
+        "imageTopic": "/car/local_grid_image",
+        "flipHorizontal": false,
+        "flipVertical": false,
+        "rotation": 0
+      },
+      "synchronize": false,
+      "foxglovePanelTitle": "前方 3m × 3m 栅格：红色命中 / 橙色膨胀 / 灰色未知"
     }
   },
   "globalVariables": {

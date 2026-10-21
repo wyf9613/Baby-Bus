@@ -1,5 +1,10 @@
 # Baby Bus · ai4r_policy
 
+2026-10-21：Foxglove **Local grid** 改为清楚的二维彩图，使用新话题
+`/car/local_grid_image`：红色命中、橙色膨胀、白色空闲、浅灰未知，前方朝上。
+原生图保留在 **Local grid 3D**；状态新增扫描有效回波和未知格计数。
+本次只改显示与诊断，栅格占据算法和控制保持原样。车端需更新策略并重启，电脑重新导入布局。
+
 2026-10-20：新增前方 **3 m × 3 m** 雷达局部栅格：`x∈[0,3)`、
 `y∈[-1.5,1.5)`，默认 5 cm/格、10 Hz 更新。`local_grid` 配置默认开启；
 发布 `/car/local_occupancy_grid`、`/car/local_inflated_grid` 和

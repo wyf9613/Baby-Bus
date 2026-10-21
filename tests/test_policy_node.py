@@ -805,7 +805,7 @@ def lidar_mount(node):
 
 def test_local_grid_real_messages_work_without_run_and_expire(make_node):
     node = make_node(**{"local_grid.enabled": True})
-    for name in ("local_grid", "local_inflated_grid", "local_grid_status"):
+    for name in ("local_grid", "local_inflated_grid", "local_grid_status", "local_grid_image"):
         setattr(node, name+"_publisher", Recorder())
     transform = lidar_mount(node)
     transform.transform.rotation.w = 0.0
@@ -824,6 +824,9 @@ def test_local_grid_real_messages_work_without_run_and_expire(make_node):
     assert grid.info.origin.position.y == -1.5
     assert grid.info.origin.orientation.w == 1.0
     assert len(grid.data) == 3600 and 100 in grid.data
+    image = node.local_grid_image_publisher.messages[-1]
+    assert image.encoding == "rgb8" and image.width == image.height == 120
+    assert len(image.data) == 120*120*3
     assert node.fsm_state == 2 and len(node.action_publisher.messages) == actions_before
     node._local_grid_tick()
     assert len(node.local_grid.scans) == 1

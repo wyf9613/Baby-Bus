@@ -20,7 +20,7 @@ else:
     SOURCE = Path(get_package_prefix("ai4r_policy"))/"lib/ai4r_policy/policy_node.py"
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
 names = {"LocalGridSettings", "LocalOccupancyGrid", "_local_grid_ray", "finite_number",
-         "EstimationMotionHistory"}
+         "EstimationMotionHistory", "_local_grid_rgb", "_local_grid_scan_summary"}
 definitions = [node for node in tree.body
                if isinstance(node, (ast.ClassDef, ast.FunctionDef)) and node.name in names]
 namespace = dict(dataclass=dataclass, math=math, Real=Real)
@@ -195,7 +195,7 @@ class LocalGridAdapterChecks(unittest.TestCase):
         policy_class = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "PolicyNode")
         methods = deepcopy([n for n in policy_class.body if isinstance(n, ast.FunctionDef)
                             and n.name in ("_local_grid_tick", "_local_grid_update", "_age")])
-        scope = dict(namespace, time=time, json=json, OccupancyGrid=Envelope, Time=Stamp,
+        scope = dict(namespace, time=time, json=json, OccupancyGrid=Envelope, Image=Envelope, Time=Stamp,
                      String=lambda **kw: SimpleNamespace(**kw))
         # _age is static inside PolicyNode, but plain when extracted here.
         for method in methods:
@@ -215,7 +215,7 @@ class LocalGridAdapterChecks(unittest.TestCase):
         node._warn = lambda *args: node.warnings.append(args)
         node.run_policy_step = lambda: node.actions.append("run")
         node._change_state = lambda *args: node.actions.append("state")
-        for name in ("local_grid", "local_inflated_grid", "local_grid_status"):
+        for name in ("local_grid", "local_inflated_grid", "local_grid_status", "local_grid_image"):
             setattr(node, name+"_publisher", Recorder())
         node._local_grid_tick = MethodType(scope["_local_grid_tick"], node)
         node._local_grid_update = MethodType(scope["_local_grid_update"], node)
@@ -237,6 +237,10 @@ class LocalGridAdapterChecks(unittest.TestCase):
         self.assertEqual(status["status"], "SCAN_ONLY_NO_MOTION")
         self.assertFalse(status["inflation_includes_vehicle_size"])
         self.assertEqual(node.actions, [])
+        image = node.local_grid_image_publisher.messages[-1]
+        self.assertEqual((image.width, image.height, image.step, image.encoding), (120, 120, 360, "rgb8"))
+        self.assertEqual(len(image.data), image.height*image.step)
+        self.assertEqual(image.header.stamp.sec, message.header.stamp.sec)
 
     def test_expired_sensor_clears_published_maps_and_history(self):
         node = self.node()
@@ -249,6 +253,8 @@ class LocalGridAdapterChecks(unittest.TestCase):
         self.assertEqual(set(node.local_inflated_grid_publisher.messages[-1].data), {-1})
         self.assertFalse(node.local_grid_output["valid"])
         self.assertEqual(node.local_grid.scans, [])
+        image = node.local_grid_image_publisher.messages[-1]
+        self.assertEqual(set(zip(*(iter(image.data),)*3)), {(216, 223, 230)})
 
     def test_publication_error_does_not_enter_control_or_escape_callback(self):
         node = self.node()
@@ -258,6 +264,37 @@ class LocalGridAdapterChecks(unittest.TestCase):
         node._local_grid_tick()
         self.assertEqual(node.actions, [])
         self.assertEqual(len(node.warnings), 1)
+
+    def test_palette_preserves_unknown_free_hit_and_margin_and_orientation(self):
+        # Row-major map: y=-left row first, x forward columns.
+        rgb = namespace["_local_grid_rgb"]([-1, 100, 0, 90], 2)
+        def pixel(x, y):
+            offset = 3*(y*4+x)
+            return tuple(rgb[offset:offset+3])
+        self.assertEqual(pixel(0, 0), (251, 146, 60))  # Front-left margin.
+        self.assertEqual(pixel(3, 0), (239, 68, 68))  # Front-right hit.
+        self.assertEqual(pixel(0, 3), (250, 252, 254))  # Near-left free.
+        self.assertEqual(pixel(3, 3), (216, 223, 230))  # Near-right UNKNOWN.
+
+    def test_raw_scan_diagnostics_distinguish_missing_returns(self):
+        summary = namespace["_local_grid_scan_summary"]({"ranges": [1.0, math.inf, math.nan, 0, 20],
+                                                       "range_min": 0.05, "range_max": 12.0})
+        self.assertEqual(summary, {"total_rays": 5, "valid_returns": 1,
+                                   "positive_inf_rays": 1, "other_invalid_rays": 3})
+
+    def test_current_raw_scan_counters_and_grid_coverage_are_published(self):
+        node = self.node()
+        node.observations["lidar_scan"] = SimpleNamespace(value={"ranges": [1.0, math.inf],
+            "range_min": 0.05, "range_max": 12.0})
+        node._local_grid_tick()
+        status = json.loads(node.local_grid_status_publisher.messages[-1].data)
+        self.assertEqual(status["scan"]["positive_inf_rays"], 1)
+        self.assertEqual(status["free_cells"]+status["unknown_cells"]+status["occupied_cells"], 3600)
+        node.fresh = False
+        node._local_grid_tick()
+        status = json.loads(node.local_grid_status_publisher.messages[-1].data)
+        self.assertIsNone(status["scan"])
+        self.assertEqual(status["unknown_cells"], 3600)
 
 
 if __name__ == "__main__":

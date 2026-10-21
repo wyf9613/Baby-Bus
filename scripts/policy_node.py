@@ -117,7 +117,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.signals import SignalHandlerOptions
 from rclpy.time import Time
 from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
-from sensor_msgs.msg import Imu, LaserScan
+from sensor_msgs.msg import Image, Imu, LaserScan
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import OccupancyGrid, Path
 from std_msgs.msg import Float32, Int8, String, UInt16
@@ -3918,6 +3918,31 @@ def _local_grid_ray(origin, endpoint, resolution, cells):
             iy += sy
 
 
+def _local_grid_rgb(data, cells):
+    """Display only: forward is up, vehicle-left is image-left, 2 px per cell.
+
+    A direct colour lookup preserves UNKNOWN instead of cosmetically filling
+    ray gaps. The planner still consumes the original OccupancyGrid arrays.
+    """
+    palette = {-1: bytes((216, 223, 230)), 0: bytes((250, 252, 254)),
+               90: bytes((251, 146, 60)), 100: bytes((239, 68, 68))}
+    rows = []
+    for forward in range(cells-1, -1, -1):
+        row = b"".join(palette.get(data[left*cells+forward], palette[-1])*2
+                       for left in range(cells-1, -1, -1))
+        rows.append(row*2)
+    return b"".join(rows)
+
+
+def _local_grid_scan_summary(scan):
+    """Counts only, not new acceptance thresholds or no-return clearing."""
+    ranges = scan["ranges"]
+    valid = sum(finite_number(r) and scan["range_min"] <= r <= scan["range_max"] for r in ranges)
+    positive_inf = sum(r == math.inf for r in ranges)
+    return {"total_rays": len(ranges), "valid_returns": valid,
+            "positive_inf_rays": positive_inf, "other_invalid_rays": len(ranges)-valid-positive_inf}
+
+
 class LocalOccupancyGrid:
     """Short scan history reprojected into the CURRENT body frame on each render.
 
@@ -4223,6 +4248,7 @@ class PolicyNode(Node):
         if self.local_grid_settings.enabled:
             self.local_grid_publisher = self.create_publisher(OccupancyGrid, "local_occupancy_grid", reliable_one)
             self.local_inflated_grid_publisher = self.create_publisher(OccupancyGrid, "local_inflated_grid", reliable_one)
+            self.local_grid_image_publisher = self.create_publisher(Image, "local_grid_image", reliable_one)
             self.local_grid_status_publisher = self.create_publisher(String, "local_grid_status", reliable_one)
             # Independent perception/display update, including in zero-action
             # state. This timer never calls run_policy_step or enables motion.
@@ -4592,8 +4618,23 @@ class PolicyNode(Node):
             message.info.origin.orientation.w = 1.0
             message.data = result[field]
             publisher.publish(message)
+        # Native Image view gives an unambiguous raster without TF labels,
+        # full-360-degree raw scan points, or costmap palette conventions.
+        image = Image()
+        image.header.frame_id = self.policy_frame_id
+        image.header.stamp = Time(nanoseconds=round(result["timestamp_s"]*1e9)).to_msg()
+        image.height = image.width = self.local_grid.cells*2
+        image.encoding, image.is_bigendian = "rgb8", 0
+        image.step = image.width*3
+        image.data = _local_grid_rgb(result["inflated_data"], self.local_grid.cells)
+        self.local_grid_image_publisher.publish(image)
         result["update_time_s"] = time.perf_counter()-started
         status = {key: value for key, value in result.items() if key not in ("data", "inflated_data")}
+        raw = self.observations.get("lidar_scan")
+        # A stale/failed frame must not display its old counters as fresh data.
+        status["scan"] = _local_grid_scan_summary(raw.value) if result["valid"] and raw is not None else None
+        status["free_cells"] = result["data"].count(0)
+        status["unknown_cells"] = result["data"].count(-1)
         status.update(frame_id=self.policy_frame_id, resolution_m=self.local_grid_settings.resolution_m,
                       origin_xy_m=[0.0, -1.5], size_m=[3.0, 3.0],
                       inflation_radius_m=self.local_grid_settings.inflation_radius_m,

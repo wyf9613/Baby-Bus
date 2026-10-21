@@ -1,5 +1,38 @@
 # AI4R policy acceptance
 
+## Static-grid readability and scan diagnostics, 2026-10-21
+
+User supplied a stationary-car screenshot showing ray-shaped unknown gaps,
+Costmap-coloured hit cells and TF labels obscuring the map. The screenshot alone
+does not establish bad mounting, motion drift or a sensor fault. Code inspection
+confirms that only finite valid hit rays clear free space; other directions stay
+unknown. Upstream SLAMTEC ROS code maps device zero-distance readings to Inf
+(`Slamtec/rplidar_ros`, ros2/src/rplidar_node.cpp, publish_scan), so Inf is not
+automatically promoted to a verified clear ray.
+
+Add a native rgb8 Image view at local_grid_image, 120x120 for the 60x60 map,
+using exact 2x pixel replication. Forward is up; vehicle-left is image-left.
+100=red, 90=orange, 0=near-white and -1=light grey; no smoothing, interpolation,
+unknown filling or occupancy changes. Local grid now selects this Image panel;
+Local grid 3D retains standard OccupancyGrid messages, hides known TF frames and
+the full-surround raw scan by default, and selects the inflated layer.
+
+Status adds valid/Inf/other-invalid ray counts and observed-free/unknown cell
+counts. Expired data clears the RGB view and publishes null current-scan stats.
+No new parameters, observation thresholds, dependencies or control admission
+changes. Mapping/settings/motion/estimation/control/lattice ASTs match the parent;
+the Image is a diagnostic rendering of the existing grid, not a camera frame.
+
+**268 portable checks pass**, including 20 grid/adapter checks. Added checks
+cover pixel orientation, four-class colours, unknown preservation, Image envelope
+shape/stamps, stale-image clearing and diagnostic-counter provenance. Sources
+parse and git diff --check passes. A synthetic sparse-scan preview from the actual
+RGB encoder was generated and visually inspected at
+`.verification/local-grid-2d-sparse-preview.png`; this is not captured car data.
+Real ROS Image serialization, live Foxglove import, received scan distributions
+and vehicle geometry remain unverified on this Windows host. The required Jazzy
+gate is still unavailable without the pinned dream_interfaces/ROS installation.
+
 ## State/road branch integration, 2026-10-20
 
 At the user's request, integrate the tested MVP2.1 grid commit `68ec5e0` into
