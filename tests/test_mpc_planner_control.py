@@ -368,6 +368,9 @@ class DeployProfileChecks(unittest.TestCase):
             with self.subTest(variant):
                 p = deployed("mpc-exec-lattice21", variant)
                 self.assertEqual(p["shadow"]["check_length_mode"], "travel_plus_window")
+                # 2026-10-21: the sim-branch coverage options stay off in every package.
+                self.assertEqual((p["shadow"]["collision_coverage"], p["shadow"]["score_coverage"]),
+                                 ("prefix", "prefix"))
                 ShadowSettings(**p["shadow"])
         p = deploy["build"]("mpc-shadow-lattice21", 1.0, cones="yellow-left", car="27")[0]
         p = p["/**/ai4r_policy"]["ros__parameters"]

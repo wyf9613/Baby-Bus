@@ -222,6 +222,10 @@ def replay(api, params, path, imu_mount, full_path=False):
                        planning=(node.planning_output or {}).get("reason"),
                        planning_valid=(node.planning_output or {}).get("valid"),
                        centerline_rejection=(node.planning_diagnostics or {}).get("centerline_rejection"))
+            assignment = road.get("colour_assignment") or {}
+            if assignment.get("mode") == "auto":    # 2026-10-21: estimation.colour_assignment auto
+                row.update(colour_status=assignment.get("status"),
+                           colour_left=assignment.get("left_colour"), colour_right=assignment.get("right_colour"))
             planned = (node.planning_output or {}).get("path") or {}
             if planned.get("samples_xy"):  # ORDERED/CARTESIAN_CENTERLINE: extent of the planned path
                 xy = planned["samples_xy"]
@@ -243,7 +247,15 @@ def replay(api, params, path, imu_mount, full_path=False):
     gaps = sorted(abs(s["e_y"]+s["cone_center_y_m"]) for s in steps
                   if isinstance(s.get("e_y"), (int, float)) and "cone_center_y_m" in s)
     widths = [s["lane_width"] for s in steps if isinstance(s.get("lane_width"), (int, float))]
-    return {"bag": Path(path).name, "steps": n, "topics": sorted(topics),
+    locked = next((i for i, s in enumerate(steps) if s.get("colour_status") == "locked"), None)
+    colour = None if not any("colour_status" in s for s in steps) else {
+        "status": dict(Counter(s.get("colour_status") for s in steps).most_common()),
+        "locked_at_step": locked, "locked_at_s": None if locked is None else round(locked*PERIOD_S, 2),
+        "left_colour": None if locked is None else steps[locked]["colour_left"],
+        "right_colour": None if locked is None else steps[locked]["colour_right"],
+        "mapping_changes": sum(1 for a, b in zip(steps, steps[1:]) if a.get("colour_status") == "locked"
+                               and (a.get("colour_left"), a.get("colour_right")) != (b.get("colour_left"), b.get("colour_right")))}
+    return {"bag": Path(path).name, "steps": n, "topics": sorted(topics), "colour_assignment": colour,
             "road_status": dict(Counter(s["road_status"] for s in steps).most_common()),
             "visibility": dict(Counter(s["visibility"] for s in steps).most_common()),
             "state_invalid": sum(1 for s in steps if not (s["speed_valid"] and s["yaw_rate_valid"])),
@@ -294,6 +306,8 @@ def main():
         if not n:
             print(f"   no policy steps (topics found: {r['topics']})")
             continue
+        if r["colour_assignment"]:
+            print(f"   colour (auto):   {r['colour_assignment']} (yellow=1, blue=2)")
         print(f"   road status:     {share(r['road_status'], n)}")
         print(f"   visibility:      {share(r['visibility'], n)}")
         print(f"   lane width m:    min/median/max {r['lane_width_m']}; speed or yaw rate invalid in {r['state_invalid']} steps")

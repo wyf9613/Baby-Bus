@@ -162,6 +162,13 @@
       # to BLUE left / YELLOW right; integer estimation.left_colour/right_colour
       # (yellow=1, blue=2) select the side. Car overlays set them per road.
       min_cone_confidence: 0.5
+      # 2026-10-21 (from the sim-integration branch): "fixed" uses left_colour/right_colour
+      # above. "auto" ignores them: at the start of each run it tries both conventions on
+      # fresh two-sided observations and locks the one that passes the width gate (nearest
+      # centreline if both do, by more than road_sample_spacing_m). Until then the road is
+      # invalid and the car waits neutral, at most control.startup_grace_s. One side only
+      # never locks. Cones of a neighbouring track at the start can still lock it wrongly.
+      colour_assignment: "fixed"
       # Local y(x) support and sample spacing, metres. No extrapolation beyond
       # measured inlier coverage. Sampling is bounded to at most 201 points.
       road_forward_max_m: 3.0
