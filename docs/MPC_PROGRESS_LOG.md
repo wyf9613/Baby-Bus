@@ -4,7 +4,7 @@
 
 ## 2026-10-21：从 sim 分支移植（①③② 都已实现，默认关闭）🟡
 
-按 [SIM_BRANCH_PORT_PLAN_CN.md](SIM_BRANCH_PORT_PLAN_CN.md) 执行，执行前先做了审阅修正（写在该文件开头）。分支 `mpc-car-run-sim-port`，4 个提交，未 push。数据见 [sim_port_20261021.md](../offline/mpc_gym/results/sim_port_20261021.md)。**未上车，WSL 门禁和车包回放待跑。**
+按 [SIM_BRANCH_PORT_PLAN_CN.md](SIM_BRANCH_PORT_PLAN_CN.md) 执行，执行前先做了审阅修正（写在该文件开头）。分支 `mpc-car-run-sim-port`，未 push。数据见 [sim_port_20261021.md](../offline/mpc_gym/results/sim_port_20261021.md)。**未上车。WSL 门禁 `f1a3cd2` 通过（offline PASS、ros gate PASS，`~/ai4r-evidence/ros-20261021-194130`），车包回放见下。**
 
 **工具（先修，不然后面的对比没有意义）**：
 - `replay_run_jsonl.py --planner-control` 原来先 `--set` 后合并 lattice21.yaml，lattice 回放永远是 `travel`。现在 `--set` 在 overlay 之后再应用一次。
