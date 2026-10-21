@@ -6194,7 +6194,11 @@ def _shadow_at(points, lengths, s):
     elif s >= lengths[-1]:
         i = len(points)-2
     else:
-        i = next(i for i in range(len(points)-1) if s <= lengths[i+1])
+        # mpc-car-run adaptation (from sim-branch 92ef303): binary search, the same
+        # first i with s <= lengths[i+1]. Imported here: _shadow_worker_entry runs
+        # these definitions in a fixed namespace without module-level imports.
+        from bisect import bisect_left
+        i = bisect_left(lengths, s)-1
     u = (s-lengths[i])/(lengths[i+1]-lengths[i])
     return tuple(points[i][k]+u*(points[i+1][k]-points[i][k]) for k in (0, 1))
 
@@ -6762,13 +6766,18 @@ class ShadowLatticePlanner:
                       if value and sources.get(side) in ("observed", "observed_with_history")}
         timing["sampling"] = time.perf_counter()-phase_started
         candidates = []
+        # mpc-car-run adaptation (from sim-branch 92ef303): candidates share knot
+        # stations, so look each one up once per job.
+        knot_frames = {}
         for candidate_id, (family, offsets) in enumerate(samples[:cfg.sample_count]):
             phase_started = time.perf_counter()
             early = 0.12 if family == "fast_center" else 0.25
             distances = (early*horizon, 0.6*horizon, horizon)
             knots = [(0.0, 0.0)]
             for distance, offset in zip(distances, offsets):
-                p, _, n = frame.at(s0+distance)
+                if distance not in knot_frames:
+                    knot_frames[distance] = frame.at(s0+distance)
+                p, _, n = knot_frames[distance]
                 knots.append((p[0]+offset*n[0], p[1]+offset*n[1]))
             path = _shadow_curve(knots, horizon, cfg.path_spacing_m)
             next_phase = time.perf_counter()

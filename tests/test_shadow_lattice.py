@@ -558,5 +558,55 @@ class CheckLengthModeChecks(unittest.TestCase):
         self.assertIn('"check_length_mode"', source.read_text(encoding="utf-8").split(
             '"speed_mps", "hold_time_s", "check_length_m",', 1)[1].split(")}", 1)[0])
 
+
+def legacy_shadow_at(points, lengths, s):
+    """_shadow_at before 2026-10-21 (linear search), kept as the reference."""
+    if len(points) == 1:
+        return points[0][0]+s, points[0][1]
+    if s <= 0:
+        i = 0
+    elif s >= lengths[-1]:
+        i = len(points)-2
+    else:
+        i = next(i for i in range(len(points)-1) if s <= lengths[i+1])
+    u = (s-lengths[i])/(lengths[i+1]-lengths[i])
+    return tuple(points[i][k]+u*(points[i+1][k]-points[i][k]) for k in (0, 1))
+
+
+class LookupOptimisationChecks(unittest.TestCase):
+    """mpc-car-run, 2026-10-21: binary arc lookup and per-job knot cache (sim-branch 92ef303).
+
+    Whole-planner equivalence (28 jobs x 3 check_length_mode values against the
+    bb0bef2 source) is recorded in docs/MPC_PROGRESS_LOG.md 2026-10-21.
+    """
+
+    def test_arc_lookup_matches_legacy_at_knots_neighbours_and_tails(self):
+        for points in ([(.6, .03)], [(0., 0.), (1., 0.)], [(0., 0.), (.3, .2), (.7, .5), (1., .4)],
+                       [(0., 0.), (0., .5), (-.3, .5), (-.3, -.3)]):
+            lengths = ns["_shadow_lengths"](points)
+            stations = [-.4, 0., .04, lengths[-1]+.4]
+            for knot in lengths:
+                stations.extend((math.nextafter(knot, -math.inf), knot, math.nextafter(knot, math.inf)))
+            for station in stations:
+                with self.subTest(points=points, station=station):
+                    self.assertEqual(ns["_shadow_at"](points, lengths, station),
+                                     legacy_shadow_at(points, lengths, station))
+
+    def test_worker_plans_a_curve_with_the_binary_lookup(self):
+        record = job()
+        record["road"].update(centerline_xy=[(0.0, 0.0), (0.5, 0.05), (1.0, 0.2), (1.4, 0.45)],
+                              left_boundary_xy=[(0.0, 0.5), (0.5, 0.55), (1.0, 0.7), (1.3, 0.95)],
+                              right_boundary_xy=[(0.0, -0.5), (0.5, -0.45), (1.0, -0.3), (1.5, -0.05)])
+        record["settings"] = vars(Settings(sample_count=48, check_length_mode="travel_plus_window"))
+        process = subprocess.run([sys.executable, str(source), "--shadow-worker"],
+            input=json.dumps(record)+"\n", text=True, capture_output=True, timeout=15)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        response = json.loads(process.stdout)
+        self.assertNotEqual(response["status"], "WORKER_ERROR", response.get("error"))
+        expected = plan(record, check_length_mode="travel_plus_window", sample_count=48)
+        self.assertEqual(response["status"], expected["status"])
+        self.assertEqual(response["selected"]["id"], expected["selected"]["id"])
+
+
 if __name__ == "__main__":
     unittest.main()
