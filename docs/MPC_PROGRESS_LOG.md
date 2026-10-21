@@ -30,6 +30,9 @@
 
 **包**：7 个 `v020-*` 包已重新生成（policy_node `3cfdf86b…`），参数全是默认值，见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-21。
 
+**② 车包回放（WSL，`replay_policy_bag.py --runs`，按车上每次 Run 重新识别）：不上车。** ea03 和 a5da 共 9 次启动，8 次锁成黄左（正确）。**ea03 第 2 次启动（t=42.65 s，现场"刚启动就停"那次）第一帧就锁成蓝左**，之后一直错，前 2 s 里 6 次 `origin_before_path_start`。原因：那个位置按正确颜色是 `insufficient_common_range`（无效），按反过来的颜色，别组锥桶和本组锥桶正好凑成一条宽度合格的路，只有错的假设可用，于是锁定。这是方法本身的问题，不是移植错误：只要起步那一帧正确的路无效、而错的组合恰好合格，就会锁错，且整次 Run 不再纠正。不加 `--runs` 时只在包开头识别一次，两个包都对，看不出这个问题。a5da 第 5 次启动的 2 次停车是 `invalid_ordered_geometry`，颜色正确，和 ② 无关。
+- 所有包仍是 `fixed`，不受影响。要用 ② 解决 P5，比较稳妥的做法是只做检查：车照常用配置的颜色，auto 的判断只用来在起步时提示"配置的颜色可能反了"，不改实际映射。
+
 **WSL 门禁第一次（`97b2d49`）失败**：`test_estimation.test_shipped_estimation_configuration_is_valid` 要求 `ai4r_policy.yaml` 的 `estimation` 段只有数值。`colour_assignment` 移到 `ai4r_policy_mpc_centerline.yaml`（和 `road_geometry` 放在一起）后本机通过；我在改 yaml 之前跑的全量测试，之后只跑了相关模块，所以没发现。包内容不变，只是这个键在 yaml 里换了位置，yaml 哈希随之变化（表里已更新）。
 
 **待做**：
