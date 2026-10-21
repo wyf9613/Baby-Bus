@@ -13,7 +13,8 @@
     # to timer mode if the chosen sensor stops, and no simultaneous triggers.
     # Integrated control uses ONE 20 Hz timer. Cones are still measured at the
     # detector's rate; estimation re-aligns the cached geometry using motion
-    # history. References are bounded by 0.2 s and remaining input lifetimes.
+    # history when gyro is available. Optional gyro fallback uses raw camera geometry.
+    # References are bounded by 0.2 s and remaining input lifetimes.
     policy_update_mode: timer
 
     # Timer-mode frequency in Hz (positive finite double; default 50.0).
@@ -29,6 +30,9 @@
     #              imu_orientation, imu_angular_velocity, imu_specific_force.
     # Each IMU field is independent: a new gyro message is not a new heading.
     # Missing/stale REQUIRED data stops the policy in publishing-zero state.
+    # Explicit exception: control.gyro_fallback_enabled below admits missing
+    # imu_angular_velocity in MVP road_centerline mode, using fresh camera and
+    # wheel data with stricter age bounds. Other required fields still stop.
     # Recovery needs another explicit state-3 request. Optional missing/expired
     # values are None in the student code (arrays have an availability flag).
     # Control MVP robustness below may bridge ONLY a running cone-stream fault
@@ -132,10 +136,14 @@
       # Internal records are self.estimation_output; the integrated controller
       # below consumes the planner reference only after all validity checks.
     estimation:
-      # Track boundaries: yellow left / blue right (ROS colour IDs 1 / 2).
-      # These must be distinct; changing them requires a policy restart.
-      left_colour: 1
-      right_colour: 2
+      # Evaluate yellow-left/blue-right AND blue-left/yellow-right against fresh
+      # two-sided geometry. Lock an unambiguous assignment for this Run; a new
+      # Stop/Run re-acquires it. Ambiguous/single-sided starts stay neutral within
+      # startup_grace_s, then stop. Dropouts never flip the established mapping.
+      colour_assignment: auto
+      # Used only in explicit fixed mode (archived profiles); ignored in auto.
+      left_colour: 2
+      right_colour: 1
       # One-pole filter time constants, seconds. Larger is smoother but slower.
       # New accepted samples update once; repeated cached samples do not.
       speed_tau_s: 0.15
@@ -236,6 +244,13 @@
     planner_control:
       enabled: true
 
+    # Frozen latest multi-start RNN ranks only collision-admitted native paths.
+    # Weights are embedded in policy_node.py; no model file is copied separately.
+    learned_policy:
+      enabled: true
+      model_path: models/path_policy.json
+      model_sha256: a3116bb7bc4bb46ccb6e208fa3de628eca940820810943409c3157e5b12aa66b
+
     # Independent planner process; control selection is configured above.
     # All fields are startup-only. Edit rate_hz and restart POLICY for 1/2/5/10 Hz.
     # Snapshot submission cannot exceed policy_update_rate_hz. No legacy lattice
@@ -284,7 +299,8 @@
 
     planning:
       algorithm: road_centerline
-      cruise_speed_mps: 0.2
+      # Explicit user choice: match the latest RNN's 0.5 m/s training condition.
+      cruise_speed_mps: 0.5
       preview_m: 0.35
       allow_forward_only: true
       # Match the estimator camera age budget. Wheel/gyro retain their separate
@@ -303,6 +319,13 @@
     control:
       enabled: true
       mode: mvp
+      # Optional missing/stale yaw rate mode: latest two-sided camera path.
+      # No motion compensation, old-path hold, native jobs or guessed zero gyro.
+      # Mode stays latched until explicit Stop/Run even if the IMU recovers.
+      # Car .22 has gyro: restore strict IMU admission at the user's request.
+      gyro_fallback_enabled: false
+      gyro_fallback_max_camera_age_s: 0.35
+      gyro_fallback_speed_mps: 0.2
       # No second straight-path cache: the estimator owns curved-road history.
       # The legacy cache below is disabled for this simple follower.
       # Budgets start at the last DISTINCT trusted cone frame's acceptance;
@@ -347,9 +370,11 @@
       # Smooth current-frame lateral/heading errors when boundary sources
       # change. Faults and operator stops still immediately publish zero.
       mvp_error_filter_tau_s: 0.10
-      # Optional measured low-speed sustaining effort, normalized [0, drive_max].
-      # Zero preserves the original feedback-only behavior. A stop still sends zero.
-      mvp_drive_feedforward: 0.30
+      # Normalized sustaining effort, not a target speed. Raised from 0.40 to
+      # 0.50 at the user's request after the car failed to launch. This remains
+      # a tuning candidate; physical breakaway effort has not been measured.
+      # Zero preserves feedback-only behavior. A stop still sends zero.
+      mvp_drive_feedforward: 0.50
       # Offline selected candidate gains, not measured real-car tuning.
       speed_kp: 0.35
       speed_ki: 0.08
@@ -361,7 +386,8 @@
       derivative_tau_s: 0.15
       # Forward-only effort. Stop/invalid/expired reference transitions to
       # continuous zero actions; the simulated negative-drive hold is NOT used.
-      drive_max: 0.35
+      # Match the requested 0.50 starting effort, including speed feedback.
+      drive_max: 0.50
       # Use the complete student input interval. Car 05's deployed vehicle
       # interval is also +/-1.0; these are normalized commands, not angles.
       steering_max_normalized: 1.0

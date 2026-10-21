@@ -77,6 +77,32 @@ preferences. Ordinary implementation requests authorize in-scope edits/checks.
   and select only on Validation. Failed-selection priority and early stopping are
   explicit training options; they must not change the external feature contract.
 
+- On 2026-10-21 the user authorized real-car learned-policy integration,
+  superseding the earlier offline-only/default-native limits for this task.
+  Use the unchanged latest multi-start RNN, a 0.5 m/s target matching training,
+  0.50 drive feedforward/cap, strict IMU admission, and the single executable
+  name scripts/policy_node.py. The current target is 10.43.254.19 (superseding
+  .22); the user requested direct overwrite without a backup. Include its
+  separate ROS YAML.
+  The user subsequently required both colour conventions. The shared YAML now
+  uses estimation.colour_assignment=auto: evaluate both from fresh measured
+  two-sided geometry, lock an unambiguous assignment for the run, and reacquire
+  on explicit Stop/Run. Do not revert to a fixed physical left/right colour or
+  flip it on partial frames/turns. Unresolved association remains neutral only
+  within the existing startup grace, then stops. An ordered_xy left_only failure
+  flag can mean failed two-sided pairing, not a missing camera boundary.
+  The user subsequently requested full [-1,1] steering, initially held upload,
+  then authorized uploading the restored RNN policy, its YAML, and the Traxxas
+  component YAML to .19. Back up ONLY the original chassis-interface settings.
+  The files were uploaded/built without an agent-issued restart. The user then
+  reported that the car drives as expected and authorized committing/pushing
+  this policy version to the current feature branch. Record that as operator
+  feedback, not independently measured physical qualification. The user ended
+  remote-car work; do not reconnect or manage vehicle services for this task.
+  Native collision admission and shared execution/PID remain authoritative;
+  commit recurrent memory only after the selected path's action is published.
+  Vehicle Enable and policy Run remain the operator's actions.
+
 - The policy never enables the vehicle. DREAM owns hardware services,
   calibrated facts and admitted component overrides. Its camera TF is fixed at
   zero pan; physical panning needs a measured dynamic TF before use.

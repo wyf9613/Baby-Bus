@@ -101,6 +101,13 @@ class ShadowJobSource:
                 shadow_odometry_epoch=getattr(self, "shadow_odometry_epoch", 0),
                 temporal_collection=getattr(self, "shadow_collection_diagnostics", None),
                 previous_reference=deepcopy(getattr(self, "shadow_previous_reference", None)))
+        policy = getattr(self, "learned_policy_settings", None)
+        if policy is not None and policy.enabled:
+            job.update(learned_policy=vars(policy).copy(),
+                policy_cruise_speed_mps=self.planning_settings.cruise_speed_mps,
+                policy_context=self.learned_policy_memory.snapshot(),
+                policy_observation=dict(frame_id=self.policy_frame_id, timestamp_s=stamp,
+                    estimation=deepcopy({k: estimates[k] for k in ("state", "road", "obstacles")})))
         self.shadow_worker.submit(job)
         self.shadow_last_submit_s = now
 

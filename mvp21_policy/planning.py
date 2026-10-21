@@ -396,7 +396,7 @@ class RoadCenterlinePlanner:
         self.sequence = 0
 
     def plan(self, road, state, obstacles, vehicle_limits, now_s,
-             source_timeout_s=None, mvp=False):
+             source_timeout_s=None, mvp=False, camera_only=False):
         self.sequence += 1
         cfg = self.settings
         ref = {"schema_version": "planning_reference_v1", "planner_version": "road_centerline",
@@ -438,20 +438,32 @@ class RoadCenterlinePlanner:
                                 and road["lane_width_m"] > 0
                                 and finite_number(road.get("lane_width_observed_at_s"))
                                 and road["lane_width_observed_at_s"] <= now_s)
+        if camera_only and (road.get("visibility") != "both"
+                or road.get("time_aligned") is not False
+                or road.get("motion_compensated") is not False
+                or road.get("tracking_basis") != "uncompensated_camera_frame"):
+            return fail("camera_fallback_requires_current_two_sided_road")
         if ((road.get("visibility") != "both" and not inferred_single_side)
-                or road.get("time_aligned") is not True
-                or state.get("speed_valid") is not True or state.get("yaw_rate_valid") is not True):
+                or (not camera_only and road.get("time_aligned") is not True)
+                or state.get("speed_valid") is not True
+                or (not camera_only and state.get("yaw_rate_valid") is not True)):
             return fail("centerline_or_motion_unavailable")
         if any(obj.get("frame_id") != self.frame_id or not finite_number(obj.get("timestamp_s"))
-               or abs(obj["timestamp_s"]-now_s) > 1e-6 for obj in (road, state)):
+               or abs(obj["timestamp_s"]-now_s) > 1e-6
+               for obj in ((state,) if camera_only else (road, state))):
             return fail("centerline_frame_or_time_mismatch")
+        if camera_only and (road.get("frame_id") != self.frame_id
+                or not finite_number(road.get("timestamp_s"))
+                or not 0 <= now_s-road["timestamp_s"] < cfg.max_source_age_s):
+            return fail("camera_fallback_invalid_measurement_time")
         if (not finite_number(state.get("speed_mps")) or state["speed_mps"] < 0
-                or not finite_number(state.get("yaw_rate_rps"))):
+                or (not camera_only and not finite_number(state.get("yaw_rate_rps")))):
             return fail("invalid_motion_state")
         ages = {"road": road.get("source_age_s"), **(state.get("source_age_s") or {})}
         diag["source_ages_s"], diag["source_age_limits_s"] = dict(ages), {}
         deadlines = [cfg.reference_lifetime_s]
-        for name in ("road", "wheel_speed", "imu_angular_velocity"):
+        for name in (("road", "wheel_speed") if camera_only else
+                     ("road", "wheel_speed", "imu_angular_velocity")):
             limit = cfg.max_source_age_s
             if source_timeout_s is not None:
                 timeout = source_timeout_s.get(name)
@@ -491,6 +503,13 @@ class RoadCenterlinePlanner:
         ref.update(valid=True, status="TRACK", reason="road_centerline_available",
                    valid_for_s=min(deadlines), path=path, target_speed_mps=cfg.cruise_speed_mps,
                    stop_requested=False, stop_reason=None, operating_profile="mvp_centerline_follow")
+        if camera_only:
+            ref.update(planner_version="gyro_fallback_camera_follow",
+                       reason="gyro_unavailable_camera_tracking",
+                       measurement_timestamp_s=road["timestamp_s"], time_aligned=False,
+                       operating_profile="gyro_fallback_camera_follow")
+            diag.update(gyro_fallback=True, motion_compensated=False,
+                        tracking_basis="uncompensated_camera_frame")
         diag.update(reason=ref["reason"], point_count=len(points),
                     x_range_m=[min(p[0] for p in points), max(p[0] for p in points)],
                     path_encoding=path["type"], path_length_m=path["range"][1] if ordered else None,

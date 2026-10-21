@@ -17,6 +17,8 @@
 | `control.py` | PID、控制参考管理、距离限制与标定记录 |
 | `execution.py` | 唯一执行管理器：锚点对齐、弧长裁剪、滚动检查、任务隔离、共同 PID 计算与回退 |
 | `lattice.py` | ShadowSettings、道路时序融合、候选生成、边界碰撞和评分选择 |
+| `learned.py` | 冻结 RNN 加载、候选评分和实际执行状态提交 |
+| `models/path_policy.json` | 不改写的最新多起点 RNN 权重，嵌入单文件 |
 | `transport.py` | 20 Hz 道路历史采集、纯规划任务提交、最新任务队列和后台子进程 |
 | `worker.py` | 无ROS的逐行JSON规划协议 |
 | `node.py` | ROS输入输出、状态机、主循环与学生插入代码 |
@@ -46,36 +48,78 @@ flowchart LR
 旧模型/数据和上游来源快照保留。
 训练通过[三组输入协议](../offline/lattice_training/POLICY_INPUT.md)读取当前状态、道路/障碍和候选轨迹，
 不读取 native 评分或上一条路径；旧模型/候选兼容代码已删除。
-学习评分尚未启用；本次没有部署。节点停止发布与`INSERT POLICY CODE`标记保持。
+2026-10-21 按用户选择启用最新多起点 RNN；当前部署目标已改为 `10.43.254.19`。
+节点停止发布与`INSERT POLICY CODE`标记保持。
+
+`learned.py` 复用 `offline/lattice_training/` 中的纯推理编码与网络函数，不加载训练器、
+数据集或 C*。仅对通过原生碰撞准入的候选逐条评分，不读取 native 代价。
+一次决策的所有候选共享同一前序隐藏状态；只有已准入 lattice 路径的 PID 动作成功发布后，
+才提交该候选的下一状态，同一任务只提交一次。中线回退、拒绝和过期任务不提交；
+状态机切换清空记忆。基于旧记忆的异步结果在进入执行管理器前被拒绝。
+模型失败明确标为 `POLICY_ERROR`，通过共同执行管理器处理回退，不冒充学习选路成功。
+当前原生候选数为 48，训练时为 8；匹配 0.5 m/s 目标不代表实车执行等同 C*，
+既有感知、分支和掉头限制仍见[限制记录](../docs/SIMULATION_LIMITATIONS_CN.md)。
 
 ## 仿真与打包
+
+共同 YAML 的 `estimation.colour_assignment: auto` 同时检查两种左右颜色映射，
+只从新鲜且可独立配对的双侧观测确认；不以单个桶的 y 正负、已知宽度或历史预测确认。
+若两个映射都成立，选择距车更近的有效中线路径，但距离差必须超过一个采样间距；
+否则保持未确认。确认后本次 Run 固定该映射，部分输出、弯道或历史清空不触发翻转。
+下一次显式 Stop/Run 新建估计器并重新判断。未确认时，在既有 1 s 启动窗口内持续零输出，
+超时或运行中的故障仍停止并要求手动恢复。日志 `Boundary colour assignment:` 给出实际
+选择及两个解释的诊断；规划拒绝日志也记录这些信息。宽度、方向和连续覆盖准入保持。
+`left_colour/right_colour` 仅供历史或显式 `fixed` 模式使用，当前自动模式忽略这两个值。
+
+缺角速度时，ROS 节点可通过 `control.gyro_fallback_enabled` 进入相机循迹降级；
+共同 YAML 在 `.22` 按用户要求恢复严格 IMU 模式后已关闭此选项，裸节点也默认关闭。
+仅适用于 `mvp` + `road_centerline`。显式启用后，冷启动
+缺少 gyro，或运行中 gyro 超过运动估计的有效期限时，节点记录 `Gyro fallback:`
+告警并发布状态原因，改用最新单帧双侧锥桶拟合的路径和现有 PID。目标速度上限
+为 `control.gyro_fallback_speed_mps`（0.2 m/s），相机采集年龄上限为
+`control.gyro_fallback_max_camera_age_s`（0.35 s）；轮速仍须有效。
+
+该模式保留真实采集时间和 `time_aligned: false`，不把缺失角速度填成零，
+不做相机延迟补偿、不沿用历史道路或学习宽度、不提交或执行 native 异步规划。
+运行中切换会清空旧参考并隔离已有任务；计算期间发生切换时，该次旧动作被丢弃并
+发布零动作。空帧、单侧道路、过期相机、轮速或其他必需传感器失效仍进入持续零动作
+状态，需要手动 Run。IMU 恢复后也保持降级，下一次手动 Stop/Run 才重新选择正常
+模式。缺少运动补偿会降低弯道及相机延迟下的循迹精度；这些检查不代表实车效果。
+
+部署本次单文件时还须同步共同 YAML 中新增的参数；bundle 内的配置快照不自动加载。
+`.22` 最新起步调整将驱动前馈从 0.40 提高到 0.50、驱动上限从 0.45 提高到 0.50；
+此次接入 RNN 后目标速度按用户选择改为 0.5 m/s，与训练条件一致。
+驱动参数是归一化驱动调参值，不是实测起步阈值；停止和必需传感器
+故障仍立即输出零。重启节点后须重新手动 Run，不自动恢复动作。
 
 从仓库根目录使用现有虚拟环境，输出目录必须不存在：
 
 ```powershell
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source perception --output .verification/modular-centerline-new
 ../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -B -m offline.mvp21_sim --path-source lattice --output .verification/modular-one-hz-new
-python -B tools/bundle_python.py scripts/mvp21_policy_node.py --root . --output scripts/policy_node.py --resource config/ai4r_policy.yaml
+python -B tools/bundle_python.py scripts/mvp21_policy_node.py --root . --output scripts/policy_node.py --no-auto-resources --resource config/ai4r_policy.yaml --resource mvp21_policy/models/path_policy.json
 ```
 
 单文件工具来自`feature/python-single-file-bundler`的`66eaea923a7b040de4908975ffecda118795f393`，
 原样带入脚本、说明和17项测试。它保留模块层级并恢复到临时目录，支持worker子进程；
 不是把算法拼接到一个共享全局命名空间。ROS及其他外部依赖仍由运行环境提供。
-完整参数与可选profiling见[打包说明](../tools/BUNDLE_PYTHON.md)。2026-10-20 按用户要求，
-交付文件固定为环境接受的 `scripts/policy_node.py` 并提交到当前分支；每次从模块重新
-生成，不直接维护其中的算法副本。此文件包含 ROS/worker 的 15 个源码文件和共同 YAML
-快照，不包含离线学习评分器或模型权重。YAML 快照用于留存配置，不自动替代 ROS 的
+完整参数与可选profiling见[打包说明](../tools/BUNDLE_PYTHON.md)。按用户要求，
+交付文件固定为环境接受的 `scripts/policy_node.py`；每次从模块重新
+生成，不直接维护其中的算法副本。当前文件包含 21 个源码文件、共同 YAML
+快照与冻结模型。除原有 ROS 依赖外，推理需要 NumPy（目标车已确认 1.26.4）。
+模型已嵌入脚本，无须另传权重文件。YAML 快照用于留存配置，不自动替代 ROS 的
 参数加载；运行仍沿用现有 launch/`--ros-args --params-file` 配置方式，并需要目标环境
 提供 ROS 2 Jazzy 与对应消息包。上述构建入口及 `mvp21_policy/` 目录无需随单文件复制。
 当前单文件验证及完整 ROS gate 的限制见[验收记录](../docs/acceptance.md)。
 
 同日从 `feature/mpc-model@15724bc` 选取合入 planner 的二分弧长查找和每次规划内的
 采样帧缓存，再生成上述单文件。候选、评分、当前 PID 执行与 YAML 保持原语义；
-MPC 控制器和学习评分不随这两项优化接入。
+这两项优化未引入 MPC 控制器；学习评分在随后本次接入中单独启用。
 
 仿真日志同时保存上游原文件指纹和`runtime_modules`实际源码指纹。worker返回的
-`source_sha256`现按`source_sha256_format=mvp21_worker_geometry_lattice_v2`计算，覆盖
-`worker.py`、`geometry.py`、`frenet.py`、`lattice.py`，不把原单文件的hash当作模块运行版本。
+`source_sha256`现按`source_sha256_format=mvp21_worker_policy_lattice_v3`计算，覆盖
+`worker.py`、`geometry.py`、`frenet.py`、`lattice.py`、`candidates.py`、`learned.py`。
+学习诊断另记录 `inference_source_sha256` 和模型校验值，不把原单文件的 hash 当作模块运行版本。
 任务generation/job_id、shadow_only、结果状态与计时字段保持。
 
 ## 本次验证

@@ -32,6 +32,7 @@ from .geometry import (
 from .motion import (
     EstimationMotionHistory,
 )
+from .learned import LearnedPolicySettings, FrozenPathPolicy, PolicyExecutionMemory
 from .estimation import (
     EstimationPipeline,
     EstimationSettings,
@@ -147,7 +148,8 @@ class PolicyNode(ShadowJobSource, Node):
         self.planning_output = None
         self.planning_diagnostics = None
 
-        for prefix, settings_type in (("control", ControlSettings), ("vehicle", VehicleCalibrationSettings)):
+        for prefix, settings_type in (("control", ControlSettings), ("vehicle", VehicleCalibrationSettings),
+                                      ("learned_policy", LearnedPolicySettings)):
             values = {}
             for name, default in vars(settings_type()).items():
                 parameter_name = f"{prefix}.{name}"
@@ -172,6 +174,15 @@ class PolicyNode(ShadowJobSource, Node):
         self.planner_execution = PlannerExecutionManager(self.policy_frame_id)
         self.planner_execution_publisher = self.create_publisher(String, "planner_execution", 1)
         self._last_execution_mode = None
+        self.learned_policy_memory = None
+        if self.learned_policy_settings.enabled:
+            if not self.planner_control_settings.enabled:
+                raise ValueError("Learned policy requires planner_control.enabled")
+            model = FrozenPathPolicy(self.learned_policy_settings, self.planning_settings.cruise_speed_mps)
+            self.learned_policy_memory = PolicyExecutionMemory(model.network.hidden, model.sha256)
+            self.get_logger().info("Learned policy loaded: " + str({
+                "model_sha256": model.sha256, "recurrent": True,
+                "cruise_speed_mps": self.planning_settings.cruise_speed_mps}))
         if self.control_settings.enabled:
             if (self.estimation_settings.road_geometry == "ordered_xy"
                     and self.planning_settings.algorithm != "road_centerline"):
@@ -182,6 +193,9 @@ class PolicyNode(ShadowJobSource, Node):
             if (self.planning_settings.algorithm == "road_centerline"
                     and self.control_settings.mode != "mvp"):
                 raise ValueError("Road centerline following requires control.mode=mvp")
+            if (self.control_settings.gyro_fallback_enabled
+                    and self.planning_settings.algorithm != "road_centerline"):
+                raise ValueError("Gyro fallback requires planning.algorithm=road_centerline")
             if not {"cone_detections", "wheel_speed", "imu_angular_velocity"}.issubset(self.required_sensors):
                 raise ValueError("Integrated control requires cones, wheel_speed and imu_angular_velocity")
             simulation_planning = self.planning_settings.vehicle_limits_source == "course_simulation"
@@ -198,6 +212,7 @@ class PolicyNode(ShadowJobSource, Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        self._gyro_fallback_active = False
         self._end_straight_start_distance_m = None
         self._end_straight_started_at_s = None
 
@@ -379,9 +394,39 @@ class PolicyNode(ShadowJobSource, Node):
 
     def health_problem(self, monotonic_now, ros_now_ns):
         age = None if self.last_nonempty_cones is None else self._age(self.last_nonempty_cones, monotonic_now, ros_now_ns)
-        return required_sensor_problem(self.required_sensors,
+        required = [name for name in self.required_sensors
+                    if name != "imu_angular_velocity" or not self._gyro_fallback_enabled()]
+        return required_sensor_problem(required,
             {name: self._fresh(name, monotonic_now, ros_now_ns) for name in self.required_sensors},
             age, self.cone_empty_timeout_s)
+
+    def _gyro_fallback_enabled(self):
+        cfg = getattr(self, "control_settings", None)
+        return bool(cfg and cfg.enabled and cfg.mode == "mvp" and cfg.gyro_fallback_enabled
+                    and self.planning_settings.algorithm == "road_centerline")
+
+    def _enter_gyro_fallback(self):
+        self._gyro_fallback_active = True
+        self.controller.clear()
+        if hasattr(self, "control_reference_manager"):
+            self.control_reference_manager.clear()
+        self.last_control_reference_deadline_s = None
+        self._trajectory_reference = None
+        # Fence pending native jobs before they can reintroduce an old path.
+        self.shadow_generation = getattr(self, "shadow_generation", 0)+1
+        self.shadow_road_history = []
+        self.shadow_previous_reference = None
+        self.shadow_pose_stamp_s = None
+        if hasattr(self, "planner_execution"):
+            self.planner_execution.clear(generation=self.shadow_generation)
+        if getattr(self, "shadow_worker", None) is not None:
+            self._shadow_clear()
+        self.state_reason = ("Gyro fallback: imu_angular_velocity missing/stale; "
+            "tracking latest camera path without motion compensation or history; "
+            f"target speed <= {self.control_settings.gyro_fallback_speed_mps:.2f} m/s. "
+            "Latched until explicit Stop/Run, including after gyro recovery.")
+        self.get_logger().warning(self.state_reason)
+        self.publish_state()
 
     def _warn(self, key, message):
         # One message per cause per three seconds, so a 50 Hz error does not
@@ -666,6 +711,7 @@ class PolicyNode(ShadowJobSource, Node):
         dt = 0.0 if first else now - self.previous_policy_step_at
         elapsed = now - self.policy_started_at
         self.previous_policy_step_at = now
+        fallback_before_calculation = getattr(self, "_gyro_fallback_active", False)
 
         try:
             if self._end_straight_start_distance_m is not None:
@@ -704,16 +750,28 @@ class PolicyNode(ShadowJobSource, Node):
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
+        if (not fallback_before_calculation and getattr(self, "_gyro_fallback_active", False)
+                and (getattr(self, "_trajectory_reference", None) or {}).get("planner_version")
+                    != "gyro_fallback_camera_follow"):
+            # Gyro expired during calculation: discard the native action. The
+            # next selected tick can compute a fresh camera-only reference.
+            self.publish_zero_actions()
+            return
         problem = self._control_problem(now, ros_now)
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
         self._publish_actions(drive, steer, pan)
+        memory = getattr(self, "learned_policy_memory", None)
+        reference = getattr(self, "_trajectory_reference", None) or {}
+        if memory is not None and reference.get("planner_version") == "lattice_execution":
+            memory.commit(reference.get("trajectory_id"))
         if hasattr(self, "planner_execution_publisher"):
             self._publish_planner_execution()
         # Offer AFTER the baseline action, never on its calculation/exception path.
         # This is a diagnostic side channel; failures cannot change the action/FSM.
-        if getattr(self, "shadow_worker", None) is not None:
+        if (getattr(self, "shadow_worker", None) is not None
+                and not getattr(self, "_gyro_fallback_active", False)):
             try:
                 self._shadow_offer()
             except Exception as error:
@@ -1000,20 +1058,39 @@ class PolicyNode(ShadowJobSource, Node):
         # Preserve course framework inputs/actions/timing. The Word draft fills
         # internal group-record gaps only; screenshot spellings are aliases.
         # Downstream code may consume self.estimation_output["state"/"road"/
-        # "obstacles"/"vehicle_params"/"vehicle_limits"]. Valid geometry is aligned
-        # to state.timestamp_s; measurement_timestamp_s keeps source time. No
-        # ReferenceTrajectory or target speed is generated by the estimator.
-        if is_first_policy_step or not hasattr(self, "estimator"):
+        # "obstacles"/"vehicle_params"/"vehicle_limits"]. Normal geometry is aligned
+        # to state.timestamp_s. Explicit gyro fallback instead keeps raw camera
+        # geometry marked time_aligned=False and preserves its acquisition time.
+        gyro_age = sensor_age_s.get("imu_angular_velocity")
+        control = getattr(self, "control_settings", ControlSettings())
+        camera_only = control.gyro_fallback_enabled and self._gyro_fallback_enabled() and (
+            getattr(self, "_gyro_fallback_active", False)
+            or observations.get("imu_angular_velocity") is None
+            or not finite_number(gyro_age)
+            or gyro_age >= min(self.sensor_timeout_s["imu_angular_velocity"],
+                               self.estimation_settings.motion_max_gap_s,
+                               self.estimation_settings.max_source_age_s))
+        entering_fallback = camera_only and not getattr(self, "_gyro_fallback_active", False)
+        if entering_fallback:
+            self._enter_gyro_fallback()
+        if is_first_policy_step or entering_fallback or not hasattr(self, "estimator"):
             self.estimator = EstimationPipeline(
                 self.estimation_settings, self.policy_frame_id,
                 motion_history=self.motion_history)
+            self._reported_colour_assignment = None
         sample_receipts = {name: None if obs is None else obs.received_at
                            for name, obs in self.observations.items()}
         receipt_ros_ns = {name: None if obs is None else obs.received_ros_ns
                           for name, obs in self.observations.items()}
         self.estimation_output = self.estimator.update(
             observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
-            self.get_clock().now().nanoseconds / 1e9, receipt_ros_ns)
+            self.get_clock().now().nanoseconds / 1e9, receipt_ros_ns, camera_only=camera_only)
+        assignment = self.estimation_output["road"].get("colour_assignment") or {}
+        mapping = (assignment.get("left_colour"), assignment.get("right_colour"))
+        if (assignment.get("mode") == "auto" and assignment.get("status") == "locked"
+                and mapping != self._reported_colour_assignment):
+            self._reported_colour_assignment = mapping
+            self.get_logger().info("Boundary colour assignment: " + str(assignment))
 
         # Supply explicit car calibration at the integration boundary without
         # changing the estimator or substituting simulation for missing facts.
@@ -1036,17 +1113,25 @@ class PolicyNode(ShadowJobSource, Node):
                            "imu_angular_velocity": min(self.estimation_settings.max_source_age_s,
                                                        self.estimation_settings.motion_max_gap_s,
                                                        self.sensor_timeout_s["imu_angular_velocity"])}
+        if camera_only:
+            source_timeouts["road"] = min(source_timeouts["road"],
+                self.control_settings.gyro_fallback_max_camera_age_s)
+        fallback_options = {"camera_only": True} if camera_only else {}
         self.planning_output, self.planning_diagnostics = self.planner.plan(
             estimates["road"], estimates["state"], estimates["obstacles"],
             estimates["vehicle_limits"], estimates["state"]["timestamp_s"], source_timeouts,
-            mvp=getattr(self, "control_settings", ControlSettings()).mode == "mvp")
+            mvp=getattr(self, "control_settings", ControlSettings()).mode == "mvp", **fallback_options)
+        if camera_only:
+            self.planning_output["target_speed_mps"] = min(
+                self.planning_output["target_speed_mps"], self.control_settings.gyro_fallback_speed_mps)
+            self.planning_diagnostics["target_speed_mps"] = self.planning_output["target_speed_mps"]
 
-        control = getattr(self, "control_settings", ControlSettings())
         if control.enabled:
             if is_first_policy_step or not hasattr(self, "controller"):
                 self.controller = PolicyController(control, self.policy_frame_id)
                 self.control_has_run = False
-            planner_requested = bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False))
+            planner_requested = (not camera_only and
+                bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False)))
             planner_reference = self._select_planner_reference(estimates) if planner_requested else None
             # Delayed camera data may predate the reset motion history at start.
             # Bounded neutral priming is allowed only BEFORE the first valid
@@ -1054,7 +1139,8 @@ class PolicyNode(ShadowJobSource, Node):
             if planner_reference is None and priming_motion_history(
                     self.planning_output, estimates, self.control_has_run, policy_elapsed_s, control):
                 self.control_diagnostics = {"valid": False, "stop_requested": False,
-                                            "reason": "priming_motion_history"}
+                    "reason": ("priming_colour_assignment" if estimates["road"]["status"].startswith(
+                        "boundary_colour_assignment_") else "priming_motion_history")}
                 return 0.0, 0.0, None, None, None
             selected_reference = planner_reference if planner_reference is not None else self.planning_output
             if planner_reference is not None and hasattr(self, "control_reference_manager"):
@@ -1089,6 +1175,8 @@ class PolicyNode(ShadowJobSource, Node):
                     "road_status": estimates["road"].get("status"),
                     "road_valid": estimates["road"].get("valid"),
                     "road_visibility": estimates["road"].get("visibility"),
+                    "colour_assignment": estimates["road"].get("colour_assignment"),
+                    "boundary_diagnostics": estimates["road"].get("boundary_diagnostics"),
                     "road_source_age_s": estimates["road"].get("source_age_s"),
                     "state_valid": estimates["state"].get("valid"),
                     "speed_valid": estimates["state"].get("speed_valid"),
@@ -1106,6 +1194,12 @@ class PolicyNode(ShadowJobSource, Node):
             if not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]:
                 reason = "Control: " + self.control_diagnostics["reason"]
                 raise PolicyStopRequest(reason)
+            if camera_only:
+                self.control_diagnostics.update(gyro_fallback=True,
+                    tracking_basis="uncompensated_camera_frame",
+                    camera_age_s=estimates["road"]["source_age_s"],
+                    drive_action=drive_action, steering_action=steering_action,
+                    reference_source="gyro_fallback", reference_selection_reason="gyro_unavailable_camera_tracking")
             self.control_has_run = True
             self._trajectory_reference = selected_reference
             self.last_control_reference_deadline_s = (
@@ -1143,6 +1237,7 @@ class PolicyNode(ShadowJobSource, Node):
                     "curvature_1pm": info["curvature_1pm"],
                     "speed_mps": estimates["state"]["speed_mps"],
                     "yaw_rate_rps": estimates["state"]["yaw_rate_rps"],
+                    "gyro_fallback": camera_only,
                     "road_status": estimates["road"].get("status"),
                     "centerline_source": self.planning_diagnostics.get("centerline_source"),
                     "inferred_single_side": self.planning_diagnostics.get("inferred_single_side"),
@@ -1168,8 +1263,17 @@ class PolicyNode(ShadowJobSource, Node):
             info = dict(self.planner_execution.diagnostics) if enabled else {
                 "requested_source": "baseline", "mode": "baseline", "fallback": False,
                 "reason": "baseline_selected"}
-            ref = getattr(self, "_trajectory_reference", None) or {}
             control = self.control_diagnostics or {}
+            memory = getattr(self, "learned_policy_memory", None)
+            info["selection_backend"] = "learned_policy" if memory is not None else "native"
+            if memory is not None:
+                info["learned_policy"] = memory.diagnostics()
+            if getattr(self, "_gyro_fallback_active", False):
+                info.update(mode="gyro_fallback", fallback=True,
+                    reason="gyro_unavailable_camera_tracking", reference_source="camera",
+                    drive_action=control.get("drive_action"), steering_action=control.get("steering_action"),
+                    motion_compensated=False)
+            ref = getattr(self, "_trajectory_reference", None) or {}
             info.update(timestamp_s=ref.get("timestamp_s"), generation=self.shadow_generation,
                 reference_version=ref.get("planner_version"),
                 baseline_valid=bool(self.planning_output and self.planning_output.get("valid")),
@@ -1192,10 +1296,35 @@ class PolicyNode(ShadowJobSource, Node):
 
     def _robust_control_enabled(self):
         cfg = self.control_settings
-        return cfg.enabled and cfg.mode == "mvp" and cfg.robustness_enabled
+        return (cfg.enabled and cfg.mode == "mvp" and cfg.robustness_enabled
+                and not getattr(self, "_gyro_fallback_active", False))
 
     def _control_health_problem(self, monotonic_now, ros_now_ns):
         problem = self.health_problem(monotonic_now, ros_now_ns)
+        if self._gyro_fallback_enabled():
+            gyro = self.observations.get("imu_angular_velocity")
+            if (getattr(self, "_gyro_fallback_active", False) or gyro is None
+                    or self._age(gyro, monotonic_now, ros_now_ns) >= min(
+                        self.sensor_timeout_s["imu_angular_velocity"],
+                        self.estimation_settings.motion_max_gap_s,
+                        self.estimation_settings.max_source_age_s)):
+                # Camera-only mode cannot bridge camera/road loss with a cache.
+                if problem:
+                    return problem
+                for name, limit in (("cone_detections", min(
+                        self.control_settings.gyro_fallback_max_camera_age_s,
+                        self.estimation_settings.max_source_age_s,
+                        self.sensor_timeout_s["cone_detections"])),
+                        ("wheel_speed", min(self.estimation_settings.motion_max_gap_s,
+                         self.estimation_settings.max_source_age_s,
+                         self.sensor_timeout_s["wheel_speed"]))):
+                    obs = self.observations.get(name)
+                    if obs is None or self._age(obs, monotonic_now, ros_now_ns) >= limit:
+                        return f"Gyro fallback required sensor {name} is missing or stale"
+                if (self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION
+                        and not getattr(self, "_gyro_fallback_active", False)):
+                    self._enter_gyro_fallback()
+                return None
         if (getattr(self, "_end_straight_start_distance_m", None) is not None
                 and problem == "No recent nonempty cone detections"):
             # Fresh empty camera frames are expected outside the cone FOV.
@@ -1274,6 +1403,8 @@ class PolicyNode(ShadowJobSource, Node):
         # for an active result after a stop, source expiry, or explicit restart.
         self.estimation_output = None
         self.motion_history.clear()
+        if getattr(self, "learned_policy_memory", None) is not None:
+            self.learned_policy_memory.reset()
         self.planning_output = None
         self.planning_diagnostics = None
         self.controller.clear()
@@ -1283,6 +1414,7 @@ class PolicyNode(ShadowJobSource, Node):
         self.control_diagnostics = None
         self.last_control_reference_deadline_s = None
         self.control_has_run = False
+        self._gyro_fallback_active = False
         if hasattr(self, "planner_execution"):
             self.planner_execution.clear()
             self._last_execution_mode = None
@@ -1322,6 +1454,8 @@ class PolicyNode(ShadowJobSource, Node):
 
     def _shadow_clear(self):
         """Clear shadow displays on every run boundary; old results are fenced."""
+        if getattr(self, "learned_policy_memory", None) is not None:
+            self.learned_policy_memory.pending = None
         if hasattr(self, "planner_execution"):
             self.planner_execution.clear(generation=self.shadow_generation)
         try:
@@ -1365,10 +1499,17 @@ class PolicyNode(ShadowJobSource, Node):
                 self.shadow_worker = ShadowWorker()
                 return
             if (self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION
+                    or getattr(self, "_gyro_fallback_active", False)
                     or result.get("generation") != self.shadow_generation):
+                return
+            memory = getattr(self, "learned_policy_memory", None)
+            if memory is not None and not memory.validate_result(result):
+                self._warn("policy_memory", "Discarding learned result: " + str(memory.last_rejection))
                 return
             if hasattr(self, "planner_execution") and not self.planner_execution.accept(result):
                 return
+            if memory is not None:
+                memory.stage(result, self.planner_execution.active is not None)
             guide = (result.get("fusion") or {}).get("guide")
             if (result.get("status") == "VALID" and guide
                     and guide.get("odometry_epoch") == getattr(self, "shadow_odometry_epoch", 0)):
@@ -1415,6 +1556,10 @@ class PolicyNode(ShadowJobSource, Node):
                 selected_family=selected.get("family") if selected else None,
                 result_age_s=self.get_clock().now().nanoseconds/1e9-stamp,
                 **transport)
+            if result.get("policy_selection"):
+                summary["policy_selection"] = {k: result["policy_selection"].get(k) for k in
+                    ("status", "reason", "model_sha256", "native_selected_id", "selected_id",
+                     "changed_from_native", "context_revision", "best_score", "wall_s")}
             if result.get("fusion"):
                 summary["fusion"] = {k: result["fusion"].get(k) for k in
                     ("status", "reason", "degraded", "raw_fallback_used", "selected_source",

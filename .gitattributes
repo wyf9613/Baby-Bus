@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# Preserve the pinned frozen checkpoint byte for byte; never text-merge weights.
+mvp21_policy/models/path_policy.json binary

@@ -86,7 +86,11 @@ class RuntimePolicyChecks(unittest.TestCase):
 
     def test_clock_driven_policy_uses_shared_pid_and_cold_start_is_not_bypassed(self):
         case=validation_case('validation_uturn_original_left')
-        with tempfile.TemporaryDirectory() as temporary:
+        # This fixture deliberately uses the historical 0.2 m/s model; the
+        # shipped RNN configuration now explicitly targets 0.5 m/s.
+        config=parameters();config['planning']['cruise_speed_mps']=.2
+        with tempfile.TemporaryDirectory() as temporary, patch(
+                'offline.mvp21_sim.runtime.parameters',side_effect=lambda:deepcopy(config)):
             output=Path(temporary)/'run'
             summary=run_runtime(case,output,max_steps=40,latency_steps=1,seed=713,
                 detailed_trace=True,stop_tail_s=.1,policy_model_path=DEFAULT_MODEL)

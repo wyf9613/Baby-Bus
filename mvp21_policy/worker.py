@@ -16,7 +16,7 @@ from mvp21_policy.lattice import ShadowLatticePlanner, ShadowSettings
 
 def worker_source_sha256():
     digest = hashlib.sha256()
-    for name in ('geometry.py', 'frenet.py', 'lattice.py', 'worker.py'):
+    for name in ('geometry.py', 'frenet.py', 'lattice.py', 'candidates.py', 'learned.py', 'worker.py'):
         digest.update(name.encode()+b'\0')
         digest.update(Path(__file__).with_name(name).read_bytes().replace(b'\r\n', b'\n'))
     return digest.hexdigest()
@@ -30,6 +30,7 @@ def run_worker():
         except OSError:
             pass
     source_sha256 = worker_source_sha256()
+    policy, policy_key = None, None
     for line in sys.stdin:
         job = None
         decode_started = time.perf_counter()
@@ -37,13 +38,24 @@ def run_worker():
             job = json.loads(line)
             decode_s = time.perf_counter()-decode_started
             result = ShadowLatticePlanner(ShadowSettings(**job['settings'])).plan(job)
+            if (job.get('learned_policy') or {}).get('enabled'):
+                from mvp21_policy.learned import FrozenPathPolicy, LearnedPolicySettings
+                settings = LearnedPolicySettings(**job['learned_policy'])
+                key = (settings.model_path, settings.model_sha256, job.get('policy_cruise_speed_mps'))
+                if key != policy_key:
+                    policy = FrozenPathPolicy(settings, key[2])
+                    policy_key = key
+                result = policy.select(result, job.get('policy_observation'), job.get('policy_context') or {})
+                elapsed = result.get('elapsed_s', 0)+result['policy_selection'].get('wall_s', 0)
+                result.update(elapsed_s=elapsed, late_for_requested_period=elapsed > 1/job['settings']['rate_hz'])
+                result.setdefault('timing_s', {}).update(learned_policy=result['policy_selection'].get('wall_s', 0), total=elapsed)
         except Exception as error:
             decode_s = time.perf_counter()-decode_started
             result = dict(status='WORKER_ERROR', error=str(error), selected=None)
         result['generation'] = None if job is None else job.get('generation')
         result['job_id'] = None if job is None else job.get('job_id')
         result['source_sha256'] = source_sha256
-        result['source_sha256_format'] = 'mvp21_worker_geometry_lattice_v2'
+        result['source_sha256_format'] = 'mvp21_worker_policy_lattice_v3'
         result['execution_anchor'] = None if job is None else dict(
             pose=job.get('shadow_pose'), odometry_epoch=job.get('shadow_odometry_epoch'))
         result['shadow_only'] = not bool(job and job.get('planner_control_enabled'))

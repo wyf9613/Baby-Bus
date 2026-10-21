@@ -10,6 +10,12 @@ keep this required executable name. Rebuild it from the modular entry rather
 than editing embedded sources; see the module guide for the exact command.
 The learned scorer consumes only current state, current road/obstacles and the
 candidate trajectory. Its input schema is independent of native planner costs.
+The current car configuration enables the frozen multi-start RNN at 0.5 m/s.
+Bundle its unchanged checkpoint and the shared YAML with the module guide's
+explicit resource list. Preserve the checkpoint's exact bytes via its
+`.gitattributes` exception; line-ending conversion changes its pinned checksum.
+Production inference uses NumPy and the existing pure
+encoder/network helpers; do not pull training, dataset or C* modules into it.
 See [the module guide](mvp21_policy/README.md) for ownership,
 portable checks and packaging. Avoid extra example YAML files.
 
@@ -34,7 +40,7 @@ rosdep install --from-paths . .verification/dependencies/dream_interfaces \
 ```
 
 The build requires Git, CMake, a C++ toolchain for generated messages, colcon,
-pytest, PyYAML, and the ROS dependencies in `package.xml`. Installation and
+pytest, PyYAML, NumPy, and the ROS dependencies in `package.xml`. Installation and
 network access belong to provisioning, not to a test run.
 
 ## Required fast gate

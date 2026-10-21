@@ -276,7 +276,7 @@ class PlanningChecks(unittest.TestCase):
         self.assertTrue(set(scalars).issubset(vars(Settings())))
         settings = Settings(**scalars)
         self.assertEqual(settings.algorithm, "road_centerline")
-        self.assertEqual(settings.cruise_speed_mps, 0.2)
+        self.assertEqual(settings.cruise_speed_mps, 0.5)
         self.assertTrue(settings.allow_forward_only)
         self.assertEqual(settings.max_source_age_s, 1.5)
 

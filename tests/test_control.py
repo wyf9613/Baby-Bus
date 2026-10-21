@@ -20,6 +20,7 @@ ns = dict(api["namespace"])
 tree = ast.parse(api["SOURCE"].read_text(encoding="utf-8"))
 subject = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
 method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn", "run_policy_step",
+                "_gyro_fallback_enabled", "_enter_gyro_fallback", "_shadow_clear", "_shadow_poll",
                 "_robust_control_enabled", "_control_health_problem", "_select_control_reference", "_report_control_status",
                 "_select_planner_reference", "_publish_planner_execution",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
@@ -117,6 +118,295 @@ def feed(node, center=0.1, speed=0.0, yaw=0.0, delay=0.0, empty=False):
 
 def start(node):
     node.fsm_transition_request_callback(SimpleNamespace(data=3))
+
+
+class GyroFallbackChecks(unittest.TestCase):
+    def node(self, enabled=True, robustness=False):
+        node = make_node(simulated=False, mvp=True)
+        node.logged_warnings = []
+        node.get_logger = lambda: SimpleNamespace(info=lambda *_: None,
+            warning=node.logged_warnings.append, error=node.logged_errors.append)
+        node.estimation_settings = ns["EstimationSettings"](
+            road_geometry="ordered_xy", max_source_age_s=1.5,
+            single_side_from_learned_width=True)
+        node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)
+        node.planning_settings = ns["PlanningSettings"](algorithm="road_centerline",
+            allow_forward_only=True, max_source_age_s=1.5, reference_lifetime_s=0.2,
+            cruise_speed_mps=0.3)
+        node.control_settings = ns["ControlSettings"](enabled=True, mode="mvp",
+            gyro_fallback_enabled=enabled, robustness_enabled=robustness,
+            drive_max=0.35, mvp_drive_feedforward=0.30)
+        node.controller = ns["PolicyController"](node.control_settings)
+        node.control_reference_manager = ns["ControlReferenceManager"](node.control_settings)
+        return node
+
+    def feed(self, node, gyro=False, **kwargs):
+        feed(node, **kwargs)
+        if not gyro:
+            node.observations["imu_angular_velocity"] = None
+
+    def test_cold_start_delayed_camera_without_any_imu(self):
+        node = self.node()
+        self.feed(node, center=0.1, delay=0.2)
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.logged_errors)
+        self.assertTrue(node._gyro_fallback_active)
+        self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+        self.assertNotEqual(node.action_publisher.messages[-1].steer, 0)
+        self.assertEqual(node.planning_output["planner_version"], "gyro_fallback_camera_follow")
+        self.assertEqual(node.planning_output["target_speed_mps"], 0.2)
+        self.assertEqual(node.planning_output["measurement_timestamp_s"], 9.8)
+        self.assertAlmostEqual(node.planning_output["valid_for_s"], 0.15)
+        state, road = node.estimation_output["state"], node.estimation_output["road"]
+        self.assertIsNone(state["yaw_rate_rps"])
+        self.assertFalse(state["yaw_rate_valid"])
+        self.assertFalse(state["valid"])
+        self.assertTrue(state["speed_valid"])
+        self.assertFalse(road["time_aligned"])
+        self.assertFalse(road["history_used"])
+        self.assertEqual(road["timestamp_s"], 9.8)
+        self.assertIsNone(node.motion_history.pose_between(9.8, 10.0)[0])
+        self.assertTrue(any("Gyro fallback:" in line for line in node.logged_warnings))
+        self.assertIsNone(node.control_reference_manager.reference)
+        self.assertFalse(node.estimation_output["obstacles"]["available"])
+
+    def test_opt_in_fallback_with_common_yaml_tracks_delayed_camera_without_imu(self):
+        import yaml
+        config = yaml.safe_load((api["ROOT"]/"config/ai4r_policy.yaml").read_text(encoding="utf-8"))
+        values = config["/**/ai4r_policy"]["ros__parameters"]
+        values["control"]["gyro_fallback_enabled"] = True
+        node = self.node()
+        node.estimation_settings = ns["EstimationSettings"](**values["estimation"])
+        node.planning_settings = ns["PlanningSettings"](**values["planning"])
+        node.control_settings = ns["ControlSettings"](**values["control"])
+        node.required_sensors = values["required_sensors"]
+        node.sensor_timeout_s = values["sensor_timeout_s"]
+        node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)
+        node.controller = ns["PolicyController"](node.control_settings)
+        self.feed(node, delay=0.19)
+        batch = node.observations["cone_detections"].value
+        batch["detections"] = [(*p[:3], node.estimation_settings.left_colour if p[3] == 2
+            else node.estimation_settings.right_colour, p[4]) for p in batch["detections"]]
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.logged_errors)
+        self.assertTrue(node.control_diagnostics["gyro_fallback"])
+        self.assertEqual(node.control_diagnostics["path_encoding"], "ORDERED_CENTERLINE")
+        self.assertEqual(node.planning_output["target_speed_mps"], 0.2)
+        self.assertGreater(node.action_publisher.messages[-1].drive, 0)
+        self.assertFalse(node.estimation_output["alignment"]["valid"])
+
+    def test_shipped_yaml_requires_gyro_and_allows_raised_drive_effort(self):
+        import yaml
+        values = yaml.safe_load((api["ROOT"]/"config/ai4r_policy.yaml").read_text(
+            encoding="utf-8"))["/**/ai4r_policy"]["ros__parameters"]
+        node = self.node()
+        node.estimation_settings = ns["EstimationSettings"](**values["estimation"])
+        node.planning_settings = ns["PlanningSettings"](**values["planning"])
+        node.control_settings = ns["ControlSettings"](**values["control"])
+        node.required_sensors = values["required_sensors"]
+        node.sensor_timeout_s = values["sensor_timeout_s"]
+        node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)
+        node.controller = ns["PolicyController"](node.control_settings)
+        self.feed(node)
+        start(node)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("imu_angular_velocity", node.state_reason)
+        for index in range(7):
+            if index:
+                node.test_clock.advance(0.05)
+            self.feed(node, gyro=True, delay=0.19)
+            batch = node.observations["cone_detections"].value
+            batch["detections"] = [(*p[:3], node.estimation_settings.left_colour if p[3] == 2
+                else node.estimation_settings.right_colour, p[4]) for p in batch["detections"]]
+            if index == 0:
+                start(node)
+            node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.logged_errors)
+        self.assertFalse(node._gyro_fallback_active)
+        self.assertTrue(node.estimation_output["state"]["yaw_rate_valid"])
+        self.assertEqual(node.planning_output["target_speed_mps"], 0.5)
+        self.assertAlmostEqual(node.action_publisher.messages[-1].drive, 0.50)
+        node.fsm_transition_request_callback(SimpleNamespace(data=2))
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+    def test_dropout_fences_native_result_and_stays_latched_on_recovery(self):
+        node = self.node()
+        node.shadow_generation = 7
+        node.planner_control_settings = ns["PlannerControlSettings"](enabled=True)
+        node.planner_execution = ns["PlannerExecutionManager"](generation=7)
+        node.native_prepares = 0
+        def native(estimates):
+            node.native_prepares += 1
+            return None
+        node._select_planner_reference = native
+        self.feed(node, gyro=True)
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.logged_errors)
+        self.assertFalse(node._gyro_fallback_active)
+        node.planner_execution.active = {"old": "path"}
+        node.shadow_worker = SimpleNamespace(poll=lambda: {"status": "VALID", "generation": 7}, close=lambda: None)
+        node.planner_execution_publisher = Recorder()
+        node._last_execution_mode = None
+        node.shadow_offers = []
+        node._shadow_offer = lambda: node.shadow_offers.append(True)
+        prepares = node.native_prepares
+        node.test_clock.advance(0.05)
+        self.feed(node, center=-0.15)
+        node.supervision_callback()
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.logged_errors)
+        self.assertTrue(node._gyro_fallback_active)
+        self.assertIsNone(node.planner_execution.active)
+        self.assertEqual(node.shadow_generation, 8)
+        self.assertEqual(node.native_prepares, prepares)
+        self.assertLess(node.planning_output["path"]["samples_xy"][0][1], 0)
+        self.assertEqual(node.shadow_offers, [])
+        node._shadow_poll()
+        self.assertIsNone(node.planner_execution.active)
+        execution_info = json.loads(node.planner_execution_publisher.messages[-1].data)
+        self.assertEqual(execution_info["mode"], "gyro_fallback")
+        self.assertEqual(execution_info["steering_action"], node.action_publisher.messages[-1].steer)
+        for _ in range(3):
+            node.test_clock.advance(0.05)
+            self.feed(node, gyro=True)
+            node.run_policy_step()
+            self.assertEqual(node.fsm_state, 3, node.logged_errors)
+            self.assertTrue(node._gyro_fallback_active)
+            self.assertFalse(node.estimation_output["state"]["yaw_rate_valid"])
+        self.assertEqual(sum("Gyro fallback:" in line for line in node.logged_warnings), 1)
+        node.shadow_worker = None
+        node.fsm_transition_request_callback(SimpleNamespace(data=2))
+        node.test_clock.advance(0.05)
+        self.feed(node, gyro=True)
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.logged_errors)
+        self.assertFalse(node._gyro_fallback_active)
+        self.assertTrue(node.estimation_output["state"]["yaw_rate_valid"])
+        self.assertGreater(node.native_prepares, prepares)
+
+    def test_stale_gyro_switches_at_motion_gap_before_generic_sensor_timeout(self):
+        node = self.node()
+        self.feed(node, gyro=True)
+        old_gyro = node.observations["imu_angular_velocity"]
+        start(node)
+        node.run_policy_step()
+        for _ in range(6):
+            node.test_clock.advance(0.05)
+            self.feed(node)
+            node.observations["imu_angular_velocity"] = old_gyro
+            node.supervision_callback()
+            node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.logged_errors)
+        self.assertTrue(node._gyro_fallback_active)
+        self.assertLess(node._age(old_gyro, *node._times()), node.sensor_timeout_s["imu_angular_velocity"])
+
+    def test_missing_other_required_sensors_still_refuse_start(self):
+        for name in ("wheel_speed", "cone_detections", "imu_orientation"):
+            with self.subTest(name=name):
+                node = self.node()
+                self.feed(node)
+                if name not in node.required_sensors:
+                    node.required_sensors.append(name)
+                node.observations[name] = None
+                start(node)
+                self.assertEqual(node.fsm_state, 2)
+                self.assertIn(name, node.state_reason)
+
+    def test_no_camera_or_wheel_cache_after_fallback_and_no_automatic_resume(self):
+        for name in ("cone_detections", "wheel_speed"):
+            with self.subTest(name=name):
+                node = self.node(robustness=True)
+                self.feed(node)
+                start(node)
+                node.run_policy_step()
+                node.observations[name] = None
+                node.supervision_callback()
+                self.assertEqual(node.fsm_state, 2)
+                self.assertIn(name, node.state_reason)
+                self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+                node.test_clock.advance(0.05)
+                self.feed(node, gyro=True)
+                node.run_policy_step()
+                self.assertEqual(node.fsm_state, 2)
+
+    def test_measurement_age_not_receipt_time_sets_camera_deadline(self):
+        node = self.node()
+        self.feed(node, delay=0.2)
+        start(node)
+        node.run_policy_step()
+        node.test_clock.advance(0.15)
+        now, ros = node._times()
+        node._store("wheel_speed", 0.0, None, now, ros)
+        node.supervision_callback()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+    def test_empty_and_single_sided_camera_do_not_reuse_previous_path_or_width(self):
+        for loss in ("empty", "single_side"):
+            with self.subTest(loss=loss):
+                node = self.node(robustness=True)
+                self.feed(node)
+                start(node)
+                node.run_policy_step()
+                node.test_clock.advance(0.05)
+                self.feed(node, empty=loss == "empty")
+                if loss == "single_side":
+                    batch = node.observations["cone_detections"].value
+                    batch["detections"] = [p for p in batch["detections"] if p[3] == 2]
+                node.run_policy_step()
+                self.assertEqual(node.fsm_state, 2, node.logged_errors)
+                self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+    def test_disabled_fallback_preserves_gyro_start_requirement(self):
+        node = self.node(enabled=False)
+        self.feed(node)
+        start(node)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("imu_angular_velocity", node.state_reason)
+
+    def test_gyro_expiry_during_calculation_discards_native_action(self):
+        node = self.node()
+        self.feed(node, gyro=True)
+        start(node)
+        node.run_policy_step()
+        node.test_clock.advance(0.05)
+        self.feed(node, gyro=True)
+        original = node.calculate_policy_actions
+        def slow(*args):
+            result = original(*args)
+            node.test_clock.advance(node.estimation_settings.motion_max_gap_s)
+            return result
+        node.calculate_policy_actions = slow
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.logged_errors)
+        self.assertTrue(node._gyro_fallback_active)
+        self.assertIsNone(node._trajectory_reference)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+        node.calculate_policy_actions = original
+        self.feed(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 3, node.logged_errors)
+        self.assertEqual(node.planning_output["planner_version"], "gyro_fallback_camera_follow")
+
+    def test_stale_camera_never_starts_camera_tracking(self):
+        node = self.node()
+        self.feed(node, delay=0.36)
+        start(node)
+        node.run_policy_step()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertIn("cone_detections", node.state_reason)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+
+    def test_misconfigured_fallback_values_are_rejected(self):
+        for values in ({"gyro_fallback_enabled": "true"}, {"gyro_fallback_max_camera_age_s": 0},
+                       {"gyro_fallback_speed_mps": float("nan")}, {"mode": "calibrated"}):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                ns["ControlSettings"](**{"enabled": True, "mode": "mvp",
+                    "gyro_fallback_enabled": True, **values})
 
 
 class RobustControlChecks(unittest.TestCase):
@@ -437,6 +727,47 @@ class ControlChecks(unittest.TestCase):
         node.run_policy_step()
         self.assertEqual(node.fsm_state, 2)
         self.assertTrue(all(msg.drive == 0 for msg in node.action_publisher.messages))
+
+    def test_colour_acquisition_waits_at_zero_then_uses_either_layout(self):
+        for left in (1, 2):
+            with self.subTest(left=left):
+                node = make_node(mvp=True)
+                node.estimation_settings = ns["EstimationSettings"](
+                    **{**vars(node.estimation_settings), "colour_assignment": "auto"})
+                node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)
+                feed(node)
+                sample = node.observations["cone_detections"].value
+                sample["detections"] = [p for p in sample["detections"] if p[3] == 2]
+                start(node)
+                node.run_policy_step()
+                self.assertEqual(node.fsm_state, 3, node.logged_errors)
+                self.assertEqual(node.control_diagnostics["reason"], "priming_colour_assignment")
+                self.assertEqual(node.action_publisher.messages[-1].drive, 0)
+                node.test_clock.advance(0.05)
+                feed(node)
+                sample = node.observations["cone_detections"].value
+                if left == 1:
+                    sample["detections"] = [(*p[:3], 3-p[3], p[4]) for p in sample["detections"]]
+                node.run_policy_step()
+                self.assertEqual(node.fsm_state, 3, node.logged_errors)
+                self.assertTrue(node.control_has_run)
+                self.assertEqual(node.estimator.left_colour, left)
+
+    def test_unresolved_colour_assignment_times_out_without_driving(self):
+        node = make_node(mvp=True)
+        node.estimation_settings = ns["EstimationSettings"](
+            **{**vars(node.estimation_settings), "colour_assignment": "auto"})
+        node.motion_history = ns["EstimationMotionHistory"](node.estimation_settings)
+        for tick in range(14):
+            feed(node)
+            sample = node.observations["cone_detections"].value
+            sample["detections"] = [p for p in sample["detections"] if p[3] == 2]
+            if tick == 0:
+                start(node)
+            node.run_policy_step()
+            node.test_clock.advance(0.05)
+        self.assertEqual(node.fsm_state, 2)
+        self.assertTrue(all(m.drive == 0 and m.steer == 0 for m in node.action_publisher.messages))
 
     def test_motion_priming_is_neutral_bounded_and_only_before_tracking(self):
         node = make_node()

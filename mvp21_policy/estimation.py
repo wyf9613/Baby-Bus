@@ -1,6 +1,6 @@
 """MVP2.1 estimation; relocated from pinned f11428b, without algorithm tuning."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from copy import deepcopy
 import math
 from .geometry import (
@@ -37,7 +37,10 @@ class EstimationSettings:
     # Brief quality-drop bridge, not the lifetime of near-field observations.
     # Zero disables prediction; source and motion deadlines still apply.
     road_hold_s: float = 0.2
-    # ROS cone colour IDs: yellow=1, blue=2. YAML selects the course layout.
+    # Auto evaluates BOTH assignments from measured two-sided geometry and
+    # locks the result for this pipeline/run. Fixed preserves archived profiles.
+    colour_assignment: str = "fixed"
+    # ROS cone colour IDs: yellow=1, blue=2. Used only in fixed mode.
     left_colour: int = 2
     right_colour: int = 1
     min_cone_confidence: float = 0.5
@@ -89,6 +92,8 @@ class EstimationSettings:
     road_prediction_max_distance_m: float = 0.2
 
     def __post_init__(self):
+        if self.colour_assignment not in ("fixed", "auto"):
+            raise ValueError("estimation.colour_assignment must be fixed or auto")
         if (type(self.left_colour) is not int or type(self.right_colour) is not int
                 or {self.left_colour, self.right_colour} != {1, 2}):
             raise ValueError("estimation left/right colours must be distinct yellow=1 and blue=2")
@@ -107,7 +112,7 @@ class EstimationSettings:
         if self.continuous_road_output and self.history_propagation != "continuous":
             raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
-            if name in ("history_propagation", "road_history_mode", "road_geometry", "history_merge_single_side",
+            if name in ("colour_assignment", "history_propagation", "road_history_mode", "road_geometry", "history_merge_single_side",
                         "continuous_road_output", "single_side_from_learned_width"):
                 continue
             if not finite_number(value):
@@ -355,6 +360,8 @@ class EstimationPipeline:
         self.settings, self.frame_id = settings, frame_id
         self.left_colour = settings.left_colour if left_colour is None else left_colour
         self.right_colour = settings.right_colour if right_colour is None else right_colour
+        self._colour_assignment_locked = settings.colour_assignment == "fixed"
+        self._colour_assignment_evidence = []
         self.motion = motion_history or EstimationMotionHistory(settings)
         self._clear_road_history()
 
@@ -705,6 +712,72 @@ class EstimationPipeline:
         return value is not None and finite_number(age) and 0 <= age < self.settings.max_source_age_s
 
     def road(self, batch, stamp_ns, age):
+        """Resolve colour independently of configuration before using history.
+
+        Probe fresh, observed two-sided roads without learned/known-width
+        inference. Never acquire an assignment from an inferred or predicted
+        boundary. A pipeline is recreated for each explicit policy run; ordinary
+        road-history clears deliberately keep its established colour mapping.
+        """
+        if not self._colour_assignment_locked:
+            hypotheses, usable = [], []
+            probe_settings = replace(self.settings, colour_assignment="fixed",
+                                     known_lane_width_m=0.0,
+                                     single_side_from_learned_width=False)
+            for left, right in ((1, 2), (2, 1)):
+                probe = EstimationPipeline(probe_settings, self.frame_id,
+                                           left_colour=left, right_colour=right)
+                road = probe._road(batch, stamp_ns, age)
+                observed = (road["valid"] and road["visibility"] == "both"
+                            and len(road["centerline_xy"]) >= 2)
+                distance = (math.sqrt(_path_project(road["centerline_xy"],
+                    _path_lengths(road["centerline_xy"]), (0.0, 0.0), forward=False)[0])
+                    if observed else None)
+                evidence = dict(left_colour=left, right_colour=right,
+                    valid=observed, road_status=road["status"],
+                    lane_width_m=road.get("lane_width_m"), distance_to_ego_m=distance,
+                    boundary_diagnostics=deepcopy(road["boundary_diagnostics"]))
+                hypotheses.append((road, evidence))
+                if observed:
+                    usable.append(evidence)
+            usable.sort(key=lambda item: item["distance_to_ego_m"])
+            if (len(usable) == 1 or len(usable) == 2 and
+                    usable[1]["distance_to_ego_m"]-usable[0]["distance_to_ego_m"]
+                    > self.settings.road_sample_spacing_m):
+                chosen = usable[0]
+                self.left_colour, self.right_colour = chosen["left_colour"], chosen["right_colour"]
+                self._colour_assignment_locked = True
+                self._colour_assignment_evidence = [item for _, item in hypotheses]
+            else:
+                pending = "ambiguous" if usable else "pending"
+                # Keep both probe diagnostics, with no assigned physical sides
+                # or reusable history. The configured fixed mapping is ignored.
+                result = hypotheses[0][0]
+                status = ("boundary_colour_assignment_"+pending if self._fresh(batch, age)
+                          and stamp_ns is not None and stamp_ns > 0 else "unavailable")
+                result.update(valid=False, status=status,
+                    visibility="unassigned", centerline_xy=[], left_boundary_xy=None,
+                    right_boundary_xy=None, lane_width_m=None,
+                    boundary_source={"left": "unassigned", "right": "unassigned"})
+                result["boundary_diagnostics"] = {
+                    side: dict(raw_count=0, filtered_count=0, fit_valid=False,
+                        fit_status="colour_assignment_unresolved", inlier_count=0,
+                        fit_rms_m=None, x_range_m=None)
+                    for side in ("left", "right")}
+                for key in ("_boundary_fits", "_support_cones", "_center_coeffs"):
+                    result.pop(key, None)
+                result["colour_assignment"] = dict(mode="auto", status=pending,
+                    left_colour=None, right_colour=None,
+                    hypotheses=[item for _, item in hypotheses])
+                return result
+        result = self._road(batch, stamp_ns, age)
+        result["colour_assignment"] = dict(mode=self.settings.colour_assignment,
+            status="locked" if self.settings.colour_assignment == "auto" else "fixed",
+            left_colour=self.left_colour, right_colour=self.right_colour,
+            hypotheses=deepcopy(self._colour_assignment_evidence))
+        return result
+
+    def _road(self, batch, stamp_ns, age):
         timestamp = stamp_ns/1e9 if stamp_ns is not None and stamp_ns > 0 else None
         output = {"timestamp_s": timestamp, "frame_id": self.frame_id, "valid": False,
                   "centerline_xy": [], "left_boundary_xy": None, "right_boundary_xy": None,
@@ -1166,7 +1239,12 @@ class EstimationPipeline:
         return road
 
     def update(self, observations, ages, stamps, sample_receipts, now_s,
-               sample_receipt_ros_ns=None):
+               sample_receipt_ros_ns=None, camera_only=False):
+        if camera_only:
+            # Use the normal wheel filter and validity contract, but deliberately
+            # withhold gyro even if it returns during this latched fallback run.
+            # No fabricated zero-yaw state and no reuse of motion-aligned roads.
+            observations = {**observations, "imu_angular_velocity": None}
         clock_valid = self.motion.check_clock(now_s)
         receipt_stamps = sample_receipt_ros_ns or {}
         for name, component in (("wheel_speed", None), ("imu_angular_velocity", 2)):
@@ -1221,7 +1299,8 @@ class EstimationPipeline:
                          "source_age_s": ages.get("cone_detections"),
                          "fit_valid": observed["valid"] and observed["visibility"] == "both",
                          "status": observed["status"], "visibility": observed["visibility"],
-                         "boundary_diagnostics": deepcopy(observed["boundary_diagnostics"])}
+                         "boundary_diagnostics": deepcopy(observed["boundary_diagnostics"]),
+                         "colour_assignment": deepcopy(observed.get("colour_assignment"))}
         failure = road["status"]
         if (self.settings.continuous_road_output and self._failure_since_s is not None
                 and self._trusted_road is not None and road["valid"]
@@ -1242,6 +1321,7 @@ class EstimationPipeline:
         trusted_candidate = (deepcopy(road) if road["valid"] and
             (road["visibility"] == "both" or self.settings.road_geometry == "ordered_xy"
              and road.get("single_side_inferred_from_learned_width")) else None)
+        camera_road = deepcopy(road) if camera_only else None
         road = self._align_road(road, now_s, state["valid"])
         road.update(current_frame=current_frame, degraded=False, prediction_status="not_used",
                     prediction_elapsed_s=None, prediction_age_s=None,
@@ -1304,6 +1384,14 @@ class EstimationPipeline:
             self._failure_since_s = None
         else:
             self._clear_road_history()
+        if camera_only:
+            road = camera_road
+            for key in ("_center_coeffs", "_boundary_fits", "_support_cones"):
+                road.pop(key, None)
+            road.update(measurement_timestamp_s=road["timestamp_s"],
+                        time_aligned=False, motion_compensated=False,
+                        motion_compensation=None, history_used=False, degraded=False,
+                        tracking_basis="uncompensated_camera_frame")
         lidar = observations.get("lidar_cartesian")
         lidar_stamp = stamps.get("lidar_cartesian")
         available = self._fresh(lidar, ages.get("lidar_cartesian")) and lidar_stamp is not None
@@ -1344,5 +1432,7 @@ class EstimationPipeline:
                      "wheel_time_basis": "ros_receipt_proxy",
                      "wheel_acquisition_time_known": False,
                      "assumptions": ["forward_motion", "planar_no_slip", "causal_filtered_hold"]}
+        if camera_only:
+            alignment.update(valid=False, method="uncompensated_camera_frame")
         return {"state": state, "road": road, "obstacles": obstacle, "alignment": alignment,
                 "vehicle_params": params, "vehicle_limits": limits}

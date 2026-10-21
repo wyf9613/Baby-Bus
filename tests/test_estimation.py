@@ -338,7 +338,7 @@ class EstimationChecks(unittest.TestCase):
                                   int(value) if match[1] in ("left_colour", "right_colour") else
                                   float(value) if value[0] in "-0123456789" else value)
         expected = vars(Settings())
-        expected.update(left_colour=1, right_colour=2, road_geometry="ordered_xy",
+        expected.update(colour_assignment="auto", left_colour=2, right_colour=1, road_geometry="ordered_xy",
                         single_side_from_learned_width=True, single_side_offset_fraction=0.6,
                         history_propagation="continuous", road_history_mode="distance",
                         history_merge_single_side=True, history_merge_radius_m=0.08,
@@ -1327,8 +1327,9 @@ class RelaxedContinuityProfileChecks(unittest.TestCase):
                                 int(value) if match[1] in ("left_colour", "right_colour") else
                                 float(value) if value[0] in "-0123456789" else value)
         # These cases compare timing/fit tuning with the shared blue-left fixture.
-        # The actual yellow-left policy path is covered in test_centerline_follow.
-        values.update(left_colour=2, right_colour=1, road_geometry="y_of_x")
+        # Keep the archived fixed-colour width/order contract; automatic layout
+        # acquisition has separate coverage in test_colour_assignment.
+        values.update(colour_assignment="fixed", left_colour=2, right_colour=1, road_geometry="y_of_x")
         self.settings = Settings(**values)
 
     def step(self, pipeline, now, **kwargs):

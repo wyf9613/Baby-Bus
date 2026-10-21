@@ -2,9 +2,12 @@
 
 当前实现位于 [mvp21_policy/](mvp21_policy/README.md)，两个 script 名称均进入同一套
 最新 MVP2.1 模块。ROS 与原虚拟车辆环境共用同一执行管理器、PID 回退函数和
-`config/ai4r_policy.yaml`。默认 native 规划 1 Hz、控制 20 Hz，暂不接入学习 policy。
+`config/ai4r_policy.yaml`。当前 native 规划及学习选路 1 Hz、控制 20 Hz。
 单文件交付使用环境要求的唯一名称 [scripts/policy_node.py](scripts/policy_node.py)，
-由模块源码生成；2026-10-20 的交付未包含学习评分器或模型权重。
+由模块源码生成；2026-10-21 已将最新多起点 RNN 与权重嵌入单文件，当前部署至 `.19`。
+按用户选择，目标速度为 0.5 m/s，与该模型训练条件一致；驱动前馈与上限均为 0.50，
+保持严格 IMU 准入。模型只选择原生候选，实际执行仍使用共同执行管理器和 PID。
+左右颜色使用自动判断，支持蓝左黄右与黄左蓝右；每次 Run 根据实际双侧几何确认。
 保留 MVP2.1 的部分道路、边界来源、滚动检查与中线降级行为；本地补入结果顺序隔离。
 每周期记录实际参考来源，到达终点与 native-only 验收分别报告。
 合并边界和结果见[统一执行说明](offline/mvp21_sim/SHARED_EXECUTION_CN.md)。
@@ -15,15 +18,15 @@
 说明固定数据编码。旧评分特征、历史路径输入及旧模型/候选兼容代码已删除。
 新一轮[循环 policy 训练](offline/lattice_training/RECURRENT_TRAINING_CN.md)保持外部特征，
 在模型内部保存实际执行候选的 16 维状态，使用随机宽度/缺桶道路、0.5 m/s C* 与道路进度奖励。
-候选共享前序状态，训练沿固定采集执行序列重放并进行 BPTT；未启用主线 policy。
-历史权重、数据与上游来源快照保留作档案，当前入口不加载它们。
+候选共享前序状态，训练沿固定采集执行序列重放并进行 BPTT。当前车端启用
+`2026-10-19-multistart-policy` 冻结权重；早期权重、数据与上游来源快照保留作档案。
 [新协议首批流程记录](offline/lattice_training/artifacts/2026-10-16-new-protocol-batch/REPORT_CN.md)
-包含采集、C* 标签、训练及冻结候选评估；尚未接入主线。
+包含该历史批次的采集、C* 标签、训练及冻结候选评估。
 [扩展采集与失败选路报告](offline/lattice_training/artifacts/2026-10-17-expanded-collection/REPORT_CN.md)
 记录左右弯、缺中线、特殊掉头及近中线障碍的合并训练和剩余误选。
 
 模块源码、单文件打包和虚拟环境分别见上述模块说明、[打包工具](tools/BUNDLE_PYTHON.md)、
-[统一回放](offline/mvp21_sim/README.md)。本地配置已选择 planner，尚未部署。
+[统一回放](offline/mvp21_sim/README.md)。当前部署与生效参数见[验收记录](docs/acceptance.md)。
 以下为课程 ROS 包使用说明。
 
 Student ROS 2 policy package for the DREAM robot, targeting Ubuntu 24.04 and

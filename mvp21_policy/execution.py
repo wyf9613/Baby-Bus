@@ -224,9 +224,11 @@ class PlannerExecutionManager:
 
 
 def priming_motion_history(baseline, estimates, has_control, elapsed_s, control):
-    """Preserve the upstream bounded neutral start before the first control step."""
+    """Bounded neutral acquisition of motion history or boundary association."""
     return (not baseline['valid'] and not has_control and estimates['state']['valid']
-        and estimates['road']['status'] == 'missing_motion_history' and elapsed_s < control.startup_grace_s)
+        and estimates['road']['status'] in ('missing_motion_history',
+            'boundary_colour_assignment_pending', 'boundary_colour_assignment_ambiguous')
+        and elapsed_s < control.startup_grace_s)
 
 
 def calculate_selected_control(controller, baseline, planner_reference, state, vehicle_params,

@@ -7,6 +7,384 @@ C* remains a constrained numerical approximation, not a proven global optimum.
 The ROS fast gate remains blocked by the absent pinned dream_interfaces checkout.
 Historical planner/controller/physical evidence below remains separate.
 
+## Operator acceptance of the driving version, 2026-10-21
+
+After the restored auto-colour RNN policy and full-steering settings were
+uploaded, the user reported: "车辆能按预计行驶" and authorized pushing this
+version to the current feature branch. This is operator-reported physical
+acceptance of the delivered configuration; it adds no measured trajectory,
+stopping-distance or exhaustive U-turn result. No further vehicle connection
+or runtime work was requested or performed during Git publication.
+
+The delivered bundle/model/configuration hashes remain those recorded below.
+The final source already passed the focused 227-test/69-subtest checks; the
+earlier broader RNN/fallback checks and local ROS-gate limitation remain
+separately recorded. Publication preserves the deployed executable and both
+parameter files, together with their modular sources and frozen checkpoint.
+Publication auditing also checks the staged Git blobs against the deployed
+bundle, both YAML files and checkpoint. A narrow `.gitattributes` exception
+preserves the checkpoint's original CRLF bytes, matching the protected training
+artifact and pinned SHA-256 across fresh checkouts; no weight or runtime
+artifact bytes were changed.
+
+## Policy restored and full-steering configuration uploaded, 2026-10-21
+
+The user authorized upload, then clarified that `policy_node.py` had also been
+overwritten and must be restored. Uploaded the existing auto-colour RNN bundle,
+its common policy YAML, and the full-steering Traxxas component YAML to .19.
+Only the original `traxxas_vehicle_interface.yaml` was backed up, under
+`/home/ai4r/ai4r_student_workspace/.policy-backups/20261021T051158Z-steering-full/`;
+its SHA-256 is
+`e46d2271e5c8f8ff8ebd911beefd5777c4dab5a9cbc5b9d61707dddfbb3cc4ac`.
+No policy/script/configuration backup was made besides that chassis file.
+
+Remote uploaded hashes match local files. Bundle and policy-YAML hashes remain
+`244491cc1d86f23c1e8a91c5cb5a0828026e3d82dbcf315975019252e477db88` and
+`172373cc4018a9189e354fa92a15e58c382a5b226b6450f6dbbf2b152b9e00e8`.
+Traxxas-YAML hash:
+`c24aedb55fab9291e78b52f92cdd15fb53d3f224b3c9fbae7a7ee0787d9561a8`.
+Parsed comparison with the backed-up car configuration confirms only
+`steering_min_normalized: -0.5 -> -1.0` and
+`steering_max_normalized: 0.5 -> 1.0` changed; all PWM, trim, timing, drive and
+encoder settings match. The policy retains RNN selection, automatic colour
+association, 0.5 m/s target, 0.50 drive and strict IMU.
+
+Activation is left to the operator as requested: stop `ai4r_policy`, stop/start
+`traxxas_vehicle_interface`, then start `ai4r_policy`. Sensors and Foxglove need
+no restart for this change. Vehicle-interface restart reconnects Disarmed;
+Enable/Run remain manual. No runtime stop/start/restart, live parameter edits or
+motion commands were issued during this upload.
+`dream build ros student` passes and all three installed symlink hashes match
+the uploaded files. No service was restarted. Final remote evidence is
+`.policy-diagnostics/upload-full-steering-20261021.json`; build output is
+`.policy-diagnostics/build-policy-full-steering-20261021.log`.
+
+## Full steering endpoints prepared locally; deployment held, 2026-10-21
+
+The user reported successful physical driving but insufficient U-turn steering,
+then explicitly requested no upload because another policy is using the car.
+Read-only inspection finds our policy's existing tracking log requests reaching
+both -1.0 and +1.0, matching shared-YAML
+`control.steering_max_normalized=1.0`. The live Traxxas interface instead has
+`steering_min_normalized=-0.5` and `steering_max_normalized=0.5`; its input
+[-1,1] is scaled into those endpoints. This explains half-range autonomous
+steering downstream of the policy. The policy node was no longer discoverable
+at this inspection, so historical tracking logs are not presented as the
+currently running policy's commands.
+
+Prepared only the local `config/traxxas_vehicle_interface.yaml` endpoints as
+-1.0/+1.0. Policy code, target speed, drive feedforward/cap, trim, steering slew,
+PWM mapping/calibration and all other settings are unchanged. This component
+YAML is not embedded in or applied by `policy_node.py`; future activation needs
+its separate admitted upload and a vehicle-interface restart, which reconnects
+Disarmed. No live parameter edits, upload, build, restart or motion commands
+were issued for this change. Vehicle endpoints remain -0.5/+0.5 until an
+explicit user instruction resumes deployment. Existing read-only diagnostic
+evidence is in `.policy-diagnostics/steering-range-20261021.json` on .19.
+
+## Automatic boundary-colour association on .19, 2026-10-21
+
+The user required both colour conventions, superseding the temporary fixed
+blue-left correction below. Shared YAML now enables
+`estimation.colour_assignment=auto`. The estimator checks yellow-left/blue-right
+and blue-left/yellow-right independently with the existing observed two-sided
+geometry gates, with known/learned-width inference disabled during acquisition.
+One valid interpretation acquires the mapping. If both are valid, the nearer
+observed centreline must win by more than one sample spacing; otherwise the
+mapping remains ambiguous. Configured fixed-colour preferences are ignored.
+
+Acquired mapping is retained through partial frames, turns, road-history clears
+and width fallback. Explicit Stop/Run creates a new estimator and reacquires;
+the RNN memory continues to reset at the same FSM boundary. Unresolved startup
+association publishes only zero within the existing 1 s grace. It cannot extend
+the grace or prime after tracking; expiry/fault still requires explicit resume.
+Association evidence is included in road records, a one-time acquisition log
+and planning-rejection diagnostics. Width, tangent, ordering, coverage, IMU,
+vehicle control, 0.5 m/s target and 0.50 drive settings are unchanged.
+
+Focused estimator/colour association/ordered-pairing/control/execution/centreline/
+learned-policy checks pass 227 tests and 69 subtests. Cases include both physical
+layouts irrespective of the configured fixed preference, boundaries on the
+same body side, no acquisition from one-sided/known-width inference, ambiguity,
+nearest-corridor arbitration, dropout/history stability, new-run reacquisition,
+unmodified width rejection and actual-node neutral acquisition/timeout. The
+archived fixed-colour width/order fixture explicitly keeps fixed mode.
+No additional hardware-free ROS smoke test was run. The local full gate remains
+blocked by the previously recorded missing pinned interfaces checkout.
+
+Regenerated 21-source/two-resource single file: 600820 bytes; SHA-256
+`244491cc1d86f23c1e8a91c5cb5a0828026e3d82dbcf315975019252e477db88`.
+YAML SHA-256:
+`172373cc4018a9189e354fa92a15e58c382a5b226b6450f6dbbf2b152b9e00e8`.
+The RNN checkpoint is unchanged. Direct overwrite to .19 creates no backup;
+vehicle Enable/Run remain operator actions.
+Car build and service restart pass, installed hashes match, and live ROS
+readback confirms `colour_assignment=auto` with the unchanged model, speed,
+drive and strict-IMU settings. During operator-triggered runs, acquisition logs
+select left=2/right=1 from real measured two-sided geometry (observed width
+about 1.01--1.07 m). At readback the vehicle is `Enabled` and policy is stopped
+at `Planning: invalid_road_invalid_boundary_pairing`. Automatic assignment is
+observed working; continued driving and the remaining pairing rejection are
+not claimed solved. Remote evidence is
+`.policy-diagnostics/deployment-auto-colour-20261021.json`, with build output
+in `.policy-diagnostics/build-auto-colour-20261021.log`. No backup or agent
+Enable/Run command was issued.
+
+## Direct deployment to .19, 2026-10-21
+
+The user reported another IMU fault on .22 and changed the target to
+`10.43.254.19`, explicitly requesting direct overwrite without a backup.
+Uploaded the identical RNN bundle and separate common YAML; both remote hashes
+match the .22 artifact recorded below. No backup was created. Target NumPy is
+1.26.4. `dream build ros student` passes; lidar and policy start successfully.
+Existing Foxglove, IMU, vehicle-interface and camera-detector units were already
+running. The agent sends neither vehicle Enable nor policy Run. No new isolated
+tests or source/configuration changes were made for this transfer.
+Startup logs confirm the pinned recurrent model loaded at 0.5 m/s. Live
+parameters confirm learned selection enabled, 0.50 drive feedforward/cap and
+strict IMU. A read-only sensor sample receives 153 valid fresh angular-velocity
+messages; the last gyro sample is 0.018 s old with covariance[0]=0. Policy is
+in state 2 awaiting an explicit request; vehicle state is `Disarmed`. This does
+not establish continued IMU availability or physical driving. Remote evidence:
+`.policy-diagnostics/deployment-10.43.254.19-learned-rnn-20261021.json`.
+
+Read-only follow-up on the reported `imu_specific_force` timestamp warning:
+350 IMU messages in 6.01 s, from one BNO publisher. All 259 present orientation
+and gyro samples pass the timestamp gate. Of 327 present specific-force
+samples, eight arrive out of order by approximately 8--10 ms and are rejected;
+319 pass. No stale/future/repeated/zero stamps are observed. Arrival ages range
+from 0.006 to 0.046 s. Specific force is not a required input for this controller.
+The policy's actual stopped-state reason is
+`Planning: invalid_road_insufficient_common_range`; rejection logs report
+`road_visibility=left_only`, valid speed/state/yaw rate, and road age about
+0.26--0.29 s. Vehicle state is `Disarmed`. No code/threshold/service changes or
+Enable/Run commands were made. Raw evidence is
+`.policy-diagnostics/imu-warning-10.43.254.19-20261021.json` on the car.
+
+### Corrected boundary-colour mapping on .19
+
+The follow-up raw-cone capture corrects the earlier interpretation of
+`visibility=left_only`: in `ordered_xy`, failed two-boundary pairing also writes
+this field, so it does not establish that the detector only saw one side.
+All ten captured frames contain accepted chains of both colours. Near blue
+cones lie at base_link y approximately +0.54 m, near yellow cones at -0.51 m,
+but the deployed YAML selected yellow-left/blue-right. This reversed the inward
+normal and produced negative signed widths around -1.08 m, with no admitted
+pairing samples. The named error can cover width rejection, opposite direction,
+ordering or inadequate contiguous support; it is not a dedicated narrow-road
+error. Current gates are 0.15--2.5 m width, tangent agreement >=0.3, and >=0.3 m
+continuous paired centreline.
+
+Changed only the common YAML's colour mapping to blue-left (2), yellow-right
+(1), and regenerated the single file with that configuration snapshot. The
+same ten raw frames under the corrected mapping yield six valid two-sided
+roads, width 1.065--1.083 m; four still fail cold-start contiguous pairing.
+That remaining observation is retained, not reported as complete road recovery.
+Model weights, algorithms, width gates, target speed and drive settings are
+unchanged. Directly overwrote the .19 files without a backup, built and restarted
+policy. Bundle SHA-256:
+`bff91f2eeeb857e1472c1931ac3a717503bf8e5db7b692792b7e7eb12d3debe6`;
+YAML SHA-256:
+`fd9eb1e4b78fc61ccb8e75942e1a233c23d77dcc9e39a019591c370eb6d959bf`.
+Raw capture and diagnosis are in the car's `.policy-diagnostics/` directory:
+`road-pairing-10.43.254.19-20261021.json` and
+`road-colour-diagnosis-20261021.json`. The agent sends no Enable/Run.
+Live ROS readback confirms left=2/right=1, unchanged 0.15--2.5 m width and
+0.3 m coverage gates, RNN enabled and 0.5 m/s target. Installed hashes match;
+policy awaits an explicit request in zero-action state. Readback evidence:
+`.policy-diagnostics/deployment-colour-mapping-20261021.json`.
+
+## Latest multi-start RNN deployed to .22, 2026-10-21
+
+The user authorized learned-policy integration and explicitly chose the latest
+multi-start RNN with a 0.5 m/s target matching its training condition. The
+unchanged checkpoint is copied from
+`offline/lattice_training/artifacts/2026-10-19-multistart-policy/model.json`;
+SHA-256 `a3116bb7bc4bb46ccb6e208fa3de628eca940820810943409c3157e5b12aa66b`.
+No retraining or historical-artifact/upstream edits were made. Drive feedforward
+and cap remain 0.50; gyro fallback remains disabled. Native generation and
+learned selection run at 1 Hz, shared PID control at 20 Hz.
+
+The frozen scorer ranks collision-admitted native candidates using only the
+existing current-state, road/obstacles and candidate encoder. All candidates
+share the preceding RNN state. State commits once after the selected lattice
+path's action is published, never for baseline/rejected/stale jobs. FSM changes
+reset memory. Old-context results are fenced before execution admission;
+malformed/error results report `POLICY_ERROR`. Shared `execution.py` admission,
+PID fallback and sensor/stop gates remain in use. Current native candidate
+count is 48 versus training's 8; matching target speed does not establish C*
+equivalence or repair existing perception/branch/U-turn limits.
+
+Portable focused regressions pass 335 tests and 172 subtests, with one Windows
+symlink-permission skip. Exact standalone-file auditing passes 21-source/two-resource
+matching, 20 native and 20 learned recorded worker jobs, malformed JSON recovery
+and deterministic rebuilding. The required local fast gate was attempted and
+remains blocked before build by the absent pinned `dream_interfaces` checkout.
+An already-completed synthetic ROS check on the target used domain 218 and
+`/learned_smoke`, without vehicle control: two learned selections, memory
+revision 2, 51 nonzero synthetic actions, 32 baseline ticks, 20 lattice ticks,
+and zero on Stop in 5.30 s. This is software evidence, not physical driving.
+
+Final fixed-name bundle: 593811 bytes; SHA-256
+`14257dab48284982bd2413f979f158652676d443ffe8f8dba7fae96a63314797`.
+YAML SHA-256:
+`31532652ad9de4287bbebb689dbe36414e1ad4ba773340119dc13f6b769b09f6`.
+The single script embeds all 21 sources, YAML snapshot and model; only this
+script and the separate ROS parameter YAML are copied into the live package.
+ROS/messages and NumPy remain environment dependencies; target NumPy is 1.26.4.
+
+At deployment, `.22` contained a different simple-cone policy rather than the
+previous day's bundle. Both current files were backed up under
+`/home/ai4r/ai4r_student_workspace/.policy-backups/20261021T041004Z-learned-rnn/`
+before replacement. `dream build ros student` passes and `ai4r_policy` restarts
+successfully. Source and installed symlink hashes match the final artifact.
+Startup logs confirm `Learned policy loaded`, `recurrent=True`, the pinned
+checkpoint hash, and `cruise_speed_mps=0.5`, with no ERROR/FATAL/traceback found.
+Live ROS parameters confirm learned policy enabled, the pinned model hash,
+0.5 m/s target, 0.50 feedforward/cap, strict IMU, and planner control enabled.
+Read-only state observation reports policy state 2 and vehicle `Enabled`.
+The agent sends neither Enable nor Run; physical RNN driving remains unobserved.
+Raw car-side evidence is
+`.policy-diagnostics/deployment-10.43.254.22-learned-rnn-20261021.json`
+inside the student workspace; build output is in
+`.policy-diagnostics/build-learned-rnn-20261021.log`.
+
+## Requested 0.50 starting effort on .22, 2026-10-20
+
+The user requested 0.50 starting effort. Raised common-YAML
+`control.mvp_drive_feedforward` from 0.40 to 0.50 and `control.drive_max` from
+0.45 to 0.50, so the speed PI cannot raise the command beyond the requested
+0.50. Target speed remains 0.2 m/s and strict IMU admission remains enabled
+(`gyro_fallback_enabled=false`). No controller algorithm or hardware mapping
+was changed. Control/lifecycle and centerline checks pass 87 tests and 32
+subtests; exact bundle auditing passes source/configuration matching, 20
+isolated worker jobs, malformed-input recovery and deterministic rebuilding.
+The required local ROS gate was attempted and remains blocked by the absent
+pinned `dream_interfaces` checkout.
+
+Backed up the previous .22 deployment under
+`.policy-backups/20261020T051018Z-imu-drive050/`, installed the regenerated
+fixed-name script and common YAML, built with `dream build ros student`, and
+restarted policy successfully. Artifact: 450768 bytes; SHA-256
+`4f18ce2e556cc1ecc2f1b768b0d0d9412b92ff642d3cffaa1b6329d1fc66ad0b`.
+Configuration SHA-256:
+`b8a4622cec58eb94c9e0a1afb61df3c3dd81b1a7e13728f29d1f0a5ffd11084b`.
+Installed hashes and live parameters match. A 5.0 s read-only probe receives
+252 valid gyro samples and 92 zero-only policy actions in state 2. Vehicle
+state is now `Enabled`; the agent sends no Enable or Run. Physical starting
+performance at 0.50 remains untested. The raw remote evidence is
+`.policy-diagnostics/deployment-10.43.254.22-imu-drive050-20261020.json` in the
+student workspace.
+
+## Strict IMU mode and increased drive effort on .22, 2026-10-20
+
+The user reported insufficient starting effort and requested the previous IMU
+mode plus increased drive. Read-only inspection confirms that the preceding run
+already used gyro (`gyro_fallback=false`) and logged drive commands reaching
+the old 0.35 cap. Both the pre-fallback configuration and the initial fallback
+configuration used a 0.2 m/s target, 0.30 normalized drive feedforward and 0.35
+drive cap. The 0.30 value was drive effort, not a speed target. At inspection,
+the operator had stopped policy and disabled the vehicle; current requested and
+applied commands were zero. The physical breakaway threshold is not established.
+
+At the user's request, changed only three common-YAML parameter values:
+`gyro_fallback_enabled: false`, `mvp_drive_feedforward: 0.40`, and
+`drive_max: 0.45`. This restores strict gyro admission; the optional fallback
+implementation remains available but disabled. Target speed stays 0.2 m/s,
+speed PID gains stay 0.35/0.08, and hardware mapping is untouched. Regenerated
+the fixed-name single-file delivery, backed up the preceding .22 files under
+`.policy-backups/20261020T050439Z-imu-drive040/`, installed both script and YAML,
+built successfully with `dream build ros student`, and restarted only policy.
+
+Controller/lifecycle and centerline regressions pass 87 tests and 32 subtests.
+The shipped-YAML test checks strict missing-gyro refusal, delayed-camera startup
+with valid gyro, the raised 0.45 effort bound and immediate zero on Stop. Exact
+bundle audit checks 15 embedded sources and the YAML snapshot, 20 isolated
+recorded worker jobs, malformed JSON recovery and deterministic rebuild. The
+required local ROS fast gate was attempted and remains blocked before build by
+the absent pinned `dream_interfaces` checkout.
+
+Artifact: 450764 bytes; SHA-256
+`9b085279121b1923c753a88719f43a986cb2d74060e7d4ba501352c50f36fae6`.
+Configuration SHA-256:
+`18d7e65a9f0b1943d5b6f6fde35a09a46d7390402fd2bad35af034fd24ca23a2`.
+Installed symlink hashes match. An 8.0 s read-only ROS probe confirms all changed
+parameters, 389 valid gyro samples, policy state 2 and 159 zero-only actions.
+Vehicle remains `Disabled`; the agent sends neither Enable nor Run. Physical
+starting performance at the increased effort is untested and requires the
+operator's next run. Raw deployment evidence is saved in
+`.verification/deployment-10.43.254.22-imu-drive040-20261020.json` locally and
+the matching `.policy-diagnostics/` file on the vehicle.
+
+## Explicit missing-gyro camera fallback, 2026-10-20
+
+Implemented the user's requested fallback in the modular runtime and regenerated
+the required single-file `scripts/policy_node.py`. The common YAML enables
+`control.gyro_fallback_enabled`; bare-node defaults keep it off. It requires
+MVP control and the road-centerline planner. Missing or expired angular velocity
+now admits camera-only tracking, including cold start, while emitting a
+`Gyro fallback:` warning and state reason. Motion-estimator age limits trigger
+the switch before the previous gyro-dependent reference expires.
+
+Fallback uses only the latest camera frame's two-sided road and the shared PID,
+with target speed capped at 0.2 m/s and acquisition age below 0.35 s. It keeps
+the road's measurement timestamp, `time_aligned=false`, and invalid/missing yaw
+rate; no zero gyro, motion-aligned history, cached path or learned width is
+substituted. Pending native results are fenced, submissions stop, and a native
+action calculated across a switch is discarded in favour of zero. The mode
+remains latched until explicit Stop/Run, even if the gyro returns. Camera/wheel
+loss, stale data, insufficient road geometry and any other required sensor
+still stop into continuous zero actions with explicit resume. This introduces
+an uncompensated camera approximation and does not establish cornering quality
+or physical stopping performance. Vehicle enabling remains separate.
+
+Portable estimator, planning, controller/lifecycle, road pairing, lattice,
+execution, compatibility, module, bundler and Frenet-input regressions: 308
+passed, 1 Windows symlink-permission skip, 169 subtests passed. After adding an
+additional shipped-YAML test, the final fallback-only run passes all 12 cases
+and 11 subtests, including 0.19 s delayed camera observations without any IMU,
+dropout/recovery latching, async fencing, expiry during calculation, source-age
+deadlines and independent stopping. The required CONTRIBUTING fast command was
+attempted in WSL and stops before build because the pinned `dream_interfaces`
+checkout is absent. Full ROS and physical tests are not run.
+
+Final artifact: 450360 bytes; SHA-256
+`a3b666253365cfbe8e2f3c154eca22a2f11df23f417e0ad35e2af1e6b417782e`.
+All 15 embedded sources and the YAML snapshot match the working tree. The
+exact file alone passes 20 isolated recorded worker jobs, malformed JSON
+recovery and deterministic rebuild. It contains no learned-policy modules or
+weights. New configuration parameters must be copied with the script during
+deployment; the embedded YAML snapshot is not automatically loaded. This
+initial implementation was validated locally; subsequent vehicle deployment is
+recorded below.
+
+### Deployment to 10.43.254.22, 2026-10-20
+
+At the user's request, switched the target to `10.43.254.22`, backed up its
+previous parking-policy script and configuration under
+`/home/ai4r/ai4r_student_workspace/.policy-backups/20261020T044413Z-gyro-fallback/`,
+and installed the exact fallback bundle and common YAML. Source and installed
+symlink hashes match the local artifact above; configuration SHA-256 is
+`a0b5c2988f7948b0cd7014cc6d7737f011c99e134c0b23fd372e67427e7234dc`.
+`dream build ros student` succeeds. Foxglove, vehicle interface, IMU, lidar,
+CPU cone detector and policy units are running; the alternative GPU detector
+remains stopped. The live node reports fallback enabled, camera age limit
+0.35 s, target speed cap 0.2 m/s, MVP control and 20 Hz updates.
+
+An 8.0 s read-only ROS probe receives 382 IMU messages including 301 valid
+gyro samples, 317 wheel messages, 73 nonempty cone batches and 74 lidar scans.
+The last gyro sample is about 0.004 s old. IMU diagnostics report streaming,
+publication ready and 51 Hz angular-velocity input, with a remaining
+`CALIBRATING` / `accuracy_below_low` warning. The last cone batch contains
+20 cones (11 yellow, 9 blue), acquisition age about 0.253 s. These observations
+establish data availability, not physical driving performance.
+
+Vehicle state is `Disarmed`; policy stays in state 2 with 139 observed actions,
+all zero. No vehicle Enable or policy Run was sent. Physical tracking and
+fallback during a live run remain untested. Raw evidence is saved locally in
+`.verification/remote-startup-10.43.254.22-gyro-fallback-20261020.json` and on the
+vehicle in `.policy-diagnostics/deployment-10.43.254.22-gyro-fallback-20261020.json`.
+
 ## Planner lookup/cache optimization and rebuilt delivery, 2026-10-20
 
 Fetched `feature/mpc-model@15724bceb6b34f1e3a6723b441ffa1c3e7910a1b` and

@@ -69,6 +69,11 @@ class ControlSettings:
     # Control-only recovery from transient road failures; legacy code defaults
     # stay off. Shipped MVP YAML enables it. These are experiment budgets.
     robustness_enabled: bool = False
+    # Explicit camera-frame tracking when yaw rate is unavailable. Latched for
+    # this run; it never invents gyro samples or dead-reckons an old path.
+    gyro_fallback_enabled: bool = False
+    gyro_fallback_max_camera_age_s: float = 0.35
+    gyro_fallback_speed_mps: float = 0.2
     reference_hold_max_s: float = 1.0
     reference_hold_max_distance_m: float = 0.25
 
@@ -77,6 +82,10 @@ class ControlSettings:
             raise ValueError("control.enabled must be bool")
         if not isinstance(self.robustness_enabled, bool):
             raise ValueError("control.robustness_enabled must be bool")
+        if not isinstance(self.gyro_fallback_enabled, bool):
+            raise ValueError("control.gyro_fallback_enabled must be bool")
+        if self.gyro_fallback_enabled and self.mode != "mvp":
+            raise ValueError("Gyro fallback requires control.mode=mvp")
         if not isinstance(self.mvp_ordered_cornering_enabled, bool):
             raise ValueError("control.mvp_ordered_cornering_enabled must be bool")
         if self.mode not in ("mvp", "calibrated"):
@@ -90,7 +99,8 @@ class ControlSettings:
         for name in ("derivative_tau_s", "drive_max", "steering_max_normalized",
                      "max_dt_s", "startup_grace_s",
                      "reference_hold_max_s", "reference_hold_max_distance_m",
-                     "end_straight_max_time_s"):
+                     "end_straight_max_time_s", "gyro_fallback_max_camera_age_s",
+                     "gyro_fallback_speed_mps"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
         for name in ("max_distance_m", "max_run_time_s", "end_straight_distance_m", "mvp_error_filter_tau_s"):
