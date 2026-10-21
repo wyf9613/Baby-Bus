@@ -177,6 +177,15 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
   ```
 
   预期依次为 travel_plus_window、prefix、prefix、fixed。
+- **锥桶颜色**（每个场地都查）：上表是黄左（`--cones yellow-left`，10-19 场地）。sim 分支组 10-21 在 .19 的场地是**蓝左**（蓝锥在车左 y≈+0.54 m），配置反了时每次起步都 `insufficient_common_range`（路宽算成负的）。车停在路中间看一眼左边是什么颜色；蓝左就用下面这套（只差 `left_colour`/`right_colour`）：
+
+  ```text
+  .verification\car05-lattice21-exec-v020-1m-blueleft       yaml 19b59b15…  policy_node 3cfdf86b…   joint  1 m / 60 s
+  .verification\car05-lattice21-exec-v020-5m-blueleft       yaml 155817a1…  policy_node 3cfdf86b…   joint  5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-blueleft  yaml a46231e0…  policy_node 3cfdf86b…   joint  不限
+  ```
+
+  参数核对时 `estimation.left_colour` / `right_colour`：黄左包是 1 / 2，蓝左包是 2 / 1。
 - **转向区间**（每次上车都查，车是共用的）：
 
   ```bash
