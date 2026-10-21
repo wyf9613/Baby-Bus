@@ -177,6 +177,14 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
   ```
 
   预期依次为 travel_plus_window、prefix、prefix、fixed。
+- **转向区间**（每次上车都查，车是共用的）：
+
+  ```bash
+  ros2 param get /car/traxxas_vehicle_interface steering_min_normalized
+  ros2 param get /car/traxxas_vehicle_interface steering_max_normalized
+  ```
+
+  必须是 -1.0 / 1.0。5 号车的转向模型（`steering_gain_rad` -0.37，满舵 23–25°）是在 ±1.0 下拟合的；如果是 ±0.5，实际转向只有一半，MPC 的模型就错了，急弯和 U 弯一定转不过去。sim 分支组 10-21 也是靠把这里改成 ±1.0 才过的 U 弯。
 - **这次最要紧的是 lattice 耗时**：本机上 `travel_plus_window` 比 `travel` 慢约 56%（82 → 128 ms/次，碰撞检查和评分变长），① 只追回 6–9%。`/car/shadow_planning` 的 `elapsed_s` 和 `timing_s` 要记下来；`late_for_requested_period` 为 true（超过 1 s）或 `/car/planner_execution` 里 `waiting_for_planner` 明显变多，就说明 Jetson 上不够用，回到 `travel` 的包对比。同时看整机 CPU（P4）。
 
 ## 1. SSH、Foxglove、停车、备份
