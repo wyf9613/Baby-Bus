@@ -30,6 +30,8 @@
 
 **包**：7 个 `v020-*` 包已重新生成（policy_node `3cfdf86b…`），参数全是默认值，见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-21。
 
+**WSL 门禁第一次（`97b2d49`）失败**：`test_estimation.test_shipped_estimation_configuration_is_valid` 要求 `ai4r_policy.yaml` 的 `estimation` 段只有数值。`colour_assignment` 移到 `ai4r_policy_mpc_centerline.yaml`（和 `road_geometry` 放在一起）后本机通过；我在改 yaml 之前跑的全量测试，之后只跑了相关模块，所以没发现。包内容不变，只是这个键在 yaml 里换了位置，yaml 哈希随之变化（表里已更新）。
+
 **待做**：
 - WSL：ROS 门禁；ea03-run1 / a5da-run1 车包用 colour auto 回放，看锁定的映射对不对、ea03 右侧别组黄锥会不会误导。
 - 上车：先确认 Jetson 上 `travel_plus_window` 的 lattice 耗时（P2 的遗留问题）。

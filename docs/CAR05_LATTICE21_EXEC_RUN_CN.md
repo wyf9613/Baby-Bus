@@ -159,13 +159,13 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 - 7 个包用和上面相同的命令重新生成（本机 `.verification` 里原来是 `34048cbf…` 那一版）。yaml 和上一版相比只多了 `colour_assignment: fixed`、`collision_coverage: prefix`、`score_coverage: prefix`（以及 10-20 的 `check_length_mode`）。
 
 ```text
-.verification\car05-lattice21-exec-v020-1m               yaml c7d31eeb…  policy_node 3cfdf86b…   joint     1 m / 60 s
-.verification\car05-lattice21-exec-v020-5m               yaml 7cab8c3a…  policy_node 3cfdf86b…   joint     5 m / 60 s
-.verification\car05-lattice21-exec-v020-nolimit          yaml 44d20a8e…  policy_node 3cfdf86b…   joint     不限
-.verification\car05-lattice21-exec-v020-1m-fb            yaml 52c570a7…  policy_node 3cfdf86b…   feedback  1 m / 60 s
-.verification\car05-lattice21-exec-v020-nolimit-fb       yaml 88efae8e…  policy_node 3cfdf86b…   feedback  不限
-.verification\car05-lattice21-exec-v020-nolimit-fb-nomm  yaml 2a3cd14a…  policy_node 3cfdf86b…   feedback，measured_motion 关
-.verification\car05-lattice21-exec-v020-nolimit-fb-soft  yaml f22adf30…  policy_node 3cfdf86b…   feedback，kp 0.15 / ki 0.1
+.verification\car05-lattice21-exec-v020-1m               yaml 3fd7181c…  policy_node 3cfdf86b…   joint     1 m / 60 s
+.verification\car05-lattice21-exec-v020-5m               yaml 0eb7b4b8…  policy_node 3cfdf86b…   joint     5 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit          yaml b72f7f5c…  policy_node 3cfdf86b…   joint     不限
+.verification\car05-lattice21-exec-v020-1m-fb            yaml 33b59a1e…  policy_node 3cfdf86b…   feedback  1 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit-fb       yaml 49097dd6…  policy_node 3cfdf86b…   feedback  不限
+.verification\car05-lattice21-exec-v020-nolimit-fb-nomm  yaml ba348449…  policy_node 3cfdf86b…   feedback，measured_motion 关
+.verification\car05-lattice21-exec-v020-nolimit-fb-soft  yaml e5ffd700…  policy_node 3cfdf86b…   feedback，kp 0.15 / ki 0.1
 ```
 
 - **参数核对**（Disabled 下，接在上面的检查后面）：
