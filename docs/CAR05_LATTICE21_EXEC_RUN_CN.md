@@ -154,7 +154,7 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 
 上车前，WSL ROS 门禁要对这一版代码跑通（`.verification/run_ros_check.sh`）。门禁里"每个部署配置都能启动节点"的测试已经包括 `mpc-exec-lattice21`。
 
-**10-21：sim 分支移植后重新生成**（分支 `mpc-car-run-sim-port`；**还没在实车上验证；WSL 门禁 `f1a3cd2` 已通过**）。见 [SIM_BRANCH_PORT_PLAN_CN.md](SIM_BRANCH_PORT_PLAN_CN.md) 和进度日志 10-21。
+**10-21：sim 分支移植后重新生成**（分支 `mpc-car-run-sim-port`；**还没在实车上验证；WSL 门禁 `7633804`（含转向区间 ±1.0）已通过**）。见 [SIM_BRANCH_PORT_PLAN_CN.md](SIM_BRANCH_PORT_PLAN_CN.md) 和进度日志 10-21。
 - **改了什么**：lattice 弧长查找改二分、knot 缓存（结果逐位不变，本机快 6–9%）；新增 `shadow.collision_coverage`/`score_coverage`、`estimation.colour_assignment`，**包里全部是默认值**（`prefix`/`prefix`/`fixed`），行为和上一版相同。
 - 7 个包用和上面相同的命令重新生成（本机 `.verification` 里原来是 `34048cbf…` 那一版）。yaml 和上一版相比只多了 `colour_assignment: fixed`、`collision_coverage: prefix`、`score_coverage: prefix`（以及 10-20 的 `check_length_mode`）。
 
