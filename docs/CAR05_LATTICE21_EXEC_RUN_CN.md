@@ -154,6 +154,31 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 
 上车前，WSL ROS 门禁要对这一版代码跑通（`.verification/run_ros_check.sh`）。门禁里"每个部署配置都能启动节点"的测试已经包括 `mpc-exec-lattice21`。
 
+**10-21：sim 分支移植后重新生成**（分支 `mpc-car-run-sim-port`；**还没在实车上验证，WSL 门禁待跑**）。见 [SIM_BRANCH_PORT_PLAN_CN.md](SIM_BRANCH_PORT_PLAN_CN.md) 和进度日志 10-21。
+- **改了什么**：lattice 弧长查找改二分、knot 缓存（结果逐位不变，本机快 6–9%）；新增 `shadow.collision_coverage`/`score_coverage`、`estimation.colour_assignment`，**包里全部是默认值**（`prefix`/`prefix`/`fixed`），行为和上一版相同。
+- 7 个包用和上面相同的命令重新生成（本机 `.verification` 里原来是 `34048cbf…` 那一版）。yaml 和上一版相比只多了 `colour_assignment: fixed`、`collision_coverage: prefix`、`score_coverage: prefix`（以及 10-20 的 `check_length_mode`）。
+
+```text
+.verification\car05-lattice21-exec-v020-1m               yaml c7d31eeb…  policy_node 3cfdf86b…   joint     1 m / 60 s
+.verification\car05-lattice21-exec-v020-5m               yaml 7cab8c3a…  policy_node 3cfdf86b…   joint     5 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit          yaml 44d20a8e…  policy_node 3cfdf86b…   joint     不限
+.verification\car05-lattice21-exec-v020-1m-fb            yaml 52c570a7…  policy_node 3cfdf86b…   feedback  1 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit-fb       yaml 88efae8e…  policy_node 3cfdf86b…   feedback  不限
+.verification\car05-lattice21-exec-v020-nolimit-fb-nomm  yaml 2a3cd14a…  policy_node 3cfdf86b…   feedback，measured_motion 关
+.verification\car05-lattice21-exec-v020-nolimit-fb-soft  yaml f22adf30…  policy_node 3cfdf86b…   feedback，kp 0.15 / ki 0.1
+```
+
+- **参数核对**（Disabled 下，接在上面的检查后面）：
+
+  ```bash
+  for p in shadow.check_length_mode shadow.collision_coverage shadow.score_coverage estimation.colour_assignment; do
+    printf "%-32s " "$p"; ros2 param get "$N" "$p"
+  done
+  ```
+
+  预期依次为 travel_plus_window、prefix、prefix、fixed。
+- **这次最要紧的是 lattice 耗时**：本机上 `travel_plus_window` 比 `travel` 慢约 56%（82 → 128 ms/次，碰撞检查和评分变长），① 只追回 6–9%。`/car/shadow_planning` 的 `elapsed_s` 和 `timing_s` 要记下来；`late_for_requested_period` 为 true（超过 1 s）或 `/car/planner_execution` 里 `waiting_for_planner` 明显变多，就说明 Jetson 上不够用，回到 `travel` 的包对比。同时看整机 CPU（P4）。
+
 ## 1. SSH、Foxglove、停车、备份
 
 和 [CAR05_V2_START_FIX_RUN_CN.md](CAR05_V2_START_FIX_RUN_CN.md) 第 1、2 步一样。

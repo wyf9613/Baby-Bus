@@ -2,6 +2,39 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-21：从 sim 分支移植（①③② 都已实现，默认关闭）🟡
+
+按 [SIM_BRANCH_PORT_PLAN_CN.md](SIM_BRANCH_PORT_PLAN_CN.md) 执行，执行前先做了审阅修正（写在该文件开头）。分支 `mpc-car-run-sim-port`，4 个提交，未 push。数据见 [sim_port_20261021.md](../offline/mpc_gym/results/sim_port_20261021.md)。**未上车，WSL 门禁和车包回放待跑。**
+
+**工具（先修，不然后面的对比没有意义）**：
+- `replay_run_jsonl.py --planner-control` 原来先 `--set` 后合并 lattice21.yaml，lattice 回放永远是 `travel`。现在 `--set` 在 overlay 之后再应用一次。
+- 回放和 Gym 里 lattice 结果的可见时间原来取本机实测耗时：同一份代码回放两遍，398 拍里 355 拍不同。两个工具都加了 `--lattice-planning-s`（固定耗时）。Gym 还要 `--set mpc.solver_time_limit_s=1.0`（只用于离线），否则本机忙时 MPC 偶尔撞 0.03 s 上限。两项都固定后结果确定。**以前的回放和 Gym 数字都带这部分波动。**
+- `car05_variants.py`：`shadow.*` 来自 lattice21.yaml（`travel`），不是 car05 的；要看 car05 的 lattice 必须 `--set shadow.check_length_mode=travel_plus_window`。加了 `--json-out`。
+- 回放的 lattice 比较直接输出 10-16 口径的转向反号数；`replay_policy_bag.py` 在 colour auto 时输出何时、按哪种颜色锁定。
+
+**改了什么**（`scripts/policy_node.py`）：
+- ① `_shadow_at` 二分查找（`bisect` 写在函数里，worker 的固定命名空间没有模块级 import）；每次规划内缓存 knot 处的 `frame.at`。
+- ③ `shadow.collision_coverage`、`shadow.score_coverage`：`prefix`（默认）/`generated`，在 lattice21.yaml 里声明。
+- ② `estimation.colour_assignment`：`fixed`（默认）/`auto`。原 `road()` 改名 `_road()`（和 sim 分支的 `_road()` 逐行相同），新 `road()` 照抄 sim 分支；MPC 和 PID 两处起步等待也接受 `boundary_colour_assignment_pending/ambiguous`（仍受 `control.startup_grace_s` 限制，car05 是 3.0 s）；锁定时打一次日志；auto 时 `mpc_debug` 带 `colour_assignment`。`ai4r_policy.yaml` 写了说明。
+
+**验证**：
+- `unittest discover -s tests`：434 个（414 + 2 ① + 5 ③ + 13 ②），唯一错误仍是 `test_policy_node`（需要 ROS）。
+- 关闭时逐位不变：28 个规划任务 × 3 种 `check_length_mode` 和 `bb0bef2` 源码逐位相同（只多了新诊断字段）；3 段 car15 回放在 `travel` 和 `travel_plus_window` 下逐拍相同；Gym 里 colour auto（含颜色对调）和 fixed 逐行相同。
+- 新测试：弧长查找在节点、相邻浮点、外推段上和旧实现相同，worker 规划弯道；`prefix` 默认不变、`generated` 的长度、远处凸起只在 `collision_coverage: generated` 下被拒、取值校验、worker 往返、所有部署包都是 `prefix`；sim 分支的颜色测试（两种约定、单侧不锁、宽度门限、二义、距离差、陈旧数据），MPC 起步等待到锁定再跑、超过 3 s 不锁就停、PID 等待原因、fixed 下 `mpc_debug` 不变。
+
+**结果**：
+- **P3**：`travel_plus_window` 本身就把回放反号（vs PID，三段合计）从 441 降到 351，vs 中心线 MPC 从 304 降到 191。再加 `score_coverage: generated` 到 307 / 169。中心线 MPC 是 149。P3 没解决，lattice 下仍约 2 倍。
+- **③ 不进 car05 配置**：Gym 里 `score_coverage: generated` 横向误差更小，但完成 33 → 26/60（U 弯 9 → 4），多出的失败全在估计层。结果确定，不是波动。
+- **耗时**（本机）：`travel_plus_window` 比 `travel` 慢约 50%（78 → 117 ms/次，碰撞检查和评分），10-20 说的"多约 7%"不对；① 只省 6–9%；③ generated 再加 15–32 ms。**Jetson 上必须实测。**
+- **②**：Gym 第一帧就锁定，行为和 fixed 相同；真实场地（起步只看到一侧、别组锥桶）要靠车包回放。
+
+**包**：7 个 `v020-*` 包已重新生成（policy_node `3cfdf86b…`），参数全是默认值，见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-21。
+
+**待做**：
+- WSL：ROS 门禁；ea03-run1 / a5da-run1 车包用 colour auto 回放，看锁定的映射对不对、ea03 右侧别组黄锥会不会误导。
+- 上车：先确认 Jetson 上 `travel_plus_window` 的 lattice 耗时（P2 的遗留问题）。
+- 和 Planning 组：③ 的结果，以及"弯外准备 0.14 m"。
+
 ## 2026-10-20（再续五）：lattice 规划检查覆盖执行窗口（`shadow.check_length_mode`）🟡
 
 按 [LATTICE_CHECK_LENGTH_PLAN_CN.md](LATTICE_CHECK_LENGTH_PLAN_CN.md) 实施，即"再续四"待决定里的 (b)。**未上车，未在 Jetson 上测 lattice 耗时，WSL 门禁待跑。**
