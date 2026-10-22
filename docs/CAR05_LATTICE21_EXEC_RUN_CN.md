@@ -205,25 +205,25 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 - **代价**（10-20 Gym 的结果反过来）：
   - 急弯里 lattice 和中心线之间的切换变多：1 号车每次运行有 8–27% 的拍落到中心线上（`known_boundary_collision`），转向在 ±1 之间甩得更多；
   - Gym 里 U 弯少完成约 2 次，最大横向误差变大。
-- **包**（从 `mpc-car-run` 生成，policy_node 都是 `9f136686…`）：
+- **包**（从合并后的 `mpc-car-run` `6a25f27` 生成，policy_node 都是 `3cfdf86b…`，即 10-21 sim 分支那一版）：
 
   ```text
-  .verification\car05-lattice21-exec-1m                     yaml 46f77ed6…   0.15   1 m / 60 s
-  .verification\car05-lattice21-exec-5m                     yaml 0d844961…   0.15   5 m / 60 s
-  .verification\car05-lattice21-exec-nolimit                yaml 085a04f0…   0.15   不限
-  .verification\car05-lattice21-exec-v020-1m                yaml 4e960e9c…   joint     1 m / 60 s
-  .verification\car05-lattice21-exec-v020-5m                yaml 31004586…   joint     5 m / 60 s
-  .verification\car05-lattice21-exec-v020-nolimit           yaml 7ddb6ec9…   joint     不限
-  .verification\car05-lattice21-exec-v020-1m-fb             yaml ce0c6563…   feedback  1 m / 60 s
-  .verification\car05-lattice21-exec-v020-nolimit-fb        yaml bde3729c…   feedback  不限
-  .verification\car05-lattice21-exec-v020-nolimit-fb-nomm   yaml 33ad418f…   feedback，measured_motion 关
-  .verification\car05-lattice21-exec-v020-nolimit-fb-soft   yaml c9f300e8…   feedback，kp 0.15 / ki 0.1
-  .verification\car05-lattice21-exec-v020-1m-blueleft       yaml b742c0f2…   joint，蓝左  1 m / 60 s
-  .verification\car05-lattice21-exec-v020-5m-blueleft       yaml 6e966029…   joint，蓝左  5 m / 60 s
-  .verification\car05-lattice21-exec-v020-nolimit-blueleft  yaml 72e4b55c…   joint，蓝左  不限
+  .verification\car05-lattice21-exec-1m                     yaml f9f0fdba…   0.15   1 m / 60 s
+  .verification\car05-lattice21-exec-5m                     yaml a6af9c5f…   0.15   5 m / 60 s
+  .verification\car05-lattice21-exec-nolimit                yaml a8c803e1…   0.15   不限
+  .verification\car05-lattice21-exec-v020-1m                yaml e397bf99…   joint     1 m / 60 s
+  .verification\car05-lattice21-exec-v020-5m                yaml 6d4294e0…   joint     5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit           yaml d3b04129…   joint     不限
+  .verification\car05-lattice21-exec-v020-1m-fb             yaml 7bd17e44…   feedback  1 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-fb        yaml 1b1cadb1…   feedback  不限
+  .verification\car05-lattice21-exec-v020-nolimit-fb-nomm   yaml 38dcd394…   feedback，measured_motion 关
+  .verification\car05-lattice21-exec-v020-nolimit-fb-soft   yaml 2adcf9bb…   feedback，kp 0.15 / ki 0.1
+  .verification\car05-lattice21-exec-v020-1m-blueleft       yaml a4c5ff6d…   joint，蓝左  1 m / 60 s
+  .verification\car05-lattice21-exec-v020-5m-blueleft       yaml 9833dd85…   joint，蓝左  5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-blueleft  yaml 2491b690…   joint，蓝左  不限
   ```
 
-  `v020-nolimit-blueleft` 和 10-22 下午 1 号车过弯用的手工包（`carrun-v020-nolimit-blueleft-travel`）逐字节相同。sim 分支（`mpc-car-run-sim-port`）的 `3cfdf86b…` 那一版包已被覆盖，那个分支要先拣入这一项再生成。
+  10-22 下午 1 号车过弯用的是 `carrun-v020-nolimit-blueleft-travel`（policy_node `9f136686…`，yaml `72e4b55c…`，合并前的 `mpc-car-run`）。它和这里的 `v020-nolimit-blueleft` 只差 3 行默认值：`colour_assignment: fixed`、`collision_coverage: prefix`、`score_coverage: prefix`。policy_node 的差别是 10-21 移植的①③②，关闭时逐位不变。
 - **参数核对**：`ros2 param get "$N" shadow.check_length_mode`，预期 `travel`。
 - **每次上车都查**（共用车，10-22 在 1 号车上发现过）：
   - 转向区间 ±1.0：1 号车当时是 -1.0 / **0.85**；

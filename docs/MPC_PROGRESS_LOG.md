@@ -23,7 +23,14 @@
 2. **10-19 的 5 号车（`travel`）**：8 个 30–52° 的弯，lattice 都在 0.02–0.2 m 处开始转，满舵 78–291 拍。看到两侧桶的比例、离正前方桶的距离，都和今天差不多。所以两天的差别不在感知。
 3. **Gym**（5 号车仿真车，0.20 m/s，lattice 规划耗时固定 0.3 s，每组 60 次）：`travel` 完成 38 次（R1.5 6 次，R1 2 次），`travel_plus_window` 完成 33 次（R1.5 1 次，R1 0 次）。`travel` 那组和另一组同时跑，没有重跑确认。10-20 用 0.1 s 规划耗时得到的结论（tpw 切换少、误差小）在 0.3 s 下仍然成立，但直角弯的完成数反过来了。
 
-**改了什么**：`ai4r_policy_mpc_car05.yaml` 里的 `shadow.check_length_mode` 改为 `travel`，相应更新了 3 个部署配置测试。13 个 car05 lattice 包已重新生成（哈希见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-22），其中 `v020-nolimit-blueleft`（`72e4b55c…`）和今天过弯用的手工包逐字节相同。本机 `unittest discover`：414 个，唯一的错误仍是需要 ROS 的 `test_policy_node`。**WSL 门禁待跑。**
+**改了什么**：`ai4r_policy_mpc_car05.yaml` 里的 `shadow.check_length_mode` 改为 `travel`，相应更新了 3 个部署配置测试。本机 `unittest discover`：414 个，唯一的错误仍是需要 ROS 的 `test_policy_node`。
+
+**合并分支**（同日）：`mpc-car-run-sim-port` 合并进 `mpc-car-run`（`6a25f27`）。现在一条分支上同时有 `travel`、转向区间 ±1.0（P6）和 10-21 移植的①③②（默认关闭）。
+- 冲突只在文档（10-21 和 10-22 两节都保留）和一个部署配置测试（`travel` + `prefix`/`prefix`）。
+- 13 个 car05 lattice 包从合并后的代码重新生成，policy_node 是 `3cfdf86b…`，哈希见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-22。
+- 本机 `unittest discover`：434 个。除了需要 ROS 的 `test_policy_node`，还有 `test_lattice` 的 `test_actual_node_latches_lattice_failure_and_requires_explicit_resume` 失败（`source_deadline_during_planning`）。这个测试里 lattice V2 同步规划，耗时超过 0.4 s 的时限就会失败，对机器速度敏感：合并前的 sim-port 代码当时也同样失败，早些时候单独跑是通过的。不是合并引入的问题，WSL 门禁会再跑一次。
+- 删掉了已经完整并入、远程也有备份的本地分支：`mpc-car-run-port-main`、`control-mpc-v0`、`feature/mpc-prediction-model`、`feature/vehicle-identification`。
+- **WSL 门禁待跑**：`BRANCH=mpc-car-run bash .verification/run_ros_check.sh`。
 
 **其他发现**（都在 worktree 分支 `mpc-new-path-blend` 上，从 sim-port 拉出，没有合入本分支，默认关闭）：
 - **Jetson 上 lattice 耗时**：`travel_plus_window` 下每次 0.26–0.33 s，`late_for_requested_period` 一次都没有出现（P2 的遗留问题解决）。
