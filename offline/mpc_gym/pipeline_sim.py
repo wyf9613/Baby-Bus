@@ -382,6 +382,24 @@ def run(params, offset=0.0, heading=0.0, noise=0.0, seed=1, duration=20.0, start
         result["lattice_results"] = dict(Counter(r.get("status") for r in node.lattice_results))
         sources = [d.get("reference_selection") for d in node.debug if d.get("reference_selection")]
         result["reference_switches"] = sum(1 for a, b in zip(sources, sources[1:]) if a != b)
+        # Steering on the tick a new lattice path takes over (same source, new path_id): car 01's
+        # 2026-10-22 bags had 30 % of their |ds| >= 0.3 steps there.
+        result["new_path_steer_jumps"] = [round(abs(b["applied_steer_action"]-a["applied_steer_action"]), 3)
+            for a, b in zip(node.debug, node.debug[1:])
+            if a.get("reference_selection") == b.get("reference_selection") == "planner"
+            and a.get("path_id") is not None and b.get("path_id") not in (None, a.get("path_id"))
+            and a.get("applied_steer_action") is not None and b.get("applied_steer_action") is not None]
+    # Smoothness (2026-10-22): steering steps of >= 0.3 in one policy tick, full-lock ticks,
+    # full swings (-0.3 <-> +0.3) and time above 0.40 m/s, as tools/car_run_metrics.py on the car.
+    steer = [d["applied_steer_action"] for d in node.debug if d.get("applied_steer_action") is not None]
+    side, swings = 0, 0
+    for v in steer:
+        now = 1 if v >= 0.3 else (-1 if v <= -0.3 else 0)
+        swings += bool(now and side and now != side)
+        side = now or side
+    result.update(steer_jumps=sum(1 for a, b in zip(steer, steer[1:]) if abs(b-a) >= 0.3),
+                  full_lock_ticks=sum(1 for v in steer if abs(v) >= 0.95), steer_ticks=len(steer),
+                  steer_swings=swings, s_above_0_40=round(ENV_DT*sum(1 for v in trace["speed"] if v > 0.40), 2))
     result.update(mpc_enabled=mpc_on, branches=dict(branches), reject_reasons=dict(reasons),
                   final_x_m=round(float(state["world_pose"]["x_m"]), 2),
                   final_y_m=round(float(state["world_pose"]["y_m"]), 3),

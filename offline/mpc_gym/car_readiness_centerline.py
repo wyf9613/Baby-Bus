@@ -90,7 +90,9 @@ def one(job):
             "step_p95_ms": result.get("step_p95_ms"), "branches": result.get("branches"),
             "reference_selection": result.get("reference_selection"),
             "selection_reasons": result.get("selection_reasons"), "lattice_results": result.get("lattice_results"),
-            "reference_switches": result.get("reference_switches")}
+            "reference_switches": result.get("reference_switches"),
+            **{k: result.get(k) for k in ("new_path_steer_jumps", "steer_jumps", "full_lock_ticks", "steer_ticks",
+                                          "steer_swings", "s_above_0_40")}}
 
 
 def summarise(rows):
