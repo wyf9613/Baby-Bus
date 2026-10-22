@@ -4,6 +4,16 @@
     source /opt/ros/jazzy/setup.bash; source <ws with dream_interfaces>/install/setup.bash
     python3 tools/replay_policy_bag.py --params <deployed ai4r_policy.yaml> <bag dir> [<bag dir> ...]
     python3 tools/replay_policy_bag.py --params ... --set estimation.known_lane_width_m=1.0 <bags>
+    python tools/replay_policy_bag.py --params ... --lattice [--lattice-candidates] <bags>   # Windows, no ROS
+
+Without ROS (2026-10-22): when rosbag2_py is not importable the .mcap is read with mcap_ros2
+(pip install mcap mcap-ros2-support, as tools/bag_birdseye.py), and the cone colours fall back
+to DREAM's constants (yellow 1, blue 2) when dream_interfaces is not importable either.
+--lattice attaches the shadow lattice 2.1 (shadow.*, planner_control.*) as
+tools/replay_run_jsonl.py --planner-control does: every plan's status, check length and
+selected path go to the JSON (--lattice-candidates adds all candidates with their cost and
+collision), with a fixed planning time (--lattice-planning-s, default 0.3 s, Jetson-like) so
+repeats agree. It is open loop: the car's motion is the recorded one.
 
 Why: on 2026-10-08 the shadow runs (G2) had 5-79 % valid references, rejected as
 invalid_estimates or insufficient_near_or_far_coverage. mpc_debug does not say WHY the
@@ -89,8 +99,24 @@ def make_node(api, params):
     return node
 
 
+def read_bag_mcap(path):
+    """The same message list from .mcap files with mcap_ros2 (no ROS installation)."""
+    from mcap_ros2.reader import read_ros2_messages
+    path = Path(path)
+    files = [path] if path.suffix == ".mcap" else sorted(path.glob("*.mcap"))
+    if not files:
+        raise SystemExit(f"{path}: no .mcap file (mcap reader without ROS)")
+    messages = [(m.log_time_ns, m.channel.topic, m.ros_msg)
+                for f in files for m in read_ros2_messages(str(f), topics=list(TOPICS.values()))]
+    messages.sort(key=lambda m: m[0])
+    return messages, {topic for _, topic, _ in messages}
+
+
 def read_bag(path):
-    import rosbag2_py
+    try:
+        import rosbag2_py
+    except ImportError:
+        return read_bag_mcap(path)
     from rclpy.serialization import deserialize_message
     from rosidl_runtime_py.utilities import get_message
     path = Path(path)
@@ -175,9 +201,45 @@ def snapshot(node, now_s, ros_ns):
     return values, ages, stamps
 
 
-def replay(api, params, path, imu_mount, full_path=False, runs=False):
+def attach_lattice(api, node, params, planning_s, delivery_s, candidates):
+    """Shadow lattice 2.1 in-process (replay_run_jsonl.enable_lattice); returns the plan log."""
+    import replay_run_jsonl
+    node.planning_diagnostics = node.async_planner = node.mpc_held_reference = None
+    replay_run_jsonl.enable_lattice(node, api, params, delivery_s, planning_s)
+    worker, plans = node.shadow_worker, []
+    submit = worker.submit
+
+    def recorded_submit(job):
+        submit(job)
+        if worker.pending:
+            result = worker.pending[-1][1]
+            selected = result.get("selected") or {}
+            plan = {"t_submit_s": round(node.clock.now_s, 3), "status": result.get("status"),
+                    "check_length_m": result.get("check_length_m"), "score_length_m": result.get("score_length_m"),
+                    "selected_family": selected.get("family"), "selected_cost": selected.get("cost"),
+                    "selected_path": selected.get("path")}
+            if candidates:
+                plan["candidates"] = [{"id": c.get("id"), "family": c.get("family"), "cost": c.get("cost"),
+                                       "collision": c.get("collision") is not None, "path": c.get("path")}
+                                      for c in result.get("candidates") or []]
+            plans.append(plan)
+    worker.submit = recorded_submit
+    calculate = node.calculate_policy_actions
+
+    def with_lattice(*a, **k):
+        node._shadow_poll()                # the node's shadow timer, before the policy step
+        try:
+            return calculate(*a, **k)
+        finally:
+            node._shadow_offer()           # after the action, as run_policy_step does
+    node.calculate_policy_actions = with_lattice
+    return plans
+
+
+def replay(api, params, path, imu_mount, full_path=False, runs=False, lattice=None):
     messages, topics = read_bag(path)
     node = make_node(api, params)
+    plans = attach_lattice(api, node, params, **lattice) if lattice else None
     stops = (api["MPCStop"], api["PolicyStopRequest"])
     recorded = Counter()
     rec_reasons = Counter()
@@ -280,7 +342,11 @@ def replay(api, params, path, imu_mount, full_path=False, runs=False):
                 "mapping": None if lock is None else (run[lock]["colour_left"], run[lock]["colour_right"]),
                 "before_lock": dict(Counter(s.get("road_status") for s in run[:lock if lock is not None else len(run)])),
                 "stops_within_2s": sum(1 for s in run[:40] if s.get("stop"))})
+    if plans is not None:      # times relative to the bag start, like the frames
+        for plan in plans:
+            plan["t_submit_s"] = round(plan["t_submit_s"]-t0, 3)
     return {"bag": Path(path).name, "steps": n, "topics": sorted(topics), "colour_assignment": colour,
+            "lattice_plans": plans,
             "road_status": dict(Counter(s["road_status"] for s in steps).most_common()),
             "visibility": dict(Counter(s["visibility"] for s in steps).most_common()),
             "state_invalid": sum(1 for s in steps if not (s["speed_valid"] and s["yaw_rate_valid"])),
@@ -311,11 +377,21 @@ def main():
     parser.add_argument("--full-path", action="store_true", help="also write every frame's planned path points")
     parser.add_argument("--runs", action="store_true",
                         help="restart the policy run at each recorded run start (gap in /car/mpc_debug), as Run does")
+    parser.add_argument("--lattice", action="store_true", help="attach the shadow lattice 2.1 and log every plan")
+    parser.add_argument("--lattice-planning-s", type=float, default=0.3,
+                        help="fixed lattice planning time (Jetson-like 0.3 s); a negative value uses the measured one")
+    parser.add_argument("--lattice-delivery-s", type=float, default=0.05)
+    parser.add_argument("--lattice-candidates", action="store_true", help="also log every lattice candidate")
     args = parser.parse_args()
     try:
         from dream_interfaces.msg import ConeDetection
     except ImportError:
-        raise SystemExit("dream_interfaces is not importable: source the workspace that built it")
+        try:
+            import rosbag2_py  # noqa: F401  (with ROS the interfaces are needed to decode the bag)
+        except ImportError:
+            ConeDetection = SimpleNamespace(COLOR_YELLOW=1, COLOR_BLUE=2)   # mcap reader, DREAM's constants
+        else:
+            raise SystemExit("dream_interfaces is not importable: source the workspace that built it")
     params = yaml.safe_load(args.params.read_text(encoding="utf-8"))["/**/ai4r_policy"]["ros__parameters"]
     for item in args.set:
         key, _, value = item.partition("=")
@@ -326,7 +402,10 @@ def main():
           f" | planning {algorithm}" + (" (in-line; no async delay or MPC hold)" if algorithm == "lattice_v2" else ""))
     results = []
     for path in args.bags:
-        r = replay(api, deepcopy(params), path, tuple(args.imu_mount), args.full_path, args.runs)
+        lattice = None if not args.lattice else {
+            "planning_s": None if args.lattice_planning_s < 0 else args.lattice_planning_s,
+            "delivery_s": args.lattice_delivery_s, "candidates": args.lattice_candidates}
+        r = replay(api, deepcopy(params), path, tuple(args.imu_mount), args.full_path, args.runs, lattice)
         results.append(r)
         n = r["steps"]
         print(f"\n== {r['bag']}: {n} steps")
@@ -343,6 +422,11 @@ def main():
         print(f"   visibility:      {share(r['visibility'], n)}")
         print(f"   lane width m:    min/median/max {r['lane_width_m']}; speed or yaw rate invalid in {r['state_invalid']} steps")
         print(f"   planning reason: {share(r['planning_reason'], n)}")
+        if r.get("lattice_plans") is not None:
+            plans = r["lattice_plans"]
+            checks = sorted(p["check_length_m"] for p in plans if p["check_length_m"] is not None)
+            print(f"   lattice plans:   {len(plans)}, {dict(Counter(p['status'] for p in plans))}"
+                  + (f", check length median {checks[len(checks)//2]:.2f} m" if checks else ""))
         if r["centerline_rejection"]:
             print(f"   V2 centerline-first rejected, lattice tried: {share(r['centerline_rejection'], n)}")
         print(f"   MPC branch, replay:   {share(r['replay_branch'], n)}")
