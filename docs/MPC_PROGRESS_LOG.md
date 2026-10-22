@@ -2,6 +2,42 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-22（再续三）：参考曲率限制（方案 B）实现、验证、合并 ✅
+
+**实现**：按 [MPC_REFERENCE_CURVATURE_LIMIT_PLAN_CN.md](MPC_REFERENCE_CURVATURE_LIMIT_PLAN_CN.md) 由云端 agent 完成，分支 `mpc-reference-curvature-limit`（`4be9e0a`、`4fb5f28`），PR #5。
+- 新函数 `limit_reference_curvature`（模块级纯函数），在 `calculate_policy_actions` 选出 `traj` 之后调用，lattice 路径和中心线参考都经过它。
+- 6 个新参数，默认 `"off"`。关闭时根本不调用新函数，`mpc_debug` 逐字段不变。
+- 和规格不同的三处，审过后都保留：
+  - 多了一个 `no_curvature_limit`：推不出曲率上限时退回原参考；
+  - 碰撞复查用绝对判定：原参考本来就贴边时，复查也失败，退回原参考；
+  - `max_shift_m` 两个方向都算。
+
+**合并前的本地验证**：
+- 本机 `unittest discover`：462 个，只有 `test_policy_node`（需要 ROS）报错；新增 18 个测试全部通过。
+- **WSL 门禁 `4fb5f28`**：offline PASS、ros gate PASS（`~/ai4r-evidence/ros-20261022-195506`）。
+- Gym（第 6.1 节，每组 60 次）：
+
+| 仿真车 | 之前的基线 | 新分支，关闭 | 新分支，`hooks` |
+| --- | --- | --- | --- |
+| 17° | 47（直道 12、缓弯 12、U 11、R1.5 9、R1 3） | 47（12 / 12 / 11 / 9 / 3） | 45（12 / 12 / 11 / 8 / 2） |
+| 24° | 38（11 / 11 / 8 / 6 / 2） | 36（11 / 11 / 8 / 5 / 1） | 37（11 / 11 / 9 / 6 / 0） |
+
+  直道和缓弯完全相同，总完成数差在 ±2 以内，失败原因全部在估计层，满足通过标准。
+- 车包回放（`tools/replay_policy_bag.py --lattice`，开环）：
+
+| 包 | 触发 | 实际抹平 | 碰撞复查退回 | 偏移中位数 / p95 |
+| --- | ---: | ---: | ---: | --- |
+| rd2 右弯 | 30% | 1,350 | 2.5% | 20 / 33 cm |
+| rd5 右弯 | 26% | 1,013 | 3.9% | 4 / 18 cm |
+
+  拍数包括车停着、估计器仍在跑的时间。抹平的参考约 95% 是 lattice 路径。
+
+**更正：Gym 的可复现性**。新分支关闭时，代码路径和 `mpc-car-run` 完全相同，但 60 次运行里只有 55 次（17°）和 24 次（24°）的结果与之前的基线一致，总完成数差了 2。不一致的运行里出现了 `motion_interval_too_long`，这种停车和机器负载有关。所以即使固定了 lattice 规划耗时，**多组并行跑时结果仍有约 ±2 次的波动**。10-22 下午说"38/60 两次逐项相同、结果可复现"，只是那两次刚好在相近的负载下跑的。以后 Gym 的差别要超过 ±2–3 次才算数。
+
+**合并**：`ee99951`。代码和过了门禁的 `4fb5f28` 完全一样。15 个 car05 包重新生成，另外派生了两个打开 `hooks` 的包，哈希见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) "10-22 晚"。
+
+**待做**：实车 A/B。急右弯、`r_ddelta` 2 下，`-hooks` 包和普通包交替各跑 3–5 次，看越界次数、最多转过的角度、满舵占比，以及 `reference_curvature.reason` 的分布。Jetson 上每次抹平的耗时也要记下来（云端容器上约 3 ms）。
+
 ## 2026-10-22（再续二）：`r_ddelta` 5 实车、急右弯转过头的原因、两种改法的可行性 🟡
 
 **实车：`r_ddelta` 5**（1 号车，新 policy，`travel`；包是从现有包手工派生的，只改 `mpc.r_ddelta` 2.0 → 5.0：`…-nolimit-blueleft-rd5` yaml `6bea1b61…`、`…-nolimit-rd5` yaml `ee495c40…`，没有经过 `make_deploy_yaml`）。结果在 `car-evidence\car01-rddelta-20261022\`：

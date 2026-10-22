@@ -232,6 +232,34 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
   - 锥桶颜色：10-22 的场地是蓝左。
 - **其他车**：IP 最后一段 = 车身标签数字 + 13（1 号车 `10.43.254.14`）。录包可以用 `tools/record_car_bag.sh`（先 `scp` 到车上 `~/record_car_bag.sh`，再 `chmod +x`，之后每次 `~/record_car_bag.sh <包名>`）。
 
+**10-22 晚：合并 PR #5（参考曲率限制，方案 B）后重新生成**：
+- `mpc-car-run` `ee99951`，policy_node `14ac8b1e…`。新增的 `mpc.reference_curvature_limit_mode` 在所有包里都是 `'off'`（带引号，ROS 读成字符串），**行为和上一版相同**，yaml 只多了 6 个默认值。代码和过了 WSL 门禁的 `4fb5f28` 完全一样（门禁 offline PASS、ros gate PASS）。规格见 [MPC_REFERENCE_CURVATURE_LIMIT_PLAN_CN.md](MPC_REFERENCE_CURVATURE_LIMIT_PLAN_CN.md)。
+- 包（上面"10-22：检查长度改回 `travel`"那张表的哈希作废，以这张为准）：
+
+  ```text
+  .verification\car05-lattice21-exec-1m                        yaml 4c5f8cdf…   0.15   1 m / 60 s
+  .verification\car05-lattice21-exec-5m                        yaml 297e340c…   0.15   5 m / 60 s
+  .verification\car05-lattice21-exec-nolimit                   yaml 288ba681…   0.15   不限
+  .verification\car05-lattice21-exec-v020-1m                   yaml 7c8ebc5e…   joint     1 m / 60 s
+  .verification\car05-lattice21-exec-v020-5m                   yaml eee587cc…   joint     5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit              yaml 69aa0c29…   joint     不限
+  .verification\car05-lattice21-exec-v020-1m-fb                yaml 3f08492a…   feedback  1 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-fb           yaml 19d442f1…   feedback  不限
+  .verification\car05-lattice21-exec-v020-nolimit-fb-nomm      yaml f1ba3496…   feedback，measured_motion 关
+  .verification\car05-lattice21-exec-v020-nolimit-fb-soft      yaml 3ebc006c…   feedback，kp 0.15 / ki 0.1
+  .verification\car05-lattice21-exec-v020-1m-blueleft          yaml 2c89c7b9…   joint，蓝左  1 m / 60 s
+  .verification\car05-lattice21-exec-v020-5m-blueleft          yaml 916e2b9d…   joint，蓝左  5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-blueleft     yaml 74a76626…   joint，蓝左  不限
+  .verification\car05-lattice21-exec-v020-nolimit-rd5          yaml 340bf7fc…   不限，r_ddelta 5（手工派生）
+  .verification\car05-lattice21-exec-v020-nolimit-blueleft-rd5 yaml e9a48ef9…   蓝左，不限，r_ddelta 5（手工派生）
+  .verification\car05-lattice21-exec-v020-nolimit-hooks        yaml e2407150…   不限，参考曲率限制 hooks（手工派生）
+  .verification\car05-lattice21-exec-v020-nolimit-blueleft-hooks yaml 4d189bc4… 蓝左，不限，hooks（手工派生）
+  ```
+
+  policy_node 都是 `14ac8b1e…`。`-rd5` 和 `-hooks` 都是从对应的不限包复制后只改一行：`mpc.r_ddelta` 2.0 → 5.0，或者 `mpc.reference_curvature_limit_mode` `'off'` → `hooks`，没有经过 `make_deploy_yaml`。
+- **`-hooks` 包的参数核对**：`ros2 param get "$N" mpc.reference_curvature_limit_mode`，预期 `hooks`（普通包是 `off`）。看包时，`/car/mpc_debug` 里的 `reference_curvature` 字段（`triggered`、`applied`、`reason`、`max_shift_m`）只在 `-hooks` 包里才有。
+- **A/B 方法**：急右弯，`r_ddelta` 2 下，`-hooks` 包和普通不限包交替各跑 3–5 次，用 `tools/car_run_metrics.py` 比较越界次数、最多转过的角度和满舵占比。
+
 ## 1. SSH、Foxglove、停车、备份
 
 和 [CAR05_V2_START_FIX_RUN_CN.md](CAR05_V2_START_FIX_RUN_CN.md) 第 1、2 步一样。
