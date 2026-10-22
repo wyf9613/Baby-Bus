@@ -94,10 +94,12 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", roa
     if car != "27" and mode not in ("mvp", "steer-arc"):
         # Cross-car vehicle.* substitution (never identified on this car); see
         # that overlay file's header and docs/MPC_PROGRESS_LOG.md 2026-10-15.
-        layers.append(f"ai4r_policy_mpc_car{car}.yaml")
+        layers.append("ai4r_policy_mpc_car05.yaml")
+        if car == "01":     # 2026-10-22: car 05's record with car 01's measured steering
+            layers.append("ai4r_policy_mpc_car01.yaml")
     if longitudinal != "joint":
-        if not (is_exec and car == "05"):
-            raise ValueError("--longitudinal feedback* is for mpc-exec* modes with --car 05 only")
+        if not (is_exec and car in ("05", "01")):
+            raise ValueError("--longitudinal feedback* is for mpc-exec* modes with --car 05 or 01 only")
         layers.append("ai4r_policy_mpc_car05_feedback.yaml")
     base = yaml.safe_load((ROOT / "config" / layers[0]).read_text(encoding="utf-8"))
     for layer in layers[1:]:
@@ -180,7 +182,7 @@ def main():
                         help="which colour is on the LEFT of the road; required except for steer-arc")
     parser.add_argument("--road-age-s", type=float,
                         help="camera age budget for Planning, in (0.4, 0.6]; default unchanged (0.4)")
-    parser.add_argument("--car", default="27", choices=["27", "05"],
+    parser.add_argument("--car", default="27", choices=["27", "05", "01"],
                         help="05: cross-car vehicle.* substitution, never identified on that car "
                              "(see config/ai4r_policy_mpc_car05.yaml); only meaningful for mpc-shadow* "
                              "/mpc-exec* modes")

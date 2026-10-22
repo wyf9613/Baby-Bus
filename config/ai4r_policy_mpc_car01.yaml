@@ -1,0 +1,20 @@
+# Overlay: car 01 (10.43.254.14), 2026-10-22. Layered AFTER ai4r_policy_mpc_car05.yaml
+# (make_deploy_yaml --car 01): car 05's record with car 01's own steering only.
+#
+# Measured on car 01 (4 bags of 2026-10-22, both bend directions, steering endpoints +/-1.0,
+# trim 0; IMU yaw rate over wheel speed, steady steering, wheelbase 0.33 m):
+#   - full lock left (s = -1): 15 deg (radius 1.22 m, 215 samples);
+#     full lock right (s = +1): 19 deg (radius 0.96 m, 121 samples);
+#   - car 05's -0.37 rad (21 deg) over-predicts both: the MPC held full lock 37-94 % of a bend;
+#   - |s| <= 0.3 turned about 0 deg and 0.4-0.8 only 2-8 deg (10-37 samples per bin): a wide
+#     centre deadband the linear map cannot represent. Not compensated here.
+# Symmetric 17 deg (0.30 rad) with no offset: the two-point fit's -0.033 rad offset would turn
+# the car at s = 0, where it measured 0 deg. Drive, deadband and all guards stay car 05's.
+/**/ai4r_policy:
+  ros__parameters:
+    vehicle:
+      source: "car05_20261019_start035_db025_27model_car01steering_20261022_UNVERIFIED"
+      steering_gain_rad: -0.30
+      steering_offset_rad: 0.0
+      steering_min_rad: -0.30
+      steering_max_rad: 0.30

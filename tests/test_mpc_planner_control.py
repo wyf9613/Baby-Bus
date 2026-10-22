@@ -389,6 +389,25 @@ class DeployProfileChecks(unittest.TestCase):
                 self.assertEqual((mpc["handover_drive_margin"], mpc["switch_steer_rate_per_s"]), (0.04, 1.5))
             cns["MPCSettings"](**mpc)
 
+    def test_car01_packages_are_car05_with_car01_steering_only(self):
+        # 2026-10-22: config/ai4r_policy_mpc_car01.yaml, layered after car 05's overlay.
+        for mode, longitudinal in (("mpc-exec-lattice21", "joint"), ("mpc-exec-lattice21", "feedback"),
+                                   ("mpc-shadow-lattice21", "joint")):
+            with self.subTest(mode=mode, longitudinal=longitudinal):
+                car05, car01 = (deploy["build"](mode, 3.0, v_exec_max=0.12, cones="yellow-left", car=car,
+                                                longitudinal=longitudinal)[0]["/**/ai4r_policy"]["ros__parameters"]
+                                for car in ("05", "01"))
+                steering = {"source", "steering_gain_rad", "steering_offset_rad", "steering_min_rad",
+                            "steering_max_rad"}
+                self.assertEqual({k: v for k, v in car01.items() if k != "vehicle"},
+                                 {k: v for k, v in car05.items() if k != "vehicle"})
+                self.assertEqual({k: v for k, v in car01["vehicle"].items() if k not in steering},
+                                 {k: v for k, v in car05["vehicle"].items() if k not in steering})
+                self.assertEqual((car01["vehicle"]["steering_gain_rad"], car01["vehicle"]["steering_offset_rad"],
+                                  car01["vehicle"]["steering_min_rad"], car01["vehicle"]["steering_max_rad"]),
+                                 (-0.30, 0.0, -0.30, 0.30))
+                cns["MPCSettings"](**car01["mpc"])
+
     def test_car05_feedback_packages_switch_only_the_longitudinal_settings(self):
         joint = deployed("mpc-exec-lattice21")
         self.assertEqual((joint["mpc"]["longitudinal_mode"], joint["mpc"]["measured_motion"]), ("joint", False))

@@ -1232,7 +1232,7 @@ def test_mvp2_actual_worker_does_not_block_control_and_restarts(make_node, failu
     assert node.action_publisher.messages[-1].drive == 0
 
 @pytest.mark.parametrize("mode,car", [
-    (mode, car) for car in ("27", "05")
+    (mode, car) for car in ("27", "05", "01")
     for mode in ("mvp", "mpc-shadow", "mpc-exec", "mpc-shadow-centerline", "mpc-exec-centerline",
                  "mpc-shadow-lattice21", "mpc-exec-lattice21")])
 def test_every_deploy_profile_starts_a_real_node(tmp_path, mode, car):
