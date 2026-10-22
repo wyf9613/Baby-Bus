@@ -4110,6 +4110,19 @@ class MPCSettings:
     bypass_fit_max_x_m: float = 1.5   # fit window: a quadratic is poor far ahead on a bend
     bypass_max_source_age_s: float = 0.2
     bypass_valid_for_s: float = 0.1
+    # Reference curvature limit (2026-10-22, docs/MPC_REFERENCE_CURVATURE_LIMIT_PLAN_CN.md).
+    # "off": the reference is not touched and mpc_debug is unchanged. "hooks": when the
+    # largest curvature over a reference_hook_window_m arc within the first
+    # reference_hook_trigger_length_m exceeds reference_hook_curvature_1pm, the reference is
+    # re-tracked from its own start at most reference_curvature_max_1pm (0 = the vehicle's
+    # tan(min |steering limit|)/wheelbase_m); a result closer to a known boundary than half
+    # the body width + reference_curvature_clearance_m is dropped for the original.
+    reference_curvature_limit_mode: str = "off"
+    reference_hook_curvature_1pm: float = 4.0
+    reference_hook_window_m: float = 0.15
+    reference_hook_trigger_length_m: float = 0.8
+    reference_curvature_max_1pm: float = 0.0
+    reference_curvature_clearance_m: float = 0.03
 
     def __post_init__(self):
         for name in ("enabled", "shadow", "bypass_acknowledged", "solver_fail_tolerable", "measured_motion"):
@@ -4123,6 +4136,8 @@ class MPCSettings:
             raise ValueError("mpc.qp_solver must be osqp or dense")
         if self.longitudinal_mode not in ("joint", "feedback"):
             raise ValueError("mpc.longitudinal_mode must be joint or feedback")
+        if self.reference_curvature_limit_mode not in ("off", "hooks"):
+            raise ValueError("mpc.reference_curvature_limit_mode must be off or hooks (keep off quoted)")
         for name in ("horizon_n", "sqp_iterations", "solver_max_iter", "max_restarts"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int):
@@ -4190,6 +4205,10 @@ class MPCSettings:
         if self.switch_hold_s > 0 and self.reference_dropout_tolerance_s <= self.switch_hold_s:
             # The guard rides on the tolerable dropout; without it a guarded tick would lock.
             raise ValueError("mpc.switch_hold_s needs reference_dropout_tolerance_s above it")
+        if (self.reference_hook_curvature_1pm <= 0 or not 0.05 < self.reference_hook_window_m <= 0.5
+                or not 0.0 < self.reference_hook_trigger_length_m <= 2.0
+                or self.reference_curvature_max_1pm < 0 or self.reference_curvature_clearance_m < 0):
+            raise ValueError("mpc reference curvature limit settings out of range")
 
 
 def mpc_vehicle_params(cfg, vehicle):
@@ -4550,6 +4569,192 @@ def reference_trajectory_from_road(road, state, cfg):
                valid_for_s=min(cfg.bypass_valid_for_s, cfg.bypass_max_source_age_s-age),
                fit_max_error_m=error, extrapolated_back_m=max(0.0, lo-samples[0]["x_m"]))
     return out
+
+
+# 2026-10-22: reference curvature limit (option B, hooks only). On car 01's sharp right
+# bends the lattice (and at times the estimator's centerline) handed the MPC references
+# turning 110-300 deg within 0.3-0.6 m; the MPC held full lock after them and overshot.
+# Only such hooks are smoothed; see docs/MPC_REFERENCE_CURVATURE_LIMIT_PLAN_CN.md.
+REFERENCE_SMOOTH_STEP_M = 0.01
+REFERENCE_SMOOTH_LOOKAHEAD_M = 0.25
+REFERENCE_SHIFT_LENGTH_M = 0.4
+
+
+def reference_curvature_limit_1pm(cfg, vehicle):
+    """mpc.reference_curvature_max_1pm, or the vehicle's tightest steady curvature (0 = unknown)."""
+    if cfg.reference_curvature_max_1pm > 0:
+        return cfg.reference_curvature_max_1pm
+    steer = min(abs(vehicle.steering_min_rad), abs(vehicle.steering_max_rad))
+    if vehicle.wheelbase_m <= 0 or not 0 < steer < math.pi/2:
+        return 0.0
+    return math.tan(steer)/vehicle.wheelbase_m
+
+
+def _reference_segments(xy):
+    """(arc length at each kept point, heading of each segment); repeated points are skipped."""
+    kept, headings = [xy[0]], []
+    for b in xy[1:]:
+        a = kept[-1]
+        if math.hypot(b[0]-a[0], b[1]-a[1]) > 1e-6:
+            headings.append(math.atan2(b[1]-a[1], b[0]-a[0]))
+            kept.append(b)
+    return _path_lengths(kept), headings
+
+
+def reference_peak_curvature_1pm(xy, window_m, length_m):
+    """Largest |heading change| / arc over a window_m arc starting within the first length_m.
+
+    Geometric (segment headings over the window), not neighbouring yaw_rad: at 5 cm
+    spacing that is too noisy and fires on ordinary bends.
+    """
+    if len(xy) < 2:
+        return 0.0
+    s, headings = _reference_segments(xy)
+    peak, j = 0.0, 0
+    for i in range(len(headings)):
+        if s[i] > length_m:
+            break
+        j = max(j, i)
+        while j < len(headings)-1 and s[j+1]-s[i] < window_m:
+            j += 1
+        arc = s[j+1]-s[i]
+        if arc < 0.9*window_m:
+            break        # the rest of the path is shorter than one window
+        turn = wrap_angle(headings[j]-headings[i])
+        peak = max(peak, abs(turn)/arc)
+    return peak
+
+
+def _reference_curvature_limited(points, limit, lookahead=REFERENCE_SMOOTH_LOOKAHEAD_M,
+                                 ds=REFERENCE_SMOOTH_STEP_M):
+    """Pure-pursuit re-tracking of a point list at |curvature| <= limit.
+
+    Starts at the reference's own first point along its first segment (not the car's
+    heading, so an existing lateral error is not counted as a shape change). Returns
+    (resampled v0.1 points, the 1 cm path as (x, y, s)) or (None, None) below 3 points.
+    """
+    xy = [(p["x_m"], p["y_m"]) for p in points]
+    dense, arc = [xy[0]], [0.0]
+    for a, b in zip(xy, xy[1:]):
+        length = math.hypot(b[0]-a[0], b[1]-a[1])
+        if length <= 1e-6:
+            continue
+        n = max(1, math.ceil(length/ds))
+        for i in range(1, n+1):
+            dense.append((a[0]+(b[0]-a[0])*i/n, a[1]+(b[1]-a[1])*i/n))
+            arc.append(arc[-1]+length/n)
+    if len(dense) < 3:
+        return None, None
+    x, y = dense[0]
+    heading = math.atan2(dense[1][1]-y, dense[1][0]-x)
+    track, j, goal = [(x, y, heading, 0.0)], 0, 0
+    search = int(math.ceil(0.6/ds))
+    for _ in range(int(arc[-1]/ds)):
+        # Nearest dense point, searched forward only and within a bounded window.
+        best, nearest = j, math.inf
+        for i in range(j, min(len(dense), j+search)):
+            d2 = (dense[i][0]-x)**2+(dense[i][1]-y)**2
+            if d2 < nearest:
+                best, nearest = i, d2
+        j = best
+        goal = max(goal, j)
+        while goal < len(dense)-1 and arc[goal]-arc[j] < lookahead:
+            goal += 1
+        dx, dy = dense[goal][0]-x, dense[goal][1]-y
+        lx = math.cos(heading)*dx+math.sin(heading)*dy
+        ly = -math.sin(heading)*dx+math.cos(heading)*dy
+        d2 = lx*lx+ly*ly
+        kappa = 0.0 if d2 < 1e-9 else max(-limit, min(limit, 2*ly/d2))
+        heading += kappa*ds
+        x, y = x+math.cos(heading)*ds, y+math.sin(heading)*ds
+        track.append((x, y, heading, kappa))
+        if j >= len(dense)-2:
+            break
+    # Resample at the reference's own mean spacing; speeds from the nearest original s_m.
+    s0 = points[0]["s_m"]
+    spacing = (points[-1]["s_m"]-s0)/max(1, len(points)-1) or 0.05
+    step = max(1, int(round(spacing/ds)))
+    out, k = [], 0
+    for i in range(0, len(track), step):
+        x, y, heading, kappa = track[i]
+        s = s0+i*ds
+        while k < len(points)-1 and abs(points[k+1]["s_m"]-s) <= abs(points[k]["s_m"]-s):
+            k += 1
+        out.append({**points[k], "s_m": s, "x_m": x, "y_m": y, "yaw_rad": wrap_angle(heading),
+                    "curvature_1pm": kappa})
+    if len(out) < 3:
+        return None, None
+    return out, [(x, y, i*ds) for i, (x, y, _, _) in enumerate(track)]
+
+
+def _reference_polyline_distance(point, polyline):
+    best = math.inf
+    for a, b in zip(polyline, polyline[1:]):
+        dx, dy = b[0]-a[0], b[1]-a[1]
+        length2 = dx*dx+dy*dy
+        u = 0.0 if length2 <= 1e-12 else min(1.0, max(0.0, ((point[0]-a[0])*dx+(point[1]-a[1])*dy)/length2))
+        best = min(best, math.hypot(a[0]+u*dx-point[0], a[1]+u*dy-point[1]))
+    return best
+
+
+def limit_reference_curvature(traj, road, cfg, vehicle, half_width_m, check_length_m):
+    """mpc.reference_curvature_limit_mode on a v0.1 reference: (traj, debug or None).
+
+    "off" returns the same traj object and no debug. "hooks" returns a copy with new
+    points only when the hook trigger fires, the limited path has >= 3 points and its
+    first check_length_m keeps half_width_m + clearance from road's known boundaries
+    (one side is checked alone; none, nothing to check); otherwise the same traj.
+    Pure: no ROS, no node state.
+    """
+    if cfg.reference_curvature_limit_mode == "off":
+        return traj, None
+    limit = reference_curvature_limit_1pm(cfg, vehicle)
+    debug = {"triggered": False, "peak_1pm": 0.0, "limit_1pm": limit, "applied": False,
+             "reason": None, "max_shift_m": 0.0}
+    points = traj.get("points") if isinstance(traj, dict) else None
+    if (not isinstance(points, list) or len(points) < 3 or traj.get("valid") is not True
+            or traj.get("stop_required") is True):
+        return traj, debug
+    debug["peak_1pm"] = reference_peak_curvature_1pm(
+        [(p["x_m"], p["y_m"]) for p in points], cfg.reference_hook_window_m, cfg.reference_hook_trigger_length_m)
+    if debug["peak_1pm"] <= cfg.reference_hook_curvature_1pm:
+        return traj, debug
+    debug["triggered"] = True
+    if limit <= 0:
+        debug["reason"] = "no_curvature_limit"     # vehicle record without wheelbase/steering limits
+        return traj, debug
+    limited, path = _reference_curvature_limited(points, limit)
+    if limited is None:
+        debug["reason"] = "too_short"
+        return traj, debug
+    original = [(p["x_m"], p["y_m"]) for p in points]
+    shifted = [(p["x_m"], p["y_m"]) for p in limited]
+    debug["max_shift_m"] = max(
+        [_reference_polyline_distance(q, original) for q, p in zip(shifted, limited)
+         if p["s_m"]-limited[0]["s_m"] <= REFERENCE_SHIFT_LENGTH_M]
+        + [_reference_polyline_distance(q, shifted) for q, p in zip(original, points)
+           if p["s_m"]-points[0]["s_m"] <= REFERENCE_SHIFT_LENGTH_M])
+    road = road if isinstance(road, dict) else {}
+    if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
+        road = road.get("forward_geometry") or {}      # as _select_planner_reference reads it
+    required = half_width_m+cfg.reference_curvature_clearance_m
+    checked = [(x, y) for x, y, s in path if s <= check_length_m]
+    lo_x, hi_x = min(x for x, _ in checked)-required, max(x for x, _ in checked)+required
+    lo_y, hi_y = min(y for _, y in checked)-required, max(y for _, y in checked)+required
+    for side in ("left_boundary_xy", "right_boundary_xy"):
+        boundary = road.get(side)
+        if not isinstance(boundary, (list, tuple)) or not boundary:
+            continue
+        boundary = [(float(q[0]), float(q[1])) for q in boundary]
+        # Only boundary segments within `required` of the checked path's box can fail it.
+        near = [(a, b) for a, b in zip(boundary, boundary[1:] or boundary)
+                if max(a[0], b[0]) >= lo_x and min(a[0], b[0]) <= hi_x
+                and max(a[1], b[1]) >= lo_y and min(a[1], b[1]) <= hi_y]
+        if any(_reference_polyline_distance(q, segment) < required for segment in near for q in checked):
+            debug["reason"] = "rejected_clearance"
+            return traj, debug
+    debug["applied"] = True
+    return {**traj, "points": limited}, debug
 
 
 def mpc_reference_errors(traj, n, dt_pred, speed, max_extension, max_forward=0.0):
@@ -8431,6 +8636,16 @@ class PolicyNode(Node):
                 traj = reference_trajectory_from_planning(planning_ref, mpc_settings.reference_spacing_m,
                                                           mpc_settings.ordered_lead_in_fit_m,
                                                           mpc_settings.max_backward_extension_m)
+            # 2026-10-22: hook-only reference curvature limit (lattice and centerline alike).
+            # "off" (every deployed profile) never calls it, so mpc_debug stays as it was.
+            curvature_debug = None
+            if mpc_settings.reference_curvature_limit_mode != "off":
+                vehicle = mpc_vehicle_params(mpc_settings, getattr(self, "vehicle_settings", None))
+                shadow_cfg = getattr(self, "shadow_settings", None) or ShadowSettings()
+                traj, curvature_debug = limit_reference_curvature(
+                    traj, estimates["road"], mpc_settings, vehicle,
+                    (vehicle.body_width_m or shadow_cfg.body_width_m)/2,
+                    self.planning_settings.preview_m+EXECUTION_TAIL_M)
             speed = state["speed_mps"] if state.get("speed_valid") else None
             # 2026-10-19: a held wheel reading of a stalled car is passed as 0 (the start
             # drive is reapplied); any held reading pauses the soft-overspeed timer and bias.
@@ -8468,6 +8683,8 @@ class PolicyNode(Node):
                                                       speed_override="stall" if hold["stalled"] else None,
                                                       speed_raw_mps=raw_speed, reference_gate=gate,
                                                       reference_gate_s=self._jump_guard_s)
+                if curvature_debug is not None:
+                    self.mpc_controller.last_debug.update(reference_curvature=curvature_debug)
                 if planner_requested:
                     self.mpc_controller.last_debug.update(
                         reference_selection=self.planner_execution.diagnostics.get("mode"),
