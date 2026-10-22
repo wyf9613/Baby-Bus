@@ -2,6 +2,41 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-22：1 号车实车——急弯里 `travel_plus_window` 不行，检查长度改回 `travel` ✅
+
+**车和场地**：1 号车（`10.43.254.14`，IP 最后一段 = 标签数字 + 13），当作 5 号车，直接用 car05 包（`mpc-car-run`，policy_node `9f136686…`），场地蓝左。包在 `E:\26b\AI4R\car-evidence\car01-lattice21-20261022-152447\`。
+
+**上车前查出来、现场改掉的**：
+- 转向区间是 -1.0 / **0.85**，实时 trim 是 **-0.15**。上传本分支的 `traxxas_vehicle_interface.yaml`（±1.0，trim 0），重启车辆接口后恢复正常。
+- IMU 处于 `CALIBRATING`（`accuracy_below_low`），但照常发布，可以用。和 5 号车一样是倒装的，车体偏航 = 原始 z 取反。
+- 第一次起步（`car01-lattice21-…153013`）报 `single_side_width_unknown`。当时没有读 `estimation.left_colour` 核实部署的是哪个包；换成蓝左包后正常。
+
+**结果**（同一个急左弯）：
+
+| 包 | 结果 |
+| --- | --- |
+| `travel_plus_window`（15:42，`carrun-nolimit-blueleft-…154247`） | 走了 2.24 m。入弯前 lattice 路径从 0.57–0.69 m 处才开始转，车头基本没转（约 0°），直着冲向外侧桶，在弯里锁停（`motion_transformed_geometry_invalid`） |
+| `travel`（16:19、16:23，`carrun-nolimit-blueleft-travel-…`） | 16:19 那次走了 1.1 m，在入弯前停下：先卡住，然后冲到 0.43 m/s，转向从满舵左甩到满舵右，最后 `invalid_boundary_pairing`。16:23 那个包里有 4 次运行，走了 3.3–4.9 m，其中 3 次转过 63–83°，**一直跑到终点**。入弯时 lattice 在 0.02–0.3 m 内就开始转，23–42% 的拍是满舵 |
+
+**原因分析**（离线回放和逐弯对比；回放脚本在 scratchpad，没有进仓库）：
+1. **lattice 规划时的检查长度。** 用 `ShadowLatticePlanner` 离线重算今天的输入，规划耗时固定 0.3 s。在 s = 0.4 m 处，路径相对起点的车头方向：`travel` 为 +10 到 +56°；`travel_plus_window` 为 -4 到 -15°，也就是先略往右，0.6 m 之后才左转。车上录到的 tpw 路径形状和离线重算一致。车每秒只走约 0.2 m，转弯点被一路往后推。我推测是 0.72 m 的检查把一开始就急转的候选判为碰撞，被拒的候选没有逐条核实。
+2. **10-19 的 5 号车（`travel`）**：8 个 30–52° 的弯，lattice 都在 0.02–0.2 m 处开始转，满舵 78–291 拍。看到两侧桶的比例、离正前方桶的距离，都和今天差不多。所以两天的差别不在感知。
+3. **Gym**（5 号车仿真车，0.20 m/s，lattice 规划耗时固定 0.3 s，每组 60 次）：`travel` 完成 38 次（R1.5 6 次，R1 2 次），`travel_plus_window` 完成 33 次（R1.5 1 次，R1 0 次）。`travel` 那组和另一组同时跑，没有重跑确认。10-20 用 0.1 s 规划耗时得到的结论（tpw 切换少、误差小）在 0.3 s 下仍然成立，但直角弯的完成数反过来了。
+
+**改了什么**：`ai4r_policy_mpc_car05.yaml` 里的 `shadow.check_length_mode` 改为 `travel`，相应更新了 3 个部署配置测试。13 个 car05 lattice 包已重新生成（哈希见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-22），其中 `v020-nolimit-blueleft`（`72e4b55c…`）和今天过弯用的手工包逐字节相同。本机 `unittest discover`：414 个，唯一的错误仍是需要 ROS 的 `test_policy_node`。**WSL 门禁待跑。**
+
+**其他发现**（都在 worktree 分支 `mpc-new-path-blend` 上，从 sim-port 拉出，没有合入本分支，默认关闭）：
+- **Jetson 上 lattice 耗时**：`travel_plus_window` 下每次 0.26–0.33 s，`late_for_requested_period` 一次都没有出现（P2 的遗留问题解决）。
+- **只看到外侧桶时，估计层判断错边界走向**：急弯外侧那排桶横在车前方时，按 +x 串联的走向会因为 1–4 cm 的噪声来回翻，往内偏移后的中心线有 6 帧落在了桶外面。新参数 `estimation.single_side_orientation: vehicle_inside`：如果车落在可见边界的外侧，就把走向翻过来。回放里 6 次翻转全部消失，但最后那次停车仍在，因为当时车已经贴到外侧桶了。Gym 里和基线逐次相同。
+- **`mpc.new_path_blend_s`**（lattice 换新路径时也限制转向变化率）：Gym 里跳变被压到每拍 0.075，但急弯满舵的时间反而变长（R1.5 满舵拍数 19 → 135），完成数不变。不进配置。
+- **2 Hz lattice**：直道跳变 p95 从 0.24 降到 0.15，完成 33 → 35，在波动范围内。不进配置。
+
+**待做**：
+- WSL 门禁：`BRANCH=mpc-car-run bash .verification/run_ros_check.sh`。
+- sim-port 分支拣入这一项，并重新生成它的包。
+- `travel` 下切换变多、车速偶尔冲到 0.41–0.45 m/s（卡住后重起步，每次不到 0.2 s，没有触发硬停），继续观察。
+- 急弯出口和终点的估计层停车（`invalid_ordered_geometry` / `invalid_boundary_pairing`）：外侧边界绕到车前方时，配对和串联都处理不了，Gym 里直角弯失败的原因也是这个。
+
 ## 2026-10-20（再续五）：lattice 规划检查覆盖执行窗口（`shadow.check_length_mode`）🟡
 
 按 [LATTICE_CHECK_LENGTH_PLAN_CN.md](LATTICE_CHECK_LENGTH_PLAN_CN.md) 实施，即"再续四"待决定里的 (b)。**未上车，未在 Jetson 上测 lattice 耗时，WSL 门禁待跑。**

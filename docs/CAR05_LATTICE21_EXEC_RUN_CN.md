@@ -127,7 +127,7 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
   - 转向比 joint 差：换 `-fb-nomm`，看是不是实测车速预测（`measured_motion`）造成的。
   - 都不行就回到 joint 包。
 
-**10-20：规划检查长度**（**还没在实车上验证**；计划和 Gym 数据见 [LATTICE_CHECK_LENGTH_PLAN_CN.md](LATTICE_CHECK_LENGTH_PLAN_CN.md)）：
+**10-20：规划检查长度**（**10-22 已撤回，见下一节**；计划和 Gym 数据见 [LATTICE_CHECK_LENGTH_PLAN_CN.md](LATTICE_CHECK_LENGTH_PLAN_CN.md)）：
 - **改了什么**：lattice 规划时的碰撞检查原来只查 `speed × hold`（约 0.22 m），执行时每拍查到车前方 `preview_m + 0.15`（约 0.5 m），急弯里 0.22 m 之后那段一到执行就撞，于是退回中心线。新增 `shadow.check_length_mode`，5 号车用 `travel_plus_window`：规划时查 `speed × hold + preview_m + 0.15`（约 0.72 m），覆盖路径使用期间每一拍的执行窗口。默认 `travel` 和原来一样，其他车不变。执行检查、lattice 其他参数和 MPC 都没改。
 - **Gym（每组 60 次）**：急弯切换从 294 / 164 / 216 次降到 22 / 30 / 30 次（U 弯 / R1.5 / R1），lattice 占比 98–99%，最大横向误差 0.29 → 0.17 m（U 弯）、0.25 → 0.07 m（R1.5）。完成 38 → 34/60，仍由估计层失败决定，差别在重跑波动附近，实车 A/B 时要留意。
 - **包**：上表 7 个包都已包含这项改动，不另出包。
@@ -137,7 +137,7 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
   ros2 param get "$N" shadow.check_length_mode
   ```
 
-  预期 `travel_plus_window`。
+  预期 `travel_plus_window`（10-22 起为 `travel`）。
 - **看包时看什么**：
   - `/car/shadow_planning` 里 `check_length_m` 约 0.7 m（0.20 m/s 时；静止约 0.5 m），`check_length_mode` 为 `travel_plus_window`，`travel_check_m` 和 `execution_window_m` 是它的两部分；
   - 急弯里 `/car/mpc_debug` 的 `reference_selection` 很少再变成 `baseline`；
@@ -153,6 +153,41 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 ```
 
 上车前，WSL ROS 门禁要对这一版代码跑通（`.verification/run_ros_check.sh`）。门禁里"每个部署配置都能启动节点"的测试已经包括 `mpc-exec-lattice21`。
+
+**10-22：检查长度改回 `travel`**（1 号车实测；过程和数据见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 10-22）：
+- **为什么**：
+  - 用 `travel_plus_window` 时，1 号车在一个急左弯前，lattice 每次都规划成"先直走约 0.6 m 再左转"。车直着冲向弯外侧，在弯里锁停。
+  - 同一个包只把这一项改成 `travel`：lattice 在 0.3 m 内就开始转，转向打满。4 次运行里有 3 次转过 63–83°，一直跑到终点。
+  - 10-19 的 5 号车用的也是 `travel`，弯也过去了。
+- **改了什么**：`ai4r_policy_mpc_car05.yaml` 里的 `shadow.check_length_mode` 改为 `travel`，和 `ai4r_policy_mpc_lattice21.yaml` 相同。代码不变，`travel_plus_window` 仍可通过参数选用。
+- **代价**（10-20 Gym 的结果反过来）：
+  - 急弯里 lattice 和中心线之间的切换变多：1 号车每次运行有 8–27% 的拍落到中心线上（`known_boundary_collision`），转向在 ±1 之间甩得更多；
+  - Gym 里 U 弯少完成约 2 次，最大横向误差变大。
+- **包**（从 `mpc-car-run` 生成，policy_node 都是 `9f136686…`）：
+
+  ```text
+  .verification\car05-lattice21-exec-1m                     yaml 46f77ed6…   0.15   1 m / 60 s
+  .verification\car05-lattice21-exec-5m                     yaml 0d844961…   0.15   5 m / 60 s
+  .verification\car05-lattice21-exec-nolimit                yaml 085a04f0…   0.15   不限
+  .verification\car05-lattice21-exec-v020-1m                yaml 4e960e9c…   joint     1 m / 60 s
+  .verification\car05-lattice21-exec-v020-5m                yaml 31004586…   joint     5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit           yaml 7ddb6ec9…   joint     不限
+  .verification\car05-lattice21-exec-v020-1m-fb             yaml ce0c6563…   feedback  1 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-fb        yaml bde3729c…   feedback  不限
+  .verification\car05-lattice21-exec-v020-nolimit-fb-nomm   yaml 33ad418f…   feedback，measured_motion 关
+  .verification\car05-lattice21-exec-v020-nolimit-fb-soft   yaml c9f300e8…   feedback，kp 0.15 / ki 0.1
+  .verification\car05-lattice21-exec-v020-1m-blueleft       yaml b742c0f2…   joint，蓝左  1 m / 60 s
+  .verification\car05-lattice21-exec-v020-5m-blueleft       yaml 6e966029…   joint，蓝左  5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-blueleft  yaml 72e4b55c…   joint，蓝左  不限
+  ```
+
+  `v020-nolimit-blueleft` 和 10-22 下午 1 号车过弯用的手工包（`carrun-v020-nolimit-blueleft-travel`）逐字节相同。sim 分支（`mpc-car-run-sim-port`）的 `3cfdf86b…` 那一版包已被覆盖，那个分支要先拣入这一项再生成。
+- **参数核对**：`ros2 param get "$N" shadow.check_length_mode`，预期 `travel`。
+- **每次上车都查**（共用车，10-22 在 1 号车上发现过）：
+  - 转向区间 ±1.0：1 号车当时是 -1.0 / **0.85**；
+  - 实时 trim 为 0：1 号车当时是 **-0.15**；
+  - 锥桶颜色：10-22 的场地是蓝左。
+- **其他车**：IP 最后一段 = 车身标签数字 + 13（1 号车 `10.43.254.14`）。录包可以用 `tools/record_car_bag.sh`（先 `scp` 到车上 `~/record_car_bag.sh`，再 `chmod +x`，之后每次 `~/record_car_bag.sh <包名>`）。
 
 ## 1. SSH、Foxglove、停车、备份
 

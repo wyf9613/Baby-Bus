@@ -340,9 +340,8 @@ class DeployProfileChecks(unittest.TestCase):
         self.assertFalse(p["control"]["enabled"])
         self.assertEqual(p["planning"]["algorithm"], "road_centerline")
         self.assertEqual(p["planner_control"], vars(PlannerControl(enabled=True)))
-        # Car 05's overlay (2026-10-20) switches only the planning-time check length.
-        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True,
-                                       "check_length_mode": "travel_plus_window"})
+        # Car 05's overlay names the planning-time check length: travel since 2026-10-22.
+        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
         ShadowSettings(**p["shadow"])
 
     def test_exec_lattice21_profile_executes_with_the_relaxed_car05_guards(self):
@@ -352,8 +351,7 @@ class DeployProfileChecks(unittest.TestCase):
         self.assertTrue(p["vehicle"]["valid"])
         self.assertEqual(p["planning"]["algorithm"], "road_centerline")
         self.assertTrue(p["planner_control"]["enabled"] and p["planner_control"]["require_valid_baseline"])
-        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True,
-                                       "check_length_mode": "travel_plus_window"})
+        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
         for key, value in (("v_exec_max_mps", 0.12), ("overspeed_soft_margin_mps", 0.05),
                            ("overspeed_hard_mps", 0.40), ("max_forward_extension_m", 0.3),
                            ("reference_dropout_tolerance_s", 0.5), ("solver_fail_tolerable", True)):
@@ -362,12 +360,12 @@ class DeployProfileChecks(unittest.TestCase):
         with self.assertRaises(AssertionError):            # car 27's record is not measured
             deploy["build"]("mpc-exec-lattice21", 1.0, cones="yellow-left", car="27")
 
-    def test_lattice_check_length_mode_is_travel_plus_window_on_car05_only(self):
-        # 2026-10-20, docs/LATTICE_CHECK_LENGTH_PLAN_CN.md.
+    def test_lattice_check_length_mode_is_travel_on_every_car(self):
+        # car 05 used travel_plus_window from 2026-10-20 until car 01's bend on 2026-10-22.
         for variant in ("joint", "feedback", "feedback-nomm", "feedback-soft"):
             with self.subTest(variant):
                 p = deployed("mpc-exec-lattice21", variant)
-                self.assertEqual(p["shadow"]["check_length_mode"], "travel_plus_window")
+                self.assertEqual(p["shadow"]["check_length_mode"], "travel")
                 ShadowSettings(**p["shadow"])
         p = deploy["build"]("mpc-shadow-lattice21", 1.0, cones="yellow-left", car="27")[0]
         p = p["/**/ai4r_policy"]["ros__parameters"]

@@ -91,6 +91,10 @@
       switch_blend_s: 0.4            # centerline -> lattice moved the steering by the QP's full step
       switch_steer_rate_per_s: 1.5   # (median 0.27-0.39); 0.075 per 0.05 s tick for 0.4 s after a switch
     shadow:
-      check_length_mode: "travel_plus_window"  # 2026-10-20: lattice checks the execution window too (docs/LATTICE_CHECK_LENGTH_PLAN_CN.md)
+      # 2026-10-22: back to "travel" (lattice21.yaml's value). travel_plus_window (10-20,
+      # docs/LATTICE_CHECK_LENGTH_PLAN_CN.md) made the lattice plan "straight ~0.6 m, then
+      # turn" before car 01's sharp left bend; the car drove at the outer wall and locked.
+      # With travel it turned within 0.3 m and ran to the course end (docs/MPC_PROGRESS_LOG.md).
+      check_length_mode: "travel"
     control:
       max_run_time_s: 60.0           # was 30; the distance budget comes from make_deploy_yaml --distance
