@@ -6,7 +6,7 @@
 
 | 控制器 | 转向 | 油门 | 在哪里 |
 | --- | --- | --- | --- |
-| PID（Baseline 组） | 反应式：前视点的横向误差和航向误差（`control.mode: mvp`），事后限幅 | 车速 PI（`speed_kp` 1.4、`speed_ki` 0.6）+ 前馈 | `control.*` |
+| PID（Baseline 组） | 反应式：前视点的横向误差和航向误差（`control.mode: mvp`），事后限幅 | 车速 PI（`speed_kp` 1.4、`speed_ki` 0.6）+ 前馈 | `control.*`。**对比用 `origin/mvp2.1`（`3652e9b`）**（10-22 核对）：PID + `road_centerline` + lattice 2.1，估计和规划与本分支相同，只差控制器；`main` 没有 lattice。增益以该分支为准（它的 yaml 里 `speed_kp` 是 0.35）。sim 分支组的 `feature/mvp21-sim-integration-20261015` 也是 PID，用哪一版要和 Baseline 组确认 |
 | PI-MPC | MPC：模型预测 1 s，转向上下限和变化率写在 QP 里，补偿执行延迟 | 车速 PI | Zhenyu `feature/mpc-model`；本分支的 `-fb` 包 |
 | 联合 MPC | MPC | QP 按纵向模型优化（死区、偏置、转弯阻力、上限） | 本分支默认（`joint`） |
 
@@ -87,7 +87,7 @@
 | Gym：10-19 联合 MPC 提速扫描（0.15–0.30，.27 车模型） | ✅ 但已过时（之后 5 号车配置改了很多） |
 | 实车：联合 MPC 对 PI-MPC A/B | ⏳ 等 WSL 门禁 |
 | Gym：约束在 QP 里对事后截断、延迟补偿对照（3.3） | ⏳ |
-| 公共 topic 指标脚本 | ⏳ |
+| 公共 topic 指标脚本 | ✅ 10-22：`tools/car_run_metrics.py`（不需要 ROS）。只用每个 policy 都发的话题，PID 和 MPC 口径一致：按运行分段，统计停车原因、距离、车头转角和各个弯、车速（>0.30 / >0.40 的秒数）、满舵占比、左右反打次数，以及相对锥桶的横向偏移、贴桶和越界次数。没有真值，横向只能相对锥桶推算 |
 | 实车：PID 对 PI-MPC、PID 对联合 MPC | ⏳ 需要和 Baseline 组约时间 |
 
 **需要沟通：**
