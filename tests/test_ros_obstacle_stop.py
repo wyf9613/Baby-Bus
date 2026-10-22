@@ -120,6 +120,125 @@ def test_source_watchdog_works_without_policy_or_sensor_callbacks(make_node):
     assert node.obstacle_stop_monitor.latched
 
 
+def delayed_scan_stream(node):
+    """20 Hz telemetry/control, 10 Hz scans stamped 100 ms before receipt."""
+    original = node.lidar_callback
+    tick = [0]
+
+    def receive(message):
+        if tick[0] % 2 == 0:
+            stamp(node, message, offset=-.1, frame='base_link')
+            original(message)
+
+    node.lidar_callback = receive
+    feed(node)
+    request(node, 3)
+
+    def step():
+        tick[0] += 1
+        node.test_clock.advance(.05)
+        feed(node)
+        node.run_policy_step()
+        node.supervision_callback()
+
+    return step
+
+
+def test_10hz_scan_with_100ms_source_delay_runs_under_250ms_limit(make_node):
+    node = stop_node(make_node, **{'obstacle_stop.max_source_age_s': .25})
+    step = delayed_scan_stream(node)
+    for _ in range(80):
+        step()
+        assert node.fsm_state == 3, node.state_reason
+    assert node.control_has_run
+    assert not node.obstacle_stop_monitor.latched
+    assert node.action_publisher.messages[-1].drive > 0.
+
+
+def test_delayed_scan_plus_slow_calculation_stops_with_source_diagnostics(make_node, monkeypatch):
+    node = stop_node(make_node, **{'obstacle_stop.max_source_age_s': .25})
+    step = delayed_scan_stream(node)
+    for _ in range(8):
+        step()
+    assert node.control_has_run
+    original = node.calculate_policy_actions
+
+    def late(*args):
+        result = original(*args)
+        node.test_clock.advance(.16)
+        return result
+
+    monkeypatch.setattr(node, 'calculate_policy_actions', late)
+    mark = len(node.action_publisher.messages)
+    step()
+    assert node.fsm_state == 2 and 'lidar_stale' in node.state_reason
+    assert all(message.drive == 0. for message in node.action_publisher.messages[mark:])
+    detail = node.obstacle_stop_source_diagnostics
+    assert detail['phase'] == 'after_calculation'
+    assert detail['sensor'] == 'lidar_scan'
+    assert detail['max_source_age_s'] == .25
+    assert detail['sources']['lidar_scan']['stamp_age_s'] >= .25
+    assert detail['sources']['lidar_cartesian']['source_stamp_ns'] == detail['sources']['lidar_scan']['source_stamp_ns']
+
+
+def test_diagnostic_logging_failure_cannot_prevent_watchdog_stop(make_node, monkeypatch):
+    node = stop_node(make_node)
+    start(node)
+
+    def failed_logger(*args):
+        raise RuntimeError('Unavailable diagnostic logger')
+
+    monkeypatch.setattr(node, '_warn', failed_logger)
+    node.test_clock.advance(.16)
+    node.supervision_callback()
+    assert node.fsm_state == 2 and node.obstacle_stop_monitor.latched
+    assert node.action_publisher.messages[-1].drive == 0.
+    assert node.obstacle_stop_source_diagnostics['phase'] == 'supervision'
+
+
+@pytest.mark.parametrize('source_limit,expected_fault', [(.25, True), (.30, False)])
+def test_car19_measured_acquisition_and_receipt_age_replay(make_node, source_limit, expected_fault):
+    # Snapshot run 6136bf3c: 140.611536 ms at receipt plus 113.141551 ms
+    # without another accepted frame. No sensor truth or zero-stamp substitution.
+    node = stop_node(make_node, **{'obstacle_stop.max_source_age_s': source_limit,
+                                  'obstacle_stop.max_receipt_age_s': .15})
+    message = scan(node, frame='base_link', offset=-.140611536)
+    node.lidar_callback(message)
+    node.test_clock.advance(.113141551)
+    reason, age = node._obstacle_stop_source_fault(*node._times())
+    assert (reason is not None) == expected_fault
+    if expected_fault:
+        assert reason == 'lidar_stale_or_bad_timestamp'
+        assert age == pytest.approx(.253753087)
+        detail = node.obstacle_stop_source_diagnostics['sources']['lidar_scan']
+        assert detail['source_expired'] and not detail['receipt_expired']
+        assert detail['receipt_age_s'] == pytest.approx(.113141551)
+
+
+@pytest.mark.parametrize('source_limit', [.30, .50])
+def test_source_latency_allowance_never_relaxes_receipt_dropout_stop(make_node, source_limit):
+    node = stop_node(make_node, **{'obstacle_stop.max_source_age_s': source_limit,
+                                  'obstacle_stop.max_receipt_age_s': .15})
+    start(node)
+    node.test_clock.advance(.151)
+    node.supervision_callback()
+    assert node.fsm_state == 2 and node.obstacle_stop_monitor.latched
+    assert node.action_publisher.messages[-1].drive == 0.
+    detail = node.obstacle_stop_source_diagnostics['sources']['lidar_scan']
+    assert detail['receipt_expired'] and not detail['source_expired']
+
+
+def test_fresh_receipt_does_not_make_old_acquisition_stamp_fresh(make_node):
+    node = stop_node(make_node, **{'obstacle_stop.max_source_age_s': .30,
+                                  'obstacle_stop.max_receipt_age_s': .15})
+    node.lidar_callback(scan(node, frame='base_link', offset=-.31))
+    reason, age = node._obstacle_stop_source_fault(*node._times())
+    assert reason == 'lidar_stale_or_bad_timestamp'
+    assert age == pytest.approx(.31)
+    detail = node.obstacle_stop_source_diagnostics['sources']['lidar_scan']
+    assert detail['source_expired'] and not detail['receipt_expired']
+
+
 def test_lost_tf_invalidates_previous_points_and_stops(make_node):
     node = stop_node(make_node)
     start(node)
@@ -127,6 +246,57 @@ def test_lost_tf_invalidates_previous_points_and_stops(make_node):
     node.supervision_callback()
     assert node.fsm_state==2 and 'lidar_unavailable' in node.state_reason
     assert node.action_publisher.messages[-1].drive==0.
+
+
+@pytest.mark.parametrize('ranges', [[math.nan, math.nan], [-math.inf, -math.inf],
+                                   [.01, .01], [13., 13.]])
+def test_wholly_invalid_scan_stops_running_policy_and_requires_resume(make_node, ranges):
+    node = stop_node(make_node)
+    start(node)
+    assert node.fsm_state == 3 and node.action_publisher.messages[-1].drive > 0.
+    node.test_clock.advance(.05)
+    message = scan(node, frame='base_link')
+    message.ranges = ranges
+    node.lidar_callback(message)
+    assert node.observations['lidar_scan'] is not None  # Preserve raw measurements.
+    assert node.observations['lidar_cartesian'] is None  # Never reuse the old cloud.
+    mark = len(node.action_publisher.messages)
+    node.supervision_callback()
+    node.run_policy_step()
+    assert node.fsm_state == 2 and 'lidar_unavailable' in node.state_reason
+    assert all(action.drive == 0. for action in node.action_publisher.messages[mark:])
+    first = dict(node.obstacle_stop_monitor.trigger)
+    node.test_clock.advance(.05)
+    feed(node)
+    node.supervision_callback()
+    node.run_policy_step()
+    assert node.fsm_state == 2 and node.obstacle_stop_monitor.trigger == first
+    request(node, 3)
+    node.test_clock.advance(.05)
+    feed(node)
+    node.run_policy_step()
+    assert node.fsm_state == 3 and node.action_publisher.messages[-1].drive > 0.
+
+
+def test_wholly_invalid_scan_refuses_start_but_partial_invalid_rays_remain_supported(make_node):
+    node = stop_node(make_node)
+    feed(node)
+    node.test_clock.advance(.01)
+    message = scan(node, frame='base_link')
+    message.ranges = [math.nan, math.nan]
+    node.lidar_callback(message)
+    request(node, 3)
+    assert node.fsm_state == 2 and 'lidar_unavailable' in node.state_reason
+    node.test_clock.advance(.01)
+    stamp(node, message, frame='base_link')
+    message.ranges = [math.nan, math.inf]
+    node.lidar_callback(message)
+    assert node.observations['lidar_cartesian'].value['points_xyz'] == []
+    request(node, 3)
+    node.test_clock.advance(.05)
+    feed(node)
+    node.run_policy_step()
+    assert node.fsm_state == 3 and node.action_publisher.messages[-1].drive > 0.
 
 
 def test_actual_mount_transform_is_used_before_gate(make_node):

@@ -585,6 +585,15 @@ class PolicyNode(ShadowJobSource, Node):
 
     def _convert_lidar_scan(self, scan, stamp):
         """Convert one scan with a single nonblocking acquisition-time TF lookup."""
+        # An empty cloud is meaningful only when there were usable measurements.
+        # +Inf is an ordinary no-return ray; NaN, -Inf and out-of-range finite
+        # values alone cannot establish that the surroundings are clear. Keep
+        # the raw scan intact, but leave Cartesian data unavailable in that case.
+        if not any(distance == math.inf or (
+                finite_number(distance)
+                and scan["range_min"] <= distance <= scan["range_max"])
+                for distance in scan["ranges"]):
+            raise ValueError("Lidar scan contains no usable distance or no-return rays")
         offsets = (0.0, 0.0, 0.0)
         x_axis, y_axis = (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)
         if scan["frame_id"] != self.policy_frame_id:
@@ -665,6 +674,7 @@ class PolicyNode(ShadowJobSource, Node):
         now, ros_now = self._times()
         if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
             return
+        self._obstacle_stop_check_phase = 'before_calculation'
         problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
@@ -683,6 +693,7 @@ class PolicyNode(ShadowJobSource, Node):
         elapsed = now - self.policy_started_at
         self.previous_policy_step_at = now
 
+        calculation_started = time.perf_counter()
         try:
             monitor = getattr(self, 'obstacle_stop_monitor', None)
             stop_ready = True
@@ -722,12 +733,14 @@ class PolicyNode(ShadowJobSource, Node):
             return
         finally:
             self._obstacle_stop_snapshot = None
+            self._last_policy_calculation_s = time.perf_counter()-calculation_started
 
         # A calculation may have taken longer than a sensor's deadline. Check
         # again after it returns; never refresh stale driving actions on a timer.
         now, ros_now = self._times()
         if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
             return
+        self._obstacle_stop_check_phase = 'after_calculation'
         problem = self._control_health_problem(now, ros_now)
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
@@ -803,14 +816,43 @@ class PolicyNode(ShadowJobSource, Node):
         for name in ('lidar_scan', 'lidar_cartesian'):
             sample = self.observations.get(name)
             if sample is None:
+                self._record_obstacle_stop_source_fault(name, monotonic_now, ros_now_ns)
                 return 'lidar_unavailable', None
             age = self._age(sample, monotonic_now, ros_now_ns)
+            receipt_age = max(0., monotonic_now-sample.received_at)
             if (not self._fresh(name, monotonic_now, ros_now_ns)
-                    or age >= self.obstacle_stop_monitor.settings.max_source_age_s):
+                    or age >= self.obstacle_stop_monitor.settings.max_source_age_s
+                    or receipt_age >= self.obstacle_stop_monitor.settings.max_receipt_age_s):
+                self._record_obstacle_stop_source_fault(name, monotonic_now, ros_now_ns)
                 return 'lidar_stale_or_bad_timestamp', age
         if self.observations['lidar_cartesian'].value['frame_id'] != self.policy_frame_id:
             return 'lidar_frame_or_alignment', None
         return None, None
+
+    def _record_obstacle_stop_source_fault(self, sensor, monotonic_now, ros_now_ns):
+        """Explain the existing stop decision; never change admission/deadlines."""
+        try:
+            detail = dict(sensor=sensor,
+                phase=getattr(self, '_obstacle_stop_check_phase', 'unknown'),
+                max_source_age_s=self.obstacle_stop_monitor.settings.max_source_age_s,
+                max_receipt_age_s=self.obstacle_stop_monitor.settings.max_receipt_age_s,
+                last_policy_calculation_s=getattr(self, '_last_policy_calculation_s', None),
+                ros_now_ns=ros_now_ns, sources={})
+            for name in ('lidar_scan', 'lidar_cartesian'):
+                sample = self.observations.get(name)
+                detail['sources'][name] = None if sample is None else dict(
+                    source_stamp_ns=sample.stamp_ns,
+                    receipt_age_s=max(0., monotonic_now-sample.received_at),
+                    stamp_age_s=None if sample.stamp_ns is None else (ros_now_ns-sample.stamp_ns)/1e9,
+                    effective_age_s=self._age(sample, monotonic_now, ros_now_ns),
+                    receipt_expired=max(0., monotonic_now-sample.received_at) >= self.obstacle_stop_monitor.settings.max_receipt_age_s,
+                    source_expired=self._age(sample, monotonic_now, ros_now_ns) >= self.obstacle_stop_monitor.settings.max_source_age_s,
+                    sensor_timeout_s=self.sensor_timeout_s[name])
+            self.obstacle_stop_source_diagnostics = detail
+            self._warn('obstacle_stop_source', 'LiDAR stop source: '+json.dumps(detail, allow_nan=False))
+        except Exception:
+            # A diagnostic failure must not interrupt the caller's zero/stop.
+            pass
 
     def _obstacle_stop_watchdog(self, monotonic_now, ros_now_ns):
         monitor = getattr(self, 'obstacle_stop_monitor', None)
@@ -1342,6 +1384,7 @@ class PolicyNode(ShadowJobSource, Node):
             problem = self.health_problem(now, ros_now)
             monitor = getattr(self, 'obstacle_stop_monitor', None)
             if monitor is not None and monitor.settings.enabled:
+                self._obstacle_stop_check_phase = 'start_admission'
                 fault, _ = self._obstacle_stop_source_fault(now, ros_now)
                 problem = problem or fault
             if problem:
@@ -1352,6 +1395,7 @@ class PolicyNode(ShadowJobSource, Node):
             if monitor is not None and monitor.settings.enabled:
                 monitor.reset()  # Only an admitted explicit operator resume.
                 self.obstacle_stop_diagnostics = None
+                self.obstacle_stop_source_diagnostics = None
             self.heading_reference = None
             if self._fresh("imu_orientation", now, ros_now):
                 self.heading_reference = roll_pitch_yaw(self.observations["imu_orientation"].value)[2]
@@ -1609,6 +1653,7 @@ class PolicyNode(ShadowJobSource, Node):
     def supervision_callback(self):
         now, ros_now = self._times()
         if self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION:
+            self._obstacle_stop_check_phase = 'supervision'
             problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
             if problem:
                 self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)

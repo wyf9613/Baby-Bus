@@ -1311,6 +1311,12 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.get_fully_qualified_name() == "/namespaced/ai4r_policy"
         assert node.policy_update_mode == "timer"
         assert node.policy_update_rate_hz == 20.0
+        assert node.obstacle_stop_monitor.settings.enabled is True
+        assert node.obstacle_stop_monitor.settings.trigger_distance_m == 0.15
+        assert node.obstacle_stop_monitor.settings.front_extent_m == 0.275
+        assert node.obstacle_stop_monitor.settings.width_m == 0.30
+        assert node.obstacle_stop_monitor.settings.max_source_age_s == 0.30
+        assert node.obstacle_stop_monitor.settings.max_receipt_age_s == 0.20
         assert node.required_sensors == ["cone_detections", "wheel_speed", "imu_angular_velocity"]
         assert node.control_settings.enabled is True
         assert node.control_settings.mode == "mvp"

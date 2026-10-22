@@ -1929,3 +1929,73 @@ The ROS node now applies the shared latched ObstacleStopMonitor before planning,
 The full synthetic ROS gate passes 380 reported tests (369 pytest cases plus 11 CTest groups), no failures/errors/skips. Seventeen new ROS checks include a seven-scenario real DDS/timer run using actual LaserScan, static TF, wheel/IMU/cone messages, current common MVP2.1 native/baseline execution and normalized action subscriptions. The central case used native execution, continued at 16 cm, requested zero at 14 cm, stayed zero after obstacle removal and resumed only on request. Dropouts, failed TF, stopped control timers and startup obstacles stop safely at the command/FSM layer. Tests and demos use explicit synthetic dimensions and stationary wheel telemetry; no plant dynamics or physical braking is represented.
 
 Related Mac portable checks pass 250 cases. Four offline closed-loop cases retain all 697 prior state/action frames including the coast contact failure. Evidence is indexed by `.verification/ros-lidar-stop/acceptance.json`; review and limitations are in ROS_LIDAR_STOP_CN.md. These changes are local/uncommitted and are not a hardware deployment or physical stop-distance qualification.
+
+## LiDAR source-timeout diagnostic candidate, 2026-10-21
+
+Stationary car observations include a real-scan obstacle stop and latch retention,
+followed by a separate source-age stop on explicit resume. The root cause of that
+car timeout remains unresolved. A subsequent source/effective-parameter/log snapshot
+belongs to a different policy run started at 16:14:22 Melbourne time, without the
+obstacle_stop parameters; it is not evidence of the earlier timeout's cause.
+The local candidate adds bounded raw/Cartesian age, check-phase and calculation-time
+logging without changing stop admission, default thresholds or resume behavior.
+Three additional ROS regressions cover 10 Hz scans with 100 ms source delay under
+an explicit 0.25 s limit, a late-calculation stop with source diagnostics, and
+diagnostic-logger failure retaining the watchdog stop. The required fast gate
+passes 383 reported tests (372 pytest cases plus 11 CTest groups), no failures,
+errors or skips; 41 focused portable control/monitor checks pass. The freshly
+bundled candidate starts in an isolated local ROS namespace, remains zero, and
+returns the intended enabled/0.25 s/0.2 m/s parameters via the parameter service.
+This is a diagnostic candidate, not an established root-cause fix or driving
+qualification. Gate log: `.verification/ros2-jazzy/checks/20261021-162531/verify-fast.log`.
+
+The later 16:38 snapshot is the matching diagnostic bundle/run. It records a
+0.253753087 s source age against the 0.25 s limit, 0.113141551 s receipt age and
+a 0.025266238 s previous calculation. The logged stop was a genuine configured
+age-limit exceedance; the record does not attribute upstream latency or scheduling.
+The timing candidate adds an independent positive finite receipt-age setting
+(default 0.15 s), retains the source-age default of 0.15 s, and changes neither
+public YAML nor obstacle geometry. The Disabled stationary candidate configuration
+uses 0.30 s source age and 0.15 s receipt age. Both deadlines remain fail-closed.
+Five ROS cases replay the measured timing under old/new source budgets, verify
+receipt dropout still stops with larger source allowances, and reject old stamps
+despite fresh receipt; one pure validation case covers invalid receipt limits.
+The required gate passes 389 reported tests (378 pytest cases plus 11 CTest groups),
+no failures/errors/skips. Gate log:
+`.verification/ros2-jazzy/checks/20261021-164136/verify-fast.log`.
+This is a locally verified timing-budget correction candidate, not a claim of
+physical stopping, a hard deadline, or resolution of the separate recorded road
+support rejection. The higher-level driver/transport/executor latency remains
+unattributed by the available snapshot.
+
+## Integrated car19 LiDAR profile and invalid-scan fix, 2026-10-21
+
+The operator reports successful physical driving and obstacle stopping with source
+age 0.30 s and receipt age 0.20 s, without further timing changes. This supersedes
+the earlier lack of driving evidence for that trial, but provides no measured
+speed, braking distance or repeatability qualification. The feature branch common
+configuration now explicitly enables the same profile: target 0.2 m/s, 15 cm
+front-bumper trigger, front/rear extents 0.275/0.198 m and width 0.30 m. Parsed
+values match the reconstructed successful-profile record exactly. Bare-node
+defaults remain disabled; loading this branch's common YAML enables the feature.
+
+Conversion now refuses a scan consisting entirely of NaN, negative infinity or
+finite out-of-range readings instead of producing an apparently clear point set.
+Raw values remain available for diagnostics; the previous Cartesian observation
+is invalidated immediately. Enabled stopping refuses admission or latches zero
+through the existing guard. Positive-infinity no-return rays and partly invalid
+scans remain supported; this is not a guarantee of coverage in every direction.
+Five added ROS cases cover running failure, startup refusal, preserved zero after
+data recovery and explicit restart. Control/planning algorithms are unchanged.
+
+The required pinned-interface fast gate passes 383 pytest cases and 11 CTest
+groups (394 reported), no errors/failures/skips, including the seven DDS scenarios.
+The config-loading test verifies the installed profile. Focused Mac control and
+monitor checks pass 42 cases. Gate log:
+`.verification/ros2-jazzy/checks/20261021-214922/verify-fast.log`.
+No car was connected or changed during this consolidation. This new scan-quality
+fix still needs physical revalidation. A recorded 118.5 ms calculation exceeds
+the nominal 50 ms policy period; executor latency remains an open performance
+issue, with pre/post-calculation freshness checks retained. The new local
+`tools/package_lidar_stop.py` bundles current source and common configuration with
+fingerprints, Git dirty-state provenance and an archive checksum; it never deploys.

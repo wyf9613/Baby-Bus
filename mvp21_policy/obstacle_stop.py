@@ -17,13 +17,16 @@ class ObstacleStopSettings:
     width_m: float = 0.25
     lateral_margin_m: float = 0.0
     max_source_age_s: float = 0.15
+    # ROS watchdog: monotonic time since the last accepted scan/point set.
+    # Separate from acquisition age, which includes the scanner's own latency.
+    max_receipt_age_s: float = 0.15
     frame_id: str = 'base_link'
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
             raise ValueError('Obstacle stop enabled must be bool')
         for name in ('trigger_distance_m', 'front_extent_m', 'rear_extent_m',
-                     'width_m', 'max_source_age_s'):
+                     'width_m', 'max_source_age_s', 'max_receipt_age_s'):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError('Positive finite obstacle stop '+name+' required')
         if not finite_number(self.lateral_margin_m) or self.lateral_margin_m < 0:

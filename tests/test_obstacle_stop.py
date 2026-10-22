@@ -63,6 +63,11 @@ class ObstacleStopChecks(unittest.TestCase):
     def test_disabled_monitor_preserves_legacy_behavior(self):
         self.assertFalse(ObstacleStopMonitor().evaluate(None,float('nan'))['stop_required'])
 
+    def test_receipt_age_limit_requires_positive_finite_value(self):
+        for value in (0., -.1, float('nan'), float('inf')):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                ObstacleStopSettings(max_receipt_age_s=value)
+
     def test_stop_bypasses_both_planner_and_baseline_control(self):
         class Controller:
             def clear(self): self.cleared=True

@@ -23,6 +23,21 @@
     # (normally 0.5 s); a very slow policy can cause the vehicle to disable.
     policy_update_rate_hz: 20.0
 
+    # MVP2.1 straight obstacle-stop deployment profile (2026-10-21).
+    # Operator reported successful car19 driving/stop with these time limits.
+    # Dimensions remain provisional: laser x=0.200 m + front offset ~0.075 m.
+    # These are data-freshness deadlines, not braking-time guarantees.
+    # Bare-node defaults remain disabled; this feature-branch profile enables it.
+    obstacle_stop:
+      enabled: true
+      trigger_distance_m: 0.15
+      front_extent_m: 0.275
+      rear_extent_m: 0.198
+      width_m: 0.30
+      lateral_margin_m: 0.0
+      max_source_age_s: 0.30
+      max_receipt_age_s: 0.20
+
     # Which observations MUST be present and fresh before/during your policy?
     # Valid names: cone_detections, fiducial_detections, lidar_scan,
     #              lidar_cartesian, wheel_speed,
