@@ -224,6 +224,7 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
   ```
 
   10-22 下午 1 号车过弯用的是 `carrun-v020-nolimit-blueleft-travel`（policy_node `9f136686…`，yaml `72e4b55c…`，合并前的 `mpc-car-run`）。它和这里的 `v020-nolimit-blueleft` 只差 3 行默认值：`colour_assignment: fixed`、`collision_coverage: prefix`、`score_coverage: prefix`。policy_node 的差别是 10-21 移植的①③②，关闭时逐位不变。
+- **WSL 门禁 `0561d1a` 通过**（offline PASS、ros gate PASS），上表的包可以上车。旧包已挪到 `.verification\old\`。
 - **参数核对**：`ros2 param get "$N" shadow.check_length_mode`，预期 `travel`。
 - **每次上车都查**（共用车，10-22 在 1 号车上发现过）：
   - 转向区间 ±1.0：1 号车当时是 -1.0 / **0.85**；

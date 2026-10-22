@@ -2,7 +2,7 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
-## 2026-10-22：1 号车实车——急弯里 `travel_plus_window` 不行，检查长度改回 `travel` ✅
+## 2026-10-22：1 号车实车——急弯里 `travel_plus_window` 不行，检查长度改回 `travel`；合并 sim 分支，WSL 门禁 `0561d1a` 通过 ✅
 
 **车和场地**：1 号车（`10.43.254.14`，IP 最后一段 = 标签数字 + 13），当作 5 号车，直接用 car05 包（`mpc-car-run`，policy_node `9f136686…`），场地蓝左。包在 `E:\26b\AI4R\car-evidence\car01-lattice21-20261022-152447\`。
 
@@ -30,7 +30,7 @@
 - 13 个 car05 lattice 包从合并后的代码重新生成，policy_node 是 `3cfdf86b…`，哈希见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-22。
 - 本机 `unittest discover`：434 个。除了需要 ROS 的 `test_policy_node`，还有 `test_lattice` 的 `test_actual_node_latches_lattice_failure_and_requires_explicit_resume` 失败（`source_deadline_during_planning`）。这个测试里 lattice V2 同步规划，耗时超过 0.4 s 的时限就会失败，对机器速度敏感：合并前的 sim-port 代码当时也同样失败，早些时候单独跑是通过的。不是合并引入的问题，WSL 门禁会再跑一次。
 - 删掉了已经完整并入、远程也有备份的本地分支：`mpc-car-run-port-main`、`control-mpc-v0`、`feature/mpc-prediction-model`、`feature/vehicle-identification`。
-- **WSL 门禁待跑**：`BRANCH=mpc-car-run bash .verification/run_ros_check.sh`。
+- **WSL 门禁 `0561d1a` 通过**：offline PASS、ros gate PASS（`~/ai4r-evidence/ros-20261022-165039`）。本机那个对速度敏感的 `test_lattice` 测试在 WSL 上也通过了。
 
 **其他发现**（都在 worktree 分支 `mpc-new-path-blend` 上，从 sim-port 拉出，没有合入本分支，默认关闭）：
 - **Jetson 上 lattice 耗时**：`travel_plus_window` 下每次 0.26–0.33 s，`late_for_requested_period` 一次都没有出现（P2 的遗留问题解决）。
@@ -39,7 +39,6 @@
 - **2 Hz lattice**：直道跳变 p95 从 0.24 降到 0.15，完成 33 → 35，在波动范围内。不进配置。
 
 **待做**：
-- WSL 门禁：`BRANCH=mpc-car-run bash .verification/run_ros_check.sh`。
 - sim-port 分支拣入这一项，并重新生成它的包。
 - `travel` 下切换变多、车速偶尔冲到 0.41–0.45 m/s（卡住后重起步，每次不到 0.2 s，没有触发硬停），继续观察。
 - 急弯出口和终点的估计层停车（`invalid_ordered_geometry` / `invalid_boundary_pairing`）：外侧边界绕到车前方时，配对和串联都处理不了，Gym 里直角弯失败的原因也是这个。
