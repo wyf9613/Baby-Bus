@@ -1,5 +1,9 @@
 # Baby Bus · ai4r_policy
 
+本地绕行开发入口：`ying/mvp21-lidar-avoidance`。当前从已完整保存的 MVP2.1
+雷达停车整合版开始，主动绕行尚未实现。版本、恢复方式和本轮基线检查见
+[工作区说明](docs/LIDAR_AVOIDANCE_WORKSPACE_CN.md)。
+
 当前实现位于 [mvp21_policy/](mvp21_policy/README.md)，两个 script 名称均进入同一套
 最新 MVP2.1 模块。ROS 与原虚拟车辆环境共用同一执行管理器、PID 回退函数和
 `config/ai4r_policy.yaml`。默认 native 规划 1 Hz、控制 20 Hz，暂不接入学习 policy。
