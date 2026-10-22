@@ -15,6 +15,11 @@ a fresh battery, 0.289/0.298 (the fit) and 0.31/0.37 for a used one -- and steer
 
 Lattice planning time is measured on this computer, so a repeat differs by 1-3 completions
 per 60 runs (seen 2026-10-19): compare variants on the same plant, and repeat when close.
+--lattice-planning-s fixes it instead (2026-10-21; tools/replay_run_jsonl.py has the same
+option), so variants differ only by their settings.
+The shadow.* section is ai4r_policy_mpc_lattice21.yaml's (check_length_mode "travel"), not
+car 05's: add --set shadow.check_length_mode=travel_plus_window for car 05's lattice.
+--json-out writes every run's row (selection reasons, lattice statuses, lateral, speed).
 --plant-turn-drag adds cornering drag (deadband + k*|steering|; 0 = none, as before 10-20).
 --feedback layers config/ai4r_policy_mpc_car05_feedback.yaml (mpc.longitudinal_mode feedback).
 Simulation only, not car evidence: the plant has no held wheel readings, which the 10-19
@@ -23,6 +28,7 @@ car runs showed (tools/car05_run_stats.py).
 import argparse
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
+import json
 from pathlib import Path
 import sys
 
@@ -85,6 +91,12 @@ def configure(args):
     plant = {"d0": args.plant_d0, "u_break": args.plant_ubreak, "turn_drag": args.plant_turn_drag}
     c.newcar27_run = lambda p, **kw: run(p, plant_changes=plant, **kw)
 
+    if args.lattice_planning_s is not None:
+        import replay_run_jsonl as replay     # pipeline_sim imports enable_lattice from it per run
+        enable = replay.enable_lattice
+        replay.enable_lattice = lambda node, api, params, delivery_s, planning_s=None: enable(
+            node, api, params, delivery_s, args.lattice_planning_s)
+
 
 def one(job):
     args, road, lane, seed = job
@@ -105,6 +117,9 @@ def main():
     parser.add_argument("--roads", nargs="+", default=list(ROADS), choices=list(c.ROADS))
     parser.add_argument("--seeds", type=int, default=6, help="seeds 1..N per road and lane")
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--lattice-planning-s", type=float, default=None,
+                        help="fixed lattice planning time instead of this computer's (deterministic)")
+    parser.add_argument("--json-out", type=Path)
     args = parser.parse_args()
     jobs = [(args, r, lane, s) for r in args.roads for lane in (0.72, 1.0) for s in range(1, args.seeds+1)]
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
@@ -126,6 +141,9 @@ def main():
         print(f"  {road:17s} {sum(r['completed'] for r in group):2d}/{len(group)}  max lateral {lat}  "
               f"lattice {share:.0%} of ticks, {switches} switches")
     print("  stop reasons:", dict(reasons.most_common(6)))
+    if args.json_out:
+        args.json_out.write_text(json.dumps({"args": {k: str(v) for k, v in vars(args).items()},
+                                             "rows": rows}, indent=1), encoding="utf-8")
     return 0
 
 

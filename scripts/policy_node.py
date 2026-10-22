@@ -258,6 +258,11 @@ class EstimationSettings:
     # ROS cone colour IDs: yellow=1, blue=2. YAML selects the course layout.
     left_colour: int = 2
     right_colour: int = 1
+    # mpc-car-run adaptation (from sim-branch 2c41240, 2026-10-21): "fixed" uses
+    # left_colour/right_colour. "auto" tries both mappings on fresh two-sided
+    # observations at the start of each run and locks the one that passes the
+    # width gate (EstimationPipeline.road); the road stays invalid until then.
+    colour_assignment: str = "fixed"
     min_cone_confidence: float = 0.5
     road_forward_max_m: float = 3.0
     road_min_coverage_m: float = 0.5
@@ -311,6 +316,8 @@ class EstimationSettings:
     road_prediction_max_distance_m: float = 0.2
 
     def __post_init__(self):
+        if self.colour_assignment not in ("fixed", "auto"):
+            raise ValueError("estimation.colour_assignment must be fixed or auto")
         if (type(self.left_colour) is not int or type(self.right_colour) is not int
                 or {self.left_colour, self.right_colour} != {1, 2}):
             raise ValueError("estimation left/right colours must be distinct yellow=1 and blue=2")
@@ -329,8 +336,8 @@ class EstimationSettings:
         if self.continuous_road_output and self.history_propagation != "continuous":
             raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
-            if name in ("history_propagation", "road_history_mode", "road_geometry", "history_merge_single_side",
-                        "continuous_road_output", "single_side_from_learned_width"):
+            if name in ("colour_assignment", "history_propagation", "road_history_mode", "road_geometry",
+                        "history_merge_single_side", "continuous_road_output", "single_side_from_learned_width"):
                 continue
             if not finite_number(value):
                 raise ValueError(f"estimation.{name} must be finite")
@@ -784,6 +791,9 @@ class EstimationPipeline:
         self.settings, self.frame_id = settings, frame_id
         self.left_colour = settings.left_colour if left_colour is None else left_colour
         self.right_colour = settings.right_colour if right_colour is None else right_colour
+        # mpc-car-run adaptation (from sim-branch 2c41240): run-scoped colour lock.
+        self._colour_assignment_locked = settings.colour_assignment == "fixed"
+        self._colour_assignment_evidence = []
         self.motion = motion_history or EstimationMotionHistory(settings)
         self._clear_road_history()
 
@@ -1134,6 +1144,77 @@ class EstimationPipeline:
         return value is not None and finite_number(age) and 0 <= age < self.settings.max_source_age_s
 
     def road(self, batch, stamp_ns, age):
+        """Resolve colour independently of configuration before using history.
+
+        Probe fresh, observed two-sided roads without learned/known-width
+        inference. Never acquire an assignment from an inferred or predicted
+        boundary. A pipeline is recreated for each explicit policy run; ordinary
+        road-history clears deliberately keep its established colour mapping.
+
+        mpc-car-run adaptation (from sim-branch 2c41240, mvp21_policy/estimation.py):
+        verbatim; the raw reconstruction this wraps is _road() below (this
+        branch's former road(), identical to the sim branch's _road()).
+        """
+        if not self._colour_assignment_locked:
+            from dataclasses import replace     # the offline/test namespaces have no module imports
+            hypotheses, usable = [], []
+            probe_settings = replace(self.settings, colour_assignment="fixed",
+                                     known_lane_width_m=0.0,
+                                     single_side_from_learned_width=False)
+            for left, right in ((1, 2), (2, 1)):
+                probe = EstimationPipeline(probe_settings, self.frame_id,
+                                           left_colour=left, right_colour=right)
+                road = probe._road(batch, stamp_ns, age)
+                observed = (road["valid"] and road["visibility"] == "both"
+                            and len(road["centerline_xy"]) >= 2)
+                distance = (math.sqrt(_path_project(road["centerline_xy"],
+                    _path_lengths(road["centerline_xy"]), (0.0, 0.0), forward=False)[0])
+                    if observed else None)
+                evidence = dict(left_colour=left, right_colour=right,
+                    valid=observed, road_status=road["status"],
+                    lane_width_m=road.get("lane_width_m"), distance_to_ego_m=distance,
+                    boundary_diagnostics=deepcopy(road["boundary_diagnostics"]))
+                hypotheses.append((road, evidence))
+                if observed:
+                    usable.append(evidence)
+            usable.sort(key=lambda item: item["distance_to_ego_m"])
+            if (len(usable) == 1 or len(usable) == 2 and
+                    usable[1]["distance_to_ego_m"]-usable[0]["distance_to_ego_m"]
+                    > self.settings.road_sample_spacing_m):
+                chosen = usable[0]
+                self.left_colour, self.right_colour = chosen["left_colour"], chosen["right_colour"]
+                self._colour_assignment_locked = True
+                self._colour_assignment_evidence = [item for _, item in hypotheses]
+            else:
+                pending = "ambiguous" if usable else "pending"
+                # Keep both probe diagnostics, with no assigned physical sides
+                # or reusable history. The configured fixed mapping is ignored.
+                result = hypotheses[0][0]
+                status = ("boundary_colour_assignment_"+pending if self._fresh(batch, age)
+                          and stamp_ns is not None and stamp_ns > 0 else "unavailable")
+                result.update(valid=False, status=status,
+                    visibility="unassigned", centerline_xy=[], left_boundary_xy=None,
+                    right_boundary_xy=None, lane_width_m=None,
+                    boundary_source={"left": "unassigned", "right": "unassigned"})
+                result["boundary_diagnostics"] = {
+                    side: dict(raw_count=0, filtered_count=0, fit_valid=False,
+                        fit_status="colour_assignment_unresolved", inlier_count=0,
+                        fit_rms_m=None, x_range_m=None)
+                    for side in ("left", "right")}
+                for key in ("_boundary_fits", "_support_cones", "_center_coeffs"):
+                    result.pop(key, None)
+                result["colour_assignment"] = dict(mode="auto", status=pending,
+                    left_colour=None, right_colour=None,
+                    hypotheses=[item for _, item in hypotheses])
+                return result
+        result = self._road(batch, stamp_ns, age)
+        result["colour_assignment"] = dict(mode=self.settings.colour_assignment,
+            status="locked" if self.settings.colour_assignment == "auto" else "fixed",
+            left_colour=self.left_colour, right_colour=self.right_colour,
+            hypotheses=deepcopy(self._colour_assignment_evidence))
+        return result
+
+    def _road(self, batch, stamp_ns, age):
         timestamp = stamp_ns/1e9 if stamp_ns is not None and stamp_ns > 0 else None
         output = {"timestamp_s": timestamp, "frame_id": self.frame_id, "valid": False,
                   "centerline_xy": [], "left_boundary_xy": None, "right_boundary_xy": None,
@@ -1610,7 +1691,9 @@ class EstimationPipeline:
                          "source_age_s": ages.get("cone_detections"),
                          "fit_valid": observed["valid"] and observed["visibility"] == "both",
                          "status": observed["status"], "visibility": observed["visibility"],
-                         "boundary_diagnostics": deepcopy(observed["boundary_diagnostics"])}
+                         "boundary_diagnostics": deepcopy(observed["boundary_diagnostics"]),
+                         # mpc-car-run adaptation (from sim-branch 2c41240)
+                         "colour_assignment": deepcopy(observed.get("colour_assignment"))}
         failure = road["status"]
         if (self.settings.continuous_road_output and self._failure_since_s is not None
                 and self._trusted_road is not None and road["valid"]
@@ -6124,6 +6207,11 @@ class ShadowSettings:
     # "travel" (mvp2.1): speed*hold. "max": max(speed*hold, preview+EXECUTION_TAIL_M).
     # "travel_plus_window": speed*hold+preview+EXECUTION_TAIL_M.
     check_length_mode: str = "travel"
+    # mpc-car-run adaptation (from sim-branch 8f1f01d, 2026-10-21): "prefix" keeps the
+    # lengths above; "generated" checks (collision) or scores (score) the whole
+    # generated path, max(length_m, score length, check+preview).
+    collision_coverage: str = "prefix"
+    score_coverage: str = "prefix"
     score_min_length_m: float = 0.2
     search_half_width_m: float = 0.45
     preparation_width_fraction: float = 0.15
@@ -6155,8 +6243,12 @@ class ShadowSettings:
         if not isinstance(self.check_length_mode, str) or \
                 self.check_length_mode not in ("travel", "max", "travel_plus_window"):
             raise ValueError("shadow.check_length_mode must be travel, max or travel_plus_window")
+        for name in ("collision_coverage", "score_coverage"):
+            if not isinstance(getattr(self, name), str) or getattr(self, name) not in ("prefix", "generated"):
+                raise ValueError("shadow."+name+" must be prefix or generated")
         for name, value in vars(self).items():
-            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "check_length_mode"):
+            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "check_length_mode",
+                        "collision_coverage", "score_coverage"):
                 continue
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
@@ -6194,7 +6286,11 @@ def _shadow_at(points, lengths, s):
     elif s >= lengths[-1]:
         i = len(points)-2
     else:
-        i = next(i for i in range(len(points)-1) if s <= lengths[i+1])
+        # mpc-car-run adaptation (from sim-branch 92ef303): binary search, the same
+        # first i with s <= lengths[i+1]. Imported here: _shadow_worker_entry runs
+        # these definitions in a fixed namespace without module-level imports.
+        from bisect import bisect_left
+        i = bisect_left(lengths, s)-1
     u = (s-lengths[i])/(lengths[i+1]-lengths[i])
     return tuple(points[i][k]+u*(points[i+1][k]-points[i][k]) for k in (0, 1))
 
@@ -6713,6 +6809,13 @@ class ShadowLatticePlanner:
             check = travel_check
         score_length = max(cfg.score_min_length_m, check)
         horizon = max(cfg.length_m, score_length, check+preview)
+        # mpc-car-run adaptation (from sim-branch 8f1f01d): the path is generated to
+        # horizon either way; the controller still reads check+preview of it.
+        control_read_length = check+preview
+        if cfg.collision_coverage == "generated":
+            check = horizon
+        if cfg.score_coverage == "generated":
+            score_length = horizon
         points = _shadow_points(road.get("centerline_xy"))
         left, right = (_shadow_points(road.get(side+"_boundary_xy")) for side in ("left", "right"))
         width = road.get("lane_width_m")
@@ -6762,13 +6865,18 @@ class ShadowLatticePlanner:
                       if value and sources.get(side) in ("observed", "observed_with_history")}
         timing["sampling"] = time.perf_counter()-phase_started
         candidates = []
+        # mpc-car-run adaptation (from sim-branch 92ef303): candidates share knot
+        # stations, so look each one up once per job.
+        knot_frames = {}
         for candidate_id, (family, offsets) in enumerate(samples[:cfg.sample_count]):
             phase_started = time.perf_counter()
             early = 0.12 if family == "fast_center" else 0.25
             distances = (early*horizon, 0.6*horizon, horizon)
             knots = [(0.0, 0.0)]
             for distance, offset in zip(distances, offsets):
-                p, _, n = frame.at(s0+distance)
+                if distance not in knot_frames:
+                    knot_frames[distance] = frame.at(s0+distance)
+                p, _, n = knot_frames[distance]
                 knots.append((p[0]+offset*n[0], p[1]+offset*n[1]))
             path = _shadow_curve(knots, horizon, cfg.path_spacing_m)
             next_phase = time.perf_counter()
@@ -6827,7 +6935,8 @@ class ShadowLatticePlanner:
                 "check_length_m": check, "score_length_m": score_length, "generated_length_m": horizon,
                 "check_length_mode": cfg.check_length_mode, "travel_check_m": travel_check,
                 "execution_window_m": execution_window,
-                "control_read_length_m": check+preview, "known_boundary_sides": list(boundaries),
+                "collision_coverage": cfg.collision_coverage, "score_coverage": cfg.score_coverage,
+                "control_read_length_m": control_read_length, "known_boundary_sides": list(boundaries),
                 "body_dimensions_m": [cfg.body_front_m, cfg.body_rear_m, cfg.body_width_m],
                 "body_dimensions_source": "shadow_configuration_provisional",
                 "collision_method": "adaptive_pose_sampling_no_padding",
@@ -8139,8 +8248,10 @@ class PolicyNode(Node):
         # ReferenceTrajectory or target speed is generated by the estimator.
         if is_first_policy_step or not hasattr(self, "estimator"):
             # Sides come from estimation.left_colour/right_colour (startup-only).
+            # estimation.colour_assignment auto overrides them once both sides are seen.
             self.estimator = EstimationPipeline(
                 self.estimation_settings, self.policy_frame_id, motion_history=self.motion_history)
+            self._reported_colour_assignment = None
         sample_receipts = {name: None if obs is None else obs.received_at
                            for name, obs in self.observations.items()}
         receipt_ros_ns = {name: None if obs is None else obs.received_ros_ns
@@ -8154,6 +8265,13 @@ class PolicyNode(Node):
         self.estimation_output = self.estimator.update(
             motion_observations, sensor_age_s, sensor_stamp_ns, sample_receipts,
             self.get_clock().now().nanoseconds / 1e9, receipt_ros_ns)
+        # mpc-car-run adaptation (from sim-branch 2c41240): log each auto lock once per run.
+        assignment = self.estimation_output["road"].get("colour_assignment") or {}
+        mapping = (assignment.get("left_colour"), assignment.get("right_colour"))
+        if (assignment.get("mode") == "auto" and assignment.get("status") == "locked"
+                and mapping != getattr(self, "_reported_colour_assignment", None)):
+            self._reported_colour_assignment = mapping
+            self.get_logger().info("Boundary colour assignment: " + str(assignment))
         # A measured vehicle.* record replaces the estimator's "unmeasured"
         # placeholders; nothing is substituted while it is not valid.
         vehicle = getattr(self, "vehicle_settings", None)
@@ -8201,14 +8319,19 @@ class PolicyNode(Node):
             # Delayed camera data may predate the reset motion history at start.
             # Bounded neutral priming is allowed only BEFORE the first valid
             # control step; any fault after tracking requires explicit resume.
+            # mpc-car-run adaptation (from sim-branch 2c41240): estimation.colour_assignment
+            # auto also waits here for its first two-sided observation.
             if (not self.planning_output["valid"] and not self.control_has_run
                     and estimates["state"]["valid"]
-                    and (estimates["road"]["status"] == "missing_motion_history"
+                    and (estimates["road"]["status"] in ("missing_motion_history",
+                                                         "boundary_colour_assignment_pending",
+                                                         "boundary_colour_assignment_ambiguous")
                          or (getattr(self, "async_planner", None) is not None
                              and self.planning_output.get("reason") in ControlReferenceManager.SOFT_REASONS))
                     and policy_elapsed_s < control.startup_grace_s):
                 self.control_diagnostics = {"valid": False, "stop_requested": False,
-                                            "reason": "priming_motion_history"}
+                    "reason": ("priming_colour_assignment" if estimates["road"]["status"].startswith(
+                        "boundary_colour_assignment_") else "priming_motion_history")}
                 return 0.0, 0.0, None, None, None
             if (getattr(self, "async_planner", None) is not None and not self.control_has_run
                     and estimates["road"].get("degraded")
@@ -8289,9 +8412,13 @@ class PolicyNode(Node):
             grace = getattr(self, "control_settings", ControlSettings()).startup_grace_s
             priming = not mpc_settings.shadow and not getattr(self, "mpc_has_run", False) and policy_elapsed_s < grace
             async_planning = getattr(self, "async_planner", None) is not None
+            # mpc-car-run adaptation (from sim-branch 2c41240): and for the colour lock
+            # of estimation.colour_assignment auto, within the same grace.
             if priming and planner_traj is None and (
                     (not planning_ref["valid"] and state["valid"]
-                     and (estimates["road"]["status"] == "missing_motion_history"
+                     and (estimates["road"]["status"] in ("missing_motion_history",
+                                                          "boundary_colour_assignment_pending",
+                                                          "boundary_colour_assignment_ambiguous")
                           or async_planning
                           and planning_ref.get("reason") in ControlReferenceManager.SOFT_REASONS))
                     or async_planning and estimates["road"].get("degraded")):
@@ -8345,6 +8472,10 @@ class PolicyNode(Node):
                     self.mpc_controller.last_debug.update(
                         reference_selection=self.planner_execution.diagnostics.get("mode"),
                         reference_selection_reason=self.planner_execution.diagnostics.get("reason"))
+                assignment = estimates["road"].get("colour_assignment") or {}
+                if assignment.get("mode") == "auto":     # 2026-10-21; fixed mode leaves mpc_debug as it was
+                    self.mpc_controller.last_debug.update(colour_assignment={
+                        key: assignment.get(key) for key in ("status", "left_colour", "right_colour")})
                 publisher = getattr(self, "mpc_debug_publisher", None)
                 if publisher is not None:
                     publisher.publish(String(data=mpc_debug_json(self.mpc_controller.last_debug)))
@@ -8823,6 +8954,7 @@ class PolicyNode(Node):
                                                  if event.get("id", 0) > reset_id]
             summary = {key: result.get(key) for key in ("status", "job_id", "candidate_count", "feasible_count",
                 "speed_mps", "hold_time_s", "check_length_m", "check_length_mode", "score_length_m", "elapsed_s",
+                "collision_coverage", "score_coverage",
                 "late_for_requested_period", "timing_s")}
             summary.update(selected_id=selected.get("id") if selected else None,
                 selected_family=selected.get("family") if selected else None,

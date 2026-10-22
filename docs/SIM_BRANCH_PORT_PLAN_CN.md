@@ -4,6 +4,14 @@
 > 文中的代码行号都以 `origin/mpc-car-run@bb0bef2` 的 `scripts/policy_node.py` 为准；`origin/feature/mvp21-sim-integration-20261015@2c41240` 简称"sim 分支"。
 > 原则：**所有移植都默认关闭**，关闭时行为和现在逐位一致；每一步完成后在 `docs/MPC_PROGRESS_LOG.md` 顶部加一条记录；没有明确要求时不 push。
 
+> **2026-10-21 审阅修正（执行前）**。下面原文保留，有错的地方用"〔修正〕"标出。执行结果见 `docs/MPC_PROGRESS_LOG.md` 2026-10-21 条目，分支 `mpc-car-run-sim-port`。
+> 1. **P3 已经部分过时**：`score_length = max(score_min_length_m, check)`。car05 用 `travel_plus_window`，0.20 m/s 时 `check` ≈ 0.72 m，所以评分长度已经是 0.72 m，不是 0.2 m；`horizon` = max(1.0, 0.72, 0.72+0.35) = 1.07 m。③ 的 `generated` 在 car05 上只把评分（或检查）长度从 0.72 拉到 1.07。第 3 节"collision 基本重叠、score 才是真正新增"的说法不对，两者都是 0.72 → 1.07。③ 也只针对 10-16 列的第一个原因（评分短），"弯外准备约 0.14 m"不受影响。
+> 2. **工具跑的不是计划以为的配置**：`replay_run_jsonl.py --planner-control` 原来先应用 `--set` 再合并 lattice21.yaml（`travel`），所以回放永远是 `travel`，也改不了；Gym（`car05_variants.py`）只取 car05 的 mpc/control/vehicle，`shadow` 来自 lattice21.yaml（`travel`），第 2 步的 A 组其实和 C 组相同。另外两个工具里 lattice 结果的可见时间都取本机实测耗时，同一份代码跑两遍，回放 398 拍里有 355 拍不同。已修：`--set` 在 overlay 之后再应用一次；两个工具都加了 `--lattice-planning-s`（固定耗时，结果确定）。
+> 3. **① 的 import**：worker 用固定命名空间执行 AST 抽取的定义，`bisect` 写在模块顶层会 `WORKER_ERROR`，必须写在函数体内（sim 分支就是这样）。
+> 4. **`length_m=1.3` 的理由不成立**：`horizon` 会自动延长到 `check+preview`，0.5 m/s 时已经是 1.40 m。D 组在 0.20 m/s 下改的是所有候选的形状（knot 位置是 horizon 的比例），不是"为提速做准备"。
+> 5. **② 的两个担心**：car05 实际是 `road_geometry: ordered_xy`（和 sim 分支相同）、`control.startup_grace_s: 3.0`，都没问题。
+> 6. **执行顺序改为**：0 修工具 → 1 基线（先回答 `travel_plus_window` 本身对 P3 有多大作用）→ 2 ① → 3 准备上车材料 → 4 ③ → 5 ②。
+
 ---
 
 ## 0. 结论速览
@@ -33,7 +41,7 @@
 |---|---|---|
 | P1 | 估计层停车（`invalid_boundary_pairing`、`invalid_ordered_geometry`、`insufficient_common_range`，以及别组锥桶误导），是失败的主因 | 10-18 起几乎每条 |
 | P2 | lattice 规划时检查 0.22 m，执行时检查约 0.5 m；已经做了 `check_length_mode`，还没上车，Jetson 上的耗时也没测 | 10-20 再续四/五 |
-| P3 | lattice 评分只看前 0.2 m（`score_min_length_m`），MPC 转向和 PID 反号（例如 end-straight1 上 203 对 46）；日志写的是"需和 Planning 组商量" | 10-16 |
+| P3 | lattice 评分只看前 0.2 m（`score_min_length_m`），MPC 转向和 PID 反号（例如 end-straight1 上 203 对 46）；日志写的是"需和 Planning 组商量"。〔修正〕这是 `travel` 下的情况；car05 的 `travel_plus_window` 下评分已是约 0.72 m | 10-16 |
 | P4 | 车上 CPU 满载，节拍被拖到 0.1–0.15 s 后报 `motion_state_unavailable` | 10-19 现场 |
 | P5 | 每个场地都要手动确认锥桶颜色（`--cones`、`cone_layout_check`） | 10-14 |
 | P6 | 本分支 `traxxas_vehicle_interface.yaml` 仍是 ±0.5，没定要不要统一 | 10-19 现场 |
@@ -50,7 +58,7 @@
 
 ### ③ 评分和检查范围（先评估）
 - sim 分支的 `ShadowSettings` 比我们多两个选项：`collision_coverage`、`score_coverage`，取值是 `prefix`（默认，和上游一致）或 `generated`。实现在 sim 分支 `mvp21_policy/lattice.py` 第 560–565 行：`generated` 时把检查或评分长度设成 `horizon = max(length_m, score_length, check+preview)`。
-- 我们的 `check_length_mode: travel_plus_window` 在 0.2 m/s 下检查约 0.72 m，已经接近 1.0 m 的整条路径，所以 `collision_coverage=generated` 和它基本重叠。**真正新增的变量是 `score_coverage`**，它对应的就是 P3。
+- 我们的 `check_length_mode: travel_plus_window` 在 0.2 m/s 下检查约 0.72 m，已经接近 1.0 m 的整条路径，所以 `collision_coverage=generated` 和它基本重叠。**真正新增的变量是 `score_coverage`**，它对应的就是 P3。〔修正〕评分长度也由 `check` 推出，同样已是 0.72 m；路径长 1.07 m。两个选项都是 0.72 → 1.07。
 - sim 分支自己的仿真：1.3 m 路径 + 全长检查/评分，退回中心线的周期从 6 降到 2（`offline/mvp21_sim/SHARED_EXECUTION_CN.md`）。样本很小，下游是 PID。
 - 另外还有一个字段 `unknown_width_reference_scale`（4/3），只在单侧边界、路宽未知时起作用，和 ④ 一起考虑，这一步不移植。
 
@@ -87,7 +95,7 @@
 - MPC 算法本身没有卡在 0.2，限制来自 `config/ai4r_policy_mpc_car05.yaml` 里的保护参数：`v_exec_max_mps` 0.20、软超速线 0.25、`overspeed_hard_mps` 0.40（持续 0.2 s 就锁停）、`high_speed_drive_max` 0.35 和 `drive_max` 0.38。
 - 需要验证的问题：
   1. 联合 MPC（joint）超调明显：目标 0.25 时最高 0.46，目标 0.30 时最高 0.45，取消限制后到 0.60。应该用 `--feedback`（PI-MPC）。
-  2. lattice 路径 1.0 m 不够：0.5 m/s 下一个规划周期走约 0.55 m，`travel_plus_window` 要检查约 1.05 m，需要把 `shadow.length_m` 调到约 1.3。
+  2. lattice 路径 1.0 m 不够：0.5 m/s 下一个规划周期走约 0.55 m，`travel_plus_window` 要检查约 1.05 m，需要把 `shadow.length_m` 调到约 1.3。〔修正〕不需要：`horizon` 自动取 `check+preview` ≈ 1.40 m。要看的是估计层前方能不能给出 1.4 m 的路，以及 lattice 耗时（检查越长越慢，见进度日志 10-21）。
   3. 出弯冲速（a5da）。
   4. CPU 节拍。
 - 现有证据：Gym 只扫到 0.30（.27 车模型、joint 模式）；实车最高只跑过目标 0.20。
@@ -145,6 +153,8 @@
   | B | A 加 `--set shadow.score_coverage=generated` | 看 P3 |
   | C | `--set shadow.check_length_mode=travel` | 原始版本，作参照 |
   | D（可选） | B 加 `--set shadow.length_m=1.3` | 为提速做准备 |
+
+  〔修正〕A 组必须显式加 `--set shadow.check_length_mode=travel_plus_window`，否则 Gym 用的是 lattice21.yaml 的 `travel`，和 C 组相同。D 组改的是所有候选的形状，不是提速准备。各组都加 `--lattice-planning-s 0.10`，结果确定，每组跑一遍即可。
 
   **指标不能只看完成率**（失败大多停在估计层，会掩盖规划层的差别）。要看：lattice 占比、`reference_switches`、`selection_reasons`、急弯（U 弯、直角弯 R1、R1.5）的最大横向误差、规划耗时、`ALL_COLLIDE` 次数。
 - **通过标准**：B 相对 A，开环反号数明显下降；Gym 里急弯切换次数和横向误差不变差，完成数在正常波动范围内；规划耗时可以接受。满足这些后，才考虑把 `score_coverage: generated` 写进 car05 配置并生成新的部署包，然后上车做 A/B。

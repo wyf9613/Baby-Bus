@@ -54,6 +54,14 @@ compare tick by tick with the road_centerline-only replay. The lattice runs
 in-process, but each result only becomes visible --lattice-delivery-s after its
 own measured planning time, counted from submission (on the car it is a separate
 1 Hz process). That planning time is this computer's, not the car's.
+
+2026-10-21: --set is applied again after the lattice21 overlay, so shadow.* and
+planner_control.* what-ifs reach the lattice replay (the overlay used to
+overwrite them, e.g. shadow.check_length_mode stayed "travel"). Measured
+planning time varies run to run, which moves the tick a result first becomes
+visible on: two replays of the same code differed on most ticks.
+--lattice-planning-s replaces it with a fixed value, so A/B comparisons of
+lattice settings (or of planner code) are deterministic.
 """
 import argparse
 from collections import Counter
@@ -129,9 +137,11 @@ def set_value(params, dotted, text):
 
 class DelayedLatticeWorker:
     """In-process stand-in for ShadowWorker: the real ShadowLatticePlanner, each
-    result held back until submission + its measured planning time + delivery_s."""
-    def __init__(self, api, clock, delivery_s):
+    result held back until submission + its measured planning time + delivery_s.
+    planning_s, when given, replaces the measured planning time (deterministic)."""
+    def __init__(self, api, clock, delivery_s, planning_s=None):
         self.api, self.clock, self.delivery_s = api, clock, delivery_s
+        self.planning_s = planning_s
         self.pending, self.jobs = [], 0
 
     def submit(self, job):
@@ -144,7 +154,8 @@ class DelayedLatticeWorker:
                       execution_anchor={"pose": job.get("shadow_pose"),
                                         "odometry_epoch": job.get("shadow_odometry_epoch")},
                       shadow_only=not job.get("planner_control_enabled"))
-        ready = job["submitted_monotonic_s"]+result["elapsed_s"]+self.delivery_s
+        planning = result["elapsed_s"] if self.planning_s is None else self.planning_s
+        ready = job["submitted_monotonic_s"]+planning+self.delivery_s
         self.pending = [(ready, json.loads(json.dumps(result, allow_nan=False)))]   # latest only
 
     def poll(self):
@@ -160,7 +171,7 @@ LATTICE_METHODS = ("_planner_preview_m", "_select_planner_reference", "_select_m
                    "_shadow_collect_road", "_shadow_offer", "_shadow_poll", "_shadow_clear")
 
 
-def enable_lattice(node, api, params, delivery_s):
+def enable_lattice(node, api, params, delivery_s, planning_s=None):
     """Shadow + planner_control state as PolicyNode.__init__ creates it."""
     node.shadow_settings = api["ShadowSettings"](**params["shadow"])
     node.planner_control_settings = api["PlannerControlSettings"](**params["planner_control"])
@@ -174,7 +185,7 @@ def enable_lattice(node, api, params, delivery_s):
     node.shadow_last_result_s = node.shadow_pose_stamp_s = node.shadow_previous_reference = None
     node.shadow_road_history, node.shadow_collection_events = [], []
     node.shadow_pose, node.shadow_odometry_epoch, node.shadow_collection_reset_id = [0.0, 0.0, 0.0], 0, 0
-    node.shadow_worker = DelayedLatticeWorker(api, node.clock, delivery_s)
+    node.shadow_worker = DelayedLatticeWorker(api, node.clock, delivery_s, planning_s)
     node.lattice_results = []
     ignore = SimpleNamespace(publish=lambda msg: None)
     node.shadow_path_publisher = node.shadow_prefix_publisher = node.shadow_reference_publisher = ignore
@@ -248,12 +259,12 @@ def path_point_distance(points, x, y):
     return best
 
 
-def replay(api, params, path, lattice_delivery_s=None):
+def replay(api, params, path, lattice_delivery_s=None, lattice_planning_s=None):
     events, recorded_parameters = load_run(path)
     apply_recorded_parameters(params, recorded_parameters)
     node = make_node(api, params)
     if lattice_delivery_s is not None:
-        enable_lattice(node, api, params, lattice_delivery_s)
+        enable_lattice(node, api, params, lattice_delivery_s, lattice_planning_s)
     stops = (api["MPCStop"], api["PolicyStopRequest"])
     t0 = events[0]["time_unix_s"]
     trajectories = []     # (t, [[x, y], ...]) from logged "trajectory" events
@@ -344,6 +355,21 @@ def compare_lattice(baseline, lattice, results):
 
     def spread(values):
         return None if not values else {"median": round(statistics.median(values), 4), "max": round(max(values), 4)}
+
+    def pid(step):
+        return (step.get("logged_actions") or {}).get("steer")
+
+    def opposite(x, y):
+        # 2026-10-16 convention: both sides |steer| > 0.05 and of opposite sign.
+        return api_finite(x) and api_finite(y) and abs(x) > 0.05 and abs(y) > 0.05 and x*y < 0
+
+    # 2026-10-21: the sign-flip counts of offline/mpc_gym/results/replay_car15_lattice21.md
+    # ("planner" = ticks on the lattice; "all_ticks" is comparable across lattice settings).
+    sign_flips = {"planner_vs_centerline_mpc": sum(opposite(b["mpc_steer"], a["mpc_steer"]) for a, b in planner),
+                  "planner_vs_pid": sum(opposite(b["mpc_steer"], pid(b)) for _, b in planner),
+                  "planner_centerline_mpc_vs_pid": sum(opposite(a["mpc_steer"], pid(a)) for a, _ in planner),
+                  "all_ticks_vs_pid": sum(opposite(b.get("mpc_steer"), pid(b)) for _, b in pairs),
+                  "all_ticks_centerline_mpc_vs_pid": sum(opposite(a.get("mpc_steer"), pid(a)) for a, _ in pairs)}
     return {"ticks": len(pairs), "planner_ticks": len(planner),
             "selection_reason": dict(Counter(b.get("reference_selection_reason") for _, b in pairs).most_common()),
             "reference_switches": switches,
@@ -352,7 +378,8 @@ def compare_lattice(baseline, lattice, results):
                 "mean": round(statistics.mean(elapsed), 4), "max": round(max(elapsed), 4)},
             "mpc_branch_on_planner_ticks": dict(Counter(b["mpc_branch"] for _, b in planner).most_common()),
             "steer_change_vs_centerline": spread(steer),
-            "e_y_change_vs_centerline_m": spread(e_y)}
+            "e_y_change_vs_centerline_m": spread(e_y),
+            "steer_sign_flips": sign_flips}
 
 
 def summarize(bag_name, steps, warnings):
@@ -395,6 +422,8 @@ def main():
                         help="also replay with ai4r_policy_mpc_lattice21.yaml and compare per tick")
     parser.add_argument("--lattice-delivery-s", type=float, default=0.05,
                         help="added to each lattice result's own planning time before it is visible")
+    parser.add_argument("--lattice-planning-s", type=float, default=None,
+                        help="fixed planning time instead of the measured one (deterministic A/B)")
     args = parser.parse_args()
     params = base_params()
     params["mpc"]["qp_solver"] = args.qp_solver
@@ -428,10 +457,16 @@ def main():
         lattice_params = deepcopy(params)
         overlay = (ROOT.parent/"config"/"ai4r_policy_mpc_lattice21.yaml").read_text(encoding="utf-8")
         merge(lattice_params, yaml.safe_load(overlay)[KEY]["ros__parameters"])
-        lattice_steps, _, results, jobs = replay(api, lattice_params, args.run_jsonl, args.lattice_delivery_s)
+        for item in args.set:       # the overlay must not undo the what-ifs
+            key, _, value = item.partition("=")
+            set_value(lattice_params, key, value)
+        lattice_steps, _, results, jobs = replay(api, lattice_params, args.run_jsonl, args.lattice_delivery_s,
+                                                 args.lattice_planning_s)
         comparison = compare_lattice(steps, lattice_steps, results)
         comparison["lattice_jobs"] = jobs
-        print(f"== MVP2.1 lattice -> MPC (result visible {args.lattice_delivery_s} s after its planning time)")
+        planning = ("its planning time" if args.lattice_planning_s is None
+                    else f"a fixed {args.lattice_planning_s} s planning time")
+        print(f"== MVP2.1 lattice -> MPC (result visible {args.lattice_delivery_s} s after {planning})")
         for key, value in comparison.items():
             print(f"   {key + ':':34s}{value}")
         output.update(lattice_comparison=comparison, lattice_steps=lattice_steps)

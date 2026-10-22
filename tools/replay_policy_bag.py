@@ -46,6 +46,7 @@ TOPICS = {"cones": "/car/cone_detections", "wheel": "/car/wheel_speed_m_per_sec"
           "debug": "/car/mpc_debug"}
 IMU_MOUNT_XYZW = (0.0, 1.0, 0.0, 0.0)     # base_link <- fsm300_sensor, car .27 imu_mount_tf (2026-10-08)
 PERIOD_S = 0.05                            # the car's 20 Hz policy timer
+RUN_GAP_S = 1.0                             # --runs: a longer /car/mpc_debug gap starts a new run
 
 
 def load_policy(cone_detection_class):
@@ -174,7 +175,7 @@ def snapshot(node, now_s, ros_ns):
     return values, ages, stamps
 
 
-def replay(api, params, path, imu_mount, full_path=False):
+def replay(api, params, path, imu_mount, full_path=False, runs=False):
     messages, topics = read_bag(path)
     node = make_node(api, params)
     stops = (api["MPCStop"], api["PolicyStopRequest"])
@@ -182,9 +183,14 @@ def replay(api, params, path, imu_mount, full_path=False):
     rec_reasons = Counter()
     steps = []
     first, last_step, i = True, None, 0
+    # runs (2026-10-21): restart the policy run, as Run does on the car (new estimator,
+    # planner, MPC; policy time from 0), wherever the recorded /car/mpc_debug resumes
+    # after a gap of more than RUN_GAP_S, i.e. at each recorded run start.
+    last_debug_s, restart, run_starts = None, False, []
     if not messages:
         return {"bag": Path(path).name, "steps": 0, "topics": sorted(topics)}
     t0 = messages[0][0]/1e9
+    run_t0 = t0
     tick = t0 + PERIOD_S
     end = messages[-1][0]/1e9
     while tick <= end:
@@ -195,23 +201,31 @@ def replay(api, params, path, imu_mount, full_path=False):
                 recorded[d.get("branch")] += 1
                 if d.get("reject_reason"):
                     rec_reasons[d["reject_reason"]] += 1
+                if runs and (last_debug_s is None or recv_ns/1e9-last_debug_s > RUN_GAP_S):
+                    restart = True
+                last_debug_s = recv_ns/1e9
             else:
                 feed(api, node, topic, msg, recv_ns/1e9, recv_ns, imu_mount)
             i += 1
         if node.observations["cone_detections"] is not None:
+            if restart:
+                first, run_t0, restart = True, tick, False
+                run_starts.append(len(steps))
             ros_ns = round(tick*1e9)
             node.clock.now_s = tick
             values, ages, stamps = snapshot(node, tick, ros_ns)
             dt = 0.0 if first else tick - last_step
             before = len(node.debug)
             row = {"t": round(tick - t0, 2)}
+            if runs:
+                row["run"] = len(run_starts)
             cones = (values.get("cone_detections") or {}).get("detections") or []
             near = {c: min((d for d in cones if d[3] == c and 0.0 < d[0] <= 1.2), key=lambda d: d[0], default=None)
                     for c in (api["ConeDetection"].COLOR_YELLOW, api["ConeDetection"].COLOR_BLUE)}
             if all(near.values()):  # diagnostic only: mid-point of the nearest yellow/blue pair
                 row["cone_center_y_m"] = round(sum(d[1] for d in near.values())/2, 3)
             try:
-                node.calculate_policy_actions(values, ages, stamps, dt, 0.0 if first else tick - t0, first)
+                node.calculate_policy_actions(values, ages, stamps, dt, 0.0 if first else tick - run_t0, first)
             except stops as stop:
                 row["stop"] = str(stop)
             road = (node.estimation_output or {}).get("road") or {}
@@ -222,6 +236,10 @@ def replay(api, params, path, imu_mount, full_path=False):
                        planning=(node.planning_output or {}).get("reason"),
                        planning_valid=(node.planning_output or {}).get("valid"),
                        centerline_rejection=(node.planning_diagnostics or {}).get("centerline_rejection"))
+            assignment = road.get("colour_assignment") or {}
+            if assignment.get("mode") == "auto":    # 2026-10-21: estimation.colour_assignment auto
+                row.update(colour_status=assignment.get("status"),
+                           colour_left=assignment.get("left_colour"), colour_right=assignment.get("right_colour"))
             planned = (node.planning_output or {}).get("path") or {}
             if planned.get("samples_xy"):  # ORDERED/CARTESIAN_CENTERLINE: extent of the planned path
                 xy = planned["samples_xy"]
@@ -243,7 +261,26 @@ def replay(api, params, path, imu_mount, full_path=False):
     gaps = sorted(abs(s["e_y"]+s["cone_center_y_m"]) for s in steps
                   if isinstance(s.get("e_y"), (int, float)) and "cone_center_y_m" in s)
     widths = [s["lane_width"] for s in steps if isinstance(s.get("lane_width"), (int, float))]
-    return {"bag": Path(path).name, "steps": n, "topics": sorted(topics),
+    locked = next((i for i, s in enumerate(steps) if s.get("colour_status") == "locked"), None)
+    colour = None if not any("colour_status" in s for s in steps) else {
+        "status": dict(Counter(s.get("colour_status") for s in steps).most_common()),
+        "locked_at_step": locked, "locked_at_s": None if locked is None else round(locked*PERIOD_S, 2),
+        "left_colour": None if locked is None else steps[locked]["colour_left"],
+        "right_colour": None if locked is None else steps[locked]["colour_right"],
+        "mapping_changes": sum(1 for a, b in zip(steps, steps[1:]) if a.get("colour_status") == "locked"
+                               and a.get("run") == b.get("run")
+                               and (a.get("colour_left"), a.get("colour_right")) != (b.get("colour_left"), b.get("colour_right")))}
+    if colour is not None and runs:      # per recorded run: when and how it locked, or why not
+        colour["runs"] = []
+        for k, start in enumerate(run_starts):
+            run = [s for s in steps[start:] if s.get("run") == k+1]
+            lock = next((j for j, s in enumerate(run) if s.get("colour_status") == "locked"), None)
+            colour["runs"].append({"start_t": run[0]["t"] if run else None, "steps": len(run),
+                "locked_after_s": None if lock is None else round(lock*PERIOD_S, 2),
+                "mapping": None if lock is None else (run[lock]["colour_left"], run[lock]["colour_right"]),
+                "before_lock": dict(Counter(s.get("road_status") for s in run[:lock if lock is not None else len(run)])),
+                "stops_within_2s": sum(1 for s in run[:40] if s.get("stop"))})
+    return {"bag": Path(path).name, "steps": n, "topics": sorted(topics), "colour_assignment": colour,
             "road_status": dict(Counter(s["road_status"] for s in steps).most_common()),
             "visibility": dict(Counter(s["visibility"] for s in steps).most_common()),
             "state_invalid": sum(1 for s in steps if not (s["speed_valid"] and s["yaw_rate_valid"])),
@@ -272,6 +309,8 @@ def main():
     parser.add_argument("--imu-mount", type=float, nargs=4, default=IMU_MOUNT_XYZW, metavar=("X", "Y", "Z", "W"))
     parser.add_argument("--json-out", type=Path, help="write per-bag results, including every frame")
     parser.add_argument("--full-path", action="store_true", help="also write every frame's planned path points")
+    parser.add_argument("--runs", action="store_true",
+                        help="restart the policy run at each recorded run start (gap in /car/mpc_debug), as Run does")
     args = parser.parse_args()
     try:
         from dream_interfaces.msg import ConeDetection
@@ -287,13 +326,19 @@ def main():
           f" | planning {algorithm}" + (" (in-line; no async delay or MPC hold)" if algorithm == "lattice_v2" else ""))
     results = []
     for path in args.bags:
-        r = replay(api, deepcopy(params), path, tuple(args.imu_mount), args.full_path)
+        r = replay(api, deepcopy(params), path, tuple(args.imu_mount), args.full_path, args.runs)
         results.append(r)
         n = r["steps"]
         print(f"\n== {r['bag']}: {n} steps")
         if not n:
             print(f"   no policy steps (topics found: {r['topics']})")
             continue
+        if r["colour_assignment"]:
+            colour = dict(r["colour_assignment"])
+            per_run = colour.pop("runs", [])
+            print(f"   colour (auto):   {colour} (yellow=1, blue=2)")
+            for k, run in enumerate(per_run, 1):
+                print(f"     run {k}: {run}")
         print(f"   road status:     {share(r['road_status'], n)}")
         print(f"   visibility:      {share(r['visibility'], n)}")
         print(f"   lane width m:    min/median/max {r['lane_width_m']}; speed or yaw rate invalid in {r['state_invalid']} steps")

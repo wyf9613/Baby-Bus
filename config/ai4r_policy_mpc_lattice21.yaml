@@ -45,6 +45,12 @@
       # The execution check reads to preview_m + 0.15 past the car, so "travel" leaves ~0.3-0.5 m
       # unchecked and bends fall back to the centreline: docs/LATTICE_CHECK_LENGTH_PLAN_CN.md.
       check_length_mode: "travel"
+      # mpc-car-run addition (2026-10-21, from the sim-integration branch), not in mvp2.1.
+      # "prefix" (mvp2.1): collision-check / score the lengths above (score: max(score_min_length_m,
+      # check length)). "generated": the whole generated path, max(length_m, score, check+preview_m),
+      # about 1.07 m at 0.20 m/s with travel_plus_window (0.72 m with prefix).
+      collision_coverage: "prefix"
+      score_coverage: "prefix"
       score_min_length_m: 0.2
       search_half_width_m: 0.45
       preparation_width_fraction: 0.15

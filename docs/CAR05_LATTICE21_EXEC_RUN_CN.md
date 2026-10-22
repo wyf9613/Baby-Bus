@@ -127,7 +127,7 @@ MPC 的放宽和 [CAR05_RELAXED_EXEC_RUN_CN.md](CAR05_RELAXED_EXEC_RUN_CN.md) �
   - 转向比 joint 差：换 `-fb-nomm`，看是不是实测车速预测（`measured_motion`）造成的。
   - 都不行就回到 joint 包。
 
-**10-20：规划检查长度**（**10-22 已撤回，见下一节**；计划和 Gym 数据见 [LATTICE_CHECK_LENGTH_PLAN_CN.md](LATTICE_CHECK_LENGTH_PLAN_CN.md)）：
+**10-20：规划检查长度**（**10-22 已撤回，见下面"10-22"一节**；计划和 Gym 数据见 [LATTICE_CHECK_LENGTH_PLAN_CN.md](LATTICE_CHECK_LENGTH_PLAN_CN.md)）：
 - **改了什么**：lattice 规划时的碰撞检查原来只查 `speed × hold`（约 0.22 m），执行时每拍查到车前方 `preview_m + 0.15`（约 0.5 m），急弯里 0.22 m 之后那段一到执行就撞，于是退回中心线。新增 `shadow.check_length_mode`，5 号车用 `travel_plus_window`：规划时查 `speed × hold + preview_m + 0.15`（约 0.72 m），覆盖路径使用期间每一拍的执行窗口。默认 `travel` 和原来一样，其他车不变。执行检查、lattice 其他参数和 MPC 都没改。
 - **Gym（每组 60 次）**：急弯切换从 294 / 164 / 216 次降到 22 / 30 / 30 次（U 弯 / R1.5 / R1），lattice 占比 98–99%，最大横向误差 0.29 → 0.17 m（U 弯）、0.25 → 0.07 m（R1.5）。完成 38 → 34/60，仍由估计层失败决定，差别在重跑波动附近，实车 A/B 时要留意。
 - **包**：上表 7 个包都已包含这项改动，不另出包。
@@ -153,6 +153,48 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 ```
 
 上车前，WSL ROS 门禁要对这一版代码跑通（`.verification/run_ros_check.sh`）。门禁里"每个部署配置都能启动节点"的测试已经包括 `mpc-exec-lattice21`。
+
+**10-21：sim 分支移植后重新生成**（分支 `mpc-car-run-sim-port`；**还没在实车上验证；WSL 门禁 `7633804`（含转向区间 ±1.0）已通过**）。见 [SIM_BRANCH_PORT_PLAN_CN.md](SIM_BRANCH_PORT_PLAN_CN.md) 和进度日志 10-21。
+- **改了什么**：lattice 弧长查找改二分、knot 缓存（结果逐位不变，本机快 6–9%）；新增 `shadow.collision_coverage`/`score_coverage`、`estimation.colour_assignment`，**包里全部是默认值**（`prefix`/`prefix`/`fixed`），行为和上一版相同。
+- 7 个包用和上面相同的命令重新生成（本机 `.verification` 里原来是 `34048cbf…` 那一版）。yaml 和上一版相比只多了 `colour_assignment: fixed`、`collision_coverage: prefix`、`score_coverage: prefix`（以及 10-20 的 `check_length_mode`）。
+
+```text
+.verification\car05-lattice21-exec-v020-1m               yaml 3fd7181c…  policy_node 3cfdf86b…   joint     1 m / 60 s
+.verification\car05-lattice21-exec-v020-5m               yaml 0eb7b4b8…  policy_node 3cfdf86b…   joint     5 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit          yaml b72f7f5c…  policy_node 3cfdf86b…   joint     不限
+.verification\car05-lattice21-exec-v020-1m-fb            yaml 33b59a1e…  policy_node 3cfdf86b…   feedback  1 m / 60 s
+.verification\car05-lattice21-exec-v020-nolimit-fb       yaml 49097dd6…  policy_node 3cfdf86b…   feedback  不限
+.verification\car05-lattice21-exec-v020-nolimit-fb-nomm  yaml ba348449…  policy_node 3cfdf86b…   feedback，measured_motion 关
+.verification\car05-lattice21-exec-v020-nolimit-fb-soft  yaml e5ffd700…  policy_node 3cfdf86b…   feedback，kp 0.15 / ki 0.1
+```
+
+- **参数核对**（Disabled 下，接在上面的检查后面）：
+
+  ```bash
+  for p in shadow.check_length_mode shadow.collision_coverage shadow.score_coverage estimation.colour_assignment; do
+    printf "%-32s " "$p"; ros2 param get "$N" "$p"
+  done
+  ```
+
+  预期依次为 travel_plus_window、prefix、prefix、fixed。
+- **锥桶颜色**（每个场地都查）：上表是黄左（`--cones yellow-left`，10-19 场地）。sim 分支组 10-21 在 .19 的场地是**蓝左**（蓝锥在车左 y≈+0.54 m），配置反了时每次起步都 `insufficient_common_range`（路宽算成负的）。车停在路中间看一眼左边是什么颜色；蓝左就用下面这套（只差 `left_colour`/`right_colour`）：
+
+  ```text
+  .verification\car05-lattice21-exec-v020-1m-blueleft       yaml 19b59b15…  policy_node 3cfdf86b…   joint  1 m / 60 s
+  .verification\car05-lattice21-exec-v020-5m-blueleft       yaml 155817a1…  policy_node 3cfdf86b…   joint  5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-blueleft  yaml a46231e0…  policy_node 3cfdf86b…   joint  不限
+  ```
+
+  参数核对时 `estimation.left_colour` / `right_colour`：黄左包是 1 / 2，蓝左包是 2 / 1。
+- **转向区间**（每次上车都查，车是共用的）：
+
+  ```bash
+  ros2 param get /car/traxxas_vehicle_interface steering_min_normalized
+  ros2 param get /car/traxxas_vehicle_interface steering_max_normalized
+  ```
+
+  必须是 -1.0 / 1.0。5 号车的转向模型（`steering_gain_rad` -0.37，满舵 23–25°）是在 ±1.0 下拟合的；如果是 ±0.5，实际转向只有一半，MPC 的模型就错了，急弯和 U 弯一定转不过去。sim 分支组 10-21 也是靠把这里改成 ±1.0 才过的 U 弯。
+- **这次最要紧的是 lattice 耗时**：本机上 `travel_plus_window` 比 `travel` 慢约 56%（82 → 128 ms/次，碰撞检查和评分变长），① 只追回 6–9%。`/car/shadow_planning` 的 `elapsed_s` 和 `timing_s` 要记下来；`late_for_requested_period` 为 true（超过 1 s）或 `/car/planner_execution` 里 `waiting_for_planner` 明显变多，就说明 Jetson 上不够用，回到 `travel` 的包对比。同时看整机 CPU（P4）。
 
 **10-22：检查长度改回 `travel`**（1 号车实测；过程和数据见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 10-22）：
 - **为什么**：

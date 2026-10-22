@@ -558,5 +558,133 @@ class CheckLengthModeChecks(unittest.TestCase):
         self.assertIn('"check_length_mode"', source.read_text(encoding="utf-8").split(
             '"speed_mps", "hold_time_s", "check_length_m",', 1)[1].split(")}", 1)[0])
 
+
+def far_bump_job():
+    """Straight road whose left boundary juts in to y=0.10 at x 1.10-1.20: beyond the
+    0.72 m travel_plus_window check (+0.25 m body front), inside the 1.07 m path."""
+    record = job()
+    record["road"].update(centerline_xy=[(0.0, 0.0), (0.8, 0.0), (1.6, 0.0)],
+        left_boundary_xy=[(0.0, 0.5), (1.05, 0.5), (1.1, 0.1), (1.2, 0.1), (1.25, 0.5), (1.6, 0.5)],
+        right_boundary_xy=[(0.0, -0.5), (1.6, -0.5)])
+    return record
+
+
+class CoverageChecks(unittest.TestCase):
+    """mpc-car-run, 2026-10-21: shadow.collision_coverage / score_coverage (sim-branch 8f1f01d)."""
+
+    def test_default_prefix_is_unchanged(self):
+        self.assertEqual((Settings().collision_coverage, Settings().score_coverage), ("prefix", "prefix"))
+        for mode in ("travel", "travel_plus_window"):
+            record = job(speed=0.2)
+            default = plan(record, check_length_mode=mode)
+            explicit = plan(record, check_length_mode=mode, collision_coverage="prefix", score_coverage="prefix")
+            for key in ("check_length_m", "score_length_m", "generated_length_m", "control_read_length_m",
+                        "selected", "candidates"):
+                self.assertEqual(explicit[key], default[key], (mode, key))
+            self.assertEqual((default["collision_coverage"], default["score_coverage"]), ("prefix", "prefix"))
+
+    def test_generated_scores_and_checks_the_whole_path(self):
+        record = job(speed=0.2)
+        prefix = plan(record, check_length_mode="travel_plus_window")
+        self.assertAlmostEqual(prefix["score_length_m"], 0.72)
+        self.assertAlmostEqual(prefix["generated_length_m"], 1.07)
+        score = plan(record, check_length_mode="travel_plus_window", score_coverage="generated")
+        self.assertEqual(score["score_length_m"], score["generated_length_m"])
+        self.assertEqual(score["check_length_m"], prefix["check_length_m"])
+        self.assertEqual(score["control_read_length_m"], prefix["control_read_length_m"])
+        for candidate in score["candidates"]:
+            self.assertGreater(candidate["scoring_samples"][-1][0], 1.0)
+        for candidate in prefix["candidates"]:
+            self.assertLessEqual(candidate["scoring_samples"][-1][0], 0.72+1e-9)
+        collision = plan(record, check_length_mode="travel_plus_window", collision_coverage="generated")
+        self.assertEqual(collision["check_length_m"], collision["generated_length_m"])
+        self.assertEqual(collision["score_length_m"], prefix["score_length_m"])
+        # The controller still reads check+preview of the prefix-mode check.
+        self.assertEqual(collision["control_read_length_m"], prefix["control_read_length_m"])
+
+    def test_generated_collision_rejects_a_far_bump_prefix_does_not_see(self):
+        record = far_bump_job()
+        prefix = plan(record, check_length_mode="travel_plus_window", sample_count=48)
+        generated = plan(record, check_length_mode="travel_plus_window", sample_count=48,
+                         collision_coverage="generated")
+        free = {c["id"] for c in prefix["candidates"] if c["collision"] is None}
+        free_generated = {c["id"] for c in generated["candidates"] if c["collision"] is None}
+        self.assertLess(len(free_generated), len(free))
+        self.assertLessEqual(free_generated, free)      # a longer check only removes candidates
+        self.assertNotIn(generated["selected"]["id"], free-free_generated)
+
+    def test_values_must_be_prefix_or_generated(self):
+        for name in ("collision_coverage", "score_coverage"):
+            for value in ("prefix", "generated"):
+                self.assertEqual(getattr(Settings(**{name: value}), name), value)
+            for value in ("", "Prefix", "full", None, 0, True, ["prefix"]):
+                with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                    Settings(**{name: value})
+
+    def test_worker_and_summary_carry_the_coverage(self):
+        record = job()
+        record["settings"] = vars(Settings(sample_count=12, check_length_mode="travel_plus_window",
+                                           score_coverage="generated"))
+        process = subprocess.run([sys.executable, str(source), "--shadow-worker"],
+            input=json.dumps(record)+"\n", text=True, capture_output=True, timeout=15)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        response = json.loads(process.stdout)
+        self.assertEqual(response["status"], "VALID", response.get("error"))
+        self.assertEqual((response["collision_coverage"], response["score_coverage"]), ("prefix", "generated"))
+        self.assertAlmostEqual(response["score_length_m"], response["generated_length_m"])
+        summary_keys = source.read_text(encoding="utf-8").split(
+            '"speed_mps", "hold_time_s", "check_length_m",', 1)[1].split(")}", 1)[0]
+        self.assertIn('"collision_coverage", "score_coverage"', summary_keys)
+
+
+def legacy_shadow_at(points, lengths, s):
+    """_shadow_at before 2026-10-21 (linear search), kept as the reference."""
+    if len(points) == 1:
+        return points[0][0]+s, points[0][1]
+    if s <= 0:
+        i = 0
+    elif s >= lengths[-1]:
+        i = len(points)-2
+    else:
+        i = next(i for i in range(len(points)-1) if s <= lengths[i+1])
+    u = (s-lengths[i])/(lengths[i+1]-lengths[i])
+    return tuple(points[i][k]+u*(points[i+1][k]-points[i][k]) for k in (0, 1))
+
+
+class LookupOptimisationChecks(unittest.TestCase):
+    """mpc-car-run, 2026-10-21: binary arc lookup and per-job knot cache (sim-branch 92ef303).
+
+    Whole-planner equivalence (28 jobs x 3 check_length_mode values against the
+    bb0bef2 source) is recorded in docs/MPC_PROGRESS_LOG.md 2026-10-21.
+    """
+
+    def test_arc_lookup_matches_legacy_at_knots_neighbours_and_tails(self):
+        for points in ([(.6, .03)], [(0., 0.), (1., 0.)], [(0., 0.), (.3, .2), (.7, .5), (1., .4)],
+                       [(0., 0.), (0., .5), (-.3, .5), (-.3, -.3)]):
+            lengths = ns["_shadow_lengths"](points)
+            stations = [-.4, 0., .04, lengths[-1]+.4]
+            for knot in lengths:
+                stations.extend((math.nextafter(knot, -math.inf), knot, math.nextafter(knot, math.inf)))
+            for station in stations:
+                with self.subTest(points=points, station=station):
+                    self.assertEqual(ns["_shadow_at"](points, lengths, station),
+                                     legacy_shadow_at(points, lengths, station))
+
+    def test_worker_plans_a_curve_with_the_binary_lookup(self):
+        record = job()
+        record["road"].update(centerline_xy=[(0.0, 0.0), (0.5, 0.05), (1.0, 0.2), (1.4, 0.45)],
+                              left_boundary_xy=[(0.0, 0.5), (0.5, 0.55), (1.0, 0.7), (1.3, 0.95)],
+                              right_boundary_xy=[(0.0, -0.5), (0.5, -0.45), (1.0, -0.3), (1.5, -0.05)])
+        record["settings"] = vars(Settings(sample_count=48, check_length_mode="travel_plus_window"))
+        process = subprocess.run([sys.executable, str(source), "--shadow-worker"],
+            input=json.dumps(record)+"\n", text=True, capture_output=True, timeout=15)
+        self.assertEqual(process.returncode, 0, process.stderr)
+        response = json.loads(process.stdout)
+        self.assertNotEqual(response["status"], "WORKER_ERROR", response.get("error"))
+        expected = plan(record, check_length_mode="travel_plus_window", sample_count=48)
+        self.assertEqual(response["status"], expected["status"])
+        self.assertEqual(response["selected"]["id"], expected["selected"]["id"])
+
+
 if __name__ == "__main__":
     unittest.main()
