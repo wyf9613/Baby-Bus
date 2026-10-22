@@ -470,6 +470,19 @@
       bypass_fit_max_x_m: 1.5
       bypass_max_source_age_s: 0.2
       bypass_valid_for_s: 0.1
+      # Reference curvature limit (2026-10-22, docs/MPC_REFERENCE_CURVATURE_LIMIT_PLAN_CN.md):
+      # "off" leaves the reference and mpc_debug unchanged (keep off quoted). "hooks": when the
+      # largest curvature over a reference_hook_window_m arc in the first
+      # reference_hook_trigger_length_m exceeds reference_hook_curvature_1pm, re-track the
+      # reference from its own start at most reference_curvature_max_1pm (0 = tan(min |vehicle
+      # steering limit|)/wheelbase_m, ~1.18 on car 05's record); a result within half the body
+      # width + reference_curvature_clearance_m of a boundary keeps the original reference.
+      reference_curvature_limit_mode: "off"
+      reference_hook_curvature_1pm: 4.0
+      reference_hook_window_m: 0.15
+      reference_hook_trigger_length_m: 0.8
+      reference_curvature_max_1pm: 0.0
+      reference_curvature_clearance_m: 0.03
     # Vehicle identification: startup-only, one sequence per explicit state-3 request.
     # Set policy_update_mode: timer and required_sensors: [wheel_speed] above.
     # Optional IMU remains per-field valid/fresh; require imu_angular_velocity
