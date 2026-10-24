@@ -19,13 +19,20 @@ right、blocked、dropout、stop_only。课程目录另有
 
 结果包含 `REPORT.md`、`suite.json`、`source.json`、`avoidance-results.png`、
 每场景完整 trace/submissions/shadow JSONL，以及沿用原框架的 `viewer.html`。
+执行以下呈现导出可得到标注本轮功能和验收含义的 `avoidance-viewer.html`；不重跑算法：
+
+```bash
+python3 tools/export_lidar_avoidance_replay.py .verification/lidar-avoidance-new
+```
+
 回放数据单独存于 `viewer-data/`，需通过本地 HTTP 服务打开，例如在结果目录执行：
 
 ```bash
 python3 -m http.server 8765 --bind 127.0.0.1
 ```
 
-然后打开 `http://127.0.0.1:8765/viewer.html`。回放只读取已有结果，不运行车辆或算法。
+然后打开 `http://127.0.0.1:8765/avoidance-viewer.html?case=central`。
+回放只读取已有结果，不运行车辆或算法；一键验证脚本会自动导出此页面。
 
 ## 数据与决策链
 
