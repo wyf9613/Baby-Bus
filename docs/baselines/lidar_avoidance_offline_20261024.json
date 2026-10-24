@@ -1,0 +1,219 @@
+{
+  "date": "2026-10-24",
+  "branch": "ying/mvp21-lidar-avoidance",
+  "baseline_snapshot": "8c75519ea9df38a7ebf97f53a9cbc3cf6cc77974",
+  "suite_directory": "/Users/xiaotonghe/Documents/Baby-Bus/.verification/worktrees/mvp21-lidar-avoidance/.verification/lidar-avoidance-20261024-first-suite",
+  "suite_passed": true,
+  "scenario_acceptance": {
+    "clear": {
+      "name": "clear",
+      "passed": true,
+      "expected": "clear_road_completion",
+      "obstacle_contact": false,
+      "peak_speed_mps": 0.19999999710757185,
+      "final_lateral_offset_m": 0.0,
+      "returned_to_centerline": true,
+      "minimum_body_road_margin_m": 0.575,
+      "maximum_lateral_excursion_m": 0.0,
+      "stopped_hold_s": 0.0,
+      "candidate_rejection_counts": {
+        "curvature_limit": 3740
+      },
+      "actual_native_cycles": 438,
+      "actual_baseline_cycles": 2,
+      "startup_baseline_cycles": 2,
+      "causal_delivery": true,
+      "control_clock_20hz": true
+    },
+    "central": {
+      "name": "central",
+      "passed": true,
+      "expected": "complete_and_return",
+      "obstacle_contact": false,
+      "peak_speed_mps": 0.20409445828165665,
+      "final_lateral_offset_m": -0.06751082822036675,
+      "returned_to_centerline": true,
+      "minimum_body_road_margin_m": 0.135830361441324,
+      "maximum_lateral_excursion_m": 0.4001057459005594,
+      "stopped_hold_s": 0.0,
+      "candidate_rejection_counts": {
+        "lidar_point": 2343,
+        "curvature_limit": 5776,
+        "committed_side": 336,
+        "road_boundary": 80
+      },
+      "actual_native_cycles": 446,
+      "actual_baseline_cycles": 2,
+      "startup_baseline_cycles": 2,
+      "causal_delivery": true,
+      "control_clock_20hz": true
+    },
+    "left": {
+      "name": "left",
+      "passed": true,
+      "expected": "complete_and_return",
+      "obstacle_contact": false,
+      "peak_speed_mps": 0.20086566378465762,
+      "final_lateral_offset_m": -0.02744835007663562,
+      "returned_to_centerline": true,
+      "minimum_body_road_margin_m": 0.3603056285239512,
+      "maximum_lateral_excursion_m": 0.2091277344794067,
+      "stopped_hold_s": 0.0,
+      "candidate_rejection_counts": {
+        "lidar_point": 1906,
+        "curvature_limit": 5627,
+        "road_boundary": 33
+      },
+      "actual_native_cycles": 440,
+      "actual_baseline_cycles": 2,
+      "startup_baseline_cycles": 2,
+      "causal_delivery": true,
+      "control_clock_20hz": true
+    },
+    "right": {
+      "name": "right",
+      "passed": true,
+      "expected": "complete_and_return",
+      "obstacle_contact": false,
+      "peak_speed_mps": 0.20086566378465762,
+      "final_lateral_offset_m": 0.02744835007663562,
+      "returned_to_centerline": true,
+      "minimum_body_road_margin_m": 0.3603056285239512,
+      "maximum_lateral_excursion_m": 0.2091277344794067,
+      "stopped_hold_s": 0.0,
+      "candidate_rejection_counts": {
+        "lidar_point": 1906,
+        "curvature_limit": 5627,
+        "road_boundary": 33
+      },
+      "actual_native_cycles": 440,
+      "actual_baseline_cycles": 2,
+      "startup_baseline_cycles": 2,
+      "causal_delivery": true,
+      "control_clock_20hz": true
+    },
+    "blocked": {
+      "name": "blocked",
+      "passed": true,
+      "expected": "protective_stop",
+      "obstacle_contact": false,
+      "peak_speed_mps": 0.024456052191969592,
+      "final_lateral_offset_m": 0.0,
+      "returned_to_centerline": true,
+      "minimum_body_road_margin_m": 0.575,
+      "maximum_lateral_excursion_m": 0.0,
+      "stopped_hold_s": 1.0000000000000002,
+      "candidate_rejection_counts": {
+        "lidar_point": 78,
+        "curvature_limit": 34
+      },
+      "actual_native_cycles": 0,
+      "actual_baseline_cycles": 2,
+      "startup_baseline_cycles": 2,
+      "causal_delivery": true,
+      "control_clock_20hz": true
+    },
+    "dropout": {
+      "name": "dropout",
+      "passed": true,
+      "expected": "protective_stop",
+      "obstacle_contact": false,
+      "peak_speed_mps": 0.1986826181510147,
+      "final_lateral_offset_m": 0.0,
+      "returned_to_centerline": true,
+      "minimum_body_road_margin_m": 0.575,
+      "maximum_lateral_excursion_m": 0.0,
+      "stopped_hold_s": 1.0000000000000002,
+      "candidate_rejection_counts": {
+        "curvature_limit": 510
+      },
+      "actual_native_cycles": 59,
+      "actual_baseline_cycles": 2,
+      "startup_baseline_cycles": 2,
+      "causal_delivery": true,
+      "control_clock_20hz": true
+    },
+    "stop_only": {
+      "name": "stop_only",
+      "passed": true,
+      "expected": "original_stop_control",
+      "obstacle_contact": false,
+      "peak_speed_mps": 0.19999999710757185,
+      "final_lateral_offset_m": 0.0,
+      "returned_to_centerline": true,
+      "minimum_body_road_margin_m": 0.575,
+      "maximum_lateral_excursion_m": 0.0,
+      "stopped_hold_s": 1.0000000000000002,
+      "candidate_rejection_counts": {},
+      "actual_native_cycles": 213,
+      "actual_baseline_cycles": 2,
+      "startup_baseline_cycles": 2,
+      "causal_delivery": true,
+      "control_clock_20hz": true
+    }
+  },
+  "source_fingerprint": "30731d4d7e600826a4dc336a08c40d8e42d791edcf63f99a2d5cc19aee0f73bb",
+  "source_manifest_sha256": "81e0e85e7abdcd4c6fda0f42bbb09597cd4ceb056c554f447568fdd07ce2d671",
+  "report_sha256": "f1550cd32f41fa6874c3f8cbbf99937df7644f0bfd3971c7c303374c69ebb905",
+  "portable_regression": {
+    "tests_run": 132,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "result": "OK",
+    "evidence": "Observed unittest command output in this task"
+  },
+  "ros_gate": {
+    "passed": true,
+    "pytest_cases": 395,
+    "ctest_groups": 12,
+    "reported_total": 407,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "hardware_used": false,
+    "avoidance_ros_runtime_enabled": false,
+    "log": "verify-fast.log"
+  },
+  "ros_gate_log_sha256": "653b4a17155aed6225e38f69912e85dcca9cfd3f367666920e107de589629aa6",
+  "protected_artifacts": {
+    "checkpoint_commit": "d6d1b5c19ca5cb1676253f7acd4deadbc6bf1d0a",
+    "checked_files": 57,
+    "unchanged": true,
+    "authorized_migrations": 17,
+    "adapter_repairs": {
+      "offline/planner_sim/environment.py": {
+        "original_sha256": "a07e251246b3fe85a84b287fe8d70d30701cb2f2918deea655650737640b2899",
+        "current_sha256": "3ee279f2a2e9e79d3bfdb60be304e6bd75e43de6d965a0cf3fc9333e780ca4f3",
+        "reason": "User-authorized LiDAR simulation hardening: copy the restored instance dict so cyclic garbage collection cannot clear live plant state. No plant dynamics, sensor pipeline or historical artifacts changed.",
+        "baseline_commit": "465e581bd744c35c23ebe67891003b9e3a7bd453",
+        "regression": "tests.test_lidar_stop_sim.LidarSimulationChecks.test_original_environment_restore_survives_garbage_collection"
+      }
+    },
+    "migration_reason": "User authorized retiring V2 and replacing policy input with current state, current road/obstacles and candidate trajectory; legacy model/data readers and planner-score/history features removed. Historical artifacts, plant and C* solver remain protected."
+  },
+  "original_worktrees": {
+    "mvp21-lidar-stop": {
+      "files_differ_from_preserved_snapshot": [],
+      "head": "eb949794782e99d757f58a2568707eae3dacaa0d"
+    },
+    "mpc-lidar-debug-r1": {
+      "files_differ_from_preserved_snapshot": [],
+      "head": "15724bceb6b34f1e3a6723b441ffa1c3e7910a1b"
+    },
+    "planning-v2-mpc": {
+      "files_differ_from_preserved_snapshot": [],
+      "head": "9a964bd97416c4a1a96237f709158d62f41adb7e"
+    },
+    "mpc-car-run": {
+      "files_differ_from_preserved_snapshot": [],
+      "head": "797760be1f760c0ed13f8863ee8598a734cf5cb4"
+    }
+  },
+  "common_yaml_changed": false,
+  "real_time_qualified": false,
+  "avoidance_ros_runtime_enabled": false,
+  "hardware_used": false,
+  "deployed": false,
+  "next_stage": "Optimize measured planner CPU time before ROS avoidance integration"
+}

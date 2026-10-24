@@ -1,7 +1,8 @@
 # Baby Bus · ai4r_policy
 
 本地绕行开发入口：`ying/mvp21-lidar-avoidance`。当前从已完整保存的 MVP2.1
-雷达停车整合版开始，主动绕行尚未实现。版本、恢复方式和本轮基线检查见
+雷达停车整合版开始，已加入显式启用的静态雷达绕行离线实验。
+运行、范围和未完成项见[离线绕行说明](offline/lidar_avoidance/README.md)。版本与恢复方式见
 [工作区说明](docs/LIDAR_AVOIDANCE_WORKSPACE_CN.md)。
 
 当前实现位于 [mvp21_policy/](mvp21_policy/README.md)，两个 script 名称均进入同一套

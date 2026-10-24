@@ -1999,3 +1999,50 @@ the nominal 50 ms policy period; executor latency remains an open performance
 issue, with pre/post-calculation freshness checks retained. The new local
 `tools/package_lidar_stop.py` bundles current source and common configuration with
 fingerprints, Git dirty-state provenance and an archive checksum; it never deploys.
+
+## Static LiDAR avoidance offline experiment, 2026-10-24
+
+Branch `ying/mvp21-lidar-avoidance` starts from preserved MVP2.1 stop snapshot
+`8c75519`, with the workspace entry recorded at `9e4a9dc`. Original dirty MVP/MPC
+worktrees, historical models, configuration and upstream snapshots are retained.
+No vehicle was connected, deployed, enabled or changed.
+
+The opt-in offline experiment uses native lattice generation plus smooth lateral
+hold families in the current perceived road chart. Full generated-path checks
+reject LiDAR/body and observed-boundary intersections and excessive curvature.
+Measured-motion static-point memory retains original measurement times until
+the rear passes; a fresh scan remains mandatory. Side commitment avoids changing
+bypass direction. The shared control function now accepts an optional guard:
+both selected-reference execution and same-tick baseline fallback are checked.
+The existing emergency-stop latch has priority. ROS/default execution does not
+construct the new guard and does not enable active avoidance.
+
+Seven scenarios meet their explicitly separate acceptance criteria: clear road;
+central, left-offset and right-offset bypass with return; fully blocked-road
+protective stop; LiDAR dropout protective stop; and original stop-only control.
+All have no obstacle contact. The central case peaks at 0.2041 m/s, finishes
+0.0675 m from the centerline and retains 0.1358 m minimum plant body/road margin.
+Two startup baseline cycles remain counted in each case; native-only acceptance
+is not claimed. Stops retain the existing simulator-only negative braking and
+at least one second of stopped hold, not a real-car braking result.
+
+The fixture is a 5 m straight, 1.4 m wide road with an obstacle at 2.8 m; existing
+mission completion is near 4.5 m progress, not terminal stopping. Explicit
+offline settings are 2.5 m full-path checks, 5 Hz generation, 20 Hz control and
+10 Hz LiDAR with 50 ms delay. Common YAML and learned models are unchanged.
+Development trials with the closer obstacle/narrower road stopped protectively
+and are retained, not relabelled as successful bypasses.
+
+Measured host planning median is about 0.49–0.51 s in the driving cases, exceeding
+the modelled 0.20 s generation period. Fixed 100 ms delivery is a discrete-event
+assumption, not measured processing latency. Real-time behavior, general road
+scenarios, sensor coverage, calibrated dimensions/steering and physical braking
+remain unqualified. CPU optimization must precede ROS avoidance integration.
+
+132 portable regressions pass. A separate source-bound, network-disabled local
+ROS container runs the required pinned-interface gate: 395 pytest cases plus
+12 CTest groups, 407 reported tests, zero errors/failures/skips. This is installed
+software/default-node evidence, not enabled ROS avoidance or physical driving.
+Evidence: `.verification/lidar-avoidance-20261024-first-suite/` (immutable raw
+records, suite/source manifests, report, measured CPU analysis and replay) and
+`.verification/ros-avoidance-20261024/` (gate log, XML and build logs).

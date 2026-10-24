@@ -231,7 +231,7 @@ def priming_motion_history(baseline, estimates, has_control, elapsed_s, control)
 
 def calculate_selected_control(controller, baseline, planner_reference, state, vehicle_params,
                                now_s, dt, execution=None, baseline_provider=None,
-                               obstacle_stop=None, obstacles=None):
+                               obstacle_stop=None, obstacles=None, lidar_avoidance=None):
     """Run the existing PID with MVP2.1 same-tick rollback/fallback semantics."""
     reference = planner_reference if planner_reference is not None else baseline
     # A body-forward stop is independent of reference choice. It must bypass
@@ -245,6 +245,22 @@ def calculate_selected_control(controller, baseline, planner_reference, state, v
             execution.diagnostics.update(mode='obstacle_stop', fallback=False,
                 reason=decision['reason'], drive_action=0., steering_action=0., control_dt_s=dt)
         return controller, 0., 0., diagnostics, reference
+
+    def avoidance_stop(ref):
+        result = lidar_avoidance.evaluate(ref, now_s) if lidar_avoidance is not None else None
+        if result is None or not result['stop_required']:
+            return None
+        controller.clear()
+        diagnostics = dict(valid=True, stop_requested=True, reason=result['reason'],
+            lidar_avoidance=result, reference_source='avoidance_stop')
+        if execution is not None:
+            execution.diagnostics.update(mode='avoidance_stop', fallback=False,
+                reason=result['reason'], drive_action=0., steering_action=0., control_dt_s=dt)
+        return controller, 0., 0., diagnostics, ref
+
+    stopped = avoidance_stop(reference)
+    if stopped is not None:
+        return stopped
     previous = deepcopy(controller) if planner_reference is not None else None
     try:
         drive, steer, diagnostics = controller.calculate(reference, state, vehicle_params, now_s, dt)
@@ -257,6 +273,11 @@ def calculate_selected_control(controller, baseline, planner_reference, state, v
         execution.diagnostics.update(mode="baseline", fallback=True,
             reason="planner_control_rejected: "+str(diagnostics.get("reason")))
         reference = baseline_provider() if baseline_provider is not None else baseline
+        # The old fallback is also a motion request. A blocked centerline must
+        # not bypass the same rolling LiDAR admission after native rejection.
+        stopped = avoidance_stop(reference)
+        if stopped is not None:
+            return stopped
         drive, steer, diagnostics = controller.calculate(reference, state, vehicle_params, now_s, dt)
     if execution is not None:
         diagnostics["reference_source"] = execution.diagnostics.get("mode")
@@ -264,4 +285,6 @@ def calculate_selected_control(controller, baseline, planner_reference, state, v
         execution.diagnostics.update(drive_action=drive, steering_action=steer, control_dt_s=dt)
     if decision is not None:
         diagnostics['obstacle_stop'] = decision
+    if lidar_avoidance is not None:
+        diagnostics['lidar_avoidance'] = dict(lidar_avoidance.diagnostics)
     return controller, drive, steer, diagnostics, reference
