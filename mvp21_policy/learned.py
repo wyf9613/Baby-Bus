@@ -133,7 +133,8 @@ class FrozenPathPolicy:
             hidden = np.asarray(context.get("hidden"), dtype=float)
             if hidden.shape != (self.network.hidden,) or not np.isfinite(hidden).all():
                 raise ValueError("Invalid policy memory snapshot")
-            feasible = [c for c in result.get("candidates", []) if c.get("collision") is None]
+            feasible = [c for c in result.get("candidates", [])
+                        if c.get("collision") is None and c.get("controller_rejection") is None]
             if not feasible:
                 raise ValueError("Native VALID result has no admitted candidates")
             scene = scene_features(observation)

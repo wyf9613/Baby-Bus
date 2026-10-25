@@ -33,6 +33,8 @@ from .motion import (
     EstimationMotionHistory,
 )
 from .learned import LearnedPolicySettings, FrozenPathPolicy, PolicyExecutionMemory
+from .local_mpc import MPCSettings, VehicleParamsSettings, mpc_debug_json
+from .mpc_adapter import MPCPolicyController, calculate_selected_mpc
 from .estimation import (
     EstimationPipeline,
     EstimationSettings,
@@ -102,6 +104,7 @@ class PolicyNode(ShadowJobSource, Node):
             self.declare_parameter(name, default, ParameterDescriptor(
                 read_only=True, dynamic_typing=(name == "required_sensors")))
 
+        self.get_logger().info("Policy revision: user-mpc-rnn-narrow-admission-20261026")
         self.policy_update_mode = self.get_parameter("policy_update_mode").value
         self.policy_update_rate_hz = self.get_parameter("policy_update_rate_hz").value
         required_parameter = self.get_parameter("required_sensors")
@@ -156,6 +159,20 @@ class PolicyNode(ShadowJobSource, Node):
                 self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
                 values[name] = self.get_parameter(parameter_name).value
             setattr(self, f"{prefix}_settings", settings_type(**values))
+        for prefix, settings_type in (("mpc",MPCSettings),("mpc_vehicle",VehicleParamsSettings)):
+            values={}
+            for name,default in vars(settings_type()).items():
+                parameter_name=f"{prefix}.{name}"
+                self.declare_parameter(parameter_name,default,ParameterDescriptor(read_only=True))
+                values[name]=self.get_parameter(parameter_name).value
+            setattr(self,f"{prefix}_settings",settings_type(**values))
+        if not self.mpc_settings.enabled:
+            raise ValueError("This RNN/MPC integration requires mpc.enabled")
+        if (not self.mpc_settings.speed_feedback_enabled
+                or not self.mpc_settings.learned_planner_speed_match_enabled
+                or not math.isclose(self.mpc_settings.v_exec_max_mps,self.planning_settings.cruise_speed_mps)):
+            raise ValueError("RNN/MPC speed feedback and target conditions must match")
+        self.mpc_debug_publisher=self.create_publisher(String,"mpc_debug",1)
         shadow_values = {}
         for name, default in vars(ShadowSettings()).items():
             parameter_name = f"shadow.{name}"
@@ -205,7 +222,8 @@ class PolicyNode(ShadowJobSource, Node):
             if (self.policy_update_mode == "timer" and
                     1.0/self.policy_update_rate_hz >= self.planning_settings.reference_lifetime_s):
                 raise ValueError("Integrated control timer period must be shorter than the planning reference lifetime")
-        self.controller = PolicyController(self.control_settings, self.policy_frame_id)
+        self.controller = MPCPolicyController(self.control_settings,self.mpc_settings,
+            self.mpc_vehicle_settings,self.shadow_settings,self.policy_frame_id)
         self.control_reference_manager = ControlReferenceManager(self.control_settings)
         self.last_control_tracking_mode = None
         self.distance_limiter = RunDistanceLimiter(self.control_settings.max_distance_m, self.control_settings.max_dt_s)
@@ -761,21 +779,21 @@ class PolicyNode(ShadowJobSource, Node):
         if problem:
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
+        deadline=self.last_control_reference_deadline_s
+        if deadline is not None and ros_now/1e9 >= deadline:
+            self.publish_zero_actions()
+            # The just-computed action was NOT published. Discard its speculative
+            # command history/PI, retaining estimation, planner jobs and RNN state.
+            self.controller.clear()
+            return
         self._publish_actions(drive, steer, pan)
         memory = getattr(self, "learned_policy_memory", None)
         reference = getattr(self, "_trajectory_reference", None) or {}
-        if memory is not None and reference.get("planner_version") == "lattice_execution":
+        if (memory is not None and reference.get("planner_version") == "lattice_execution"
+                and (self.control_diagnostics or {}).get("mpc_reference_executed") is True):
             memory.commit(reference.get("trajectory_id"))
         if hasattr(self, "planner_execution_publisher"):
             self._publish_planner_execution()
-        # Offer AFTER the baseline action, never on its calculation/exception path.
-        # This is a diagnostic side channel; failures cannot change the action/FSM.
-        if (getattr(self, "shadow_worker", None) is not None
-                and not getattr(self, "_gyro_fallback_active", False)):
-            try:
-                self._shadow_offer()
-            except Exception as error:
-                self._warn("shadow_submit", f"Shadow submission unavailable: {error}")
         if hasattr(self, "trajectory_publisher"):
             self._publish_trajectory(ros_now)
         if debug1 is not None:
@@ -1105,6 +1123,13 @@ class PolicyNode(ShadowJobSource, Node):
                             else CenterlinePlanner)
             self.planner = planner_type(self.planning_settings, self.policy_frame_id)
         estimates = self.estimation_output
+        # Submit from fresh estimation, independently of admission/solver success.
+        # A neutral startup tick must still advance the asynchronous planner.
+        if (getattr(self,"shadow_worker",None) is not None and not camera_only):
+            try:
+                self._shadow_offer()
+            except Exception as error:
+                self._warn("shadow_submit", f"Planner submission unavailable: {error}")
         source_timeouts = {"road": min(self.estimation_settings.max_source_age_s,
                                       self.sensor_timeout_s["cone_detections"]),
                            "wheel_speed": min(self.estimation_settings.max_source_age_s,
@@ -1128,11 +1153,22 @@ class PolicyNode(ShadowJobSource, Node):
 
         if control.enabled:
             if is_first_policy_step or not hasattr(self, "controller"):
-                self.controller = PolicyController(control, self.policy_frame_id)
+                self.controller = MPCPolicyController(control,self.mpc_settings,
+                    self.mpc_vehicle_settings,self.shadow_settings,self.policy_frame_id)
                 self.control_has_run = False
             planner_requested = (not camera_only and
                 bool(getattr(getattr(self, "planner_control_settings", None), "enabled", False)))
+            self.controller.estimates=estimates
             planner_reference = self._select_planner_reference(estimates) if planner_requested else None
+            wait_s=getattr(control,"planner_startup_wait_s",0.)
+            if (planner_requested and getattr(self,"learned_policy_memory",None) is not None
+                    and not self.control_has_run and wait_s>0.
+                    and self.planner_execution.last_job_id is None):
+                if policy_elapsed_s >= wait_s:
+                    raise PolicyStopRequest("Planner startup timeout: no completed result; explicit resume required")
+                self.control_diagnostics={"valid":False,"stop_requested":False,
+                    "reason":"waiting_for_first_planner_result"}
+                return 0.,0.,None,None,None
             # Delayed camera data may predate the reset motion history at start.
             # Bounded neutral priming is allowed only BEFORE the first valid
             # control step; any fault after tracking requires explicit resume.
@@ -1187,12 +1223,19 @@ class PolicyNode(ShadowJobSource, Node):
             baseline = selected_reference if planner_reference is None else self.planning_output
             baseline_provider = (lambda: self._select_control_reference(estimates)) if self._robust_control_enabled() else None
             (self.controller, drive_action, steering_action, self.control_diagnostics,
-             selected_reference) = calculate_selected_control(self.controller, baseline,
+             selected_reference) = calculate_selected_mpc(self.controller, baseline,
                 planner_reference, estimates["state"], estimates["vehicle_params"],
                 self.get_clock().now().nanoseconds/1e9, dt,
                 self.planner_execution if planner_requested else None, baseline_provider)
+            if self.control_diagnostics.get("mpc") is not None:
+                self.mpc_debug_publisher.publish(String(data=mpc_debug_json(self.control_diagnostics["mpc"])))
             if not self.control_diagnostics["valid"] or self.control_diagnostics["stop_requested"]:
                 reason = "Control: " + self.control_diagnostics["reason"]
+                self.get_logger().warning("MPC rejection details: " + mpc_debug_json({
+                    "reason":reason,"mpc":self.control_diagnostics.get("mpc"),
+                    "join_repair":self.control_diagnostics.get("join_repair"),
+                    "road_status":estimates["road"].get("status"),
+                    "planner":dict(self.planner_execution.diagnostics) if planner_requested else None}))
                 raise PolicyStopRequest(reason)
             if camera_only:
                 self.control_diagnostics.update(gyro_fallback=True,
@@ -1265,6 +1308,13 @@ class PolicyNode(ShadowJobSource, Node):
                 "reason": "baseline_selected"}
             control = self.control_diagnostics or {}
             memory = getattr(self, "learned_policy_memory", None)
+            worker=getattr(self,"shadow_worker",None)
+            info["planner_transport"]={"submitted_job_id":getattr(self,"shadow_job_id",None),
+                "last_submit_s":getattr(self,"shadow_last_submit_s",None),
+                "status":getattr(worker,"status",None),
+                "worker_pid":getattr(getattr(worker,"process",None),"pid",None)}
+            if not finite_number(info["planner_transport"]["last_submit_s"]):
+                info["planner_transport"]["last_submit_s"]=None
             info["selection_backend"] = "learned_policy" if memory is not None else "native"
             if memory is not None:
                 info["learned_policy"] = memory.diagnostics()
@@ -1287,7 +1337,7 @@ class PolicyNode(ShadowJobSource, Node):
             if self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION:
                 info.update(mode="idle", fallback=False, reason=self.state_reason)
             self.planner_execution_publisher.publish(String(data=json.dumps(info, allow_nan=False)))
-            mode = (info["mode"], info["reason"])
+            mode = (info.get("mode", "pending"), info.get("reason", "waiting_for_reference"))
             if mode != self._last_execution_mode:
                 self.get_logger().info("Reference selection: "+json.dumps(info, separators=(",", ":")))
                 self._last_execution_mode = mode
@@ -1551,7 +1601,8 @@ class PolicyNode(ShadowJobSource, Node):
                 self.shadow_collection_events = [event for event in getattr(self, "shadow_collection_events", [])
                                                  if event.get("id", 0) > reset_id]
             summary = {key: result.get(key) for key in ("status", "job_id", "candidate_count", "feasible_count",
-                "speed_mps", "hold_time_s", "check_length_m", "score_length_m", "elapsed_s", "late_for_requested_period", "timing_s")}
+                "speed_mps", "hold_time_s", "check_length_m", "score_length_m", "elapsed_s", "late_for_requested_period", "timing_s",
+                "collision_free_count", "controller_rejected_count", "sampling_offset_budget_m")}
             summary.update(selected_id=selected.get("id") if selected else None,
                 selected_family=selected.get("family") if selected else None,
                 result_age_s=self.get_clock().now().nanoseconds/1e9-stamp,
@@ -1651,7 +1702,14 @@ class PolicyNode(ShadowJobSource, Node):
             if problem:
                 return problem + "; explicit resume required"
         if deadline is not None and ros_now_ns/1e9 >= deadline:
-            return "Control reference expired; explicit resume required"
+            grace=getattr(self.control_settings,"reference_refresh_grace_s",0.)
+            # Stop driving at the ORIGINAL deadline. Only permit a bounded
+            # neutral interval to build a new reference; never replay this one.
+            self.publish_zero_actions()
+            if hasattr(getattr(self,"controller",None),"mpc_controller"):
+                self.controller.clear()
+            if ros_now_ns/1e9 >= deadline+grace:
+                return "Control reference expired; explicit resume required"
         if (not self.control_has_run and self.policy_started_at is not None
                 and monotonic_now-self.policy_started_at >= self.control_settings.startup_grace_s):
             return "Control startup history deadline exceeded; explicit resume required"

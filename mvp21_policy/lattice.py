@@ -20,6 +20,9 @@ class ShadowSettings:
     """
     enabled: bool = False
     rate_hz: float = 1.0
+    execution_min_check_m: float = 0.0
+    width_aware_sampling_enabled: bool = False
+    controller_max_curvature_1pm: float = 0.0
     length_m: float = 1.0
     sample_count: int = 48
     path_spacing_m: float = 0.025
@@ -55,6 +58,8 @@ class ShadowSettings:
                 raise ValueError('shadow.'+name+' must be prefix or generated')
         if not isinstance(self.enabled, bool):
             raise ValueError("shadow.enabled must be boolean")
+        if not isinstance(self.width_aware_sampling_enabled, bool):
+            raise ValueError("shadow.width_aware_sampling_enabled must be boolean")
         if not isinstance(self.fusion_enabled, bool):
             raise ValueError("shadow.fusion_enabled must be boolean")
         if type(self.fusion_max_samples) is not int or not 1 <= self.fusion_max_samples <= 128:
@@ -62,7 +67,7 @@ class ShadowSettings:
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
             raise ValueError("shadow.sample_count must be an integer >=8")
         for name, value in vars(self).items():
-            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "collision_coverage", "score_coverage"):
+            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "collision_coverage", "score_coverage", "width_aware_sampling_enabled"):
                 continue
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
@@ -553,7 +558,9 @@ class ShadowLatticePlanner:
         observed_handoff = observed_handoff if finite_number(observed_handoff) else 0.0
         handoff = max(cfg.handoff_allowance_s, observed_handoff)
         hold = 1/cfg.rate_hz+handoff
-        check = speed*hold
+        # Match the consumer's preview/body sweep even before the wheels move.
+        # Keep larger speed/latency coverage; this is a lower bound, not a cap.
+        check = max(speed*hold,cfg.execution_min_check_m)
         score_length = max(cfg.score_min_length_m, check)
         preview = job.get("preview_m", 0.0)
         preview = preview if finite_number(preview) and preview > 0 else cfg.score_min_length_m
@@ -600,6 +607,14 @@ class ShadowLatticePlanner:
         amplitude = (width or 2*cfg.search_half_width_m)*cfg.preparation_width_fraction
         preparation = -amplitude*max(-1.0, min(1.0, turn/(math.pi/2)))
         search = max(cfg.search_half_width_m, abs(d0))
+        sampling_budget=None
+        if cfg.width_aware_sampling_enabled and width is not None:
+            # Width limits candidate offsets, NEVER the real collision rectangle.
+            # Retain d0 as the hold candidate so an off-centre start is explicit.
+            sampling_budget=max(0.,(width-cfg.body_width_m)/2)
+            search=min(cfg.search_half_width_m,sampling_budget)
+            amplitude=min(amplitude,sampling_budget)
+            preparation=max(-sampling_budget,min(sampling_budget,preparation))
         next_phase = time.perf_counter()
         timing["frenet"] = next_phase-phase_started
         phase_started = next_phase
@@ -612,6 +627,15 @@ class ShadowLatticePlanner:
         for index in range(1, math.ceil((cfg.sample_count-6)/2)+1):
             offsets = tuple((2*_shadow_halton(index, base)-1)*search for base in (2, 3, 5))
             samples.extend(("halton", tuple(sign*v for v in offsets)) for sign in (1, -1))
+        if cfg.controller_max_curvature_1pm>0:
+            # Keep total candidate count. Replace the last nine exploratory
+            # Halton paths with model-compatible geometric primitives. Frozen
+            # inference still sees/ranks the authored path, not a family label.
+            limit=.98*cfg.controller_max_curvature_1pm
+            primitives=[("mpc_arc",(fraction*limit,0.,0.))
+                        for fraction in (0.,.25,-.25,.5,-.5,.75,-.75,1.,-1.)]
+            keep=max(0,cfg.sample_count-len(primitives))
+            samples=samples[:keep]+primitives
         sources = road.get("boundary_source") or {}
         boundaries = {side: value for side, value in (("left", left), ("right", right))
                       if value and sources.get(side) in ("observed", "observed_with_history")}
@@ -628,15 +652,42 @@ class ShadowLatticePlanner:
                     knot_frames[distance] = frame.at(s0+distance)
                 p, _, n = knot_frames[distance]
                 knots.append((p[0]+offset*n[0], p[1]+offset*n[1]))
-            path = _shadow_curve(knots, horizon, cfg.path_spacing_m)
+            primitive_curvature=None
+            if family=="mpc_arc":
+                primitive_curvature=offsets[0]
+                count=max(2,math.ceil(horizon/cfg.path_spacing_m))
+                path=[]
+                for k in range(count+1):
+                    station=horizon*k/count
+                    angle=primitive_curvature*station
+                    path.append((math.sin(angle)/primitive_curvature,
+                                 (1-math.cos(angle))/primitive_curvature,angle)
+                                if abs(primitive_curvature)>1e-9 else (station,0.,0.))
+                # Keep diagnostics in metres even for curvature primitives.
+                offsets=tuple(frame.project(path[min(count,round(distance/horizon*count))][:2])[1]
+                              for distance in distances)
+            else:
+                path = _shadow_curve(knots, horizon, cfg.path_spacing_m)
             next_phase = time.perf_counter()
             timing["generation"] += next_phase-phase_started
             phase_started = next_phase
-            collision = _shadow_collision(path, check, boundaries, cfg)
+            collision = (_shadow_collision([(0.,0.,0.)],0.,boundaries,cfg)
+                         or _shadow_collision(path, check, boundaries, cfg))
             next_phase = time.perf_counter()
             timing["collision"] += next_phase-phase_started
             phase_started = next_phase
             arc = _shadow_lengths([p[:2] for p in path])
+            controller_rejection=None
+            max_curvature=0.
+            if cfg.controller_max_curvature_1pm>0:
+                # Geometric compatibility screen, not a nonlinear rollout proof.
+                # Only screen the part currently consumed by the controller.
+                for k,(a,b) in enumerate(zip(path,path[1:])):
+                    if arc[k]>control_read_length+1e-9: break
+                    max_curvature=max(max_curvature,abs(wrap_angle(b[2]-a[2]))/max(1e-9,arc[k+1]-arc[k]))
+                if max_curvature>cfg.controller_max_curvature_1pm+1e-6:
+                    controller_rejection={"reason":"curvature_exceeds_controller",
+                        "max_curvature_1pm":max_curvature,"limit_1pm":cfg.controller_max_curvature_1pm}
             lateral, heading_cost, progress, smooth, total_weight = 0.0, 0.0, 0.0, 0.0, 0.0
             previous_heading = path[0][2]
             scoring_samples = []
@@ -663,15 +714,22 @@ class ShadowLatticePlanner:
             cost = sum(getattr(cfg, "weight_"+key)*value for key, value in costs.items())
             candidates.append({"id": candidate_id, "family": family, "offsets_m": offsets,
                 "cost": cost, "costs": costs, "collision": collision, "path": path,
+                "controller_rejection":controller_rejection,"sampling_offset_budget_m":sampling_budget,
+                "primitive_curvature_1pm":primitive_curvature,
                 "scoring_samples": scoring_samples})
             timing["scoring"] += time.perf_counter()-phase_started
         phase_started = time.perf_counter()
-        feasible = [c for c in candidates if c["collision"] is None]
+        feasible = [c for c in candidates if c["collision"] is None and c.get("controller_rejection") is None]
         selected = min(feasible or candidates, key=lambda c: (c["cost"], c["id"]))
         next_phase = time.perf_counter()
         timing["selection"] = next_phase-phase_started
         phase_started = next_phase
-        result = {"status": "VALID" if feasible else "ALL_COLLIDE", "selected": selected,
+        collision_free=sum(c["collision"] is None for c in candidates)
+        result = {"status": "VALID" if feasible else "NO_CONTROL_FEASIBLE" if collision_free else "ALL_COLLIDE",
+                "collision_free_count":collision_free,
+                "controller_rejected_count":sum(c.get("controller_rejection") is not None for c in candidates),
+                "sampling_offset_budget_m":sampling_budget,
+                "selected": selected,
                 "candidates": candidates, "candidate_count": len(candidates), "feasible_count": len(feasible),
                 "input_stamp_s": job.get("stamp_s"), "measurement_stamp_s": road.get("measurement_timestamp_s"),
                 "road_status": road.get("status"), "road_sources": sources,

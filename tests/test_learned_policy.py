@@ -142,7 +142,7 @@ class LearnedPolicyChecks(unittest.TestCase):
 
     def test_node_commits_after_publication_and_never_for_baseline_or_failed_tick(self):
         api = runpy.run_path(str(ROOT/'tests/test_control.py'))
-        for mode in ('planner', 'baseline', 'expired'):
+        for mode in ('planner', 'baseline', 'expired', 'shadow', 'plan_hold'):
             with self.subTest(mode=mode):
                 node = api['make_node'](simulated=False, mvp=True)
                 api['feed'](node);api['start'](node)
@@ -150,6 +150,7 @@ class LearnedPolicyChecks(unittest.TestCase):
                 result = self.result(99);memory.stage(result, True)
                 node.learned_policy_memory = memory
                 def calculate(*args):
+                    node.control_diagnostics = dict(mpc_reference_executed=mode=='planner')
                     node._trajectory_reference = dict(
                         planner_version='lattice_execution' if mode != 'baseline' else 'road_centerline',
                         trajectory_id=99)

@@ -76,6 +76,12 @@ class ShadowJobSource:
         forward = road.get("forward_geometry") or {}
         if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
             road = forward
+        # An initial delayed image may precede the freshly reset motion history.
+        # Do not spend the 1 Hz job slot on unaligned geometry: submit promptly
+        # once real motion coverage arrives. Continue collection at control rate.
+        if (not road.get("time_aligned")
+                and "motion_history" in str((estimates.get("road") or {}).get("status"))):
+            return
         stamp = estimates.get("state", {}).get("timestamp_s")
         stamp = stamp if finite_number(stamp) else now
         if self.shadow_settings.fusion_enabled or getattr(getattr(self, "planner_control_settings", None), "enabled", False):
@@ -88,6 +94,7 @@ class ShadowJobSource:
             "state": {key: estimates.get("state", {}).get(key) for key in
                       ("speed_mps", "yaw_rate_rps", "timestamp_s", "speed_valid", "yaw_rate_valid")},
             "stamp_s": stamp,
+            "compact_result": True,
             "generation": self.shadow_generation, "job_id": self.shadow_job_id,
             "submitted_monotonic_s": now, "preview_m": self.planning_settings.preview_m,
             "handoff_estimate_s": self.shadow_handoff_estimate_s,
@@ -119,6 +126,7 @@ class ShadowWorker:
         self.jobs, self.results = queue.Queue(maxsize=1), queue.Queue(maxsize=1)
         self.closed = threading.Event()
         self.process = None
+        self.status = "starting"
         self.thread = threading.Thread(target=self._serve, name="shadow-transport", daemon=True)
         self.thread.start()
 
@@ -148,8 +156,11 @@ class ShadowWorker:
             process = subprocess.Popen([sys.executable, self.source_file, "--shadow-worker"],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 text=True, encoding="utf-8", bufsize=1,
+                env=dict(__import__("os").environ, OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1",
+                         MKL_NUM_THREADS="1", BLIS_NUM_THREADS="1"),
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             self.process = process
+            self.status = "idle"
             if self.closed.is_set():
                 process.terminate()
                 return
@@ -158,6 +169,7 @@ class ShadowWorker:
                     job = self.jobs.get(timeout=0.1)
                 except queue.Empty:
                     continue
+                self.status = "computing"
                 process.stdin.write(json.dumps(job, allow_nan=False)+"\n")
                 process.stdin.flush()
                 line = process.stdout.readline()
@@ -168,7 +180,9 @@ class ShadowWorker:
                 result["received_monotonic_s"] = time.monotonic()
                 result["submitted_monotonic_s"] = job["submitted_monotonic_s"]
                 self._replace(self.results, result)
+                self.status = "idle"
         except Exception as error:
+            self.status = "failed"
             self._replace(self.results, {"status": "TRANSPORT_ERROR", "error": str(error)})
         finally:
             if self.process is not None:

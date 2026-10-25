@@ -27,3 +27,6 @@ offline/lattice_training/artifacts/2026-10-19-recurrent-policy/*
 /offline/lattice_training/artifacts/2026-10-19-multistart-policy/*
 !/offline/lattice_training/artifacts/2026-10-19-multistart-policy/model.json
 !/offline/lattice_training/artifacts/2026-10-19-multistart-policy/.gitattributes
+
+# Local rollback copies; the branch commit and deployment manifest are the shared checkpoint.
+/backups/

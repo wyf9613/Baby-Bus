@@ -1,0 +1,17 @@
+{
+  "scripts/policy_node.py": "f282dcc271f64da779913ec71ec812cd4f6b227a75d8db75c826c731d8f7d0b2",
+  "config/ai4r_policy.yaml": "8f01613954ef72189da7cefe5c8e26c7021160f0cbc09a0eede2de945429a4d9",
+  "mvp21_policy/models/path_policy.json": "a3116bb7bc4bb46ccb6e208fa3de628eca940820810943409c3157e5b12aa66b",
+  "revision": "user-mpc-rnn-narrow-admission-20261026",
+  "target_speed_mps": 0.5,
+  "mpc_shadow": false,
+  "horizon_n": 6,
+  "focused_tests": 37,
+  "wire_equivalence": {
+    "full_bytes": 283873,
+    "compact_bytes": 21173,
+    "selected_id": 47,
+    "candidate_count": 48,
+    "status": "VALID"
+  }
+}

@@ -59,6 +59,14 @@ def run_worker():
         result['execution_anchor'] = None if job is None else dict(
             pose=job.get('shadow_pose'), odometry_epoch=job.get('shadow_odometry_epoch'))
         result['shadow_only'] = not bool(job and job.get('planner_control_enabled'))
+        if job and job.get("compact_result"):
+            # Rank ALL original candidates first, then omit only unused wire
+            # geometry. Selected path, recurrent state, collision/fusion and
+            # execution anchors remain exact. Default offline payload unchanged.
+            candidates=result.pop("candidates", [])
+            result["candidate_summaries"]=[{k:c.get(k) for k in ("id","family","collision","cost","controller_rejection")}
+                                            for c in candidates]
+            result["compact_result"]=True
         encode_started = time.perf_counter()
         encoded = json.dumps(result, allow_nan=False, separators=(',', ':'))
         wire_timing = dict(json_decode_s=decode_s, json_encode_s=time.perf_counter()-encode_started)

@@ -1,3 +1,15 @@
+# Accepted RNN + MPC checkpoint (26 October 2026)
+
+Operator-reported real-car result: deployed successfully and more stable than
+the previous planner. Preserve this checkpoint before further experiments.
+See [checkpoint, hashes and limitations](docs/CHECKPOINT_RNN_MPC_20261026.md).
+Deploy `scripts/policy_node.py` AND `config/ai4r_policy.yaml` together.
+Target0.5 m/s; left blue/right yellow; user MPC steering +/-0.50.
+
+# New local integration: trained RNN + user MPC
+
+See [integration details](docs/USER_MPC_RNN_INTEGRATION_20261026.md). Target0.50m/s, fixed left blue/right yellow, user MPC/PI, execution mpc.shadow=false (operator-selected). Previous README below is upstream history and describes its PID configuration.
+
 # Baby Bus · ai4r_policy
 
 当前实现位于 [mvp21_policy/](mvp21_policy/README.md)，两个 script 名称均进入同一套

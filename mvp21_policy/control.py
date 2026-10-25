@@ -40,6 +40,10 @@ class ControlSettings:
     steering_max_normalized: float = 0.5
     max_dt_s: float = 0.2
     startup_grace_s: float = 0.5
+    # Local MPC integration: neutral-only refresh and first planner acquisition.
+    # Zero retains the upstream PID lifecycle.
+    reference_refresh_grace_s: float = 0.0
+    planner_startup_wait_s: float = 0.0
     # Per explicit run. Zero disables that test budget; odometry still updates.
     max_distance_m: float = 3.0
     max_run_time_s: float = 30.0
@@ -103,12 +107,17 @@ class ControlSettings:
                      "gyro_fallback_speed_mps"):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
                 raise ValueError(f"control.{name} must be finite and positive")
-        for name in ("max_distance_m", "max_run_time_s", "end_straight_distance_m", "mvp_error_filter_tau_s"):
+        for name in ("max_distance_m", "max_run_time_s", "end_straight_distance_m", "mvp_error_filter_tau_s",
+                     "reference_refresh_grace_s", "planner_startup_wait_s"):
             if not finite_number(getattr(self, name)) or getattr(self, name) < 0:
                 raise ValueError(f"control.{name} must be finite and nonnegative (0 disables)")
         if (not finite_number(self.mvp_steering_slew_rate_per_s)
                 or self.mvp_steering_slew_rate_per_s < 0):
             raise ValueError("control.mvp_steering_slew_rate_per_s must be finite and nonnegative")
+        if self.reference_refresh_grace_s > .2:
+            raise ValueError("control.reference_refresh_grace_s must not exceed 0.2")
+        if self.planner_startup_wait_s >= self.startup_grace_s:
+            raise ValueError("planner startup wait must fit inside control startup grace")
         if self.drive_max > 1 or self.steering_max_normalized > 1:
             raise ValueError("control action limits must not exceed 1")
         if not finite_number(self.mvp_steering_direction) or self.mvp_steering_direction not in (-1.0, 1.0):
