@@ -35,6 +35,7 @@ from .motion import (
 from .learned import LearnedPolicySettings, FrozenPathPolicy, PolicyExecutionMemory
 from .local_mpc import MPCSettings, VehicleParamsSettings, mpc_debug_json
 from .mpc_adapter import MPCPolicyController, calculate_selected_mpc
+from .lidar_obstacles import LidarObstacleSettings, StopFeedback, detect_lidar_obstacles
 from .estimation import (
     EstimationPipeline,
     EstimationSettings,
@@ -104,7 +105,7 @@ class PolicyNode(ShadowJobSource, Node):
             self.declare_parameter(name, default, ParameterDescriptor(
                 read_only=True, dynamic_typing=(name == "required_sensors")))
 
-        self.get_logger().info("Policy revision: user-mpc-rnn-narrow-admission-20261026")
+        self.get_logger().info("Policy revision: user-mpc-rnn-lidar-stop-20261026")
         self.policy_update_mode = self.get_parameter("policy_update_mode").value
         self.policy_update_rate_hz = self.get_parameter("policy_update_rate_hz").value
         required_parameter = self.get_parameter("required_sensors")
@@ -141,6 +142,20 @@ class PolicyNode(ShadowJobSource, Node):
         self.estimation_settings = EstimationSettings(**estimation_values)
         self.estimation_output = None
         self.motion_history = EstimationMotionHistory(self.estimation_settings)
+
+        # 雷达停车独立于规划/控制 / Guard every planner/controller output.
+        lidar_values = {}
+        for name, default in vars(LidarObstacleSettings()).items():
+            key = f"lidar_obstacle.{name}"
+            self.declare_parameter(key, default, ParameterDescriptor(read_only=True))
+            lidar_values[name] = self.get_parameter(key).value
+        self.lidar_obstacle_settings = LidarObstacleSettings(**lidar_values)
+        if self.lidar_obstacle_settings.enabled:
+            if self.policy_frame_id != "base_link" or "wheel_speed" not in self.required_sensors:
+                raise ValueError("LiDAR stop requires base_link and required wheel_speed")
+        self.lidar_obstacle_output = None
+        self._lidar_obstacle_stamp_ns = None
+        self._lidar_obstacle_publication_key = None
 
         planning_values = {}
         for name, default in vars(PlanningSettings()).items():
@@ -257,6 +272,13 @@ class PolicyNode(ShadowJobSource, Node):
         self.heading_publisher = self.create_publisher(Float32, "imu_heading_angle", 10)
         self.debug1_publisher = self.create_publisher(Float32, "debug1", 10)
         self.debug2_publisher = self.create_publisher(Float32, "debug2", 10)
+        self.lidar_obstacle_publisher = self.create_publisher(String, "lidar_obstacles", 1)
+        self.stop_feedback = StopFeedback()
+        self.stop_feedback.reset(self.fsm_state, self._monotonic())
+        self.stop_status_publisher = self.create_publisher(String, "stop_status", 1)
+        self.stop_state_publisher = self.create_publisher(Int8, "stop_state", 1)
+        self._last_stop_feedback_phase = None
+        self._last_stop_feedback_publish_s = -math.inf
         self.declare_parameter("visualization.enabled", True, ParameterDescriptor(read_only=True))
         self.trajectory_enabled = self.get_parameter("visualization.enabled").value
         self.trajectory_publisher = self.create_publisher(Path, "policy_trajectory", 1)
@@ -607,6 +629,9 @@ class PolicyNode(ShadowJobSource, Node):
                 or abs(msg.angle_min + (len(msg.ranges)-1)*msg.angle_increment - msg.angle_max)
                 > max(0.001, 1.1*msg.angle_increment)):
             self._warn("lidar_invalid", "Ignoring lidar scan with invalid shape, frame, or metadata")
+            if getattr(getattr(self, "lidar_obstacle_settings", None), "enabled", False):
+                self.observations["lidar_scan"] = None
+                self.observations["lidar_cartesian"] = None
             return
         # Infinity/NaN and out-of-range individual rays are normal possibilities
         # in LaserScan. Preserve them for the student to filter, not as zeros.
@@ -658,7 +683,8 @@ class PolicyNode(ShadowJobSource, Node):
                 raise ValueError("Cartesian lidar point is not finite")
             points.append(point)
             indices.append(index)
-        return {"points_xyz": points, "scan_indices": indices, "frame_id": self.policy_frame_id}
+        return {"points_xyz": points, "scan_indices": indices, "frame_id": self.policy_frame_id,
+                "ray_origin_xyz_m": offsets, "ray_axes_xyz": (x_axis, y_axis)}
 
     def wheel_speed_callback(self, msg):
         now, ros_now = self._times()
@@ -1350,6 +1376,10 @@ class PolicyNode(ShadowJobSource, Node):
                 and not getattr(self, "_gyro_fallback_active", False))
 
     def _control_health_problem(self, monotonic_now, ros_now_ns):
+        if getattr(getattr(self, "lidar_obstacle_settings", None), "enabled", False):
+            problem = self._lidar_stop_problem(monotonic_now, ros_now_ns)
+            if problem:
+                return problem
         problem = self.health_problem(monotonic_now, ros_now_ns)
         if self._gyro_fallback_enabled():
             gyro = self.observations.get("imu_angular_velocity")
@@ -1431,7 +1461,10 @@ class PolicyNode(ShadowJobSource, Node):
         if requested == self.fsm_state:
             return  # No accidental heading/integrator/time reset on a repeat.
         if requested == FSM_STATE_PUBLISHING_POLICY_ACTION:
-            problem = self.health_problem(now, ros_now)
+            problem = None
+            if getattr(getattr(self, "lidar_obstacle_settings", None), "enabled", False):
+                problem = self._lidar_stop_problem(now, ros_now)
+            problem = problem or self.health_problem(now, ros_now)
             if problem:
                 self.state_reason = f"Policy start refused: {problem}"
                 self.get_logger().warning(self.state_reason)
@@ -1449,6 +1482,8 @@ class PolicyNode(ShadowJobSource, Node):
     def _change_state(self, state, reason):
         self.fsm_state = state
         self.state_reason = reason
+        if hasattr(self, "stop_feedback"):
+            self.stop_feedback.reset(state, self._monotonic())
         # An internal consumer must not mistake the previous run's estimate
         # for an active result after a stop, source expiry, or explicit restart.
         self.estimation_output = None
@@ -1715,16 +1750,75 @@ class PolicyNode(ShadowJobSource, Node):
             return "Control startup history deadline exceeded; explicit resume required"
         return None
 
+    def _lidar_stop_problem(self, monotonic_now, ros_now_ns):
+        """Observe once per scan, check freshness each tick; never enable/resume."""
+        cfg = self.lidar_obstacle_settings
+        raw, cart = (self.observations.get(name) for name in ("lidar_scan", "lidar_cartesian"))
+        fresh = (self._fresh("lidar_scan", monotonic_now, ros_now_ns)
+                 and self._fresh("lidar_cartesian", monotonic_now, ros_now_ns)
+                 and raw.stamp_ns == cart.stamp_ns)
+        if not fresh:
+            self._lidar_obstacle_stamp_ns = None
+            self.lidar_obstacle_output = {
+                "status": "UNKNOWN", "available": False, "reason": "missing_stale_or_unmatched_lidar",
+                "frame_id": self.policy_frame_id,
+                "measurement_timestamp_s": None if raw is None else raw.stamp_ns/1e9,
+                "clusters": [], "candidate_clusters": [], "points_xyz_m": [], "scan_indices": []}
+        elif raw.stamp_ns != self._lidar_obstacle_stamp_ns:
+            try:
+                self.lidar_obstacle_output = detect_lidar_obstacles(raw.value, cart.value, cfg, raw.stamp_ns)
+            except (ValueError, TypeError, KeyError, ArithmeticError) as error:
+                self.lidar_obstacle_output = {
+                    "status": "UNKNOWN", "available": False, "reason": "detector_error: " + str(error),
+                    "frame_id": self.policy_frame_id, "measurement_timestamp_s": raw.stamp_ns/1e9,
+                    "clusters": [], "candidate_clusters": [], "points_xyz_m": [], "scan_indices": []}
+            self._lidar_obstacle_stamp_ns = raw.stamp_ns
+        result = self.lidar_obstacle_output
+        result["source_age_s"] = None if raw is None else self._age(raw, monotonic_now, ros_now_ns)
+        key = (result["measurement_timestamp_s"], result["status"], result["reason"])
+        if key != self._lidar_obstacle_publication_key:
+            try:
+                self.lidar_obstacle_publisher.publish(String(data=json.dumps(result, allow_nan=False)))
+                self._lidar_obstacle_publication_key = key
+            except Exception as error:
+                self._warn("lidar_status", "LiDAR status publication unavailable: " + str(error))
+        if result["status"] != "CLEAR":
+            return "Lidar stop: " + result["reason"] + "; explicit resume required"
+        return None
+
+    def _publish_stop_feedback(self, now, ros_now):
+        """Independent confirmation; never changes actuation or resumes policy."""
+        try:
+            wheel = self.observations.get("wheel_speed")
+            result = self.stop_feedback.update(self.fsm_state,
+                None if wheel is None else wheel.value,
+                None if wheel is None else wheel.received_at, now,
+                wheel is not None and self._fresh("wheel_speed", now, ros_now),
+                self.sensor_timeout_s["wheel_speed"])
+            phase = result["phase"]
+            if phase != self._last_stop_feedback_phase or now-self._last_stop_feedback_publish_s >= 0.1-1e-9:
+                self.stop_status_publisher.publish(String(data=json.dumps(result, allow_nan=False)))
+                self.stop_state_publisher.publish(Int8(data=result["state"]))
+                self._last_stop_feedback_phase = phase
+                self._last_stop_feedback_publish_s = now
+        except Exception as error:
+            self._warn("stop_feedback", "Stop feedback unavailable: " + str(error))
+
     def supervision_callback(self):
         now, ros_now = self._times()
+        lidar_problem = None
+        if getattr(getattr(self, "lidar_obstacle_settings", None), "enabled", False):
+            lidar_problem = self._lidar_stop_problem(now, ros_now)
         if self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION:
-            problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
+            problem = lidar_problem or self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
             if problem:
                 self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
         elif self.fsm_state == FSM_STATE_PUBLISHING_ZERO_ACTIONS:
             self.publish_zero_actions()
         if now - self._last_status_at >= self.status_period_s:
             self.publish_state()
+        if hasattr(self, "stop_feedback"):
+            self._publish_stop_feedback(now, ros_now)
 
     def publish_state(self):
         self.state_publisher.publish(Int8(data=self.fsm_state))

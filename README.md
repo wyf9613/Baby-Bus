@@ -1,4 +1,14 @@
-# Accepted RNN + MPC checkpoint (26 October 2026)
+# RNN + MPC with LiDAR stop (local branch)
+
+Based on checkpoint `45d492f`; adds a straight-ahead obstacle stop without
+changing RNN weights, MPC/PI, target speed or timing settings. The selected ROI
+extends 0.5 m ahead of the bumper, with 0.02 m lateral margin on each side.
+See [deployment and checks](docs/RNN_MPC_LIDAR_STOP_CN.md).
+Deploy the regenerated `scripts/policy_node.py` AND `config/ai4r_policy.yaml`.
+The operator reports that this version runs on the car. Obstacle-triggered
+stopping distance and fault recovery have not yet been independently verified.
+
+# Accepted RNN + MPC checkpoint (26 October 2026, baseline)
 
 Operator-reported real-car result: deployed successfully and more stable than
 the previous planner. Preserve this checkpoint before further experiments.

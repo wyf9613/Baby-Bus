@@ -1,4 +1,40 @@
-# Trained lattice selector + Zhenyu's MPC — 2026-10-26
+# RNN/MPC LiDAR stop — 2026-10-26 (local addition)
+
+Base checkpoint 45d492f; branch feature/rnn-mpc-lidar-stop. Runtime revision
+user-mpc-rnn-lidar-stop-20261026. The selected rectangle extends 0.5 m ahead of
+the bumper, body width0.25 m plus0.02 m per side, range lower bound0.2 m.
+The +inf assumed-clear option is carried forward explicitly; it is not measured
+free space. Sparse/invalid/insufficient data, TF failure, mismatched scans and
+expiry stop the run. Original0.5 s LiDAR deadlines and all other checkpoint
+parameters are retained. Zero drive is a stop request, not an active brake.
+Fresh post-request exact zero wheel speeds spanning0.2 s confirm STOPPED;
+missing feedback remains UNKNOWN. Explicit restart and generation fencing stay.
+
+85 portable checks passed:48 detector/callback/lifecycle/actual-RNN-MPC-stop
+checks,28 existing MPC-bridge/runtime/narrow-admission checks,9 existing frozen
+policy checks. These cover rotated acquisition-time TF, malformed-scan and TF
+invalidation, ROI inside/outside, independent supervisor, no automatic resume,
+late-solve action/RNN-commit suppression, telemetry failure and disabled/clear
+controller-output equality. The isolated single-file test needed sandbox
+escalation after Windows NamedTemporaryFile blocked; it then passed without
+network or hardware access. All test processes have ended.
+
+Bundle regenerated from24 modules and2 explicit resources. Source comparison
+confirms unchanged MPC, adapter, RNN, lattice, execution, estimator and frozen
+model bytes. Structured YAML comparison confirms only lidar_obstacle added;
+syntax and git diff whitespace checks passed. File hashes are recorded in
+rnn-mpc-lidar-manifest-20261026.json.
+
+Required CONTRIBUTING fast command was attempted but Bash is unavailable on
+this Windows host; ROS Jazzy/pinned dream_interfaces are not provisioned here.
+The operator subsequently reported that this version runs on the car and
+requested publishing the feature branch. This is operator feedback, not a full
+ROS gate pass or measured obstacle-stop qualification. No assistant-issued
+vehicle action or merge was performed. The 0.5 m rectangle is not a curved swept-body
+corridor or a measured stopping-distance guarantee. Procedure and limitations:
+[RNN/MPC LiDAR stop](RNN_MPC_LIDAR_STOP_CN.md).
+
+# Trained lattice selector + Zhenyu's MPC — 2026-10-26 (baseline history)
 
 ## Source and actual behavior
 

@@ -22,6 +22,19 @@
     timestamp_tolerance_s: 0.05
     policy_frame_id: base_link
     use_sim_time: false
+    # 前方直线停车区 / Straight-ahead stop corridor, base_link metres.
+    lidar_obstacle:
+      enabled: true
+      body_width_m: 0.25
+      front_from_cg_m: 0.297
+      side_margin_m: 0.02
+      range_min_m: 0.2
+      # 延续先前约定 / +inf means assumed no return, not measured free space.
+      allow_no_return_clear: true
+      stop_distance_m: 0.5
+      cluster_gap_m: 0.06
+      min_cluster_points: 2
+      min_known_fraction: 0.7
     estimation:
       colour_assignment: fixed
       left_colour: 2

@@ -1,0 +1,26 @@
+{
+  "base_commit": "45d492f2244d4f1e225b8f180a5fcb5f7d4230ab",
+  "revision": "user-mpc-rnn-lidar-stop-20261026",
+  "files": {
+    "scripts/policy_node.py": "e03b51104657535dccf4f3729d54032f7ef9a70581aec88e337f9d3018ae41f6",
+    "config/ai4r_policy.yaml": "e2269adba0fc126f99974aa75b8c595889873b2323d426695a8fc7d9e30e0d9e",
+    "mvp21_policy/models/path_policy.json": "a3116bb7bc4bb46ccb6e208fa3de628eca940820810943409c3157e5b12aa66b"
+  },
+  "lidar_obstacle": {
+    "enabled": true,
+    "body_width_m": 0.25,
+    "front_from_cg_m": 0.297,
+    "side_margin_m": 0.02,
+    "range_min_m": 0.2,
+    "allow_no_return_clear": true,
+    "stop_distance_m": 0.5,
+    "cluster_gap_m": 0.06,
+    "min_cluster_points": 2,
+    "min_known_fraction": 0.7
+  },
+  "unchanged_mpc_rnn_modules": true,
+  "unrelated_parameters_unchanged": true,
+  "portable_checks": 85,
+  "physical_test": "operator_reports_version_runs_on_car",
+  "obstacle_stop_test": "not_independently_verified"
+}

@@ -17,6 +17,9 @@ import unittest
 
 api = runpy.run_path(str(Path(__file__).with_name("test_estimation.py")))
 ns = dict(api["namespace"])
+from mvp21_policy.lidar_obstacles import LidarObstacleSettings, StopFeedback, detect_lidar_obstacles
+ns.update(LidarObstacleSettings=LidarObstacleSettings, StopFeedback=StopFeedback,
+          detect_lidar_obstacles=detect_lidar_obstacles)
 tree = ast.parse(api["SOURCE"].read_text(encoding="utf-8"))
 subject = next(item for item in tree.body if isinstance(item, ast.ClassDef) and item.name == "PolicyNode")
 method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn", "run_policy_step",
@@ -24,7 +27,8 @@ method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn",
                 "_robust_control_enabled", "_control_health_problem", "_select_control_reference", "_report_control_status",
                 "_select_planner_reference", "_publish_planner_execution",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
-                "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
+                "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions",
+                "_lidar_stop_problem", "_publish_stop_feedback"}
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
 constants = [item for item in tree.body if isinstance(item, ast.Assign) and
              any(isinstance(target, ast.Name) and (target.id.startswith("FSM_STATE") or
