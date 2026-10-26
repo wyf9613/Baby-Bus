@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
+import random
 
 try:
     from ament_index_python.packages import get_package_prefix
@@ -17,9 +18,10 @@ else:
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from mvp21_policy.avoidance import (LidarAvoidanceSettings, LidarAvoidanceGuard,
-    collision, filter_candidates, obstacle_fault)
-from mvp21_policy.execution import calculate_selected_control
-from mvp21_policy.lattice import ShadowSettings
+    collision, filter_candidates, obstacle_fault, path_poses, accept_avoidance_result)
+from mvp21_policy.geometry import _path_lengths, _path_tangent
+from mvp21_policy.execution import calculate_selected_control, PlannerExecutionManager
+from mvp21_policy.lattice import ShadowSettings, _shadow_collision
 from mvp21_policy.obstacle_stop import ObstacleStopMonitor, ObstacleStopSettings
 from offline.lidar_avoidance.service import AvoidancePlannerWorker
 
@@ -53,6 +55,46 @@ def job(points=()):
 
 
 class AvoidanceGeometryChecks(unittest.TestCase):
+    def test_future_tracking_tube_does_not_forbid_safe_escape_from_current_pose(self):
+        path=[(0.,0.,0.),(.5,-.4,-.6),(1.,-.5,0.)];points=[[.1,.24]]
+        self.assertIsNotNone(collision(path,points,replace(CFG,obstacle_margin_m=.16)))
+        self.assertIsNone(collision(path,points,CFG,plan_tracking=True))
+        self.assertIsNotNone(collision(path,[[.1,.1]],CFG,plan_tracking=True))
+
+    def test_near_straight_observed_jitter_is_smoothed_without_replacing_boundaries(self):
+        record=job([[1.35,0.]])
+        record['road']['centerline_xy']=[[i*.1,.005*((i%2)*2-1)] for i in range(41)]
+        result=filter_candidates(record)
+        holds=[c for c in result['candidates'] if c['family']=='avoidance_lateral_hold']
+        self.assertTrue(holds)
+        self.assertTrue(all(c['chart_source']=='observed_near_straight_fit' for c in holds))
+        self.assertEqual(record['road']['left_boundary_xy'],[[0.,.65],[4.,.65]])
+
+    def test_vectorized_tangents_match_existing_geometric_reader(self):
+        import math
+        xy=[[i*.025,.1*math.sin(i*.05)] for i in range(101)];arc=_path_lengths(xy)
+        actual=path_poses(xy)
+        for p,s in zip(actual,arc):
+            tx,ty=_path_tangent(xy,arc,s,window=.0125)
+            self.assertAlmostEqual(p[2],math.atan2(ty,tx),places=10)
+
+    def test_vectorized_sweep_agrees_with_reference_for_points_and_segments(self):
+        rng = random.Random(91026)
+        for _ in range(60):
+            path = [(0., 0., 0.), (.35, rng.uniform(-.2,.2), rng.uniform(-.7,.7)),
+                    (.8, rng.uniform(-.3,.3), rng.uniform(-.7,.7))]
+            points = [[rng.uniform(-.5,1.2),rng.uniform(-1.,1.)] for _ in range(8)]
+            boundaries = {'left':[[rng.uniform(-.2,1.2),rng.uniform(-.8,.8)] for _ in range(3)]}
+            pc = ShadowSettings(body_front_m=CFG.front_extent_m+CFG.obstacle_margin_m,
+                body_rear_m=CFG.rear_extent_m+CFG.obstacle_margin_m, body_width_m=CFG.width_m+2*CFG.obstacle_margin_m)
+            bc = replace(pc,body_front_m=CFG.front_extent_m+CFG.boundary_margin_m,
+                body_rear_m=CFG.rear_extent_m+CFG.boundary_margin_m,body_width_m=CFG.width_m+2*CFG.boundary_margin_m)
+            for length in (.25, float('inf')):
+                expected = _shadow_collision(path,length,{str(i):[p] for i,p in enumerate(points)},pc)
+                self.assertEqual(collision(path,points,CFG,length) is not None, expected is not None)
+                expected = _shadow_collision(path,length,boundaries,bc)
+                self.assertEqual(collision(path,[],CFG,length,boundaries) is not None, expected is not None)
+
     def test_point_returns_are_not_connected_across_a_free_gap(self):
         self.assertIsNone(collision([(0., 0., 0.), (1., 0., 0.)],
                                     [[.5, -.5], [.5, .5]], CFG))
@@ -90,6 +132,35 @@ class AvoidanceGeometryChecks(unittest.TestCase):
 
 
 class AvoidanceStateChecks(unittest.TestCase):
+    def test_nonblocking_replan_miss_keeps_original_checked_path_without_renewing_age(self):
+        guard=LidarAvoidanceGuard(CFG);guard.update(observation([[1.35,0.]]),[0.,0.,0.],0,10.)
+        r=filter_candidates(job([[1.35,0.]]));r.update(job_id=1,generation=1,
+            execution_anchor=dict(pose=[0.,0.,0.],odometry_epoch=0))
+        manager=PlannerExecutionManager(generation=1)
+        self.assertTrue(accept_avoidance_result(manager,guard,r))
+        guard.side=1;previous=manager.active
+        miss=dict(status='NO_AVOIDANCE_PATH',job_id=2,generation=1,input_stamp_s=10.2,
+                  avoidance=dict(enabled=True,blocking_obstacle=False,reason=None))
+        self.assertTrue(accept_avoidance_result(manager,guard,miss))
+        self.assertIs(manager.active,previous);self.assertEqual(manager.active['stamp_s'],10.)
+        self.assertEqual(manager.active['job_id'],1);self.assertEqual(manager.last_job_id,2)
+        miss.update(job_id=3,input_stamp_s=10.3,avoidance=dict(enabled=True,blocking_obstacle=True))
+        accept_avoidance_result(manager,guard,miss)
+        self.assertIsNone(manager.active);self.assertTrue(guard.latched)
+
+    def test_radius_bounds_memory_and_candidate_coverage(self):
+        guard = LidarAvoidanceGuard(CFG)
+        guard.update(observation([[1.,0.],[10.,0.]]),[0.,0.,0.],0,10.)
+        self.assertEqual(len(guard.memory),1)
+        record=job();record['lidar_avoidance']['settings']={**vars(CFG),'sensing_radius_m':.5}
+        self.assertIsNone(filter_candidates(record)['selected'])
+
+    def test_old_planner_reference_stops_despite_fresh_lidar(self):
+        guard=LidarAvoidanceGuard(CFG);guard.update(observation(),[0.,0.,0.],0,10.)
+        path=reference([[0.,0.],[2.,0.]])
+        path.update(planner_version='lattice_execution',original_input_stamp_s=10.-CFG.max_plan_age_s)
+        self.assertEqual(guard.evaluate(path,10.)['reason'],'avoidance_planner_stale')
+
     def test_empty_scan_does_not_erase_static_obstacle_before_rear_passes(self):
         guard = LidarAvoidanceGuard(CFG)
         guard.update(observation([[1., 0.]]), [0., 0., 0.], 0, 10.);guard.side = 1

@@ -2,7 +2,9 @@
 
 本入口复用原 `offline.mvp21_sim.runtime`、实际道路/障碍估计、MVP 控制器和
 课程车辆模型。没有另写一套简化车辆闭环，也没有接入 MPC 或重新训练模型。
-本版仅用于离线实验，ROS 节点未构造绕行组件，公共 YAML 保持原样。
+本入口用于离线验证。2026-10-26 已加入同一组件的显式 ROS 接线，公共 YAML
+保持原停车基线；ROS 绕行完整候选配置由 `tools/package_lidar_avoidance.py` 生成，
+见 `docs/LIDAR_AVOIDANCE_DEPLOYMENT_CN.md`。以下 10 月 24 日结果保留为历史记录。
 
 ## 运行
 

@@ -1,12 +1,13 @@
 """Opt-in static LiDAR avoidance experiment using native MVP2.1 candidates.
 
 Only measured points/road and measured-motion odometry enter decisions. This
-is a numerical geometric check, not braking or real-time qualification. ROS
-does not construct this component; the first consumer is the offline runtime.
+is a numerical geometric check, not braking or real-time qualification.
+ROS and the offline runtime use the same guard and worker-side selector.
 """
 from copy import deepcopy
 from dataclasses import dataclass, replace
 import math
+import numpy as np
 
 from .geometry import finite_number, wrap_angle, _path_lengths, _path_tangent
 from .frenet import ShadowFrame
@@ -25,9 +26,14 @@ class LidarAvoidanceSettings:
     boundary_margin_m: float = .02
     max_source_age_s: float = .30
     max_curvature_1pm: float = 2.5
+    max_straight_fit_residual_m: float = .02
     rolling_check_m: float = .65
     memory_resolution_m: float = .025
-    memory_capacity: int = 512
+    memory_capacity: int = 2048
+    sensing_radius_m: float = 3.5
+    # Two 2-Hz planning cycles plus a bounded worker handoff. Sensor source
+    # and receipt deadlines remain independently much shorter.
+    max_plan_age_s: float = 1.5
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
@@ -59,8 +65,13 @@ def path_poses(points):
         raise ValueError('Finite nondegenerate sampled path required')
     xy = [p[:2] for p in points]
     arc = _path_lengths(xy)
-    return [(p[0], p[1], math.atan2(*reversed(_path_tangent(xy, arc, s, window=.0125))))
-            for p, s in zip(xy, arc)]
+    xy_array = np.asarray(xy, dtype=float); stations = np.asarray(arc)
+    before = np.clip(stations-.0125, 0., arc[-1]); after = np.clip(stations+.0125, 0., arc[-1])
+    dx = np.interp(after, stations, xy_array[:, 0])-np.interp(before, stations, xy_array[:, 0])
+    dy = np.interp(after, stations, xy_array[:, 1])-np.interp(before, stations, xy_array[:, 1])
+    if np.any(np.hypot(dx,dy) <= 1e-12):
+        raise ValueError('Degenerate path tangent')
+    return np.column_stack((xy_array, np.arctan2(dy,dx))).tolist()
 
 
 def curvature_peak(path):
@@ -68,24 +79,75 @@ def curvature_peak(path):
                 for a, b in zip(path, path[1:])), default=0.)
 
 
-def collision(path, points, cfg, length=math.inf, boundaries=None):
-    # Each LiDAR return is an independent point. Connecting successive angular
-    # returns would invent solid walls across free gaps.
-    settings = ShadowSettings(body_front_m=cfg.front_extent_m+cfg.obstacle_margin_m,
-        body_rear_m=cfg.rear_extent_m+cfg.obstacle_margin_m,
-        body_width_m=cfg.width_m+2*cfg.obstacle_margin_m)
-    hits = {str(i): [p[:2]] for i, p in enumerate(points)}
-    hit = _shadow_collision(path, length, hits, settings) if hits else None
-    if hit:
-        return dict(kind='lidar_point', **hit)
-    if boundaries:
-        settings = replace(settings,
-            body_front_m=cfg.front_extent_m+cfg.boundary_margin_m,
-            body_rear_m=cfg.rear_extent_m+cfg.boundary_margin_m,
-            body_width_m=cfg.width_m+2*cfg.boundary_margin_m)
-        hit = _shadow_collision(path, length, boundaries, settings)
-        if hit:
-            return dict(kind='road_boundary', **hit)
+def collision(path, points, cfg, length=math.inf, boundaries=None, *, plan_tracking=False):
+    # Same adaptive samples as the established numerical sweep; vectorize the
+    # point and segment tests instead of rebuilding a rectangle for every hit.
+    arc = _path_lengths([p[:2] for p in path])
+    end = min(length, arc[-1]); poses = [path[0]]
+    for i, (a, b) in enumerate(zip(path, path[1:])):
+        if arc[i] >= end:
+            break
+        fraction = min(1., (end-arc[i])/(arc[i+1]-arc[i]))
+        angle = wrap_angle(b[2]-a[2])*fraction
+        distance = (arc[i+1]-arc[i])*fraction
+        count = max(1, math.ceil(distance/.01), math.ceil(abs(angle)/.025))
+        for j in range(1, count+1):
+            u = fraction*j/count
+            poses.append((a[0]+u*(b[0]-a[0]), a[1]+u*(b[1]-a[1]),
+                          a[2]+wrap_angle(b[2]-a[2])*u))
+    poses = np.asarray(poses, dtype=float)
+    c, s = np.cos(poses[:, 2, None]), np.sin(poses[:, 2, None])
+
+    def local(values):
+        xy = np.asarray(values, dtype=float)[:, :2]
+        dx, dy = xy[None, :, 0]-poses[:, None, 0], xy[None, :, 1]-poses[:, None, 1]
+        return c*dx+s*dy, -s*dx+c*dy
+
+    def inside(x, y, margin):
+        return ((x >= -cfg.rear_extent_m-margin) & (x <= cfg.front_extent_m+margin)
+                & (np.abs(y) <= cfg.width_m/2+margin))
+
+    if points:
+        margin = cfg.obstacle_margin_m
+        if plan_tracking:
+            travelled = np.r_[0., np.cumsum(np.linalg.norm(np.diff(poses[:, :2],axis=0),axis=1))]
+            # Present measured pose has no accumulated future tracking error.
+            # Grow the extra tracking tube over the checked forward distance;
+            # the sensing margin is never reduced, including at the start.
+            margin = margin+cfg.tracking_margin_m*np.minimum(1.,travelled[:, None]/cfg.rolling_check_m)
+        x, y = local(points); hits = np.argwhere(inside(x, y, margin))
+        if hits.size:
+            pose, point = map(int, hits[0])
+            return dict(kind='lidar_point', side=str(point), point_xy_m=list(points[point][:2]),
+                        pose=poses[pose].tolist(), pose_index=pose)
+    for side, values in (boundaries or {}).items():
+        if not values:
+            continue
+        x, y = local(values); margin = cfg.boundary_margin_m
+        hits = np.argwhere(inside(x, y, margin))
+        if hits.size:
+            pose, point = map(int, hits[0])
+            return dict(kind='road_boundary', side=side, point_xy_m=list(values[point][:2]),
+                        pose=poses[pose].tolist(), pose_index=pose)
+        if len(values) < 2:
+            continue
+        lower = np.zeros_like(x[:, :-1]); upper = np.ones_like(lower)
+        for start, finish, lo, hi in (
+                (x[:, :-1], x[:, 1:], -cfg.rear_extent_m-margin, cfg.front_extent_m+margin),
+                (y[:, :-1], y[:, 1:], -cfg.width_m/2-margin, cfg.width_m/2+margin)):
+            delta = finish-start; parallel = np.abs(delta) < 1e-15
+            safe = np.where(parallel, 1., delta)
+            a, b = (lo-start)/safe, (hi-start)/safe
+            low, high = np.minimum(a, b), np.maximum(a, b)
+            low = np.where(parallel, -np.inf, low)
+            high = np.where(parallel, np.inf, high)
+            high = np.where(parallel & ((start < lo) | (start > hi)), -np.inf, high)
+            lower = np.maximum(lower, low); upper = np.minimum(upper, high)
+        hits = np.argwhere(lower <= upper)
+        if hits.size:
+            pose, segment = map(int, hits[0])
+            return dict(kind='road_boundary', side=side, segment_xy_m=values[segment:segment+2],
+                        pose=poses[pose].tolist(), pose_index=pose)
     return None
 
 
@@ -101,6 +163,26 @@ def lateral_hold_candidates(result, job, cfg, points):
     chart = job['road'].get('centerline_xy')
     if not chart:
         return []
+    chart_source = 'observed_centerline'
+    fit_residual = None
+    if len(chart) >= 2:
+        observed = np.asarray(chart, dtype=float)[:, :2]
+        center = observed.mean(axis=0); shifted = observed-center
+        _, axes = np.linalg.eigh(shifted.T@shifted)
+        axis = axes[:, -1]
+        if float(axis@(observed[-1]-observed[0])) < 0:
+            axis = -axis
+        stations = shifted@axis
+        normal = np.array([-axis[1],axis[0]])
+        fit_residual = float(np.max(np.abs(shifted@normal)))
+        # A tightly supported near-straight observation should not acquire
+        # unrealizable curvature from tiny polyline tangent discontinuities.
+        # This uses measured samples only; current hard boundaries stay raw.
+        if (fit_residual <= cfg.max_straight_fit_residual_m
+                and float(stations.max()-stations.min()) > .2
+                and np.all(np.diff(stations) > 0)):
+            chart = [(center+axis*stations.min()).tolist(),(center+axis*stations.max()).tolist()]
+            chart_source = 'observed_near_straight_fit'
     frame = ShadowFrame(chart)
     s0, d0 = frame.project((0., 0.))
     horizon = min(job['settings']['length_m'], frame.end-s0)
@@ -122,19 +204,21 @@ def lateral_hold_candidates(result, job, cfg, points):
             a3, a4, a5 = ((10*delta-6*slope*shift)/shift**3,
                          (-15*delta+8*slope*shift)/shift**4,
                          (6*delta-3*slope*shift)/shift**5)
-            xy = []
+            xy = []; lateral_offsets = []
             for i in range(count+1):
                 distance = horizon*i/count
                 u = min(shift, distance)
                 offset = d0+slope*u+a3*u**3+a4*u**4+a5*u**5
                 p, _, normal = frame.at(s0+distance)
                 xy.append([p[0]+normal[0]*offset, p[1]+normal[1]*offset])
+                lateral_offsets.append(offset)
             path = path_poses(xy)
-            costs = dict(lateral=sum(frame.project(p[:2])[1]**2 for p in path)/len(path),
+            costs = dict(lateral=sum(d*d for d in lateral_offsets)/len(path),
                          heading=sum(p[2]**2 for p in path)/len(path))
             candidates.append(dict(id=len(result.get('candidates', []))+len(candidates),
                 family='avoidance_lateral_hold', path=path, offsets_m=[target]*3,
-                cost=6*costs['lateral']+1.5*costs['heading'], costs=costs, collision=None))
+                cost=6*costs['lateral']+1.5*costs['heading'], costs=costs, collision=None,
+                chart_source=chart_source, observed_fit_residual_m=fit_residual))
     return candidates
 
 
@@ -159,7 +243,8 @@ def filter_candidates(job):
     if len(boundaries) != 2:
         reason = reason or 'avoidance_requires_two_observed_boundaries'
     points = context['points_xy_m']
-    result.setdefault('candidates', []).extend(lateral_hold_candidates(result, job, cfg, points))
+    if points:
+        result.setdefault('candidates', []).extend(lateral_hold_candidates(result, job, cfg, points))
     result['candidate_count'] = len(result['candidates'])
     preference = context.get('side', 0)
     ahead = [p for p in points if p[0] >= -cfg.rear_extent_m-cfg.obstacle_margin_m]
@@ -173,7 +258,11 @@ def filter_candidates(job):
         peak = curvature_peak(path)
         if peak > cfg.max_curvature_1pm:
             rejection = rejection or 'curvature_limit'
-        hit = collision(path, points, planning_cfg, boundaries=boundaries)
+        radius = math.hypot(max(cfg.front_extent_m, cfg.rear_extent_m)+planning_cfg.obstacle_margin_m,
+                            cfg.width_m/2+planning_cfg.obstacle_margin_m)
+        if any(math.hypot(p[0], p[1])+radius > cfg.sensing_radius_m for p in path):
+            rejection = rejection or 'outside_lidar_horizon'
+        hit = collision(path, points, cfg, boundaries=boundaries, plan_tracking=True) if rejection is None else None
         if hit:
             rejection = rejection or hit['kind']
         side = 0
@@ -245,13 +334,16 @@ class LidarAvoidanceGuard:
         x, y, yaw = pose
         c, s = math.cos(yaw), math.sin(yaw)
         for px, py, _ in obstacles['points_xyz_m']:
+            if math.hypot(px, py) > cfg.sensing_radius_m:
+                continue
             wx, wy = x+c*px-s*py, y+s*px+c*py
             key = (round(wx/cfg.memory_resolution_m), round(wy/cfg.memory_resolution_m))
             self.memory[key] = (wx, wy, obstacles['measurement_timestamp_s'])
         self.points = []
         for key, (wx, wy, stamp) in list(self.memory.items()):
             bx, by = c*(wx-x)+s*(wy-y), -s*(wx-x)+c*(wy-y)
-            if bx < -cfg.rear_extent_m-cfg.obstacle_margin_m-.10:
+            if (bx < -cfg.rear_extent_m-cfg.obstacle_margin_m-.10
+                    or math.hypot(bx, by) > cfg.sensing_radius_m):
                 del self.memory[key]
             else:
                 self.points.append([bx, by])
@@ -290,6 +382,13 @@ class LidarAvoidanceGuard:
                         or abs(reference['timestamp_s']-now) > 1e-6):
                     return self.stop('avoidance_reference_frame_or_time')
                 poses = path_poses(reference['path']['samples_xy'])
+                if reference.get('planner_version') == 'lattice_execution':
+                    source = reference.get('original_input_stamp_s')
+                    if not finite_number(source) or not 0 <= now-source < self.settings.max_plan_age_s:
+                        result = self.stop('avoidance_planner_stale')
+                        result.update(plan_age_s=now-source if finite_number(source) else None,
+                                      max_plan_age_s=self.settings.max_plan_age_s)
+                        return result
                 # Include current body and the connection from actual pose to
                 # the cropped reference. Checking only the centerline is unsafe.
                 if math.hypot(*poses[0][:2]) > 1e-9:
@@ -304,3 +403,30 @@ class LidarAvoidanceGuard:
                 return self.stop('avoidance_reference_invalid')
         self.diagnostics = result
         return result
+
+
+def accept_avoidance_result(execution, guard, result):
+    """Retain a still-checked bypass across a temporary nonblocking plan miss.
+
+    The original pose/epoch/progress/source stamp remain unchanged. Execution
+    still applies current road/LiDAR checks and the original plan-age deadline.
+    A newly blocked corridor or worker fault never takes this path.
+    """
+    previous = execution.active
+    if not execution.accept(result):
+        return False
+    info = result.get('avoidance') or {}
+    if not info.get('enabled'):
+        guard.stop('avoidance_worker_result_invalid')
+        return True
+    if result.get('status') == 'VALID' and execution.active is None:
+        guard.stop('avoidance_worker_payload_invalid')
+        return True
+    guard.accept(result)
+    if (previous is not None and not guard.latched and guard.side
+            and result.get('status') == 'NO_AVOIDANCE_PATH'
+            and not info.get('blocking_obstacle') and info.get('reason') is None
+            and previous['epoch'] == guard.epoch):
+        execution.active = previous
+        execution.reason = 'avoidance_retained_checked_reference'
+    return True

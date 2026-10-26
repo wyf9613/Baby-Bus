@@ -36,14 +36,15 @@ def scenario(name):
     return case
 
 
-def run_case(name, output, *, seed=0):
+def run_case(name, output, *, seed=0, measured_delay=False, planner_rate_hz=5.):
     case = scenario(name)
     sensor = dict(period_steps=2, delay_steps=1)
     if name == 'dropout':
         sensor['dropout_windows_s'] = ((3., 6.),)
     summary = run_runtime(case, output, max_steps=700, seed=seed, detailed_trace=True,
-        latency_steps=1, lattice_length_m=2.5, planner_rate_hz=5.,
+        latency_steps=1, lattice_length_m=2.5, planner_rate_hz=planner_rate_hz,
         collision_coverage='generated', score_coverage='generated', delivery_delay_s=.1,
+        measured_delay=measured_delay, handoff_budget_s=.5 if measured_delay else None,
         simulation_control_overrides=SIMULATION_CONTROL,
         obstacle_stop_config=dict(enabled=True, trigger_distance_m=.15, max_source_age_s=.30),
         simulation_brake_drive=-.1, stop_timeout_s=5., stopped_hold_s=1.,
@@ -118,7 +119,8 @@ def report(summaries, output):
     lines = ['# MVP2.1 static LiDAR avoidance: offline experiment', '',
         'Observed cones/LiDAR and measured-motion odometry drive decisions. Ground truth is evaluation only.',
         'Road: 5 m straight, 1.4 m wide; static obstacle at 2.8 m. Native candidates plus smooth lateral holds.',
-        'Explicit experiment: 2.5 m horizon, 5 Hz generation, 20 Hz control, 10 Hz LiDAR, 50 ms scan delay.',
+        'Explicit experiment: 2.5 m horizon, '+str(next(iter(summaries.values()))['lattice_generation_rate_hz'])+' Hz generation, 20 Hz control, 10 Hz LiDAR, 50 ms scan delay.',
+        'Planner delivery: '+next(iter(summaries.values()))['delivery']['mode']+'; configured transport delay 100 ms.',
         'Common ROS YAML, learned model and vehicle dynamics are unchanged. Negative braking is simulator-only.', '',
         '| Case | Expected outcome met | Completed | Native / baseline cycles | Peak m/s | Final y m | Contact | Stop reason |',
         '|---|---|---|---|---:|---:|---|---|']
@@ -145,7 +147,7 @@ def report(summaries, output):
     lines += ['', 'Startup baseline cycles remain counted; these results are not native-only acceptance.',
         'The 1.118 m road / obstacle at 1.7 m development trials stopped protectively; that tighter scenario is not qualified.',
         'Scope excludes dynamic obstacles, turns, reverse motion, general scan coverage and real-car operation.',
-        'Planning keeps 0.08 m sensing margin plus 0.08 m provisional tracking allowance; execution uses 0.08 m.',
+        'Sensing margin remains 0.08 m everywhere; future tracking allowance grows from 0 to 0.08 m over 0.65 m. Execution uses 0.08 m.',
         'These numerical margins and the 2.5 1/m curvature limit have not been calibrated on a real vehicle.']
     (output/'REPORT.md').write_text('\n'.join(lines)+'\n')
 
@@ -154,6 +156,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--scenario',choices=(*SCENARIOS,'all'),default='all')
+    parser.add_argument('--measured-delay',action='store_true',help='Include actual planner CPU time in causal delivery')
+    parser.add_argument('--planner-rate-hz',type=float,choices=(1.,2.,5.),default=5.)
     args=parser.parse_args()
     if args.output.exists():parser.error('Use a new directory to preserve historical evidence')
     args.output.mkdir(parents=True)
@@ -163,7 +167,8 @@ def main():
     source['sha256']=digest(source['files']);write_json(args.output/'source.json',source)
     summaries={};payloads=[]
     for name in SCENARIOS if args.scenario=='all' else (args.scenario,):
-        summary,payload=run_case(name,args.output/name);summaries[name]=summary;payloads.append(payload)
+        summary,payload=run_case(name,args.output/name,measured_delay=args.measured_delay,
+            planner_rate_hz=args.planner_rate_hz);summaries[name]=summary;payloads.append(payload)
     write_viewer(payloads,args.output,split_data=True)
     report(summaries,args.output)
     current={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in source['files']}

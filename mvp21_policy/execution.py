@@ -94,6 +94,7 @@ class PlannerExecutionManager:
             self.reason = "planner_invalid_execution_payload"
             return True
         self.active = {"path": [tuple(p) for p in path], "pose": list(pose),
+            "job_id": identifier,
             "epoch": anchor["odometry_epoch"], "stamp_s": self.last_result_stamp_s,
             "measurement_stamp_s": result.get("measurement_stamp_s"), "progress_m": 0.0}
         self.reason = "planner_ready"
@@ -137,6 +138,9 @@ class PlannerExecutionManager:
         active = self.active
         if active is None:
             return fallback(self.reason)
+        self.diagnostics.update(job_id=active.get('job_id', self.last_job_id),
+            latest_result_job_id=self.last_job_id, input_stamp_s=active['stamp_s'],
+            source_age_s=now-active['stamp_s'] if finite_number(now) else None)
         if epoch != active["epoch"]:
             self.active = None
             self.reason = "motion_epoch_changed"
@@ -216,7 +220,7 @@ class PlannerExecutionManager:
         self.diagnostics.update(mode="planner", fallback=False, reason="planner_tracking",
             elapsed_s=time.perf_counter()-started)
         return {"schema_version": "planning_reference_v1", "planner_version": "lattice_execution",
-            "trajectory_id": self.last_job_id, "timestamp_s": now, "valid_for_s": execution_lifetime_s,
+            "trajectory_id": active.get('job_id', self.last_job_id), "timestamp_s": now, "valid_for_s": execution_lifetime_s,
             "frame_id": self.frame_id, "vehicle_reference_point": "cg_ground_projection",
             "valid": True, "status": "VALID", "reason": "planner_tracking", "path": path,
             "target_speed_mps": target_speed_mps, "stop_requested": False, "stop_reason": None,

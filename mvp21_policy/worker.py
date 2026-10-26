@@ -14,9 +14,12 @@ if __package__ in (None, ''):
 from mvp21_policy.lattice import ShadowLatticePlanner, ShadowSettings
 
 
-def worker_source_sha256():
+def worker_source_sha256(avoidance=False):
     digest = hashlib.sha256()
-    for name in ('geometry.py', 'frenet.py', 'lattice.py', 'worker.py'):
+    names = ('geometry.py', 'frenet.py', 'lattice.py', 'worker.py')
+    if avoidance:
+        names += ('avoidance.py', 'obstacle_stop.py')
+    for name in names:
         digest.update(name.encode()+b'\0')
         digest.update(Path(__file__).with_name(name).read_bytes().replace(b'\r\n', b'\n'))
     return digest.hexdigest()
@@ -30,20 +33,27 @@ def run_worker():
         except OSError:
             pass
     source_sha256 = worker_source_sha256()
+    avoidance_source_sha256 = worker_source_sha256(avoidance=True)
     for line in sys.stdin:
         job = None
         decode_started = time.perf_counter()
         try:
             job = json.loads(line)
             decode_s = time.perf_counter()-decode_started
-            result = ShadowLatticePlanner(ShadowSettings(**job['settings'])).plan(job)
+            if 'lidar_avoidance' in job:
+                from mvp21_policy.avoidance import filter_candidates
+                result = filter_candidates(job)
+            else:
+                result = ShadowLatticePlanner(ShadowSettings(**job['settings'])).plan(job)
         except Exception as error:
             decode_s = time.perf_counter()-decode_started
             result = dict(status='WORKER_ERROR', error=str(error), selected=None)
         result['generation'] = None if job is None else job.get('generation')
         result['job_id'] = None if job is None else job.get('job_id')
-        result['source_sha256'] = source_sha256
-        result['source_sha256_format'] = 'mvp21_worker_geometry_lattice_v2'
+        avoidance = bool(job and 'lidar_avoidance' in job)
+        result['source_sha256'] = avoidance_source_sha256 if avoidance else source_sha256
+        result['source_sha256_format'] = ('mvp21_worker_lidar_avoidance_v1' if avoidance
+                                           else 'mvp21_worker_geometry_lattice_v2')
         result['execution_anchor'] = None if job is None else dict(
             pose=job.get('shadow_pose'), odometry_epoch=job.get('shadow_odometry_epoch'))
         result['shadow_only'] = not bool(job and job.get('planner_control_enabled'))

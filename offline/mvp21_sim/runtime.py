@@ -237,10 +237,13 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                         delivery={k: v for k, v in packet.items() if k not in ('job', 'result')},
                         job=packet['job'] if detailed_trace else None,
                         decision_pose=list(env._backend.car._state_values()[:3]))), allow_nan=False)+'\n')
-                    if manager.accept(result):
+                    if avoidance is not None:
+                        from mvp21_policy.avoidance import accept_avoidance_result
+                        admitted = accept_avoidance_result(manager, avoidance, result)
+                    else:
+                        admitted = manager.accept(result)
+                    if admitted:
                         accepted += 1
-                        if avoidance is not None:
-                            avoidance.accept(result)
                         guide = (result.get('fusion') or {}).get('guide')
                         if (result.get('status') == 'VALID' and guide
                                 and guide.get('odometry_epoch') == getattr(offer, 'shadow_odometry_epoch', 0)):

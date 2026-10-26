@@ -1,7 +1,9 @@
 # Baby Bus · ai4r_policy
 
 本地绕行开发入口：`ying/mvp21-lidar-avoidance`。当前从已完整保存的 MVP2.1
-雷达停车整合版开始，已加入显式启用的静态雷达绕行离线实验。
+雷达停车整合版开始，已加入静态雷达绕行及显式启用的 ROS 接线。
+部署候选通过 `tools/package_lidar_avoidance.py` 生成完整单文件与配置，见
+[ROS 部署说明](docs/LIDAR_AVOIDANCE_DEPLOYMENT_CN.md)。公共 YAML 仍保持原停车基线。
 运行、范围和未完成项见[离线绕行说明](offline/lidar_avoidance/README.md)。版本与恢复方式见
 [工作区说明](docs/LIDAR_AVOIDANCE_WORKSPACE_CN.md)。
 

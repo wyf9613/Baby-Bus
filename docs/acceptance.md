@@ -2046,3 +2046,48 @@ software/default-node evidence, not enabled ROS avoidance or physical driving.
 Evidence: `.verification/lidar-avoidance-20261024-first-suite/` (immutable raw
 records, suite/source manifests, report, measured CPU analysis and replay) and
 `.verification/ros-avoidance-20261024/` (gate log, XML and build logs).
+
+## Opt-in ROS LiDAR avoidance deployment candidate, 2026-10-26
+
+The node now declares startup-only lidar_avoidance parameters and enables the
+guard only in the dedicated complete candidate profile. That profile uses the
+existing MVP control, 20 Hz control and 2 Hz worker requests with a 2.5 m horizon.
+The common YAML is unchanged. Planning/selection stays in the existing separate
+worker process; current-snapshot LiDAR/road/motion checks, source watchdogs,
+final zero publication and explicit admitted resume remain on the node path.
+Worker errors, malformed results, motion epoch loss and reference expiry stop.
+
+The optimized numerical sweep broadcasts pose/point and segment tests in NumPy
+and is checked against the established sweep over randomized cases. Tangents
+are compared against the original geometric reader. Measured near-straight
+centerlines may be smoothed only with <=0.02 m fit residual; raw observed road
+boundaries stay hard constraints. Sensing margin remains 0.08 m. Additional
+future tracking uncertainty grows to 0.08 m over 0.65 m, rather than incorrectly
+rejecting the measured starting pose for future tracking error.
+
+A nonblocking temporary replan miss can retain a still-checked bypass, without
+renewing its pose/epoch/progress or source time. Known blocking results still
+latch zero. Retained paths undergo current boundaries, LiDAR, preview coverage
+and the 1.5 s original plan-age deadline. Actual reference job IDs remain distinct
+from the latest planning result; default non-avoidance failure behavior is kept.
+
+The final seven-scenario suite passes with measured planner CPU time included
+in causal delivery plus the explicit 100 ms transport-delay assumption. All
+scenarios avoid contact; central/left/right complete with return, while blocked,
+dropout and original-stop control meet their separate stop acceptance. The
+central case uses 429 native and 20 baseline frames (6 at startup), not native-only
+execution. Median host planning time is roughly 0.15–0.20 s; the maximum in the
+final suite is 0.464 s. These are Mac measurements, not Jetson timing guarantees.
+Earlier failed timing/geometry trials remain unchanged in separate directories.
+
+156 portable checks pass, including bundle checks. The required ROS gate passes
+411 pytest cases plus 13 CTest groups, 424 reported tests, zero failures/errors/
+skips. The bundled node and complete candidate YAML also pass actual synthetic
+DDS checks: startup zero, worker-selected guarded native control with steering,
+close-obstacle stop, zero retained after clear scan, and explicit restart.
+The smoke uses stationary wheel telemetry and proves messages/control requests,
+not physical bypass motion. No vehicle driver or Enable service is used.
+
+Evidence: `.verification/lidar-avoidance-ros-20261026-final/` and
+`.verification/ros-avoidance-20261026/`. Delivery is a source/config candidate;
+vehicle dimensions, physical stopping and hardware acceptance remain unverified.

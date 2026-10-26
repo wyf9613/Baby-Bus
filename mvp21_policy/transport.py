@@ -101,6 +101,9 @@ class ShadowJobSource:
                 shadow_odometry_epoch=getattr(self, "shadow_odometry_epoch", 0),
                 temporal_collection=getattr(self, "shadow_collection_diagnostics", None),
                 previous_reference=deepcopy(getattr(self, "shadow_previous_reference", None)))
+        guard = getattr(self, 'lidar_avoidance_guard', None)
+        if guard is not None:
+            job['lidar_avoidance'] = guard.context()
         self.shadow_worker.submit(job)
         self.shadow_last_submit_s = now
 
