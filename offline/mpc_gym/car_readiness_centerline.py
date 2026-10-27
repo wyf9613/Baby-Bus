@@ -88,6 +88,7 @@ def one(job):
             "peak_speed_mps": round(max(result["trace"]["speed"], default=0.0), 3),
             "elapsed_s": round(result["trace"]["t"][-1] - result["trace"]["t"][0], 2) if result["trace"]["t"] else None,
             "step_p95_ms": result.get("step_p95_ms"), "branches": result.get("branches"),
+            "reject_reasons": result.get("reject_reasons"),
             "reference_selection": result.get("reference_selection"),
             "selection_reasons": result.get("selection_reasons"), "lattice_results": result.get("lattice_results"),
             "reference_switches": result.get("reference_switches"),

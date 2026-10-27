@@ -48,6 +48,7 @@ import gc
 import json
 import math
 import json
+import os
 import queue
 import subprocess
 import sys
@@ -57,6 +58,13 @@ from numbers import Real
 import time
 import traceback
 import uuid
+
+# One BLAS/OpenMP thread, set before anything imports NumPy; the lattice and planner
+# workers inherit it. The MPC's QPs are small, and a BLAS pool per process competes
+# with the ROS executor and the workers for the Jetson's cores (from 45d492f on
+# checkpoint/rnn-mpc-car13-20261026). An operator's own setting is kept.
+for _name in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "BLIS_NUM_THREADS"):
+    os.environ.setdefault(_name, "1")
 
 # ---- MVP2.1 lattice planner (ported from origin/mvp2.1 3652e9b) ----------
 # Worker entry, verbatim. It runs only the pure _shadow_* / Shadow* definitions
