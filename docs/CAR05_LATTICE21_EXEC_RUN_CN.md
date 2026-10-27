@@ -262,7 +262,7 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 
 **10-28：0.5 m/s（`--speed-profile v05`）**（**还没在实车上验证**；Gym 数据见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 10-27）：
 - **和 v020 包的区别只有 5 项**：`mpc.v_exec_max_mps` 0.5、`planning.cruise_speed_mps` 0.5、`mpc.overspeed_hard_mps` 0.70（0.70 m/s 持续 0.2 s 硬停）、`mpc.horizon_n` 6、`shadow.length_m` 1.4。软超速线是上限 + 0.05（`fb` 包 + 0.10），之后切油门，都跟着上限走。其余（转向、死区 0.25、`r_ddelta` 2、`travel`、hooks 关）和 v020 相同。
-- **代码**：`mpc-car-run` 上 BLAS 线程数改动之后的版本，policy_node `bd5ce140…`。**上车前 WSL 门禁必须对这一版通过。**
+- **代码**：`mpc-car-run` 上 BLAS 线程数改动之后的版本，policy_node `bd5ce140…`。**WSL 门禁 `611e63c` 通过**：offline PASS、ros gate PASS（`~/ai4r-evidence/ros-20261027-174757`）。之前对 `44862d7` 跑的一次 ros gate 失败（`ros-20261027-174417`），日志没有看，原因未确认；两次之间 `policy_node.py` 没有变化。
 - 生成命令（距离 / 时间换成 `3.0 60`、`5.0 60`、`0 0`；`--longitudinal feedback` 出 `-fb`；`--cones blue-left` 出 `-blueleft`）：
 
   ```powershell

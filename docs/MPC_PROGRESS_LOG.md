@@ -13,7 +13,7 @@ BLAS 线程数、Gym 的 `reject_reasons` 和这份记录在 `mpc-car-run`；圆
 - **BLAS 线程数**：`policy_node.py` 开头在导入 NumPy 之前把 `OPENBLAS/OMP/MKL/BLIS_NUM_THREADS` 默认设成 1（`setdefault`，操作员自己设的保留），lattice 和规划子进程继承。取自 `45d492f`。基线 `travel` 重跑 47/60，各道路逐项和 10-22 相同。
 - **圆弧候选**（只在 `lattice-arc-candidates`）`shadow.arc_candidate_max_curvature_1pm`（默认 0 = 关）：> 0 时把最后 9 条 Halton 候选换成从车当前位姿出发的等曲率圆弧（0、±0.25、±0.5、±0.75、±1 倍 0.98 × 上限），总数仍是 48。取自 `45d492f`，**不带**它的曲率筛选。lattice21.yaml 声明为 0.0，部署测试确认所有包都是 0。
 - **Gym 输出**：`car_readiness_centerline.one` 的每行多了 `reject_reasons`（MPC 拒绝原因计数）。
-- 测试：`lattice-arc-candidates` 新增 5 个（`ArcCandidateChecks`），`unittest discover` 467 个，唯一错误仍是需要 ROS 的 `test_policy_node`。**WSL 门禁未跑**：BLAS 改动改变了 `policy_node.py` 的哈希，用它生成上车包之前要先过门禁。
+- 测试：`lattice-arc-candidates` 新增 5 个（`ArcCandidateChecks`），`unittest discover` 467 个，唯一错误仍是需要 ROS 的 `test_policy_node`。**WSL 门禁 `611e63c` 通过**（offline PASS、ros gate PASS，`~/ai4r-evidence/ros-20261027-174757`；含之后的 `--speed-profile v05`）。之前对 `44862d7` 的一次 ros gate 失败，日志没看，原因未确认，`policy_node.py` 两次相同。0.5 m/s 包和现场清单见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md)"10-28"。
 
 ### 1. 圆弧候选：不采用
 
