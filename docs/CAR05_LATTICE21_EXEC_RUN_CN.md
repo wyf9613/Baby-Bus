@@ -260,6 +260,58 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 - **`-hooks` 包的参数核对**：`ros2 param get "$N" mpc.reference_curvature_limit_mode`，预期 `hooks`（普通包是 `off`）。看包时，`/car/mpc_debug` 里的 `reference_curvature` 字段（`triggered`、`applied`、`reason`、`max_shift_m`）只在 `-hooks` 包里才有。
 - **A/B 方法**：急右弯，`r_ddelta` 2 下，`-hooks` 包和普通不限包交替各跑 3–5 次，用 `tools/car_run_metrics.py` 比较越界次数、最多转过的角度和满舵占比。
 
+**10-28：0.5 m/s（`--speed-profile v05`）**（**还没在实车上验证**；Gym 数据见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 10-27）：
+- **和 v020 包的区别只有 5 项**：`mpc.v_exec_max_mps` 0.5、`planning.cruise_speed_mps` 0.5、`mpc.overspeed_hard_mps` 0.70（0.70 m/s 持续 0.2 s 硬停）、`mpc.horizon_n` 6、`shadow.length_m` 1.4。软超速线是上限 + 0.05（`fb` 包 + 0.10），之后切油门，都跟着上限走。其余（转向、死区 0.25、`r_ddelta` 2、`travel`、hooks 关）和 v020 相同。
+- **代码**：`mpc-car-run` 上 BLAS 线程数改动之后的版本，policy_node `bd5ce140…`。**上车前 WSL 门禁必须对这一版通过。**
+- 生成命令（距离 / 时间换成 `3.0 60`、`5.0 60`、`0 0`；`--longitudinal feedback` 出 `-fb`；`--cones blue-left` 出 `-blueleft`）：
+
+  ```powershell
+  python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yellow-left --distance 5.0 --run-time-s 60 --speed-profile v05 --out .verification\car05-lattice21-exec-v050-5m
+  ```
+
+- 包（policy_node 都是 `bd5ce140…`）：
+
+  ```text
+  .verification\car05-lattice21-exec-v050-3m                     yaml 77494466…   joint     3 m / 60 s（测滑行距离）
+  .verification\car05-lattice21-exec-v050-5m                     yaml 058ec9f1…   joint     5 m / 60 s
+  .verification\car05-lattice21-exec-v050-nolimit                yaml f18921c5…   joint     不限
+  .verification\car05-lattice21-exec-v050-5m-fb                  yaml eabe6b63…   feedback  5 m / 60 s
+  .verification\car05-lattice21-exec-v050-nolimit-fb             yaml 8502d13f…   feedback  不限
+  .verification\car05-lattice21-exec-v050-3m-blueleft            yaml 57fdbf15…   joint，蓝左     3 m / 60 s
+  .verification\car05-lattice21-exec-v050-5m-blueleft            yaml 9e3c3874…   joint，蓝左     5 m / 60 s
+  .verification\car05-lattice21-exec-v050-nolimit-blueleft       yaml 17e72a57…   joint，蓝左     不限
+  .verification\car05-lattice21-exec-v050-5m-blueleft-fb         yaml dc38b4c4…   feedback，蓝左  5 m / 60 s
+  .verification\car05-lattice21-exec-v050-nolimit-blueleft-fb    yaml 5623482a…   feedback，蓝左  不限
+  ```
+
+- **上车前**：
+  - 电池充满，每次运行记下时间（电量会改变死区；旧电池时 0.35 的起步油门可能推不动）。
+  - 转向区间 `steering_min/max_normalized` 必须是 -1.0 / 1.0（见上面"10-21"）。
+  - 车停在路中间看左边锥桶的颜色，选黄左或蓝左的包。
+  - 参数核对（Disabled 下）：
+
+    ```bash
+    for p in mpc.v_exec_max_mps mpc.overspeed_hard_mps mpc.horizon_n planning.cruise_speed_mps \
+             shadow.length_m shadow.check_length_mode mpc.longitudinal_mode mpc.shadow \
+             estimation.left_colour estimation.right_colour; do
+      printf "%-32s " "$p"; ros2 param get "$N" "$p"
+    done
+    ```
+
+    预期：0.5、0.7、6、0.5、1.4、travel、joint（`-fb` 包是 feedback）、False，颜色黄左 1 / 2、蓝左 2 / 1。
+  - 录包：`~/record_car_bag.sh carrun-v050-<包名>`（见上面"其他车"）。
+- **顺序**（每一步通过才往下走）：
+
+  | 步骤 | 包 | 赛道 | 次数 | 看什么 / 通过条件 |
+  | --- | --- | --- | --- | --- |
+  | 1. 滑行距离 | `-3m` | 直道，3 m 之后至少再留 2 m 空地 | 2–3 | 报 `Distance limit reached` 时油门归零，量车从那一点滑了多远（模型估计 0.4–0.6 m）；也可以从包里的轮速积分。之后赛道终点后面至少留这个距离的 2 倍 |
+  | 2. 直道和缓弯 | `-5m` | 直道，然后缓弯 | 2–3 | 跑满 5 m，没有锁停；峰值车速记下来（Gym 0.64–0.67） |
+  | 3. 整条赛道 | `-nolimit` | 整条赛道 | 3–5 | 一直有人跟车 |
+  | 4. PI 油门试跑 | `-5m-fb`，再 `-nolimit-fb` | 同上 | 各 1–2 | 确认能跑起来，给 10-29 的交替 A/B 做准备（Gym 峰值 0.58） |
+
+- **立即 Disable**：车速持续超过 0.65；车蛇行；接近边界；转向往弯外越打越大。超速锁停（`overspeed`）出现两次就停止 0.5，回到 v020 包。
+- **10-29 的 A/B**：同一条赛道，`-nolimit` 和 `-nolimit-fb` 交替（A、B、A、B…），每种 3–5 次，用 `tools/car_run_metrics.py` 统计。不要一天只跑一种。
+
 ## 1. SSH、Foxglove、停车、备份
 
 和 [CAR05_V2_START_FIX_RUN_CN.md](CAR05_V2_START_FIX_RUN_CN.md) 第 1、2 步一样。

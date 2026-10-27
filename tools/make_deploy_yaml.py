@@ -21,6 +21,11 @@ Layers, merged recursively in order (the repository files stay unchanged):
 ai4r_policy_mpc_car05_feedback.yaml: wheel-speed PI drive, steering-only QP. Variants for
 the car: feedback-nomm (measured_motion off, to separate its effect on steering) and
 feedback-soft (kp 0.15 / ki 0.1, if the PI drive oscillates on the car).
+--speed-profile v05 (mpc-exec-lattice21 with --car 05 only, 2026-10-27) replaces the 0.2 m/s
+ceiling: speed cap and cruise speed 0.5, hard overspeed 0.70, horizon N 6, lattice path
+1.4 m -- the Gym configuration in docs/MPC_PROGRESS_LOG.md 2026-10-27. --v-exec-max is
+ignored with it. Not yet run on a car (first planned 2026-10-28): measure the coast
+distance from 0.5 m/s before the first full run.
 --cones (required except steer-arc) writes estimation.left_colour/right_colour. Check the
 road on site first: the G2 field (2026-10-08) was blue-left, the course road on 10-13/14
 yellow-left. A swapped pair makes every road invalid_width_or_order.
@@ -75,8 +80,16 @@ FEEDBACK_VARIANTS = {"feedback": {}, "feedback-nomm": {"measured_motion": False}
                      "feedback-soft": {"fb_kp": 0.15, "fb_ki": 0.1}}
 
 
+# --speed-profile: (mpc, planning, shadow) changes. v05 = the 2026-10-27 Gym configuration:
+# 0.5 m/s needs a 1.4 m lattice path (1.0 m ran out of preview coverage), N 6 covers one
+# full steering swing (0.74 rad / 1.21 rad/s ~ 0.6 s), and the hard line must exceed
+# cap + soft + cut (0.5 + 0.10 + 0.05 with the feedback overlay).
+SPEED_PROFILES = {"v05": ({"v_exec_max_mps": 0.5, "overspeed_hard_mps": 0.70, "horizon_n": 6},
+                          {"cruise_speed_mps": 0.5}, {"length_m": 1.4})}
+
+
 def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", road_age_s=None, car="27",
-          run_time_s=None, longitudinal="joint"):
+          run_time_s=None, longitudinal="joint", speed_profile=None):
     is_lattice21 = mode in ("mpc-shadow-lattice21", "mpc-exec-lattice21")
     is_shadow = mode in ("mpc-shadow", "mpc-shadow-centerline", "mpc-shadow-lattice21")
     is_exec = mode in ("mpc-exec", "mpc-exec-centerline", "mpc-exec-lattice21")
@@ -117,6 +130,15 @@ def build(mode, distance, arc_drive=0.32, v_exec_max=0.2, cones="blue-left", roa
         p["mpc"].update(shadow=False, v_exec_max_mps=min(p["mpc"]["v_exec_max_mps"], v_exec_max))
     if longitudinal != "joint":
         p["mpc"].update(FEEDBACK_VARIANTS[longitudinal])
+    if speed_profile is not None:
+        if not (mode == "mpc-exec-lattice21" and car == "05"):
+            raise ValueError("--speed-profile is for mpc-exec-lattice21 with --car 05 only")
+        mpc, planning, shadow = SPEED_PROFILES[speed_profile]
+        p["mpc"].update(mpc)
+        p["planning"].update(planning)
+        p["shadow"].update(shadow)
+        m = p["mpc"]
+        assert m["overspeed_hard_mps"] > m["v_exec_max_mps"]+m["overspeed_soft_margin_mps"]+m["overspeed_cut_margin_mps"]
     if mode == "steer-arc":
         # Identification only: no controller owns the actions.
         p["control"]["enabled"] = False
@@ -188,6 +210,9 @@ def main():
                              "/mpc-exec* modes")
     parser.add_argument("--longitudinal", default="joint", choices=["joint", *FEEDBACK_VARIANTS],
                         help="feedback*: wheel-speed PI drive with a steering-only QP (mpc-exec* + --car 05)")
+    parser.add_argument("--speed-profile", choices=sorted(SPEED_PROFILES),
+                        help="v05: 0.5 m/s, hard 0.70, N 6, lattice 1.4 m (mpc-exec-lattice21 + --car 05); "
+                             "replaces --v-exec-max")
     parser.add_argument("--out", type=Path, default=ROOT / ".verification" / "car-deploy")
     args = parser.parse_args()
     if args.cones is None:
@@ -211,7 +236,8 @@ def main():
         parser.error("--v-exec-max must be in (0, 0.2]")
     try:
         params, layers = build(args.mode, args.distance, args.arc_drive, args.v_exec_max,
-                               args.cones, args.road_age_s, args.car, args.run_time_s, args.longitudinal)
+                               args.cones, args.road_age_s, args.car, args.run_time_s, args.longitudinal,
+                               args.speed_profile)
     except ValueError as exc:
         parser.error(str(exc))
     args.out.mkdir(parents=True, exist_ok=True)
@@ -223,7 +249,7 @@ def main():
                    p["sensor_timeout_s"]["cone_detections"])
     (args.out / "mode.txt").write_text(
         f"{args.mode} {args.distance} run_time_s={p['control']['max_run_time_s']} cones={args.cones} "
-        f"longitudinal={args.longitudinal} "
+        f"longitudinal={args.longitudinal} speed_profile={args.speed_profile} "
         f"road_age_s={road_age} layers={'+'.join(layers)}\n",
         encoding="utf-8")
     print(f"mode {args.mode}, layers {' + '.join(layers)}, max_distance_m {args.distance}, "
@@ -233,11 +259,15 @@ def main():
     if args.mode == "steer-arc":
         print("id_test", {k: p["id_test"][k] for k in ("mode", "steering_values", "drive_values", "durations_s")})
     print("control.enabled", p["control"]["enabled"], "| mpc",
-          {k: p["mpc"][k] for k in ("enabled", "shadow", "v_exec_max_mps", "qp_solver", "longitudinal_mode",
-                                    "fb_kp", "fb_ki", "measured_motion")},
+          {k: p["mpc"][k] for k in ("enabled", "shadow", "v_exec_max_mps", "overspeed_hard_mps", "horizon_n",
+                                    "qp_solver", "longitudinal_mode", "fb_kp", "fb_ki", "measured_motion")},
           "| vehicle", p["vehicle"]["source"], "valid", p["vehicle"]["valid"])
     print("MVP2.1 lattice: shadow.enabled", p.get("shadow", {}).get("enabled", False),
-          "| planner_control", p.get("planner_control", {"enabled": False}))
+          "length_m", p.get("shadow", {}).get("length_m"), "| planning.cruise_speed_mps",
+          p["planning"]["cruise_speed_mps"], "| planner_control", p.get("planner_control", {"enabled": False}))
+    if args.speed_profile:
+        print(f"NOTE: speed profile {args.speed_profile}: --v-exec-max ignored; measure the coast distance "
+              "from this speed before the first full run")
     print(f"{yaml_path}\n  sha256 {sha256(yaml_path)}")
     print(f"{node_path}\n  sha256 {sha256(node_path)}")
     return 0

@@ -427,6 +427,32 @@ class DeployProfileChecks(unittest.TestCase):
             with self.assertRaises(ValueError, msg=(mode, car)):
                 deploy["build"](mode, 1.0, cones="yellow-left", car=car, longitudinal="feedback")
 
+    def test_v05_speed_profile_changes_only_its_five_values(self):
+        # 2026-10-27: the 0.5 m/s Gym configuration (docs/MPC_PROGRESS_LOG.md).
+        for longitudinal in ("joint", "feedback"):
+            with self.subTest(longitudinal):
+                base = deployed("mpc-exec-lattice21", longitudinal)
+                params = deploy["build"]("mpc-exec-lattice21", 3.0, v_exec_max=0.12, cones="yellow-left",
+                                         car="05", longitudinal=longitudinal, speed_profile="v05")[0]
+                p = params["/**/ai4r_policy"]["ros__parameters"]
+                self.assertEqual((p["mpc"]["v_exec_max_mps"], p["mpc"]["overspeed_hard_mps"], p["mpc"]["horizon_n"],
+                                  p["planning"]["cruise_speed_mps"], p["shadow"]["length_m"]),
+                                 (0.5, 0.70, 6, 0.5, 1.4))
+                changed = {("mpc", "v_exec_max_mps"), ("mpc", "overspeed_hard_mps"), ("mpc", "horizon_n"),
+                           ("planning", "cruise_speed_mps"), ("shadow", "length_m")}
+                for section in p:
+                    if isinstance(p[section], dict):
+                        rest = {k: v for k, v in p[section].items() if (section, k) not in changed}
+                        self.assertEqual(rest, {k: v for k, v in base[section].items()
+                                                if (section, k) not in changed}, section)
+                    else:
+                        self.assertEqual(p[section], base[section], section)
+                cns["MPCSettings"](**p["mpc"])
+                ShadowSettings(**p["shadow"])
+        for mode, car in (("mpc-exec-centerline", "05"), ("mpc-shadow-lattice21", "05"), ("mpc-exec-lattice21", "01")):
+            with self.assertRaises(ValueError, msg=(mode, car)):
+                deploy["build"](mode, 1.0, cones="yellow-left", car=car, speed_profile="v05")
+
     def test_lattice21_profile_selects_the_lattice_on_the_stand_in_node(self):
         node = make_node(shadow_enabled=True, planner=True, mode="mpc-shadow-lattice21")
         records = run(node, 30)
