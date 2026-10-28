@@ -155,6 +155,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                 **lidar_avoidance_config))
             worker = AvoidancePlannerWorker(avoidance, delay_s=delivery_delay_s, measured=measured_delay)
             offer.shadow_worker = worker
+            offer.lidar_avoidance_guard = avoidance
         control_updates=0;reference_pose=None
         perfect=None
         if modular and road_input=='map':

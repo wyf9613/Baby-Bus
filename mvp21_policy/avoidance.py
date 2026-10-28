@@ -36,6 +36,8 @@ class LidarAvoidanceSettings:
     max_plan_age_s: float = 1.5
     # Legacy A2 stays available for immutable replays; new deliveries opt in.
     maneuver_enabled: bool = False
+    maneuver_plan_length_m: float = 2.5
+    maneuver_plan_rate_hz: float = 2.0
     maneuver_side: int = 1
     trigger_lookahead_m: float = 3.0
     target_cluster_gap_m: float = .15
@@ -435,6 +437,16 @@ class LidarAvoidanceGuard:
                         or not finite_number(reference.get('timestamp_s'))
                         or abs(reference['timestamp_s']-now) > 1e-6):
                     return self.stop('avoidance_reference_frame_or_time')
+                if self.maneuver is not None and not self.maneuver.active:
+                    # NORMAL retains the successful MVP execution admission and
+                    # independent forward ObstacleStopMonitor. A surrounding
+                    # margin halo and a task-source TTL must not become new
+                    # stop conditions for ordinary lane following. Active tasks
+                    # below still check the complete swept footprint, including
+                    # the rear when turning, and retain their source deadline.
+                    result.update(protection_mode='baseline_forward_stop', collision=None)
+                    self.diagnostics = result
+                    return result
                 if (self.maneuver is not None and self.maneuver.active and self.maneuver.admitted
                         and reference.get('maneuver_task_id') != self.maneuver.task['id']):
                     return self.stop('maneuver_blocked_fallback')

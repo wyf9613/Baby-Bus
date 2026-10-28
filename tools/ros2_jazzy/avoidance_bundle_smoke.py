@@ -39,7 +39,7 @@ def main():
     process=subprocess.Popen([sys.executable,str(args.package/'policy_node.py'),'--ros-args',
         '--params-file',str(args.package/'ai4r_policy.yaml'),'-r','__ns:='+namespace],stdout=log,stderr=log)
 
-    def run(seconds, distance=None):
+    def run(seconds, distance=None, *, rear_return=False):
         end=time.monotonic()+seconds;motion=scan=0.
         while time.monotonic()<end:
             if process.poll() is not None:raise AssertionError('Bundled node exited')
@@ -60,8 +60,13 @@ def main():
                 msg=LaserScan();msg.header.stamp=stamp;msg.header.frame_id='base_link'
                 msg.angle_min=-math.pi/2;msg.angle_increment=math.pi/60;msg.angle_max=math.pi/2
                 msg.range_min=.05;msg.range_max=12.;msg.ranges=[math.inf]*61
+                center=30
+                if rear_return:
+                    msg.angle_min=-math.pi;msg.angle_max=math.pi;msg.ranges=[math.inf]*121;center=60
+                    index=round((math.atan2(.1946268196016643,-.22286008138405408)-msg.angle_min)/msg.angle_increment)
+                    msg.ranges[index]=math.hypot(.1946268196016643,.22286008138405408)
                 if distance is not None:
-                    for i in (29,30,31):msg.ranges[i]=distance/math.cos(msg.angle_min+i*msg.angle_increment)
+                    for i in (center-1,center,center+1):msg.ranges[i]=distance/math.cos(msg.angle_min+i*msg.angle_increment)
                 pubs['scan'].publish(msg);scan=now+.1
             rclpy.spin_once(node,timeout_sec=.005)
 
@@ -73,6 +78,13 @@ def main():
         assert states and states[-1]==2 and actions and all(a['drive']==a['steer']==0. for a in actions)
         report['startup_zero']=True
         pubs['request'].publish(UInt16(data=3));index=len(actions)
+        if params['lidar_avoidance'].get('maneuver_enabled'):
+            run(4.,rear_return=True)
+            assert states[-1]==3,(states,(args.output/'node.log').read_text()[-2000:])
+            assert any(a['drive']>0 for a in actions[index:])
+            assert any(x.get('lidar_avoidance',{}).get('protection_mode')=='baseline_forward_stop' for x in execution)
+            report['normal_following_with_rear_return_over_four_seconds']=True
+            index=len(actions)
         run(3.,2.8)
         assert states[-1]==3,(states,(args.output/'node.log').read_text()[-2000:])
         assert any(a['drive']>0 and abs(a['steer'])>.01 for a in actions[index:])
@@ -105,6 +117,7 @@ def main():
         (args.output/'states.json').write_text(json.dumps(states)+'\n')
         (args.output/'actions.json').write_text(json.dumps(actions)+'\n')
         (args.output/'execution.json').write_text(json.dumps(execution)+'\n')
+        (args.output/'worker.json').write_text(json.dumps(worker)+'\n')
     print(json.dumps(report),flush=True)
 
 

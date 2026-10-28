@@ -1,0 +1,173 @@
+{
+  "version": "mvp21-lidar-maneuver-20261028-r2",
+  "ros": {
+    "pytest_cases": 429,
+    "ctest_groups": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "reported_checks": 443,
+    "groups": [
+      {
+        "file": "centerline_follow.xunit.xml",
+        "tests": 41,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "control.xunit.xml",
+        "tests": 33,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "estimation.xunit.xml",
+        "tests": 97,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lattice.xunit.xml",
+        "tests": 42,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lidar_avoidance.xunit.xml",
+        "tests": 19,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lidar_maneuver.xunit.xml",
+        "tests": 16,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "mvp21_compatibility.xunit.xml",
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "obstacle_stop.xunit.xml",
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ordered_pairing.xunit.xml",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "planner_execution.xunit.xml",
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "planning.xunit.xml",
+        "tests": 17,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "policy_node.xunit.xml",
+        "tests": 85,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ros_lidar_avoidance.xunit.xml",
+        "tests": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ros_obstacle_stop.xunit.xml",
+        "tests": 30,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "portable": {
+    "tests": 62,
+    "passed": true
+  },
+  "bundle_smoke": {
+    "startup_zero": true,
+    "normal_following_with_rear_return_over_four_seconds": true,
+    "actual_worker_and_guarded_native_control": true,
+    "dedicated_maneuver_mode": true,
+    "close_obstacle_stops": true,
+    "clear_scan_does_not_resume": true,
+    "explicit_resume": true,
+    "passed": true,
+    "hardware_used": false,
+    "vehicle_enabled": false,
+    "namespace": "/avoidance_bundle_check",
+    "profile_enabled": true
+  },
+  "closed_loop": {
+    "completed": true,
+    "steps": 754,
+    "final_progress_m": 7.525246402579567,
+    "fault": null,
+    "planner_reference_count": 751,
+    "baseline_reference_count": 3,
+    "native_only_passed": false,
+    "maximum_executed_speed_mps": 0.20115379682921217
+  },
+  "phases": [
+    {
+      "phase": "NORMAL",
+      "timestamp_s": 1.15,
+      "task_id": null
+    },
+    {
+      "phase": "SHIFT",
+      "timestamp_s": 5.15,
+      "task_id": 1
+    },
+    {
+      "phase": "PASSING",
+      "timestamp_s": 13.65,
+      "task_id": 1
+    },
+    {
+      "phase": "RETURN",
+      "timestamp_s": 23.700000000000003,
+      "task_id": 1
+    },
+    {
+      "phase": "NORMAL",
+      "timestamp_s": 33.550000000000004,
+      "task_id": null
+    }
+  ],
+  "completed_task_id": 1,
+  "obstacle_contact": false,
+  "source_hashes_match_closed_loop": true,
+  "evidence_directory": "/Users/xiaotonghe/Documents/Baby-Bus/.verification/worktrees/mvp21-lidar-avoidance/.verification/maneuver-r2-20261028",
+  "hardware_used": false,
+  "physical_validation": "not performed",
+  "preserved_r1": "97b804ed1e51a840b91025719e62ebfebe60f190"
+}

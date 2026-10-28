@@ -7,6 +7,7 @@ import subprocess
 import sys
 import unittest
 import math
+from types import SimpleNamespace
 try:
     from ament_index_python.packages import get_package_prefix
 except ImportError:
@@ -17,6 +18,8 @@ from mvp21_policy.avoidance import LidarAvoidanceSettings,LidarAvoidanceGuard,fi
 from mvp21_policy.maneuver import body,task_offset
 from mvp21_policy.lattice import ShadowSettings,ShadowLatticePlanner
 from mvp21_policy.execution import PlannerExecutionManager
+from mvp21_policy.obstacle_stop import ObstacleStopMonitor,ObstacleStopSettings
+from mvp21_policy.transport import ShadowJobSource
 
 CFG=LidarAvoidanceSettings(enabled=True,maneuver_enabled=True,max_curvature_1pm=1.0)
 TARGET=[[2.8,y] for y in (-.1,-.05,0.,.05,.1)]
@@ -40,6 +43,57 @@ def tick(guard,pose=(0.,0.,0.),now=10.,points=None,missing=None,measurement=None
 
 
 class ManeuverChecks(unittest.TestCase):
+    def test_normal_reference_survives_slow_replanning_and_rear_left_return(self):
+        # The actual field point stopped r1 immediately; the original forward
+        # monitor admits it. Keep fresh scans/state while holding a usable path
+        # past the old 1.5 s input-age deadline.
+        cfg=replace(CFG,front_extent_m=.275,rear_extent_m=.198,width_m=.30)
+        g=LidarAvoidanceGuard(cfg)
+        for now in (10.,10.9,11.5,12.,13.):
+            j=tick(g,now=now,points=[[-.22286008138405408,.1946268196016643]])
+            stop=ObstacleStopMonitor(ObstacleStopSettings(enabled=True,
+                front_extent_m=.275,rear_extent_m=.198,width_m=.30))
+            self.assertFalse(stop.evaluate(j['lidar_avoidance']['obstacles'],now)['stop_required'])
+            ref=dict(valid=True,frame_id='base_link',timestamp_s=now,
+                planner_version='lattice_execution',original_input_stamp_s=10.,
+                path=dict(samples_xy=[[0.,0.],[1.,0.]]))
+            decision=g.evaluate(ref,now)
+            self.assertFalse(decision['stop_required'],decision)
+            self.assertEqual(decision['protection_mode'],'baseline_forward_stop')
+            self.assertFalse(g.maneuver.active)
+
+    def test_active_maneuver_keeps_source_deadline_and_collision_checks(self):
+        g=LidarAvoidanceGuard(CFG);tick(g)
+        ref=dict(valid=True,frame_id='base_link',timestamp_s=10.,
+            planner_version='lattice_execution',original_input_stamp_s=8.5,
+            path=dict(samples_xy=[[0.,0.],[1.,0.]]))
+        self.assertEqual(g.evaluate(ref,10.)['reason'],'avoidance_planner_stale')
+        g=LidarAvoidanceGuard(CFG);tick(g)
+        tick(g,now=10.1,points=TARGET+[[.4,.05]])
+        ref.update(timestamp_s=10.1,original_input_stamp_s=10.)
+        self.assertEqual(g.evaluate(ref,10.1)['reason'],'avoidance_execution_collision')
+
+    def test_transport_changes_workload_only_after_a_task_starts(self):
+        g=LidarAvoidanceGuard(CFG);j=tick(g,points=ROADSIDE);jobs=[];clock=[10.]
+        source=SimpleNamespace(estimation_output=dict(road=j['road'],state=j['state']),
+            shadow_settings=ShadowSettings(enabled=True,fusion_enabled=False,
+                length_m=1.,rate_hz=1.,collision_coverage='prefix',score_coverage='prefix'),
+            planner_control_settings=SimpleNamespace(enabled=False),
+            planning_settings=SimpleNamespace(preview_m=.35),lidar_avoidance_guard=g,
+            shadow_last_submit_s=-math.inf,shadow_job_id=0,shadow_generation=1,
+            shadow_handoff_estimate_s=.1,shadow_worker=SimpleNamespace(submit=jobs.append),
+            _monotonic=lambda:clock[0])
+        ShadowJobSource._shadow_offer(source)
+        self.assertEqual((jobs[-1]['settings']['length_m'],jobs[-1]['settings']['rate_hz']),(1.,1.))
+        clock[0]=10.5;ShadowJobSource._shadow_offer(source);self.assertEqual(len(jobs),1)
+        j=tick(g,now=10.5);source.estimation_output=dict(road=j['road'],state=j['state'])
+        ShadowJobSource._shadow_offer(source);self.assertEqual(len(jobs),2)
+        self.assertEqual((jobs[-1]['settings']['length_m'],jobs[-1]['settings']['rate_hz']),(2.5,2.))
+        self.assertEqual(jobs[-1]['settings']['collision_coverage'],'generated')
+        self.assertEqual(source.shadow_settings.length_m,1.)
+        clock[0]=10.75;ShadowJobSource._shadow_offer(source);self.assertEqual(len(jobs),2)
+        clock[0]=11.;ShadowJobSource._shadow_offer(source);self.assertEqual(len(jobs),3)
+
     def test_normal_uses_exact_native_selection(self):
         g=LidarAvoidanceGuard(CFG);j=tick(g,points=ROADSIDE)
         expected=ShadowLatticePlanner(ShadowSettings(**j['settings'])).plan(j)

@@ -80,10 +80,16 @@ class ShadowJobSource:
         stamp = stamp if finite_number(stamp) else now
         if self.shadow_settings.fusion_enabled or getattr(getattr(self, "planner_control_settings", None), "enabled", False):
             road = self._shadow_collect_road(road, stamp)
-        if now-self.shadow_last_submit_s+1e-9 < 1/self.shadow_settings.rate_hz:
+        settings = vars(self.shadow_settings).copy()
+        guard = getattr(self, 'lidar_avoidance_guard', None)
+        if guard is not None and guard.maneuver is not None and guard.maneuver.active:
+            settings.update(length_m=guard.settings.maneuver_plan_length_m,
+                rate_hz=guard.settings.maneuver_plan_rate_hz,
+                collision_coverage='generated', score_coverage='generated')
+        if now-self.shadow_last_submit_s+1e-9 < 1/settings['rate_hz']:
             return
         self.shadow_job_id += 1
-        job = {"settings": vars(self.shadow_settings).copy(),
+        job = {"settings": settings,
             "road": deepcopy(road),
             "state": {key: estimates.get("state", {}).get(key) for key in
                       ("speed_mps", "yaw_rate_rps", "timestamp_s", "speed_valid", "yaw_rate_valid")},
@@ -101,7 +107,6 @@ class ShadowJobSource:
                 shadow_odometry_epoch=getattr(self, "shadow_odometry_epoch", 0),
                 temporal_collection=getattr(self, "shadow_collection_diagnostics", None),
                 previous_reference=deepcopy(getattr(self, "shadow_previous_reference", None)))
-        guard = getattr(self, 'lidar_avoidance_guard', None)
         if guard is not None:
             job['lidar_avoidance'] = guard.context()
         self.shadow_worker.submit(job)

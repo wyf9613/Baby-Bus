@@ -92,7 +92,7 @@ def test_incompatible_enable_is_refused(make_node,extra):
         avoidance_node(make_node,**extra)
 
 
-def feed_maneuver(node,gap=2.5):
+def feed_maneuver(node,gap=2.5,*,rear_point=False):
     from dream_interfaces.msg import ConeDetection,ConeDetections
     import math
     from test_policy_node import stamp,imu,scan
@@ -100,13 +100,41 @@ def feed_maneuver(node,gap=2.5):
     node.wheel_speed_callback(Float32(data=0.))
     gyro=imu(node,orientation=False);gyro.angular_velocity_covariance[0]=0.;node.imu_callback(gyro)
     message=scan(node,frame='base_link');message.angle_min=0.;message.angle_max=.1
-    message.ranges=[.297+gap,math.inf];node.lidar_callback(message)
+    message.ranges=[.297+gap,math.inf]
+    if rear_point:
+        message.angle_min=math.atan2(.1946268196016643,-.22286008138405408)
+        message.angle_max=message.angle_min+.1
+        message.ranges=[math.hypot(.1946268196016643,.22286008138405408),math.inf]
+    node.lidar_callback(message)
     batch=stamp(node,ConeDetections())
     for colour,side in ((ConeDetection.COLOR_BLUE,.9),(ConeDetection.COLOR_YELLOW,-.9)):
         for index in range(19):
             cone=ConeDetection();cone.position.x=-.4+.3*index;cone.position.y=side
             cone.color=colour;cone.classification_confidence=.95;batch.detections.append(cone)
     node.cone_detection_callback(batch)
+
+
+def test_normal_following_survives_held_plan_and_rear_return_then_front_stop_still_latches(make_node):
+    node=avoidance_node(make_node,**{'lidar_avoidance.maneuver_enabled':True,
+        'shadow.rate_hz':1.,'shadow.length_m':1.,
+        'shadow.collision_coverage':'prefix','shadow.score_coverage':'prefix'})
+    feed_maneuver(node,10.,rear_point=True);request(node,3)
+    node.test_clock.advance(.05);feed_maneuver(node,10.,rear_point=True);node.run_policy_step()
+    wait_result(node)
+    assert node.fsm_state==3,node.state_reason
+    assert node.planner_execution.last_result_status=='VALID'
+    fake_worker(node,None)  # Hold a real selected path; state/road/LiDAR stay fresh.
+    for _ in range(70):
+        node.test_clock.advance(.05);feed_maneuver(node,10.,rear_point=True);node.run_policy_step()
+        assert node.fsm_state==3,node.state_reason
+        assert node.action_publisher.messages[-1].drive>0.
+        assert not node.lidar_avoidance_guard.maneuver.active
+    assert node.planner_execution.diagnostics['source_age_s']>3.
+    node.test_clock.advance(.05);feed_maneuver(node,.14);node.run_policy_step()
+    assert node.fsm_state==2 and node.obstacle_stop_monitor.latched
+    assert node.action_publisher.messages[-1].drive==0.
+    node.test_clock.advance(.05);feed_maneuver(node,10.);node.run_policy_step()
+    assert node.fsm_state==2 and node.action_publisher.messages[-1].drive==0.
 
 
 def test_maneuver_ros_node_uses_task_reference_and_stops_on_new_near_obstacle(make_node):

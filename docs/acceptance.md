@@ -2129,3 +2129,26 @@ Evidence: `docs/baselines/lidar_maneuver_20261028.json` and
 `.verification/maneuver-20261028/`. No hardware, Enable service or vehicle deploy
 was used. First scope remains fixed-side static bypass with observed near-straight
 road support; dynamic obstacles and physical stopping/timing are unqualified.
+
+
+## MVP maneuver r2 normal-following regression repair, 2026-10-28
+
+The r1 field log showed three original-input-age stops after 2.176–2.284 s
+and five current-pose collisions with a rear-left point outside the original
+stop corridor. NORMAL now retains the successful forward stop and geometry
+execution admission, without the task-only source deadline or inflated LiDAR
+sweep. Active maneuvers keep swept-body checks, stale-task rejection and the
+independent stop/watchdogs. Normal planning requests use 1 Hz / 1 m / prefix;
+only active tasks request the dedicated 2 Hz / 2.5 m reference.
+
+62 focused portable cases pass. The required ROS fast gate reports 443 checks
+(429 pytest cases plus 14 CTest groups), no failures/errors/skips. A real node
+regression holds an actual selected reference beyond 3 s with fresh feedback
+and the field rear return, then confirms front-stop latching. The bundled DDS
+smoke covers 4 s ordinary following, task selection, front stop and explicit
+resume. Observed closed-loop simulation completes task 1 and returns to NORMAL
+in 754 steps, no obstacle contact, 751 native and 3 startup-baseline frames.
+This is synthetic software evidence, not physical-car acceptance.
+
+Evidence: `docs/baselines/lidar_maneuver_20261028_r2.json` and
+`.verification/maneuver-r2-20261028/`. Original r1 artifacts remain unchanged.
