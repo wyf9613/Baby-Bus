@@ -1,5 +1,33 @@
 # AI4R policy acceptance
 
+## Local fusion-MPC LiDAR integration — 2026-10-28
+
+Operator follow-up: the prepared deployment YAML now selects existing unlimited
+semantics, control.max_distance_m=0.0 and control.max_run_time_s=0.0, replacing
+the seed's5m/60s budgets. Target remains0.5m/s. Only these two deploy values
+changed; source budget logic and other stop reasons are unchanged. Local user
+layout rename to layout_v2.0.json is retained.
+
+Base d1b4b83, branch feature/fusion-mpc-lidar-detection. Reviewed detector is
+ported into the required single-file policy. Operator-selected ROI is now
+x[0.297,1.697]m/y[-0.4,0.4]m (1.4m ahead of bumper,0.4m each side);
+stop_enabled=false. Hits, sparse returns and missing/stale/invalid scans only
+report status and clear points as needed; they do not gate execution. The
+optional pre-existing stop mode remains explicit. Added standard PointCloud
+and Path visualization topics, retaining cone/reference/MPC plot series.
+No RNN is present in this upstream branch; no active avoidance is claimed.
+
+254 portable estimator/planning/control/lattice/execution/colour/LiDAR checks
+and1 selected MPC geometry-glitch test pass. Eleven LiDAR tests are included
+in254. Upstream101 pure definitions are AST-identical; base YAML changes only
+add lidar_obstacle. No old2m/0.55rad settings carried into this branch. Prepared
+deployment package uses upstream v050-5m-noprior plus current geometry-glitch,
+learned-width preservation and LiDAR settings. No hardware/provider edits,
+ROS gate pass, GUI/vehicle verification or vehicle actions. The branch records
+the source, renamed layout_v2.0.json and full unlimited-budget deployment YAML
+under checkpoints/fusion-mpc-lidar-car14-20261028 for GitHub sharing.
+Procedure: [fusion MPC LiDAR](FUSION_MPC_LIDAR_CN.md).
+
 Status: `mvp2.0` extends the 2026-10-09 V2/fused-road/control candidate with
 bounded centerline-first recovery and asynchronous planning. The current
 software/model evidence is recorded below; the direct-sample update passed

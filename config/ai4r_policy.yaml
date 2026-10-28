@@ -125,6 +125,21 @@
     # is not supported by this initial package or the live vehicle/IMU drivers.
     use_sim_time: false
 
+    # 雷达只检测和显示，保留最新 MPC 的规划/控制 / Independent detect-only ROI.
+    lidar_obstacle:
+      enabled: true
+      stop_enabled: false
+      body_width_m: 0.25
+      front_from_cg_m: 0.297
+      side_margin_m: 0.02
+      roi_half_width_m: 0.4
+      range_min_m: 0.2
+      stop_distance_m: 1.4
+      allow_no_return_clear: true
+      cluster_gap_m: 0.06
+      min_cluster_points: 2
+      min_known_fraction: 0.7
+
     # Estimation prototype. Adds tuning to this existing policy settings file;
     # no vehicle calibration or physical output limits are inferred from it.
     # The GitHub course framework's inputs/actions/timing/settings take priority.

@@ -225,6 +225,26 @@
           "showLine": true,
           "label": "MPC predicted horizon",
           "lineSize": 3
+        },
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/lidar_roi_points.points[:].y",
+          "xValuePath": "/car/lidar_roi_points.points[:].x",
+          "enabled": true,
+          "color": "#ef4444",
+          "showLine": false,
+          "label": "Lidar returns in ROI",
+          "lineSize": 4
+        },
+        {
+          "timestampMethod": "receiveTime",
+          "value": "/car/lidar_roi.poses[:].pose.position.y",
+          "xValuePath": "/car/lidar_roi.poses[:].pose.position.x",
+          "enabled": true,
+          "color": "#64748b",
+          "showLine": true,
+          "label": "Detection ROI (not a stop boundary)",
+          "lineSize": 2
         }
       ],
       "minYValue": -1,
@@ -240,7 +260,7 @@
       "xAxisPath": {
         "value": "/car/cone_detections.detections[:].position.x"
       },
-      "foxglovePanelTitle": "Cone locations",
+      "foxglovePanelTitle": "Cones, MPC reference and lidar",
       "minXValue": 0,
       "maxXValue": 5,
       "xAxisLabel": "X [meters] (i.e., positive is forwards from the car)",

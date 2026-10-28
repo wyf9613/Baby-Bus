@@ -25,6 +25,7 @@ method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn",
                 "_budgets_active", "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
 method_names.add("_async_planning_cycle")
 method_names.add("_observe_stationary_gyro")
+method_names.add("_lidar_stop_problem")
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]
 constants = [item for item in tree.body if isinstance(item, ast.Assign) and
              any(isinstance(target, ast.Name) and (target.id.startswith("FSM_STATE") or

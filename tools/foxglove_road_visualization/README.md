@@ -1,6 +1,14 @@
 # 一条控制参考轨迹
 
-导入同目录 `layout.json`，在原来的 `Cone locations` 图里显示一条绿色轨迹。
+2026-10-28 雷达接入：本分支布局另外显示 `/car/lidar_roi_points` 的红色回波点
+和 `/car/lidar_roi` 的灰色检测框。两者均为标准ROS消息，无需用户脚本。
+`/car/lidar_obstacles` 可在 Raw Messages 中查看聚类与状态；默认只检测，不触发停车。
+绿色参考和橙色MPC预测保持原有话题。完整说明见
+[最新MPC+雷达](../../docs/FUSION_MPC_LIDAR_CN.md)。此增量尚未进行GUI或实车验证；
+下方ROS/实车验收记录均为上游历史，不是本次雷达增量的验收。
+
+当前导入同目录 `layout_v2.0.json`，在原来的 `Cone locations` 图里显示绿色轨迹及雷达信息。
+下方早期记录中的 `layout.json` 是改名前的文件名。
 话题为 `/car/policy_trajectory`，类型是标准 `nav_msgs/msg/Path`。
 布局直接读取 `poses[:].pose.position.x/y`，无需 Foxglove 消息脚本。
 

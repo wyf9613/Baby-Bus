@@ -140,8 +140,8 @@ else:
     from rclpy.qos import QoSProfile, ReliabilityPolicy
     from rclpy.time import Time
     from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
-    from sensor_msgs.msg import Imu, LaserScan
-    from geometry_msgs.msg import PoseStamped
+    from sensor_msgs.msg import Imu, LaserScan, PointCloud
+    from geometry_msgs.msg import PoseStamped, Point32
     from nav_msgs.msg import Path as TrajectoryPath   # pathlib.Path stays the planner worker's
     from std_msgs.msg import Float32, Int8, String, UInt16
     from dream_interfaces.msg import (ConeDetection, ConeDetections, DriveAndSteer,
@@ -240,6 +240,197 @@ def roll_pitch_yaw(q):
 
 def wrap_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
+
+
+@dataclass
+class LidarObstacleSettings:
+    """前方矩形检测区 / Forward detection with an independent stop switch."""
+    enabled: bool = False  # 裸节点保持兼容；本分支 YAML 开启 / Enabled by branch YAML.
+    stop_enabled: bool = True  # 检测与停车分开 / Detect-only mode keeps telemetry.
+    body_width_m: float = 0.250
+    front_from_cg_m: float = 0.297
+    side_margin_m: float = 0.02
+    roi_half_width_m: float = 0.0  # 0 沿用车宽 / Explicit detection half-width override.
+    range_min_m: float = 0.2  # 可观测区下限，不伪造驱动标定 / Observation lower bound.
+    allow_no_return_clear: bool = False  # 激进假设由 YAML 显式开启 / Explicit opt-in.
+    stop_distance_m: float = 1.0  # 从车头量起，待上车确认 / From bumper; provisional.
+    cluster_gap_m: float = 0.06
+    min_cluster_points: int = 2
+    min_known_fraction: float = 0.7
+
+    def __post_init__(self):
+        if not isinstance(self.enabled, bool):
+            raise ValueError("lidar_obstacle.enabled must be boolean")
+        if not isinstance(self.stop_enabled, bool):
+            raise ValueError("lidar_obstacle.stop_enabled must be boolean")
+        if not isinstance(self.allow_no_return_clear, bool):
+            raise ValueError("lidar_obstacle.allow_no_return_clear must be boolean")
+        for name in ("body_width_m", "front_from_cg_m", "stop_distance_m", "cluster_gap_m"):
+            if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
+                raise ValueError(f"lidar_obstacle.{name} must be positive and finite")
+        if not finite_number(self.side_margin_m) or self.side_margin_m < 0:
+            raise ValueError("lidar_obstacle.side_margin_m must be finite and nonnegative")
+        if not finite_number(self.roi_half_width_m) or self.roi_half_width_m < 0:
+            raise ValueError("lidar_obstacle.roi_half_width_m must be finite and nonnegative")
+        if not finite_number(self.range_min_m) or self.range_min_m < 0:
+            raise ValueError("lidar_obstacle.range_min_m must be finite and nonnegative")
+        if (not isinstance(self.min_cluster_points, int) or isinstance(self.min_cluster_points, bool)
+                or not 1 <= self.min_cluster_points <= 16):
+            raise ValueError("lidar_obstacle.min_cluster_points must be an integer in [1,16]")
+        if not finite_number(self.min_known_fraction) or not 0 < self.min_known_fraction <= 1:
+            raise ValueError("lidar_obstacle.min_known_fraction must be in (0,1]")
+
+
+def lidar_roi_bounds(settings):
+    half_width = settings.roi_half_width_m or settings.body_width_m/2 + settings.side_margin_m
+    return ((settings.front_from_cg_m, settings.front_from_cg_m+settings.stop_distance_m),
+            (-half_width, half_width))
+
+
+def _lidar_ray_rectangle(origin, direction, bounds):
+    """Ray/XY slab interval, measured along the original 3D unit scan ray."""
+    enter, leave = 0.0, math.inf
+    for axis, (lo, hi) in enumerate(bounds):
+        if abs(direction[axis]) < 1e-12:
+            if not lo <= origin[axis] <= hi:
+                return None
+        else:
+            a, b = (lo-origin[axis])/direction[axis], (hi-origin[axis])/direction[axis]
+            enter, leave = max(enter, min(a, b)), min(leave, max(a, b))
+    return (enter, leave) if leave > enter and leave > 0 else None
+
+
+def detect_lidar_obstacles(scan, cartesian, settings, stamp_ns=None):
+    """O(N), no ROS dependency. 保留近点与原始索引 / Keep close hits and ray indices.
+
+    Finite/range filtering and mounting TF precede this function. Sparse groups
+    remain candidates (UNKNOWN), never silently become free space. No smoothing
+    across edges, inferred object class, temporal tracking or scan deskew.
+    """
+    cfg = settings
+    bounds = lidar_roi_bounds(cfg)
+    half_width = bounds[1][1]
+    result = {"status": "UNKNOWN", "reason": "invalid_scan", "available": False,
+              "measurement_timestamp_s": None if stamp_ns is None else stamp_ns/1e9,
+              "frame_id": "base_link", "roi_xy_m": bounds,
+              "points_xyz_m": [], "scan_indices": [], "clusters": [],
+              "candidate_clusters": [], "nearest_bumper_distance_m": None,
+              "known_fraction": 0.0, "usable_fraction": 0.0, "roi_ray_count": 0,
+              "blind_roi_ray_count": 0, "assumed_clear_ray_count": 0,
+              "allow_no_return_clear": cfg.allow_no_return_clear}
+    if not isinstance(scan, dict) or not isinstance(cartesian, dict):
+        return result
+    ranges, points, indices = scan.get("ranges"), cartesian.get("points_xyz"), cartesian.get("scan_indices")
+    origin = cartesian.get("ray_origin_xyz_m")
+    axes = cartesian.get("ray_axes_xyz")
+    if (cartesian.get("frame_id") != "base_link" or not isinstance(ranges, (list, tuple))
+            or not 3 <= len(ranges) <= 4096 or not isinstance(points, (list, tuple))
+            or not isinstance(indices, (list, tuple)) or len(points) != len(indices)
+            or not isinstance(origin, (list, tuple)) or len(origin) != 3
+            or not isinstance(axes, (list, tuple)) or len(axes) != 2
+            or not all(isinstance(a, (list, tuple)) and len(a) == 3 for a in axes)
+            or not all(finite_number(v) for a in (origin, *axes) for v in a)):
+        return result
+    metadata = [scan.get(k) for k in ("angle_min", "angle_increment", "range_min", "range_max")]
+    if not all(finite_number(v) for v in metadata):
+        return result
+    angle_min, increment, range_min, range_max = metadata
+    effective_min = max(range_min, cfg.range_min_m)
+    result["effective_range_min_m"] = effective_min
+    if effective_min >= range_max:
+        result["reason"] = "range_min_exceeds_sensor_max"
+        return result
+    # 首版仅支持水平全周扫描 / Require a level full revolution for ROI coverage.
+    if (increment <= 0 or range_min < 0 or range_max <= range_min
+            or abs(len(ranges)*increment-2*math.pi) > 1.5*increment
+            or any(abs(a[2]) > 0.1 for a in axes)
+            or origin[0] >= bounds[0][0]):
+        result["reason"] = "unsupported_scan_or_mount"
+        return result
+    previous_index = -1
+    for point, index in zip(points, indices):
+        if (not isinstance(index, int) or isinstance(index, bool) or not previous_index < index < len(ranges)
+                or not isinstance(point, (tuple, list)) or len(point) != 3
+                or not all(finite_number(v) for v in point)):
+            return result
+        previous_index = index
+    result.update(available=True, reason="no_hits_in_roi")
+    groups, group = [], []
+    previous = None
+    for point, index in zip(points, indices):
+        x, y, _ = point
+        if not (bounds[0][0] <= x <= bounds[0][1] and abs(y) <= half_width):
+            if group:
+                groups.append(group)
+                group = []
+            previous = None
+            continue
+        # No bridging across missing/invalid/out-of-ROI rays. Adaptive allowance
+        # accommodates the increasing beam spacing at larger measured ranges.
+        if previous is not None:
+            last_point, last_index = previous
+            gap = cfg.cluster_gap_m + 2*math.dist(point, origin)*increment
+            if index != last_index+1 or math.dist(point[:2], last_point[:2]) > gap:
+                groups.append(group)
+                group = []
+        group.append((point, index))
+        previous = (point, index)
+        result["points_xyz_m"].append(tuple(point))
+        result["scan_indices"].append(index)
+    if group:
+        groups.append(group)
+    for group in groups:
+        xs, ys = [p[0][0] for p in group], [p[0][1] for p in group]
+        cluster = {"point_count": len(group), "bbox_xy_m": (min(xs), max(xs), min(ys), max(ys)),
+                   "centroid_xy_m": (sum(xs)/len(xs), sum(ys)/len(ys)),
+                   "nearest_bumper_distance_m": min(xs)-cfg.front_from_cg_m,
+                   "points_xyz_m": [tuple(p) for p, _ in group],
+                   "scan_indices": [i for _, i in group]}
+        key = "clusters" if len(group) >= cfg.min_cluster_points else "candidate_clusters"
+        result[key].append(cluster)
+    if result["points_xyz_m"]:
+        result["nearest_bumper_distance_m"] = min(p[0] for p in result["points_xyz_m"])-cfg.front_from_cg_m
+
+    # 只评价量程可见部分 / Evaluate the observable ROI, not the blind prefix.
+    # Positive infinity is an explicit aggressive no-return assumption, not
+    # measured free space. NaN/-inf/out-of-range and nearer occlusion stay unknown.
+    # Already supplied valid close hits above remain obstacles even <effective_min.
+    known, assumed, eligible, blind = 0, 0, 0, 0
+    for i, distance in enumerate(ranges):
+        angle = angle_min + i*increment
+        cosine, sine = math.cos(angle), math.sin(angle)
+        direction = tuple(cosine*axes[0][k]+sine*axes[1][k] for k in range(3))
+        interval = _lidar_ray_rectangle(origin, direction, bounds)
+        if interval is None:
+            continue
+        enter, leave = interval
+        observable_enter = max(enter, effective_min)
+        if leave <= observable_enter:
+            blind += 1
+            continue
+        eligible += 1
+        if (finite_number(distance) and effective_min <= distance <= range_max
+                and distance >= observable_enter):
+            known += 1
+        elif (cfg.allow_no_return_clear and isinstance(distance, Real) and distance == math.inf
+              and range_max >= leave):
+            assumed += 1
+    result["roi_ray_count"] = eligible
+    result["blind_roi_ray_count"] = blind
+    result["assumed_clear_ray_count"] = assumed
+    result["known_fraction"] = known/eligible if eligible else 0.0
+    result["usable_fraction"] = (known+assumed)/eligible if eligible else 0.0
+    if result["clusters"]:
+        result.update(status="OBSTACLE", reason="cluster_in_stop_roi")
+    elif result["candidate_clusters"]:
+        result["reason"] = "sparse_hit_in_stop_roi"
+    elif eligible < 3 or result["usable_fraction"] < cfg.min_known_fraction:
+        result["reason"] = "insufficient_roi_returns"
+    else:
+        result["status"] = "CLEAR"
+        if assumed:
+            result["reason"] = "no_hits_in_observable_roi_assumed_clear"
+    return result
 
 
 @dataclass(frozen=True)
@@ -7490,6 +7681,16 @@ class PolicyNode(Node):
         self.sensor_timeout_s = {
             name: self.get_parameter(f"sensor_timeout_s.{name}").value for name in SENSORS}
         self._validate_parameters()
+        self.get_logger().info("Policy revision: fusion-mpc-lidar-detect-only-20261028")
+        lidar_values = {}
+        for name, default in vars(LidarObstacleSettings()).items():
+            key = f"lidar_obstacle.{name}"
+            self.declare_parameter(key, default, ParameterDescriptor(read_only=True))
+            lidar_values[name] = self.get_parameter(key).value
+        self.lidar_obstacle_settings = LidarObstacleSettings(**lidar_values)
+        self.lidar_obstacle_output = None
+        self._lidar_obstacle_stamp_ns = None
+        self._lidar_obstacle_publication_key = None
         self.identification_config = {
             name: self.get_parameter(f"id_test.{name}").value
             for name in IDENTIFICATION_DEFAULTS}
@@ -7670,6 +7871,9 @@ class PolicyNode(Node):
         self.pan_publisher = self.create_publisher(Float32, "pan_set_point_normalized", reliable_one)
         self.state_publisher = self.create_publisher(Int8, "policy_fsm_state_value", 10)
         self.state_text_publisher = self.create_publisher(String, "policy_fsm_state_string", 10)
+        self.lidar_obstacle_publisher = self.create_publisher(String, "lidar_obstacles", 1)
+        self.lidar_points_publisher = self.create_publisher(PointCloud, "lidar_roi_points", 1)
+        self.lidar_roi_publisher = self.create_publisher(TrajectoryPath, "lidar_roi", 1)
         self.heading_publisher = self.create_publisher(Float32, "imu_heading_angle", 10)
         self.debug1_publisher = self.create_publisher(Float32, "debug1", 10)
         self.debug2_publisher = self.create_publisher(Float32, "debug2", 10)
@@ -8009,6 +8213,9 @@ class PolicyNode(Node):
                 or abs(msg.angle_min + (len(msg.ranges)-1)*msg.angle_increment - msg.angle_max)
                 > max(0.001, 1.1*msg.angle_increment)):
             self._warn("lidar_invalid", "Ignoring lidar scan with invalid shape, frame, or metadata")
+            if getattr(getattr(self, "lidar_obstacle_settings", None), "enabled", False):
+                self.observations["lidar_scan"] = None
+                self.observations["lidar_cartesian"] = None
             return
         # Infinity/NaN and out-of-range individual rays are normal possibilities
         # in LaserScan. Preserve them for the student to filter, not as zeros.
@@ -8060,7 +8267,10 @@ class PolicyNode(Node):
                 raise ValueError("Cartesian lidar point is not finite")
             points.append(point)
             indices.append(index)
-        return {"points_xyz": points, "scan_indices": indices, "frame_id": self.policy_frame_id}
+        result = {"points_xyz": points, "scan_indices": indices, "frame_id": self.policy_frame_id}
+        if getattr(getattr(self, "lidar_obstacle_settings", None), "enabled", False):
+            result.update(ray_origin_xyz_m=offsets, ray_axes_xyz=(x_axis, y_axis))
+        return result
 
     def wheel_speed_callback(self, msg):
         now, ros_now = self._times()
@@ -9237,6 +9447,9 @@ class PolicyNode(Node):
         return mpc is not None and mpc.enabled and mpc.reference_source == "planning"
 
     def _control_health_problem(self, monotonic_now, ros_now_ns):
+        lidar_problem = self._lidar_stop_problem(monotonic_now, ros_now_ns)
+        if lidar_problem:
+            return lidar_problem
         problem = self.health_problem(monotonic_now, ros_now_ns)
         if not problem or not self._robust_control_enabled():
             return problem
@@ -9293,7 +9506,7 @@ class PolicyNode(Node):
         if requested == self.fsm_state:
             return  # No accidental heading/integrator/time reset on a repeat.
         if requested == FSM_STATE_PUBLISHING_POLICY_ACTION:
-            problem = self.health_problem(now, ros_now)
+            problem = self._lidar_stop_problem(now, ros_now) or self.health_problem(now, ros_now)
             if problem:
                 self.state_reason = f"Policy start refused: {problem}"
                 self.get_logger().warning(self.state_reason)
@@ -9375,6 +9588,61 @@ class PolicyNode(Node):
         """Distance/time budgets guard every controller that can issue drive."""
         mpc = getattr(self, "mpc_settings", None)
         return self.control_settings.enabled or (mpc is not None and mpc.enabled and not mpc.shadow)
+
+    def _lidar_stop_problem(self, monotonic_now, ros_now_ns):
+        """检测/显示与停车分开 / Detect-only mode never gates the planner or MPC."""
+        cfg = getattr(self, "lidar_obstacle_settings", None)
+        if cfg is None or not cfg.enabled:
+            return None
+        raw, cart = (self.observations.get(name) for name in ("lidar_scan", "lidar_cartesian"))
+        fresh = (self._fresh("lidar_scan", monotonic_now, ros_now_ns)
+                 and self._fresh("lidar_cartesian", monotonic_now, ros_now_ns)
+                 and raw.stamp_ns == cart.stamp_ns)
+        if not fresh:
+            self._lidar_obstacle_stamp_ns = None
+            self.lidar_obstacle_output = dict(status="UNKNOWN", available=False,
+                reason="missing_stale_or_unmatched_lidar", frame_id=self.policy_frame_id,
+                measurement_timestamp_s=None if raw is None else raw.stamp_ns/1e9,
+                points_xyz_m=[], scan_indices=[], clusters=[], candidate_clusters=[])
+        elif raw.stamp_ns != self._lidar_obstacle_stamp_ns:
+            try:
+                self.lidar_obstacle_output = detect_lidar_obstacles(raw.value, cart.value, cfg, raw.stamp_ns)
+            except (ValueError, TypeError, KeyError, ArithmeticError) as error:
+                self.lidar_obstacle_output = dict(status="UNKNOWN", available=False,
+                    reason="detector_error: "+str(error), frame_id=self.policy_frame_id,
+                    measurement_timestamp_s=raw.stamp_ns/1e9, points_xyz_m=[], scan_indices=[],
+                    clusters=[], candidate_clusters=[])
+            self._lidar_obstacle_stamp_ns = raw.stamp_ns
+        result = self.lidar_obstacle_output
+        result.update(roi_xy_m=lidar_roi_bounds(cfg), stop_enabled=cfg.stop_enabled,
+            mode="stop" if cfg.stop_enabled else "detect_only",
+            stop_requested=cfg.stop_enabled and result["status"] != "CLEAR",
+            source_age_s=None if raw is None else self._age(raw, monotonic_now, ros_now_ns))
+        key = (result["measurement_timestamp_s"], result["status"], result["reason"])
+        if key != self._lidar_obstacle_publication_key:
+            # Telemetry failure must not change control admission or fabricate clear data.
+            try:
+                self.lidar_obstacle_publisher.publish(String(data=json.dumps(result, allow_nan=False)))
+                stamp = Time(nanoseconds=raw.stamp_ns if fresh else ros_now_ns).to_msg()
+                cloud = PointCloud()
+                cloud.header.frame_id, cloud.header.stamp = self.policy_frame_id, stamp
+                cloud.points = [Point32(x=float(x), y=float(y), z=float(z))
+                                for x,y,z in result["points_xyz_m"]]
+                self.lidar_points_publisher.publish(cloud)
+                rectangle = TrajectoryPath(header=cloud.header)
+                (lo, hi), (right, left) = result["roi_xy_m"]
+                for x,y in ((lo,right),(hi,right),(hi,left),(lo,left),(lo,right)):
+                    pose = PoseStamped(header=rectangle.header)
+                    pose.pose.position.x, pose.pose.position.y = float(x), float(y)
+                    pose.pose.orientation.w = 1.0
+                    rectangle.poses.append(pose)
+                self.lidar_roi_publisher.publish(rectangle)
+                self._lidar_obstacle_publication_key = key
+            except Exception as error:
+                self._warn("lidar_status", "LiDAR visualization unavailable: "+str(error))
+        if result["stop_requested"]:
+            return "Lidar stop: "+result["reason"]+"; explicit resume required"
+        return None
 
     def _publish_trajectory(self, ros_now_ns, force=False):
         """Display the accepted reference (PID or MPC) at 10 Hz; stops clear it.
@@ -9485,8 +9753,9 @@ class PolicyNode(Node):
 
     def supervision_callback(self):
         now, ros_now = self._times()
+        lidar_problem = self._lidar_stop_problem(now, ros_now)
         if self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION:
-            problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
+            problem = lidar_problem or self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
             if problem:
                 self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
         elif self.fsm_state == FSM_STATE_PUBLISHING_ZERO_ACTIONS:

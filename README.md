@@ -1,5 +1,13 @@
 # Baby Bus · ai4r_policy
 
+LiDAR integration on `fusion-prior-reset` d1b4b83: detection ROI extends
+1.4m ahead of the bumper and +/-0.4m laterally. Detection and Foxglove points/ROI
+are active; LiDAR stopping is OFF. Upstream MPC/planning remain unchanged;
+this branch does not contain the former RNN or active obstacle avoidance.
+See [deployment, topics and checks](docs/FUSION_MPC_LIDAR_CN.md).
+Use `scripts/policy_node.py` with the full deployment YAML in
+`checkpoints/fusion-mpc-lidar-car14-20261028/`; the root YAML remains a base layer.
+
 `mvp2.0` 下周测试版本优先连续运行：20 Hz 控制与独立进程的 10 Hz 规划分开，
 直线、缓弯和偏位/偏角起步优先使用有车身净空检查的中心线跟踪，复杂 lattice
 作为次选。道路短暂失效或规划超时进入限时降级；默认降级目标 0.1 m/s，连续
