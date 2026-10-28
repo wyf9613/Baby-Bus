@@ -323,7 +323,13 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
   .verification\car05-lattice21-exec-v050-nolimit-noprior           yaml cbc5533b…   0.5，不限
   .verification\car05-lattice21-exec-v050-5m-blueleft-noprior       yaml 08fbdacb…   0.5，蓝左，5 m / 60 s
   .verification\car05-lattice21-exec-v050-nolimit-blueleft-noprior  yaml 87eb1fd4…   0.5，蓝左，不限
+  .verification\car05-lattice21-exec-v020-nolimit-fb-noprior           yaml 60a7db80…   0.20，feedback，不限
+  .verification\car05-lattice21-exec-v020-nolimit-blueleft-fb-noprior  yaml f21674c3…   0.20，feedback，蓝左，不限
+  .verification\car05-lattice21-exec-v050-nolimit-fb-noprior           yaml d216087d…   0.5，feedback，不限
+  .verification\car05-lattice21-exec-v050-nolimit-blueleft-fb-noprior  yaml 38834fb7…   0.5，feedback，蓝左，不限
   ```
+
+  10-28 实车：`v020-5m-noprior` 3 次、`v020-nolimit-noprior` 1 次都没有再在 U 弯中段往右拐，不限包转完了整个 U 弯（+155°）；但车速一走一停（联合 MPC 冲速切油门 + 误判卡住重起步），下一步试 `-fb-noprior`。
 
   参数核对加一项：`ros2 param get "$N" shadow.fusion_use_prior`，预期 `False`。看包时 `/car/shadow_planning` 的 `fusion.prior_used` 应全为 false。
 - **workspace 被清空时**（10-28 1 号车遇到）：从本机 `mpc-car-run` 上传 `package.xml`、`CMakeLists.txt`、`dream_interfaces.required.json`、`launch/`、`config/`、`tests/`，再 `Deploy-StartFix`，然后 `chmod +x .../scripts/policy_node.py`（新建文件没有执行位，launch 会报 `not found`）。
