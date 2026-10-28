@@ -86,7 +86,7 @@
    - **开环回放测不出来**：`replay_policy_bag.py --lattice --set shadow.fusion_use_prior=true` 在两个包上也几乎全是往左（出图时刻不同，骨架链不同），改前改后分不开。验证只能靠录制输入的单元测试和上车。
    - **包**（`-noprior`，从本分支生成后手工把 `fusion_use_prior: true` 改成 `false`，和 `-rd5`/`-hooks` 一样；yaml 和对应的现有包只差这一行，policy_node `25f9e3dd…` 和 `bd5ce140…` 只差上面 3 处）：见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-28。
 2. **Gym 加单侧可见的 U 弯**，先确认能复现，再比较改前改后；直道和缓弯不能退化（46/60 基线）。
-3. WSL 门禁通过后 `-noprior` 包才能上车：先 `v020-5m-noprior` 跑同一个 U 弯（和今天 `v020-5m` 对比），再 0.5。
+3. **WSL 门禁 `a21f8cb` 通过**（offline PASS、ros gate PASS，`~/ai4r-evidence/ros-20261028-112040`）。`-noprior` 包上车顺序：先 `v020-5m-noprior` 跑同一个 U 弯（和今天 `v020-5m` 对比），再 0.5。
 4. 0.5 m/s 的直道和缓弯（`v050-5m`、不含 U 弯的 `-nolimit`）、`-fb` 不受影响，照计划继续。
 
 ## 2026-10-27：圆弧候选、预测步数 N、0.5 m/s 的 Gym 对比 🟡
