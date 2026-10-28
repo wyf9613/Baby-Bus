@@ -1,0 +1,26 @@
+{
+  "description": "Car 01 oval, 2026-10-28: lattice 2.1 curvature excess cost (kcost) packages as deployed, with their k0 (weight 0) controls",
+  "code_commit": "5ddba23 (Lattice 2.1: optional curvature excess cost; Gym bend run-out option)",
+  "ros_gate": "PASS, ~/ai4r-evidence/ros-20261028-154814 (source 5ddba23)",
+  "policy_node.py (copy of scripts/policy_node.py at 5ddba23)": "3270f8d2ac8f2c54348385b572dafc945eabb28f88ba941382fbf0471a3c3674",
+  "config/traxxas_vehicle_interface.yaml (repo, unchanged)": "6e0253156fdcacb0e97874513d879b2e94521e19b7aa79dc020c3d0ea9f51ea4",
+  "regenerate": "at 5ddba23: python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --speed-profile v05 --distance 0 --run-time-s 0 --cones <yellow-left|blue-left> --out <dir>; then in ai4r_policy.yaml 'fusion_use_prior: true' -> false and 'weight_curvature: 0.0' -> 10.0 (kcost) or left 0.0 (k0). A later commit adds 'reorient_reversed_pairing: false' to the car 05 layer, so regenerating from a newer head does NOT reproduce these hashes; use the files here.",
+  "packages": {
+    "v050-nolimit-kcost": {
+      "ai4r_policy.yaml": "f138f4c111eb99826ac62aa426a78099631a7c0025073d53f2dec9382cf998e9",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=yellow-left longitudinal=joint speed_profile=v05; shadow.weight_curvature 10.0, curvature_limit_1pm 1.0, fusion_use_prior false"
+    },
+    "v050-nolimit-blueleft-kcost": {
+      "ai4r_policy.yaml": "0e291ac73a4d24f0c1b1589f9feaf09ac6c5f44ff6b7de2d05363431f6cf4d05",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=blue-left longitudinal=joint speed_profile=v05; shadow.weight_curvature 10.0, curvature_limit_1pm 1.0, fusion_use_prior false"
+    },
+    "v050-nolimit-k0": {
+      "ai4r_policy.yaml": "12f05a0b6e09fde4c7fd3198135a5fb9384194ee296557eabc875485e4cf5611",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=yellow-left longitudinal=joint speed_profile=v05; shadow.weight_curvature 0.0, fusion_use_prior false"
+    },
+    "v050-nolimit-blueleft-k0": {
+      "ai4r_policy.yaml": "89cb25b96c8c967697903d82697115447220504dd273e47b200d55706122bd85",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=blue-left longitudinal=joint speed_profile=v05; shadow.weight_curvature 0.0, fusion_use_prior false"
+    }
+  }
+}
