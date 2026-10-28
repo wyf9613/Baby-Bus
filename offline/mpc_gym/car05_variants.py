@@ -59,6 +59,8 @@ def configure(args):
     if _CONFIGURED:          # pool workers are reused: patching again would nest the wrappers
         return
     _CONFIGURED = True
+    if args.bend_runout_m is not None:
+        sim.SYNTHETIC_RUNOUT_M = args.bend_runout_m
     car05 = ne.layered("ai4r_policy_mpc_car05.yaml")
     feedback = ne.layered("ai4r_policy_mpc_car05_feedback.yaml")["mpc"] if args.feedback else {}
     overrides = [s.split("=", 1) for s in args.set]
@@ -119,6 +121,9 @@ def main():
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--lattice-planning-s", type=float, default=None,
                         help="fixed lattice planning time instead of this computer's (deterministic)")
+    parser.add_argument("--bend-runout-m", type=float, default=None,
+                        help="straight after the synthetic bends (default pipeline_sim's 2.0 m); "
+                             "the run distance is unchanged, so this only moves the road's end")
     parser.add_argument("--json-out", type=Path)
     args = parser.parse_args()
     jobs = [(args, r, lane, s) for r in args.roads for lane in (0.72, 1.0) for s in range(1, args.seeds+1)]

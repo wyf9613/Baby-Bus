@@ -138,6 +138,21 @@ class ShadowChecks(unittest.TestCase):
         self.assertEqual([c["cost"] for c in result["candidates"]], [c["cost"] for c in original["candidates"]])
         self.assertTrue(all("execution" not in c and "execution" not in c["costs"] for c in result["candidates"]))
 
+    def test_curvature_cost_is_off_by_default_and_prefers_wider_paths_when_on(self):
+        # 2026-10-28 experiment: car 01's left lock sits at the MPC model's limit.
+        record = job(center=0.3)
+        off = plan(record)
+        self.assertTrue(all("curvature" not in c["costs"] for c in off["candidates"]))
+        on = plan(record, weight_curvature=1e6, curvature_limit_1pm=0.5)
+        excess = {c["id"]: c["costs"]["curvature"] for c in on["candidates"]}
+        self.assertGreater(max(excess.values()), 0.0)
+        feasible = [c["id"] for c in on["candidates"] if c["collision"] is None]
+        self.assertEqual(excess[on["selected"]["id"]], min(excess[i] for i in feasible))
+        self.assertLessEqual(excess[on["selected"]["id"]], excess[off["selected"]["id"]])
+        for bad in (dict(curvature_limit_1pm=0.0), dict(curvature_window_m=0.0), dict(weight_curvature=-1.0)):
+            with self.assertRaises(ValueError):
+                Settings(**bad)
+
     def test_stage_timing_accounts_for_total_including_no_road(self):
         for record in (job(), {**job(), "road": {}}):
             result = plan(record)

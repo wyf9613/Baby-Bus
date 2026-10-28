@@ -131,6 +131,9 @@ REAL_TRACKS_DIR = Path(__file__).resolve().parent / "real_tracks"
 # memory note and docs/UPSTREAM_FIXES_FOR_CAR_CN.md section 7 (single-sided bends).
 SYNTHETIC_BENDS = {
     "right_angle_r1": (1.0, 90.0), "right_angle_r1_5": (1.5, 90.0), "u_turn": (1.0, 180.0)}
+# Straight after a synthetic bend. car_readiness_centerline ends right_angle_r1 0.57 m before
+# the road's end, inside the camera range; car05_variants --bend-runout-m lengthens it.
+SYNTHETIC_RUNOUT_M = 2.0
 
 
 def road_spec(road="straight"):
@@ -151,7 +154,7 @@ def road_spec(road="straight"):
         bend["geometry"] = {"type": "circular_arc", "curvature_per_m": 1.0/radius_m, "sweep_angle_deg": sweep_deg}
         bend["active_cone_paths"] = {"left_boundary": "regular", "right_boundary": "regular"}
         end = deepcopy(start)
-        end["geometry"]["length_m"] = 2.0
+        end["geometry"]["length_m"] = SYNTHETIC_RUNOUT_M
         spec["elements"] = [start, bend, end]
         return spec
     track_file = REAL_TRACKS_DIR / f"{road}.json"

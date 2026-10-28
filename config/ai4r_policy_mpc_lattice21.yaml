@@ -34,6 +34,11 @@
       # fusion-prior-reset experiment (2026-10-28): false = never guide fusion with the
       # previous reference. Default true is the shipped behaviour.
       fusion_use_prior: true
+      # 2026-10-28 experiment: cost on curvature above curvature_limit_1pm over the control
+      # read length (heading change over curvature_window_m). Weight 0 = off (shipped).
+      weight_curvature: 0.0
+      curvature_limit_1pm: 1.0
+      curvature_window_m: 0.1
       length_m: 1.0
       sample_count: 48
       path_spacing_m: 0.025

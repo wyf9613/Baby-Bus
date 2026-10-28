@@ -6473,6 +6473,12 @@ class ShadowSettings:
     # fusion-prior-reset experiment (2026-10-28): false never uses the previous reference
     # as the fusion guide (car 01 U-turn: the prior guide shrank and pointed right).
     fusion_use_prior: bool = True
+    # Curvature excess cost (2026-10-28, 0 weight = off): over the control read length,
+    # mean of max(0, |curvature|/curvature_limit_1pm - 1)^2. Car 01's left lock is at the
+    # MPC model's limit and 8-18 % of its left U-turn references were tighter than 85 % of it.
+    weight_curvature: float = 0.0
+    curvature_limit_1pm: float = 1.0
+    curvature_window_m: float = 0.1
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
@@ -6499,7 +6505,8 @@ class ShadowSettings:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
         for name in ("rate_hz", "length_m", "path_spacing_m", "score_min_length_m",
                      "search_half_width_m", "body_front_m", "body_rear_m", "body_width_m",
-                     "sweep_translation_step_m", "sweep_rotation_step_rad", "fusion_window_s", "fusion_spacing_m"):
+                     "sweep_translation_step_m", "sweep_rotation_step_rad", "fusion_window_s", "fusion_spacing_m",
+                     "curvature_limit_1pm", "curvature_window_m"):
             if getattr(self, name) == 0:
                 raise ValueError("shadow."+name+" must be positive")
 
@@ -6615,6 +6622,21 @@ def _shadow_curve(knots, length, spacing):
     points = [_shadow_at(dense, arc, length*i/count) for i in range(count+1)]
     headings = [math.atan2(b[1]-a[1], b[0]-a[0]) for a, b in zip(points, points[1:])]
     return [(x, y, 0.0 if i == 0 else headings[min(i, len(headings)-1)]) for i, (x, y) in enumerate(points)]
+
+
+def _shadow_curvature_excess(path, arc, length, cfg):
+    """Mean of max(0, |k|/limit - 1)^2 up to length; k from heading change over curvature_window_m."""
+    step = max(1, round(cfg.curvature_window_m/max(cfg.path_spacing_m, 1e-9)))
+    excess, count = 0.0, 0
+    for i in range(1, len(path)-step):
+        if arc[i] > length+1e-9:
+            break
+        ds = arc[i+step]-arc[i]
+        if ds > 1e-9:
+            k = abs(wrap_angle(path[i+step][2]-path[i][2]))/ds
+            excess += max(0.0, k/cfg.curvature_limit_1pm-1.0)**2
+            count += 1
+    return excess/max(1, count)
 
 
 def _shadow_segment_hit(a, b, c, d):
@@ -7155,6 +7177,8 @@ class ShadowLatticePlanner:
             costs = {"lateral": lateral/total_weight, "heading": heading_cost/total_weight,
                      "progress": progress/total_weight,
                      "smoothness": smooth/max(1, len(scoring_samples))}
+            if cfg.weight_curvature > 0:
+                costs["curvature"] = _shadow_curvature_excess(path, arc, control_read_length, cfg)
             cost = sum(getattr(cfg, "weight_"+key)*value for key, value in costs.items())
             candidates.append({"id": candidate_id, "family": family, "offsets_m": offsets,
                 "cost": cost, "costs": costs, "collision": collision, "path": path,
