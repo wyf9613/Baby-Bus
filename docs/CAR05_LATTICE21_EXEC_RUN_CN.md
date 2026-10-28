@@ -311,7 +311,7 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 
 - **立即 Disable**：车速持续超过 0.65；车蛇行；接近边界；转向往弯外越打越大。超速锁停（`overspeed`）出现两次就停止 0.5，回到 v020 包。
 - **10-29 的 A/B**：同一条赛道，`-nolimit` 和 `-nolimit-fb` 交替（A、B、A、B…），每种 3–5 次，用 `tools/car_run_metrics.py` 统计。不要一天只跑一种。
-- **10-28 实车结果（1 号车）**：`v050-3m` 通过，滑行约 0.35–0.45 m，峰值 0.54。**急 U 弯只用 `-noprior` 包**：原来的包在 0.5 和 0.2 下三次都在 U 弯中段往右拐、出界，原因是 lattice 的时间融合在急弯里越用越短的旧骨架（只看得到外圈锥桶时更明显），不是车速。直接关融合 Gym 更差（46 → 42/60），改成只去掉旧骨架（`-noprior`）后 U 弯能过，见下面的汇总表。详见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 10-28。
+- **10-28 实车结果（1 号车）**：`v050-3m` 通过，滑行约 0.35–0.45 m，峰值 0.54。**急 U 弯只用 `-noprior` 包**：原来的包在 0.5 和 0.2 下三次都在 U 弯中段往右拐、出界，原因是 lattice 的时间融合在急弯里越用越短的旧骨架（只看得到外圈锥桶时更明显），不是车速。直接关融合在 Gym 里没有显示更好（42 对 46，配对不显著），改成只去掉旧骨架（`-noprior`）后 U 弯能过，见下面的汇总表。详见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 10-28。
 - **`-noprior` 包**（分支 `fusion-prior-reset`，**WSL 门禁 `a21f8cb` 通过**：offline PASS、ros gate PASS，`~/ai4r-evidence/ros-20261028-112040`；10-28 已上车，结果见下面汇总表）：只多 `shadow.fusion_use_prior: false`，融合不再用上一次的参考当骨架。policy_node 都是 `25f9e3dd…`：
 
   ```text
