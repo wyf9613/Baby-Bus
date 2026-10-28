@@ -90,6 +90,9 @@
       handover_drive_margin: 0.04    # 48 of 65 handovers reached the soft/cut overspeed line within 2.5 s
       switch_blend_s: 0.4            # centerline -> lattice moved the steering by the QP's full step
       switch_steer_rate_per_s: 1.5   # (median 0.27-0.39); 0.075 per 0.05 s tick for 0.4 s after a switch
+      # 2026-10-28 (car 01 bags + Gym sweep): 1-2 frame invalid_ordered_geometry / invalid_boundary_pairing
+      # ended start-ups and 52 of 80 Gym right-angle invalid-road stops; hold the last plan instead.
+      geometry_glitch_tolerable: true
     shadow:
       # 2026-10-22: back to "travel" (lattice21.yaml's value). travel_plus_window (10-20,
       # docs/LATTICE_CHECK_LENGTH_PLAN_CN.md) made the lattice plan "straight ~0.6 m, then

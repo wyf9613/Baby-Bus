@@ -231,6 +231,36 @@ class Adapter(unittest.TestCase):
                           "timestamp_s": 10.0, "frame_id": "base_link"}, 0.05)
             self.assertTrue(traj["valid"] and traj["stop_required"], reason)
 
+    def test_geometry_glitch_stops_are_bounded_dropouts_only_when_enabled(self):
+        # 2026-10-28 car 01: one or two invalid_ordered_geometry / invalid_boundary_pairing
+        # frames ended start-up runs, and most Gym right-angle invalid-road stops.
+        def road_stop(reason):
+            return adapt({"valid": False, "path": None, "stop_requested": True, "reason": reason,
+                          "timestamp_s": 10.0, "frame_id": "base_link"}, 0.05)
+        for reason in ("invalid_road_invalid_ordered_geometry", "invalid_road_invalid_boundary_pairing"):
+            traj = road_stop(reason)
+            self.assertTrue(traj["stop_required"], reason)
+            ctrl = verified(reference_dropout_tolerance_s=0.3)
+            ctrl.step(straight_trajectory(), 0.3, 0.0, 10.0, True)
+            with self.assertRaises(Stop):
+                ctrl.step(traj, 0.3, 0.05, 10.05, False)
+            ctrl = verified(reference_dropout_tolerance_s=0.3, geometry_glitch_tolerable=True)
+            ctrl.step(straight_trajectory(), 0.3, 0.0, 10.0, True)
+            held = ctrl.step(traj, 0.3, 0.05, 10.05, False)
+            self.assertEqual(held["debug"]["branch"], "plan_hold", reason)
+            self.assertEqual(held["debug"]["reject_reason"], reason)
+            # Still bounded: past the tolerance it locks like any other dropout.
+            with self.assertRaises(Stop):
+                for k in range(2, 10):
+                    ctrl.step(traj, 0.3, 0.05, 10.0+0.05*k, False)
+        # Other road failures keep stopping at once.
+        ctrl = verified(reference_dropout_tolerance_s=0.3, geometry_glitch_tolerable=True)
+        ctrl.step(straight_trajectory(), 0.3, 0.0, 10.0, True)
+        with self.assertRaises(Stop):
+            ctrl.step(road_stop("invalid_road_insufficient_geometry"), 0.3, 0.05, 10.05, False)
+        with self.assertRaises(ValueError):
+            DeclaredSettings(geometry_glitch_tolerable=1)
+
     def test_clipped_path_end_adds_no_near_duplicate_point(self):
         ref, _ = Planner(PlanSettings(vehicle_limits_source="course_simulation")).plan(*plan_fixture())
         lo = ref["path"]["range"][0]

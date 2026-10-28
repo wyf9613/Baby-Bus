@@ -168,6 +168,12 @@
 - **A（首选，最小）**：在 MPC 侧把 `invalid_road_invalid_ordered_geometry` / `invalid_road_invalid_boundary_pairing` 当作可容忍丢失，沿用上一次求解的输入序列，最多 `reference_dropout_tolerance_s`（0.5 s，0.5 m/s 下约 0.25 m）。不依赖估计层有没有可信路，起步阶段也能兜住；两次实车失败都在 2 帧（0.1 s）内恢复。风险：真的出界时多走约 0.25 m。
 - **B**：估计层把这两种状态也走 `_predict_road`，并且不清历史。对过弯时（已有可信路）有用，对起步无用。
 - 两者都要：用 `car_start_failures.json` 做回放回归（两次都不停）；Gym 里看直角弯的 52 次能减少多少（这次要导出逐帧，确认 Gym 里是不是也是单帧失败，还是连续失败）。
+
+**A 已实现：`mpc.geometry_glitch_tolerable`**（默认 false；`ai4r_policy_mpc_car05.yaml` 设 true）。规划因 `invalid_ordered_geometry` / `invalid_boundary_pairing` 要停车时，按可容忍丢失处理（`MPCController.GEOMETRY_GLITCH_REASONS`），沿用上一次求解的输入，最多 `reference_dropout_tolerance_s`；其他原因不变。测试 `test_geometry_glitch_stops_are_bounded_dropouts_only_when_enabled`，`unittest discover` 467 个，唯一错误仍是需要 ROS 的 `test_policy_node`。
+
+- **车包回放**：`v020-nolimit-noprior` 14.20 s 那帧由 `stop` 变 `plan_hold`，14.30 s 恢复求解，不再停；`v050-3m` 那帧也变 `plan_hold`，但下一帧起 `insufficient_common_range` 持续 3 s 以上（起步时路宽未学到），仍停。
+- **Gym**（0.5 m/s，`fusion_use_prior=false`，结果在 `analysis\gym_sweep_0p5\glitch_off|on`）：关的一组和基准逐项相同；开：49/60，`invalid_ordered_geometry` 停车 6 → 0，但其中 5 次换成 `insufficient_common_range` / `single_side_width_unknown` 照样停，只有 1 次（R1.5 / 1.0 / 种子 5）变成完成；配对 1 好 0 坏。
+- **剩下那层**：几何失败那一帧走到 `_clear_road_history()`，默认 `keep_learned_width=False`，把**学到的路宽**和锥桶历史一起清掉。直角弯里多是单侧可见，靠学到的路宽推另一侧；路宽没了，下几帧就是"路宽未知 / 两侧重叠不够"，沿用 0.5 s 到期照样停。下一步（B'）：这两种几何失败不清历史，或至少 `keep_learned_width=True`。
 下次上车顺带测三项数据：每脉冲行程和真实边沿时间、直轮 / 满舵的起动与维持油门、松油门后的减速度。
 
 ### 5. 实车：`v020-5m-noprior` 同一个 U 弯（11:25，3 次）

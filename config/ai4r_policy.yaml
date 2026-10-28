@@ -370,6 +370,9 @@
       # true: numerical QP failures (status, residual, nonfinite, action out of bounds) are
       # tolerable like the above; bad inputs and unexpected exceptions still lock.
       solver_fail_tolerable: false
+      # true: a road_centerline stop for invalid_ordered_geometry / invalid_boundary_pairing (1-2 frame
+      # estimator flickers) is tolerable like the above, up to reference_dropout_tolerance_s.
+      geometry_glitch_tolerable: false
       # Start from rest when vehicle.drive_breakaway > 0: breakaway drive until moving_speed_mps,
       # lock if no motion within breakaway_timeout_s; at most max_restarts returns to rest per run.
       moving_speed_mps: 0.05

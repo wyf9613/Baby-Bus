@@ -4019,6 +4019,11 @@ class MPCSettings:
     # solution, action out of bounds) is a tolerable dropout instead of a lock. Bad inputs
     # and unexpected exceptions still lock.
     solver_fail_tolerable: bool = False
+    # Execution only (2026-10-28, car 01): a road_centerline stop for a 1-2 frame ordering /
+    # pairing failure (GEOMETRY_GLITCH_REASONS) is a tolerable dropout instead of a lock, so
+    # the last solved sequence runs for up to reference_dropout_tolerance_s. Car start-ups and
+    # Gym right-angle corners ended whole runs on such single frames.
+    geometry_glitch_tolerable: bool = False
     # Drive-bias estimate (integral action on the model's one-step speed residual):
     # bias += drive_bias_gain * (predicted - measured speed) * dt, clipped to +/-drive_bias_max.
     # It shifts the effective deadband. 0 gain = off.
@@ -4133,7 +4138,8 @@ class MPCSettings:
     reference_curvature_clearance_m: float = 0.03
 
     def __post_init__(self):
-        for name in ("enabled", "shadow", "bypass_acknowledged", "solver_fail_tolerable", "measured_motion"):
+        for name in ("enabled", "shadow", "bypass_acknowledged", "solver_fail_tolerable", "measured_motion",
+                     "geometry_glitch_tolerable"):
             if not isinstance(getattr(self, name), bool):
                 raise ValueError(f"mpc.{name} must be bool")
         if self.reference_source not in ("planning", "estimation_centerline"):
@@ -5241,6 +5247,10 @@ class MPCController:
     drive with the MPC's steering until the wheels move, then phase "tracking" lets the MPC
     choose the drive above the effective deadband (vehicle.drive_deadband + bias).
     """
+    # mpc.geometry_glitch_tolerable: road_centerline stops that are 1-2 frame estimator
+    # geometry failures (no hold exists for them; see MPCSettings).
+    GEOMETRY_GLITCH_REASONS = frozenset({"invalid_road_invalid_ordered_geometry",
+                                         "invalid_road_invalid_boundary_pairing"})
 
     def __init__(self, cfg, vehicle=None, solver=None):
         self.cfg = cfg
@@ -5592,6 +5602,9 @@ class MPCController:
         if not traj.get("valid"):
             return reject("ref_invalid", traj.get("reason") or "ref_invalid", tolerable=True)
         if traj.get("stop_required"):
+            if (cfg.geometry_glitch_tolerable and traj.get("reason") in self.GEOMETRY_GLITCH_REASONS
+                    and traj.get("planned_stop") is not True):
+                return reject("ref_invalid", traj["reason"], tolerable=True)
             return reject("stop", traj.get("reason") or "stop_required")
         if (not finite_number(stamp) or not finite_number(lifetime) or not finite_number(now_s)
                 or not stamp-1e-6 <= now_s < stamp+lifetime):
