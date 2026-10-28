@@ -140,8 +140,8 @@ else:
     from rclpy.qos import QoSProfile, ReliabilityPolicy
     from rclpy.time import Time
     from rcl_interfaces.msg import ParameterDescriptor, SetParametersResult
-    from sensor_msgs.msg import Imu, LaserScan
-    from geometry_msgs.msg import PoseStamped
+    from sensor_msgs.msg import Imu, LaserScan, PointCloud
+    from geometry_msgs.msg import PoseStamped, Point32
     from nav_msgs.msg import Path as TrajectoryPath   # pathlib.Path stays the planner worker's
     from std_msgs.msg import Float32, Int8, String, UInt16
     from dream_interfaces.msg import (ConeDetection, ConeDetections, DriveAndSteer,
@@ -240,6 +240,197 @@ def roll_pitch_yaw(q):
 
 def wrap_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
+
+
+@dataclass
+class LidarObstacleSettings:
+    """前方矩形检测区 / Forward detection with an independent stop switch."""
+    enabled: bool = False  # 裸节点保持兼容；本分支 YAML 开启 / Enabled by branch YAML.
+    stop_enabled: bool = True  # 检测与停车分开 / Detect-only mode keeps telemetry.
+    body_width_m: float = 0.250
+    front_from_cg_m: float = 0.297
+    side_margin_m: float = 0.02
+    roi_half_width_m: float = 0.0  # 0 沿用车宽 / Explicit detection half-width override.
+    range_min_m: float = 0.2  # 可观测区下限，不伪造驱动标定 / Observation lower bound.
+    allow_no_return_clear: bool = False  # 激进假设由 YAML 显式开启 / Explicit opt-in.
+    stop_distance_m: float = 1.0  # 从车头量起，待上车确认 / From bumper; provisional.
+    cluster_gap_m: float = 0.06
+    min_cluster_points: int = 2
+    min_known_fraction: float = 0.7
+
+    def __post_init__(self):
+        if not isinstance(self.enabled, bool):
+            raise ValueError("lidar_obstacle.enabled must be boolean")
+        if not isinstance(self.stop_enabled, bool):
+            raise ValueError("lidar_obstacle.stop_enabled must be boolean")
+        if not isinstance(self.allow_no_return_clear, bool):
+            raise ValueError("lidar_obstacle.allow_no_return_clear must be boolean")
+        for name in ("body_width_m", "front_from_cg_m", "stop_distance_m", "cluster_gap_m"):
+            if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
+                raise ValueError(f"lidar_obstacle.{name} must be positive and finite")
+        if not finite_number(self.side_margin_m) or self.side_margin_m < 0:
+            raise ValueError("lidar_obstacle.side_margin_m must be finite and nonnegative")
+        if not finite_number(self.roi_half_width_m) or self.roi_half_width_m < 0:
+            raise ValueError("lidar_obstacle.roi_half_width_m must be finite and nonnegative")
+        if not finite_number(self.range_min_m) or self.range_min_m < 0:
+            raise ValueError("lidar_obstacle.range_min_m must be finite and nonnegative")
+        if (not isinstance(self.min_cluster_points, int) or isinstance(self.min_cluster_points, bool)
+                or not 1 <= self.min_cluster_points <= 16):
+            raise ValueError("lidar_obstacle.min_cluster_points must be an integer in [1,16]")
+        if not finite_number(self.min_known_fraction) or not 0 < self.min_known_fraction <= 1:
+            raise ValueError("lidar_obstacle.min_known_fraction must be in (0,1]")
+
+
+def lidar_roi_bounds(settings):
+    half_width = settings.roi_half_width_m or settings.body_width_m/2 + settings.side_margin_m
+    return ((settings.front_from_cg_m, settings.front_from_cg_m+settings.stop_distance_m),
+            (-half_width, half_width))
+
+
+def _lidar_ray_rectangle(origin, direction, bounds):
+    """Ray/XY slab interval, measured along the original 3D unit scan ray."""
+    enter, leave = 0.0, math.inf
+    for axis, (lo, hi) in enumerate(bounds):
+        if abs(direction[axis]) < 1e-12:
+            if not lo <= origin[axis] <= hi:
+                return None
+        else:
+            a, b = (lo-origin[axis])/direction[axis], (hi-origin[axis])/direction[axis]
+            enter, leave = max(enter, min(a, b)), min(leave, max(a, b))
+    return (enter, leave) if leave > enter and leave > 0 else None
+
+
+def detect_lidar_obstacles(scan, cartesian, settings, stamp_ns=None):
+    """O(N), no ROS dependency. 保留近点与原始索引 / Keep close hits and ray indices.
+
+    Finite/range filtering and mounting TF precede this function. Sparse groups
+    remain candidates (UNKNOWN), never silently become free space. No smoothing
+    across edges, inferred object class, temporal tracking or scan deskew.
+    """
+    cfg = settings
+    bounds = lidar_roi_bounds(cfg)
+    half_width = bounds[1][1]
+    result = {"status": "UNKNOWN", "reason": "invalid_scan", "available": False,
+              "measurement_timestamp_s": None if stamp_ns is None else stamp_ns/1e9,
+              "frame_id": "base_link", "roi_xy_m": bounds,
+              "points_xyz_m": [], "scan_indices": [], "clusters": [],
+              "candidate_clusters": [], "nearest_bumper_distance_m": None,
+              "known_fraction": 0.0, "usable_fraction": 0.0, "roi_ray_count": 0,
+              "blind_roi_ray_count": 0, "assumed_clear_ray_count": 0,
+              "allow_no_return_clear": cfg.allow_no_return_clear}
+    if not isinstance(scan, dict) or not isinstance(cartesian, dict):
+        return result
+    ranges, points, indices = scan.get("ranges"), cartesian.get("points_xyz"), cartesian.get("scan_indices")
+    origin = cartesian.get("ray_origin_xyz_m")
+    axes = cartesian.get("ray_axes_xyz")
+    if (cartesian.get("frame_id") != "base_link" or not isinstance(ranges, (list, tuple))
+            or not 3 <= len(ranges) <= 4096 or not isinstance(points, (list, tuple))
+            or not isinstance(indices, (list, tuple)) or len(points) != len(indices)
+            or not isinstance(origin, (list, tuple)) or len(origin) != 3
+            or not isinstance(axes, (list, tuple)) or len(axes) != 2
+            or not all(isinstance(a, (list, tuple)) and len(a) == 3 for a in axes)
+            or not all(finite_number(v) for a in (origin, *axes) for v in a)):
+        return result
+    metadata = [scan.get(k) for k in ("angle_min", "angle_increment", "range_min", "range_max")]
+    if not all(finite_number(v) for v in metadata):
+        return result
+    angle_min, increment, range_min, range_max = metadata
+    effective_min = max(range_min, cfg.range_min_m)
+    result["effective_range_min_m"] = effective_min
+    if effective_min >= range_max:
+        result["reason"] = "range_min_exceeds_sensor_max"
+        return result
+    # 首版仅支持水平全周扫描 / Require a level full revolution for ROI coverage.
+    if (increment <= 0 or range_min < 0 or range_max <= range_min
+            or abs(len(ranges)*increment-2*math.pi) > 1.5*increment
+            or any(abs(a[2]) > 0.1 for a in axes)
+            or origin[0] >= bounds[0][0]):
+        result["reason"] = "unsupported_scan_or_mount"
+        return result
+    previous_index = -1
+    for point, index in zip(points, indices):
+        if (not isinstance(index, int) or isinstance(index, bool) or not previous_index < index < len(ranges)
+                or not isinstance(point, (tuple, list)) or len(point) != 3
+                or not all(finite_number(v) for v in point)):
+            return result
+        previous_index = index
+    result.update(available=True, reason="no_hits_in_roi")
+    groups, group = [], []
+    previous = None
+    for point, index in zip(points, indices):
+        x, y, _ = point
+        if not (bounds[0][0] <= x <= bounds[0][1] and abs(y) <= half_width):
+            if group:
+                groups.append(group)
+                group = []
+            previous = None
+            continue
+        # No bridging across missing/invalid/out-of-ROI rays. Adaptive allowance
+        # accommodates the increasing beam spacing at larger measured ranges.
+        if previous is not None:
+            last_point, last_index = previous
+            gap = cfg.cluster_gap_m + 2*math.dist(point, origin)*increment
+            if index != last_index+1 or math.dist(point[:2], last_point[:2]) > gap:
+                groups.append(group)
+                group = []
+        group.append((point, index))
+        previous = (point, index)
+        result["points_xyz_m"].append(tuple(point))
+        result["scan_indices"].append(index)
+    if group:
+        groups.append(group)
+    for group in groups:
+        xs, ys = [p[0][0] for p in group], [p[0][1] for p in group]
+        cluster = {"point_count": len(group), "bbox_xy_m": (min(xs), max(xs), min(ys), max(ys)),
+                   "centroid_xy_m": (sum(xs)/len(xs), sum(ys)/len(ys)),
+                   "nearest_bumper_distance_m": min(xs)-cfg.front_from_cg_m,
+                   "points_xyz_m": [tuple(p) for p, _ in group],
+                   "scan_indices": [i for _, i in group]}
+        key = "clusters" if len(group) >= cfg.min_cluster_points else "candidate_clusters"
+        result[key].append(cluster)
+    if result["points_xyz_m"]:
+        result["nearest_bumper_distance_m"] = min(p[0] for p in result["points_xyz_m"])-cfg.front_from_cg_m
+
+    # 只评价量程可见部分 / Evaluate the observable ROI, not the blind prefix.
+    # Positive infinity is an explicit aggressive no-return assumption, not
+    # measured free space. NaN/-inf/out-of-range and nearer occlusion stay unknown.
+    # Already supplied valid close hits above remain obstacles even <effective_min.
+    known, assumed, eligible, blind = 0, 0, 0, 0
+    for i, distance in enumerate(ranges):
+        angle = angle_min + i*increment
+        cosine, sine = math.cos(angle), math.sin(angle)
+        direction = tuple(cosine*axes[0][k]+sine*axes[1][k] for k in range(3))
+        interval = _lidar_ray_rectangle(origin, direction, bounds)
+        if interval is None:
+            continue
+        enter, leave = interval
+        observable_enter = max(enter, effective_min)
+        if leave <= observable_enter:
+            blind += 1
+            continue
+        eligible += 1
+        if (finite_number(distance) and effective_min <= distance <= range_max
+                and distance >= observable_enter):
+            known += 1
+        elif (cfg.allow_no_return_clear and isinstance(distance, Real) and distance == math.inf
+              and range_max >= leave):
+            assumed += 1
+    result["roi_ray_count"] = eligible
+    result["blind_roi_ray_count"] = blind
+    result["assumed_clear_ray_count"] = assumed
+    result["known_fraction"] = known/eligible if eligible else 0.0
+    result["usable_fraction"] = (known+assumed)/eligible if eligible else 0.0
+    if result["clusters"]:
+        result.update(status="OBSTACLE", reason="cluster_in_stop_roi")
+    elif result["candidate_clusters"]:
+        result["reason"] = "sparse_hit_in_stop_roi"
+    elif eligible < 3 or result["usable_fraction"] < cfg.min_known_fraction:
+        result["reason"] = "insufficient_roi_returns"
+    else:
+        result["status"] = "CLEAR"
+        if assumed:
+            result["reason"] = "no_hits_in_observable_roi_assumed_clear"
+    return result
 
 
 @dataclass(frozen=True)
@@ -6527,8 +6718,9 @@ class ShadowSettings:
     """New shadow-only design. No settings or code from the archived lattice.
 
     Dimensions below are explicitly provisional; replace with measurements for
-    the tested car. No actuator/vehicle model or clearance padding is used.
-    This module never produces actuator messages or changes baseline admission.
+    the tested car. No actuator/vehicle model is used. Optional LiDAR ranking
+    and swept-body feasibility share the configured rectangle and margin.
+    This planner returns geometry; the policy adapter owns waiting/stopping.
     """
     enabled: bool = False
     rate_hz: float = 1.0
@@ -6557,6 +6749,11 @@ class ShadowSettings:
     weight_heading: float = 1.5
     weight_progress: float = 2.0
     weight_smoothness: float = 0.04
+    # Loss alone never stops; optional body overlap rejection is independent of cost.
+    obstacle_avoidance_enabled: bool = False
+    obstacle_check_enabled: bool = False
+    weight_obstacle: float = 30.0
+    obstacle_margin_m: float = 0.02
     fusion_enabled: bool = True
     fusion_window_s: float = 1.0
     fusion_max_samples: int = 21
@@ -6580,6 +6777,10 @@ class ShadowSettings:
             raise ValueError("shadow.fusion_enabled must be boolean")
         if not isinstance(self.fusion_use_prior, bool):
             raise ValueError("shadow.fusion_use_prior must be boolean")
+        if not isinstance(self.obstacle_avoidance_enabled, bool):
+            raise ValueError("shadow.obstacle_avoidance_enabled must be boolean")
+        if not isinstance(self.obstacle_check_enabled, bool):
+            raise ValueError("shadow.obstacle_check_enabled must be boolean")
         if type(self.fusion_max_samples) is not int or not 1 <= self.fusion_max_samples <= 128:
             raise ValueError("shadow.fusion_max_samples must be an integer in [1,128]")
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
@@ -6592,6 +6793,7 @@ class ShadowSettings:
                 raise ValueError("shadow."+name+" must be prefix or generated")
         for name, value in vars(self).items():
             if name in ("enabled", "sample_count", "fusion_enabled", "fusion_use_prior", "fusion_max_samples",
+                        "obstacle_avoidance_enabled", "obstacle_check_enabled",
                         "check_length_mode", "collision_coverage", "score_coverage"):
                 continue
             if not finite_number(value) or value < 0:
@@ -7063,12 +7265,127 @@ def _shadow_fuse_road(job, cfg):
         "hard_boundaries": "unchanged_current_input", "reference_is_observed_boundary": False}
 
 
+def _shadow_obstacle_input(estimates, lidar_cfg, frame_id):
+    """One ROI extraction for planning and for avoiding an unchecked baseline."""
+    if lidar_cfg is None or not lidar_cfg.enabled:
+        return {}
+    source = estimates.get("obstacles") or {}
+    bounds = lidar_roi_bounds(lidar_cfg)
+    result = {key: source.get(key) for key in
+              ("available", "time_aligned", "timestamp_s", "measurement_timestamp_s", "source_age_s")}
+    result.update(roi_xy_m=bounds, points_xyz_m=[list(p) for p in source.get("points_xyz_m", [])
+        if bounds[0][0] <= p[0] <= bounds[0][1] and bounds[1][0] <= p[1] <= bounds[1][1]])
+    if source.get("frame_id") != frame_id:
+        result["available"] = False
+    return result
+
+
+def _shadow_soft_road_failure(reason):
+    """Geometry gaps only; motion faults and explicit conflicts are not bridged."""
+    return reason in {"invalid_road_invalid_ordered_geometry", "invalid_road_invalid_boundary_pairing",
+        "invalid_road_motion_transformed_geometry_invalid", "invalid_road_insufficient_geometry",
+        "invalid_road_unavailable"}
+
+
+def _shadow_obstacle_context(job, cfg):
+    """Index the current aligned ROI once per job. Missing input adds no cost."""
+    source = job.get("obstacles") or {}
+    diag = {"status": "DISABLED", "point_count": 0, "weight": cfg.weight_obstacle,
+            "margin_m": cfg.obstacle_margin_m, "coverage": "generated",
+            "measurement_timestamp_s": source.get("measurement_timestamp_s"),
+            "source_age_s": source.get("source_age_s"), "roi_xy_m": source.get("roi_xy_m")}
+    cell = max(cfg.body_front_m, cfg.body_rear_m, cfg.body_width_m)
+    grid = {}
+    if cfg.obstacle_avoidance_enabled and (cfg.weight_obstacle > 0 or cfg.obstacle_check_enabled):
+        diag["status"] = "UNAVAILABLE"
+        stamp = source.get("timestamp_s")
+        if (source.get("available") is True and source.get("time_aligned") is True
+                and finite_number(stamp) and finite_number(job.get("stamp_s"))
+                and abs(stamp-job["stamp_s"]) <= 1e-6):
+            bounds = source.get("roi_xy_m")
+            for point in source.get("points_xyz_m") or []:
+                if len(point) < 2 or not all(finite_number(v) for v in point[:2]):
+                    continue
+                x, y = point[:2]
+                if bounds and not (bounds[0][0] <= x <= bounds[0][1] and bounds[1][0] <= y <= bounds[1][1]):
+                    continue
+                grid.setdefault((math.floor(x/cell), math.floor(y/cell)), []).append((x, y))
+                diag["point_count"] += 1
+            diag["status"] = "ACTIVE" if grid else "CLEAR"
+    return grid, cell, diag
+
+
+def _shadow_obstacle_distances(pose, context, cfg, padding, overlap_only=False):
+    """Nearby measured points and signed distance to this oriented footprint."""
+    grid, cell, _ = context
+    x, y, heading = pose
+    c, s = math.cos(heading), math.sin(heading)
+    half = cfg.body_width_m/2
+    along, across = max(cfg.body_front_m, cfg.body_rear_m)+padding, half+padding
+    rx, ry = abs(c)*along+abs(s)*across, abs(s)*along+abs(c)*across
+    for ix in range(math.floor((x-rx)/cell), math.floor((x+rx)/cell)+1):
+        for iy in range(math.floor((y-ry)/cell), math.floor((y+ry)/cell)+1):
+            for ox, oy in grid.get((ix, iy), ()):
+                dx, dy = ox-x, oy-y
+                local_x, local_y = c*dx+s*dy, -s*dx+c*dy
+                qx = max(local_x-cfg.body_front_m, -cfg.body_rear_m-local_x)
+                qy = abs(local_y)-half
+                if overlap_only and (qx >= padding or qy >= padding):
+                    continue
+                distance = max(qx, qy) if qx <= 0.0 or qy <= 0.0 else math.hypot(qx, qy)
+                yield distance, (ox, oy)
+
+
+def _shadow_obstacle_collision(path, context, cfg):
+    """Whole-path body sweep against measured points, using existing resolutions."""
+    if not cfg.obstacle_check_enabled or not context[0]:
+        return None
+    previous = path[0]
+    for point in path:
+        angle = wrap_angle(point[2]-previous[2])
+        count = max(1, math.ceil(math.dist(point[:2], previous[:2])/cfg.sweep_translation_step_m),
+                    math.ceil(abs(angle)/cfg.sweep_rotation_step_rad))
+        for i in range(1, count+1):
+            u = i/count
+            pose = (previous[0]+u*(point[0]-previous[0]), previous[1]+u*(point[1]-previous[1]),
+                    previous[2]+u*angle)
+            for distance, hit in _shadow_obstacle_distances(pose, context, cfg, cfg.obstacle_margin_m, True):
+                if distance < cfg.obstacle_margin_m-1e-9:
+                    return {"side": "lidar", "point_xy_m": hit, "pose": pose,
+                            "clearance_m": distance, "reason": "body_obstacle_overlap"}
+        previous = point
+    return None
+
+
+def _shadow_obstacle_score(path, context, cfg):
+    """Finite whole-path proximity cost, using sampled oriented body rectangles.
+
+    Half a body width is the soft fall-off scale, not another collision gate.
+    Peak plus mean exposure avoids dependence on the number of laser returns.
+    A reported clearance is the minimum among points in the local query boxes;
+    None means no nearby point was scored, not verified free space.
+    """
+    if not context[0]:
+        return 0.0, None
+    half = cfg.body_width_m/2
+    padding = cfg.obstacle_margin_m+half
+    peak, exposure, clearance = 0.0, 0.0, None
+    for pose in path:
+        penalty = 0.0
+        for distance, _ in _shadow_obstacle_distances(pose, context, cfg, padding):
+            clearance = distance if clearance is None else min(clearance, distance)
+            penalty = max(penalty, max(0.0, (padding-distance)/half)**2)
+        peak = max(peak, penalty)
+        exposure += penalty
+    return peak+exposure/max(1, len(path)), clearance
+
+
 class ShadowLatticePlanner:
     """Fresh bounded sampler / prefix ranker, deliberately permissive about road.
 
     Input validity flags, short coverage, absent sides, slope, curvature and
     normalized steering requests are NOT admission gates. Only absent usable
-    geometry suppresses generation. Known-prefix collisions remove candidates;
+    geometry suppresses generation. Known-road and optional LiDAR overlaps remove candidates;
     ALL_COLLIDE keeps the ranked diagnostic candidate without calling it valid.
     """
     def __init__(self, settings):
@@ -7224,6 +7541,7 @@ class ShadowLatticePlanner:
         boundaries = {side: value for side, value in (("left", left), ("right", right))
                       if value and sources.get(side) in ("observed", "observed_with_history")}
         timing["sampling"] = time.perf_counter()-phase_started
+        obstacle_context = _shadow_obstacle_context(job, cfg)
         candidates = []
         # mpc-car-run adaptation (from sim-branch 92ef303): candidates share knot
         # stations, so look each one up once per job.
@@ -7243,6 +7561,8 @@ class ShadowLatticePlanner:
             timing["generation"] += next_phase-phase_started
             phase_started = next_phase
             collision = _shadow_collision(path, check, boundaries, cfg)
+            if collision is None:
+                collision = _shadow_obstacle_collision(path, obstacle_context, cfg)
             next_phase = time.perf_counter()
             timing["collision"] += next_phase-phase_started
             phase_started = next_phase
@@ -7272,10 +7592,15 @@ class ShadowLatticePlanner:
                      "smoothness": smooth/max(1, len(scoring_samples))}
             if cfg.weight_curvature > 0:
                 costs["curvature"] = _shadow_curvature_excess(path, arc, control_read_length, cfg)
+            obstacle_cost, obstacle_clearance = _shadow_obstacle_score(path, obstacle_context, cfg)
+            if cfg.obstacle_avoidance_enabled:
+                costs["obstacle"] = obstacle_cost
             cost = sum(getattr(cfg, "weight_"+key)*value for key, value in costs.items())
             candidates.append({"id": candidate_id, "family": family, "offsets_m": offsets,
                 "cost": cost, "costs": costs, "collision": collision, "path": path,
                 "scoring_samples": scoring_samples})
+            if cfg.obstacle_avoidance_enabled:
+                candidates[-1]["obstacle_clearance_m"] = obstacle_clearance
             timing["scoring"] += time.perf_counter()-phase_started
         phase_started = time.perf_counter()
         feasible = [c for c in candidates if c["collision"] is None]
@@ -7304,6 +7629,17 @@ class ShadowLatticePlanner:
                 "collision_method": "adaptive_pose_sampling_no_padding",
                 "checked_only_known_supported_boundaries": True,
                 "observed_centerline_length_m": frame.end}
+        if cfg.obstacle_avoidance_enabled:
+            result["planning_input"]["obstacles"] = job.get("obstacles")
+            result["obstacle_avoidance"] = {**obstacle_context[2],
+                "selected_cost": selected["costs"].get("obstacle", 0.0),
+                "selected_weighted_cost": cfg.weight_obstacle*selected["costs"].get("obstacle", 0.0),
+                "selected_nearby_clearance_m": selected.get("obstacle_clearance_m"),
+                "hard_rejection": cfg.obstacle_check_enabled,
+                "minimum_straight_gap_m": cfg.body_width_m+2*cfg.obstacle_margin_m}
+            result["stop_required"] = bool(cfg.obstacle_check_enabled and obstacle_context[0] and not feasible)
+            if result["stop_required"]:
+                result["reason"] = "no_passable_obstacle_path"
         finished = time.perf_counter()
         timing["assembly"] = finished-phase_started
         elapsed = finished-started
@@ -7428,8 +7764,16 @@ class PlannerExecutionManager:
         self.last_result_stamp_s = None
         self.last_result_status = None
         self.diagnostics = {}
+        self.last_good_road = self.last_good_road_pose = self.last_good_road_epoch = None
+        self.road_dropout_started_s = None
 
-    def accept(self, result):
+    def accept(self, result, preserve_no_road=False):
+        # A road-data gap is not an obstacle collision. Retain only an already
+        # checked path; its identity, anchor and original timestamps stay intact.
+        if (preserve_no_road and result.get("status") == "NO_ROAD" and not result.get("stop_required")
+                and self.active is not None and self.active.get("obstacle_checked")):
+            self.active["retained_no_road_job_id"] = result.get("job_id")
+            return
         # A completed planning failure immediately selects baseline, rather
         # than silently continuing the previous successful trajectory.
         self.active = None
@@ -7456,7 +7800,9 @@ class PlannerExecutionManager:
             return
         self.active = {"path": [tuple(p) for p in path], "pose": list(pose),
             "epoch": anchor["odometry_epoch"], "stamp_s": self.last_result_stamp_s,
-            "measurement_stamp_s": result.get("measurement_stamp_s"), "progress_m": 0.0}
+            "measurement_stamp_s": result.get("measurement_stamp_s"), "progress_m": 0.0,
+            "obstacle_checked": bool((result.get("obstacle_avoidance") or {}).get("hard_rejection")
+                and (result.get("obstacle_avoidance") or {}).get("status") == "ACTIVE")}
         self.reason = "planner_ready"
 
     def select(self, road, state, pose, epoch, cfg, preview_m, target_speed_mps,
@@ -7508,6 +7854,8 @@ class PlannerExecutionManager:
             remaining_preview_time_s=max(0.0, remaining-preview_m)/speed if speed > 1e-9 else None,
             measurement_stamp_s=active["measurement_stamp_s"], odometry_epoch=epoch,
             current_pose=list(pose), execution_lifetime_s=execution_lifetime_s)
+        if "retained_no_road_job_id" in active:
+            self.diagnostics["retained_no_road_job_id"] = active["retained_no_road_job_id"]
         if remaining+1e-9 < needed:
             return fallback("preview_coverage_exhausted")
         cropped = [_path_sample(points, arc, progress)]
@@ -7607,6 +7955,16 @@ class PolicyNode(Node):
         self.sensor_timeout_s = {
             name: self.get_parameter(f"sensor_timeout_s.{name}").value for name in SENSORS}
         self._validate_parameters()
+        self.get_logger().info("Policy revision: fusion-mpc-lidar-road-hold-20261028")
+        lidar_values = {}
+        for name, default in vars(LidarObstacleSettings()).items():
+            key = f"lidar_obstacle.{name}"
+            self.declare_parameter(key, default, ParameterDescriptor(read_only=True))
+            lidar_values[name] = self.get_parameter(key).value
+        self.lidar_obstacle_settings = LidarObstacleSettings(**lidar_values)
+        self.lidar_obstacle_output = None
+        self._lidar_obstacle_stamp_ns = None
+        self._lidar_obstacle_publication_key = None
         self.identification_config = {
             name: self.get_parameter(f"id_test.{name}").value
             for name in IDENTIFICATION_DEFAULTS}
@@ -7787,6 +8145,9 @@ class PolicyNode(Node):
         self.pan_publisher = self.create_publisher(Float32, "pan_set_point_normalized", reliable_one)
         self.state_publisher = self.create_publisher(Int8, "policy_fsm_state_value", 10)
         self.state_text_publisher = self.create_publisher(String, "policy_fsm_state_string", 10)
+        self.lidar_obstacle_publisher = self.create_publisher(String, "lidar_obstacles", 1)
+        self.lidar_points_publisher = self.create_publisher(PointCloud, "lidar_roi_points", 1)
+        self.lidar_roi_publisher = self.create_publisher(TrajectoryPath, "lidar_roi", 1)
         self.heading_publisher = self.create_publisher(Float32, "imu_heading_angle", 10)
         self.debug1_publisher = self.create_publisher(Float32, "debug1", 10)
         self.debug2_publisher = self.create_publisher(Float32, "debug2", 10)
@@ -8126,6 +8487,9 @@ class PolicyNode(Node):
                 or abs(msg.angle_min + (len(msg.ranges)-1)*msg.angle_increment - msg.angle_max)
                 > max(0.001, 1.1*msg.angle_increment)):
             self._warn("lidar_invalid", "Ignoring lidar scan with invalid shape, frame, or metadata")
+            if getattr(getattr(self, "lidar_obstacle_settings", None), "enabled", False):
+                self.observations["lidar_scan"] = None
+                self.observations["lidar_cartesian"] = None
             return
         # Infinity/NaN and out-of-range individual rays are normal possibilities
         # in LaserScan. Preserve them for the student to filter, not as zeros.
@@ -8177,7 +8541,10 @@ class PolicyNode(Node):
                 raise ValueError("Cartesian lidar point is not finite")
             points.append(point)
             indices.append(index)
-        return {"points_xyz": points, "scan_indices": indices, "frame_id": self.policy_frame_id}
+        result = {"points_xyz": points, "scan_indices": indices, "frame_id": self.policy_frame_id}
+        if getattr(getattr(self, "lidar_obstacle_settings", None), "enabled", False):
+            result.update(ray_origin_xyz_m=offsets, ray_axes_xyz=(x_axis, y_axis))
+        return result
 
     def wheel_speed_callback(self, msg):
         now, ros_now = self._times()
@@ -8289,8 +8656,7 @@ class PolicyNode(Node):
         self._publish_actions(drive, steer, pan)
         if hasattr(self, "planner_execution_publisher"):
             self._publish_planner_execution()
-        # Offer AFTER the baseline action, never on its calculation/exception path.
-        # This is a diagnostic side channel; failures cannot change the action/FSM.
+        # Submit after publishing; transport stays off the control executor.
         if getattr(self, "shadow_worker", None) is not None:
             try:
                 self._shadow_offer()
@@ -8767,6 +9133,24 @@ class PolicyNode(Node):
             planner_control = getattr(self, "planner_control_settings", None)
             planner_requested = planner_control is not None and planner_control.enabled
             planner_traj = self._select_mpc_planner_trajectory(estimates) if planner_requested else None
+            shadow_cfg = getattr(self, "shadow_settings", None)
+            if (planner_requested and shadow_cfg is not None and shadow_cfg.obstacle_avoidance_enabled
+                    and shadow_cfg.obstacle_check_enabled):
+                obstacle_input = _shadow_obstacle_input(estimates,
+                    getattr(self, "lidar_obstacle_settings", None), self.policy_frame_id)
+                has_obstacles = (obstacle_input.get("available") is True
+                    and obstacle_input.get("time_aligned") is True
+                    and obstacle_input.get("timestamp_s") == state.get("timestamp_s")
+                    and bool(obstacle_input.get("points_xyz_m")))
+                active = self.planner_execution.active or {}
+                expired_hold = self.planner_execution.diagnostics.get("reason") == "road_dropout_timeout"
+                if expired_hold or has_obstacles and (planner_traj is None or not active.get("obstacle_checked")):
+                    # Do not drive the unchecked centerline while waiting/replanning.
+                    self.planner_execution.diagnostics.update(mode="waiting", fallback=False,
+                        reason="road_dropout_timeout" if expired_hold else "waiting_for_obstacle_checked_path")
+                    self.mpc_controller = None  # discard held inputs while output is zero
+                    self.mpc_held_reference = self._trajectory_reference = self._mpc_trajectory = None
+                    return 0.0, 0.0, None, None, None
             # Same bounded priming as the MVP: delayed camera data may predate the
             # motion history reset at start. Only BEFORE the first accepted MPC step.
             # With async planning, also wait out the worker's first result and a
@@ -9015,7 +9399,7 @@ class PolicyNode(Node):
         return max(self.planning_settings.preview_m, speed*(mpc.horizon_n*mpc.dt_pred_s+delay))
 
     def _select_planner_reference(self, estimates):
-        """Opt-in adapter faults return THIS tick's baseline, never Stop."""
+        """Return a checked reference or None for the caller's fallback/wait."""
         try:
             road = estimates.get("road") or {}
             if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
@@ -9029,24 +9413,70 @@ class PolicyNode(Node):
                     "reason": "baseline_stop_request", "requested_source": "planner"}
                 return None
             # mpc-car-run adaptation: see PlannerControlSettings.require_valid_baseline.
+            manager = self.planner_execution
+            baseline_valid = self.planning_output.get("valid") is True
+            reused_road, dropout_age = False, 0.0
             if (self.planner_control_settings.require_valid_baseline
-                    and self.planning_output.get("valid") is not True):
-                self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
-                    "reason": "baseline_invalid: "+str(self.planning_output.get("reason")),
-                    "requested_source": "planner"}
-                return None
+                    and not baseline_valid):
+                active = manager.active or {}
+                limit = self.mpc_settings.reference_dropout_tolerance_s
+                can_bridge = (self.mpc_settings.geometry_glitch_tolerable and limit > 0
+                    and self.shadow_settings.obstacle_check_enabled and active.get("obstacle_checked")
+                    and _shadow_soft_road_failure(self.planning_output.get("reason"))
+                    and manager.last_good_road is not None
+                    and manager.last_good_road_epoch == self.shadow_odometry_epoch == active.get("epoch"))
+                if can_bridge:
+                    if manager.road_dropout_started_s is None:
+                        manager.road_dropout_started_s = self._monotonic()
+                    dropout_age = self._monotonic()-manager.road_dropout_started_s
+                    if dropout_age >= limit-1e-9:
+                        manager.diagnostics = {"mode": "waiting", "fallback": False,
+                            "reason": "road_dropout_timeout", "road_dropout_elapsed_s": dropout_age,
+                            "road_dropout_limit_s": limit, "requested_source": "planner"}
+                        return None
+                    # Transport the last trustworthy road support, never mark it
+                    # as a new measurement. select still checks motion/coverage/body.
+                    road = deepcopy(manager.last_good_road)
+                    for side in ("left", "right"):
+                        key = side+"_boundary_xy"
+                        road[key] = _shadow_pose_points(road.get(key) or [],
+                            manager.last_good_road_pose, self.shadow_pose)
+                    road.update(timestamp_s=state["timestamp_s"], time_aligned=True)
+                    reused_road = True
+                else:
+                    manager.diagnostics = {"mode": "baseline", "fallback": True,
+                        "reason": "baseline_invalid: "+str(self.planning_output.get("reason")),
+                        "requested_source": "planner"}
+                    return None
+            elif baseline_valid:
+                manager.road_dropout_started_s = None
             period = 1/self.policy_update_rate_hz
             # mpc-car-run adaptation: MPC preview distance and dt limit, not the PID's.
-            return self.planner_execution.select(road, state, self.shadow_pose, self.shadow_odometry_epoch,
+            reference = manager.select(road, state, self.shadow_pose, self.shadow_odometry_epoch,
                 self.shadow_settings, self.planner_preview_m, self.planning_settings.cruise_speed_mps,
                 period, self.mpc_settings.dt_max_s+period)
+            if reference is not None and reused_road:
+                manager.diagnostics.update(reason="planner_tracking_road_dropout",
+                    road_dropout_elapsed_s=dropout_age, road_dropout_limit_s=limit,
+                    road_support="motion_transported_cached",
+                    road_measurement_stamp_s=road.get("measurement_timestamp_s"))
+            elif reference is not None and baseline_valid:
+                keys = ("left_boundary_xy", "right_boundary_xy", "boundary_source", "frame_id",
+                        "timestamp_s", "measurement_timestamp_s", "time_aligned")
+                manager.last_good_road = {key: deepcopy(road.get(key)) for key in keys}
+                manager.last_good_road_pose = list(self.shadow_pose)
+                manager.last_good_road_epoch = self.shadow_odometry_epoch
+            elif manager.diagnostics.get("reason") == "known_boundary_collision":
+                manager.last_good_road = None  # a confirmed conflict cannot become a soft gap
+                manager.road_dropout_started_s = None
+            return reference
         except Exception as error:
             self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
                 "requested_source": "planner", "reason": "execution_exception: "+str(error)}
             return None
 
     def _select_mpc_planner_trajectory(self, estimates):
-        """The lattice as an MPC trajectory, or None to use this tick's baseline.
+        """The lattice as an MPC trajectory, or None for the caller's fallback/wait.
 
         Checked with the pure adapter and the horizon projection BEFORE
         MPCController.step: step advances its clock, command history, bias and
@@ -9251,6 +9681,9 @@ class PolicyNode(Node):
                 shadow_odometry_epoch=getattr(self, "shadow_odometry_epoch", 0),
                 temporal_collection=getattr(self, "shadow_collection_diagnostics", None),
                 previous_reference=deepcopy(getattr(self, "shadow_previous_reference", None)))
+        if self.shadow_settings.obstacle_avoidance_enabled:
+            job["obstacles"] = _shadow_obstacle_input(estimates,
+                getattr(self, "lidar_obstacle_settings", None), self.policy_frame_id)
         self.shadow_worker.submit(job)
         self.shadow_last_submit_s = now
 
@@ -9284,8 +9717,19 @@ class PolicyNode(Node):
             if (self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION
                     or result.get("generation") != self.shadow_generation):
                 return
+            if (self.shadow_settings.obstacle_check_enabled and result.get("stop_required")
+                    and getattr(getattr(self, "planner_control_settings", None), "enabled", False)):
+                try:
+                    self.shadow_diagnostics_publisher.publish(String(data=json.dumps(result)))
+                finally:
+                    self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS,
+                        "LiDAR planning: no passable path; explicit resume required")
+                return
             if getattr(getattr(self, "planner_control_settings", None), "enabled", False):
-                self.planner_execution.accept(result)
+                self.planner_execution.accept(result, preserve_no_road=(
+                    self.shadow_settings.obstacle_check_enabled
+                    and self.mpc_settings.geometry_glitch_tolerable
+                    and self.mpc_settings.reference_dropout_tolerance_s > 0))
             guide = (result.get("fusion") or {}).get("guide")
             if (result.get("status") == "VALID" and guide
                     and guide.get("odometry_epoch") == getattr(self, "shadow_odometry_epoch", 0)):
@@ -9334,6 +9778,8 @@ class PolicyNode(Node):
                 selected_family=selected.get("family") if selected else None,
                 result_age_s=self.get_clock().now().nanoseconds/1e9-stamp,
                 **transport)
+            if result.get("obstacle_avoidance"):
+                summary["obstacle_avoidance"] = result["obstacle_avoidance"]
             if result.get("fusion"):
                 summary["fusion"] = {k: result["fusion"].get(k) for k in
                     ("status", "reason", "degraded", "raw_fallback_used", "selected_source",
@@ -9354,6 +9800,9 @@ class PolicyNode(Node):
         return mpc is not None and mpc.enabled and mpc.reference_source == "planning"
 
     def _control_health_problem(self, monotonic_now, ros_now_ns):
+        lidar_problem = self._lidar_stop_problem(monotonic_now, ros_now_ns)
+        if lidar_problem:
+            return lidar_problem
         problem = self.health_problem(monotonic_now, ros_now_ns)
         if not problem or not self._robust_control_enabled():
             return problem
@@ -9410,7 +9859,7 @@ class PolicyNode(Node):
         if requested == self.fsm_state:
             return  # No accidental heading/integrator/time reset on a repeat.
         if requested == FSM_STATE_PUBLISHING_POLICY_ACTION:
-            problem = self.health_problem(now, ros_now)
+            problem = self._lidar_stop_problem(now, ros_now) or self.health_problem(now, ros_now)
             if problem:
                 self.state_reason = f"Policy start refused: {problem}"
                 self.get_logger().warning(self.state_reason)
@@ -9492,6 +9941,61 @@ class PolicyNode(Node):
         """Distance/time budgets guard every controller that can issue drive."""
         mpc = getattr(self, "mpc_settings", None)
         return self.control_settings.enabled or (mpc is not None and mpc.enabled and not mpc.shadow)
+
+    def _lidar_stop_problem(self, monotonic_now, ros_now_ns):
+        """检测/显示与停车分开 / Detect-only mode never gates the planner or MPC."""
+        cfg = getattr(self, "lidar_obstacle_settings", None)
+        if cfg is None or not cfg.enabled:
+            return None
+        raw, cart = (self.observations.get(name) for name in ("lidar_scan", "lidar_cartesian"))
+        fresh = (self._fresh("lidar_scan", monotonic_now, ros_now_ns)
+                 and self._fresh("lidar_cartesian", monotonic_now, ros_now_ns)
+                 and raw.stamp_ns == cart.stamp_ns)
+        if not fresh:
+            self._lidar_obstacle_stamp_ns = None
+            self.lidar_obstacle_output = dict(status="UNKNOWN", available=False,
+                reason="missing_stale_or_unmatched_lidar", frame_id=self.policy_frame_id,
+                measurement_timestamp_s=None if raw is None else raw.stamp_ns/1e9,
+                points_xyz_m=[], scan_indices=[], clusters=[], candidate_clusters=[])
+        elif raw.stamp_ns != self._lidar_obstacle_stamp_ns:
+            try:
+                self.lidar_obstacle_output = detect_lidar_obstacles(raw.value, cart.value, cfg, raw.stamp_ns)
+            except (ValueError, TypeError, KeyError, ArithmeticError) as error:
+                self.lidar_obstacle_output = dict(status="UNKNOWN", available=False,
+                    reason="detector_error: "+str(error), frame_id=self.policy_frame_id,
+                    measurement_timestamp_s=raw.stamp_ns/1e9, points_xyz_m=[], scan_indices=[],
+                    clusters=[], candidate_clusters=[])
+            self._lidar_obstacle_stamp_ns = raw.stamp_ns
+        result = self.lidar_obstacle_output
+        result.update(roi_xy_m=lidar_roi_bounds(cfg), stop_enabled=cfg.stop_enabled,
+            mode="stop" if cfg.stop_enabled else "detect_only",
+            stop_requested=cfg.stop_enabled and result["status"] != "CLEAR",
+            source_age_s=None if raw is None else self._age(raw, monotonic_now, ros_now_ns))
+        key = (result["measurement_timestamp_s"], result["status"], result["reason"])
+        if key != self._lidar_obstacle_publication_key:
+            # Telemetry failure must not change control admission or fabricate clear data.
+            try:
+                self.lidar_obstacle_publisher.publish(String(data=json.dumps(result, allow_nan=False)))
+                stamp = Time(nanoseconds=raw.stamp_ns if fresh else ros_now_ns).to_msg()
+                cloud = PointCloud()
+                cloud.header.frame_id, cloud.header.stamp = self.policy_frame_id, stamp
+                cloud.points = [Point32(x=float(x), y=float(y), z=float(z))
+                                for x,y,z in result["points_xyz_m"]]
+                self.lidar_points_publisher.publish(cloud)
+                rectangle = TrajectoryPath(header=cloud.header)
+                (lo, hi), (right, left) = result["roi_xy_m"]
+                for x,y in ((lo,right),(hi,right),(hi,left),(lo,left),(lo,right)):
+                    pose = PoseStamped(header=rectangle.header)
+                    pose.pose.position.x, pose.pose.position.y = float(x), float(y)
+                    pose.pose.orientation.w = 1.0
+                    rectangle.poses.append(pose)
+                self.lidar_roi_publisher.publish(rectangle)
+                self._lidar_obstacle_publication_key = key
+            except Exception as error:
+                self._warn("lidar_status", "LiDAR visualization unavailable: "+str(error))
+        if result["stop_requested"]:
+            return "Lidar stop: "+result["reason"]+"; explicit resume required"
+        return None
 
     def _publish_trajectory(self, ros_now_ns, force=False):
         """Display the accepted reference (PID or MPC) at 10 Hz; stops clear it.
@@ -9602,8 +10106,9 @@ class PolicyNode(Node):
 
     def supervision_callback(self):
         now, ros_now = self._times()
+        lidar_problem = self._lidar_stop_problem(now, ros_now)
         if self.fsm_state == FSM_STATE_PUBLISHING_POLICY_ACTION:
-            problem = self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
+            problem = lidar_problem or self._control_health_problem(now, ros_now) or self._control_problem(now, ros_now)
             if problem:
                 self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
         elif self.fsm_state == FSM_STATE_PUBLISHING_ZERO_ACTIONS:

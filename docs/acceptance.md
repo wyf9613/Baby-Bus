@@ -1,5 +1,130 @@
 # AI4R policy acceptance
 
+## Operator vehicle feedback — 2026-10-28
+
+Operator reports the current road-hold version can still leave the road.
+Road containment remains unresolved; root cause and repeatability have not been
+established from new logs. Save this version as debugging progress, not a passed
+physical avoidance or road-containment acceptance. The portable results below
+remain offline evidence only. No new runtime/configuration change accompanies
+this report and branch push.
+
+## Checked-path hold across short road dropouts — 2026-10-28
+
+Revision fusion-mpc-lidar-road-hold-20261028. Observed geometry failures made
+require_valid_baseline alternate planner/waiting despite an accepted checked path.
+Reuse that path for at most the existing MPC reference_dropout_tolerance_s=0.5
+when geometry_glitch_tolerable is enabled. Transport cached road boundaries with
+odometry, retain measurement provenance and run the existing execution checks.
+NO_ROAD results do not renew path identity, anchor, source time or the dropout
+deadline. No unchecked startup path, motion-epoch change or confirmed boundary
+collision gains this permission. Timeout publishes zero without an extra MPC hold;
+current-run no-passable-obstacle-path results still latch state2/explicit Run.
+
+299 portable tests pass, including five new actual-node/MPC dropout checks for
+continuous output, unchanged controller/path identity, repeated NO_ROAD timeout,
+healthy recovery, obstacle stop, boundary conflict, epoch change and startup.
+One existing timing-sensitive lattice test now uses the same collect/freeze heap
+isolation as its adjacent test; planner clock, deadlines and assertions are unchanged.
+AST comparison against the preceding passability deployment confirms unchanged
+MPCController, VehicleModelMPC, MPCSettings, ShadowLatticePlanner, ShadowSettings,
+candidate curve and road collision functions. Only execution/node integration and
+a soft-road-failure classifier changed. Target0.5m/s, candidate length/rate and
+obstacle passability remain unchanged. Required ROS fast gate was attempted but
+unavailable (no Bash/ROS Jazzy). No SSH, upload, physical or GUI validation, commit
+or push was performed for this update.
+
+## Reject impassable gaps — 2026-10-28
+
+Operator approved replacing soft-only passage choice with body feasibility and
+stopping when no candidate passes. Dedicated deployment sets body_width_m=0.30,
+obstacle_margin_m=0.0, obstacle_check_enabled=true and collision_coverage=generated.
+The0.30m is nominal straight passage width, not an additional0.30m margin; turns
+use the full oriented body rectangle. Existing numerical sweep resolutions are
+used for observed LiDAR point overlap; known-road collision code is unchanged.
+MPC solver/model, candidate generation, horizon, rate and0.5m/s target are unchanged.
+
+Known aligned ROI obstacles require a checked planner path: while waiting or when
+the adapter cannot accept it, policy publishes zero and clears held MPC inputs,
+without solving an unchecked centerline. Worker stop_required from a current-run
+no-feasible-candidate result latches state2 and zero output, requiring explicit Run.
+Old-generation results cannot stop a new run. Missing LiDAR does not add a stop;
+no high-rate LiDAR path recheck was added. Detector stop_enabled remains false;
+its detect_only label is separate from the new planning stop decision.
+
+294 portable tests pass, including17 avoidance/passability checks: the former
+1m-road/0.4m-obstacle narrow-gap example is now ALL_COLLIDE/stop_required, slightly
+above0.30m straight gaps have no extra margin, rotated-body occupancy is respected,
+a wide-road checked bypass reaches actual MPC execution, pending results keep
+zero actions and no centerline solve, blocked results latch, and run fencing holds.
+Post-optimization laptop medians (48 candidates,3 measured runs after warm-up):
+clear85ms, one central point105ms, dense322-point wall393ms (max402ms).
+These measure the pure planner, not Jetson or complete ROS transport latency.
+Physical passage and stopping remain not_run; zero effort is not verified active
+braking. The mandatory ROS fast gate was attempted but Bash/ROS Jazzy is unavailable
+on this Windows host. No upload, vehicle operation or GitHub push was performed.
+
+## Soft LiDAR bypass ranking — 2026-10-28
+
+ROI follow-up: lateral extent increased to +/-0.6m (forward1.4m retained).
+21 focused detection/avoidance tests pass, including both newly included lateral
+strips. Deployment/base YAML, layout label and manifests are synchronized.
+The286-test run and performance measurements below precede this width change.
+
+Local follow-up on feature/fusion-mpc-lidar-detection. Existing candidate geometry,
+rate, horizon, road rejection and execution adapter are unchanged. The only planner
+algorithm addition is finite whole-generated-path LiDAR proximity cost. Estimator
+points are aligned to the job epoch and cropped to bumper+1.4m / +/-0.6m. The
+dedicated deployment enables soft ranking (weight30, margin0.02m); generic overlays
+default off. Missing/unaligned LiDAR adds zero cost. No LiDAR rejection, rolling
+check or stop was added. MPC, its settings, 0.5m/s target and unlimited budgets remain.
+
+286 portable tests pass, including9 new tests for central/mirrored obstacles,
+unchanged samples/road collisions/native costs, whole-path scoring, absent data,
+blocking walls, duplicate returns, real subprocess transport, deployment settings
+and an actual node/planner/MPC execution handoff with changed steering output.
+AST comparison to a0ddd7e shows only ShadowSettings, ShadowLatticePlanner and
+PolicyNode changed; original MPC/estimator/execution definitions are identical.
+The node changes are parameter/revision initialization, obstacle job input and
+diagnostic logging. Two pure scoring/index helpers were added.
+
+48-candidate desktop planning medians across3 measured runs after warm-up:
+empty ROI45.3ms, one central point54.7ms, dense322-point wall401.7ms (max411.7ms).
+These are laptop pure-planner measurements, not Jetson or complete transport timing.
+Existing narrow-road execution checks may still fall back to baseline; finite cost
+does not establish an obstacle-free path or a completed physical bypass.
+Required tools/verify_fast.sh was attempted but Bash/ROS Jazzy is unavailable here.
+ROS, Foxglove GUI and vehicle bypass tests are not run. Changes remain local;
+no SSH, upload, vehicle enable or GitHub push was performed for this follow-up.
+
+## Local fusion-MPC LiDAR integration — 2026-10-28
+
+Operator follow-up: the prepared deployment YAML now selects existing unlimited
+semantics, control.max_distance_m=0.0 and control.max_run_time_s=0.0, replacing
+the seed's5m/60s budgets. Target remains0.5m/s. Only these two deploy values
+changed; source budget logic and other stop reasons are unchanged. Local user
+layout rename to layout_v2.0.json is retained.
+
+Base d1b4b83, branch feature/fusion-mpc-lidar-detection. Reviewed detector is
+ported into the required single-file policy. Operator-selected ROI is now
+x[0.297,1.697]m/y[-0.4,0.4]m (1.4m ahead of bumper,0.4m each side);
+stop_enabled=false. Hits, sparse returns and missing/stale/invalid scans only
+report status and clear points as needed; they do not gate execution. The
+optional pre-existing stop mode remains explicit. Added standard PointCloud
+and Path visualization topics, retaining cone/reference/MPC plot series.
+No RNN is present in this upstream branch; no active avoidance is claimed.
+
+254 portable estimator/planning/control/lattice/execution/colour/LiDAR checks
+and1 selected MPC geometry-glitch test pass. Eleven LiDAR tests are included
+in254. Upstream101 pure definitions are AST-identical; base YAML changes only
+add lidar_obstacle. No old2m/0.55rad settings carried into this branch. Prepared
+deployment package uses upstream v050-5m-noprior plus current geometry-glitch,
+learned-width preservation and LiDAR settings. No hardware/provider edits,
+ROS gate pass, GUI/vehicle verification or vehicle actions. The branch records
+the source, renamed layout_v2.0.json and full unlimited-budget deployment YAML
+under checkpoints/fusion-mpc-lidar-car14-20261028 for GitHub sharing.
+Procedure: [fusion MPC LiDAR](FUSION_MPC_LIDAR_CN.md).
+
 Status: `mvp2.0` extends the 2026-10-09 V2/fused-road/control candidate with
 bounded centerline-first recovery and asynchronous planning. The current
 software/model evidence is recorded below; the direct-sample update passed
