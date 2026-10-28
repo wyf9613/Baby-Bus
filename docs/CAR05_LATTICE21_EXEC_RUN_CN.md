@@ -329,6 +329,17 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
   .verification\car05-lattice21-exec-v050-nolimit-blueleft-fb-noprior  yaml 38834fb7…   0.5，feedback，蓝左，不限
   ```
 
+- **`-ab` 包**（`mpc-car-run` `d1b4b83`，WSL 门禁通过：offline PASS、ros gate PASS，`~/ai4r-evidence/ros-20261028-133334`；**还没上车**）：在 `-noprior` 之上多 A（`mpc.geometry_glitch_tolerable: true`）和 B'-1（`estimation.keep_width_on_geometry_glitch: true`），yaml 和对应 `-noprior` 包只差这两行。policy_node 都是 `9f730c0b…`：
+
+  ```text
+  .verification\car05-lattice21-exec-v050-nolimit-ab              yaml 6935afa2…   0.5，不限
+  .verification\car05-lattice21-exec-v050-nolimit-blueleft-ab     yaml c3875b9e…   0.5，蓝左，不限
+  .verification\car05-lattice21-exec-v050-5m-ab                   yaml d2a7b2a6…   0.5，5 m / 60 s
+  .verification\car05-lattice21-exec-v050-5m-blueleft-ab          yaml fc847a0b…   0.5，蓝左，5 m / 60 s
+  .verification\car05-lattice21-exec-v050-nolimit-fb-ab           yaml 57e3a4e3…   0.5，feedback，不限
+  .verification\car05-lattice21-exec-v050-nolimit-blueleft-fb-ab  yaml a9551b54…   0.5，feedback，蓝左，不限
+  ```
+
   **10-28 U 弯汇总**（1 号车，同一个左 U 弯，黄左，起点都在入弯前约 1–1.5 m；包在 `E:\26b\AI4R\car-evidence\car01-v050-20261028-102636\`）：
 
   | 时间 | 包 | 车速 | 次数 | 结果 |
