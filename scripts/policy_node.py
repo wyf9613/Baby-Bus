@@ -7955,7 +7955,7 @@ class PolicyNode(Node):
         self.sensor_timeout_s = {
             name: self.get_parameter(f"sensor_timeout_s.{name}").value for name in SENSORS}
         self._validate_parameters()
-        self.get_logger().info("Policy revision: fusion-mpc-lidar-road-hold-20261028")
+        self.get_logger().info("Policy revision: mpc-car-run + fusion-mpc-lidar (detection/avoidance switches)")
         lidar_values = {}
         for name, default in vars(LidarObstacleSettings()).items():
             key = f"lidar_obstacle.{name}"
@@ -9960,7 +9960,9 @@ class PolicyNode(Node):
         elif raw.stamp_ns != self._lidar_obstacle_stamp_ns:
             try:
                 self.lidar_obstacle_output = detect_lidar_obstacles(raw.value, cart.value, cfg, raw.stamp_ns)
-            except (ValueError, TypeError, KeyError, ArithmeticError) as error:
+            # mpc-car-run merge (2026-10-28): any detector error is UNKNOWN, never an exception out of
+            # the control/supervision callbacks. With stop_enabled, UNKNOWN still requests the stop.
+            except Exception as error:
                 self.lidar_obstacle_output = dict(status="UNKNOWN", available=False,
                     reason="detector_error: "+str(error), frame_id=self.policy_frame_id,
                     measurement_timestamp_s=raw.stamp_ns/1e9, points_xyz_m=[], scan_indices=[],

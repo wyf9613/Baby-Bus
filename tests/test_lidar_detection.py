@@ -222,7 +222,12 @@ class LidarDetectionChecks(unittest.TestCase):
         from make_deploy_yaml import build,KEY
         profile,_=build('mpc-exec-lattice21',5.,cones='yellow-left',car='05',speed_profile='v05')
         p=profile[KEY]['ros__parameters']
-        self.assertTrue(p['lidar_obstacle']['enabled'])
+        # mpc-car-run merge (2026-10-28): the base layer enables detection, the car 05 layer keeps
+        # its default packages without it; car 01 LiDAR packages turn it on per package.
+        import yaml
+        base=yaml.safe_load((root/'config'/'ai4r_policy.yaml').read_text(encoding='utf-8'))
+        self.assertTrue(base[KEY]['ros__parameters']['lidar_obstacle']['enabled'])
+        self.assertFalse(p['lidar_obstacle']['enabled'])
         self.assertFalse(p['lidar_obstacle']['stop_enabled'])
         self.assertEqual(p['lidar_obstacle']['roi_half_width_m'],.6)
         self.assertEqual(p['lidar_obstacle']['stop_distance_m'],1.4)

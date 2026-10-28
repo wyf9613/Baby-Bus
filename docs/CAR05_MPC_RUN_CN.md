@@ -34,7 +34,7 @@ python tools/make_deploy_yaml.py --mode mpc-exec-centerline --car 05 --cones $co
 每条命令都要打印 `cones yellow-left (left_colour 1, right_colour 2 ...)` 和
 `vehicle car05_20261015_cross_car_substitution_27drive_20steering_UNVERIFIED valid True`。
 
-Foxglove 布局：导入 `tools/foxglove_road_visualization/layout.json`。“Cone locations” 图里有锥桶（红点）、
+Foxglove 布局：导入 `tools/foxglove_road_visualization/layout_v2.0.json`。“Cone locations” 图里有锥桶（红点）、
 控制器采用的参考线（绿）、MPC 预测（橙）。
 
 ## 0.5 备份车上原有文件（全天只做一次）[本机 PS]

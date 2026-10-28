@@ -46,7 +46,7 @@ dream runtime start oakd_cone_detector
 dream runtime start bno08x_imu_interface
 ```
 
-已运行的 units 无需重启。Foxglove WebSocket：`ws://10.43.254.18:1234`，导入本机 `tools/foxglove_road_visualization/layout.json`。
+已运行的 units 无需重启。Foxglove WebSocket：`ws://10.43.254.18:1234`，导入本机 `tools/foxglove_road_visualization/layout_v2.0.json`。
 
 原策略正在运行时，车 1 回零，然后请求车辆 Disabled：
 

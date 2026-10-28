@@ -106,5 +106,9 @@
       # turn" before car 01's sharp left bend; the car drove at the outer wall and locked.
       # With travel it turned within 0.3 m and ran to the course end (docs/MPC_PROGRESS_LOG.md).
       check_length_mode: "travel"
+    # 2026-10-28: the base layer enables Zhengxi's detect-only LiDAR; the car 05 layer stays the
+    # default without it. Car 01 LiDAR packages turn it on (still detect-only, stop_enabled false).
+    lidar_obstacle:
+      enabled: false
     control:
       max_run_time_s: 60.0           # was 30; the distance budget comes from make_deploy_yaml --distance

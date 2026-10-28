@@ -314,6 +314,30 @@ lattice 2.1 本身没有转角 / 曲率限制，所以加的是打分项：`shad
 4. reo 先不上车；要用的话，等上面第 2 条做完、能一起验证的时候再说。
 5. **分支**：`lattice-curvature-cost` 已 fast-forward 合进 `mpc-car-run`（10-28，`c71301b`），之后以 `mpc-car-run` 为准。kcost 和 reo 默认都关（`shadow.weight_curvature: 0.0`，5 号车层 `reorient_reversed_pairing: false`），默认包的行为不变。`mpc-new-path-blend`（10-22）和 `lattice-arc-candidates`（10-27）不合并。
 
+### 14. 合并 Zhengxi 的雷达检测和避障（`feature/fusion-mpc-lidar-detection`，开关默认关）
+
+- 合并提交 `871d4bc`，合了两个提交，都是从 `d1b4b83` 分出来的：
+  - `a0ddd7e`：雷达只检测、只显示。新增 `lidar_obstacle.*` 参数，以及 `/car/lidar_obstacles`、`/car/lidar_roi_points`、`/car/lidar_roi` 三个话题。
+  - `6efe99d`：lattice 2.1 的雷达障碍代价（`shadow.weight_obstacle`）、车身可通行性检查，以及失去道路时 0.5 s 内沿用已检查过的路径。
+  - 详细说明见 [FUSION_MPC_LIDAR_CN.md](FUSION_MPC_LIDAR_CN.md)。他本人的实车反馈是“仍会驶出道路”，避障还没有通过验收。
+- 冲突只有 1 处，在 `ShadowLatticePlanner.plan` 的打分代码里。曲率代价和障碍代价两段都保留了。
+- 默认开关：
+  - `shadow.obstacle_avoidance_enabled` 和 `shadow.obstacle_check_enabled` 都是 `false`（lattice21 层）。沿用已检查路径的逻辑也要这两个开关打开才生效。
+  - `lidar_obstacle.enabled` 在基础层是 `true`，**5 号车层改成 `false`**，所以默认包不跑雷达检测；1 号车的雷达包单独打开。`stop_enabled` 一直是 `false`。
+- 合并后的修改：
+  - 检测函数抛出任何异常时，都按 UNKNOWN 处理，不会从控制回调里抛出去。原来只捕获 4 种异常。停车模式下 UNKNOWN 仍然会请求停车。
+  - revision 字符串改成通用写法。
+  - 文档里的 Foxglove 布局文件名改成 `layout_v2.0.json`。
+  - 队友的部署叠加测试改为检查“基础层打开、5 号车层关闭”。
+- 验证（开关全部关闭）：
+  - **单元测试**：503 个测试，只有需要 ROS 的 `test_policy_node` 报错。
+  - **bag 顺序回放**（kcost 参数，加 `--lattice`，`analysis\lidar_merge\`）：
+    - k0 逆时针那个 bag 逐帧相同；
+    - 三个 bag 的 lattice 规划（95 + 83 + 142 次）全部相同；
+    - 窄路和顺时针 kcost 两个 bag，各有 1 帧 MPC 计算时间超出 `max_step_time_s`，在同一帧可以稳定复现。关掉 Python 垃圾回收后，窄路 bag 合并前后逐帧完全相同（1980 帧），说明这一帧是垃圾回收落在计时范围里造成的，不是逻辑变化。上车时要留意 `step_s`。
+  - **Gym 回归**（`analysis\lidar_merge\gym_*`，和 `gym_reorient/k0_s0.36`、`gym_blend/k10_s0.36` 用相同命令）：k0 52/60，kcost 55/60。60 场里每一场的完成情况、距离、停车原因、横向偏差、峰值车速、切换次数、打满方向周期数、转向突变次数都和合并前相同。
+  - WSL 门禁：待跑。
+
 ## 2026-10-27：圆弧候选、预测步数 N、0.5 m/s 的 Gym 对比 🟡
 
 BLAS 线程数、Gym 的 `reject_reasons` 和这份记录在 `mpc-car-run`；圆弧候选只在实验分支 `lattice-arc-candidates`（在前者之上多一个提交，未合并）。起因是 10-26 两个新分支：Zhenyu 的 `checkpoint/rnn-mpc-car13-20261026`（`45d492f`，RNN 选路 + 他的 PI-MPC，13 号车，0.5 m/s，N = 6，lattice 路径 1.4 m）和 Zhengxi 的 `feature/rnn-mpc-lidar-stop`（`0908837`，前方激光雷达停车）。两者的效果都是操作员口头反馈"更稳定"，没有完成率统计，ROS 门禁没跑。这里把其中可以单独验证的几项放到我们的配置上测。
