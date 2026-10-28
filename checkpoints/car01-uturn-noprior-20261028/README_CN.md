@@ -4,7 +4,7 @@
 
 - 代码：分支 `fusion-prior-reset`，提交 `a21f8cb`（之后只改文档）。tag `checkpoint-car01-uturn-noprior-20261028`。
 - WSL 门禁：offline PASS、ros gate PASS（`~/ai4r-evidence/ros-20261028-112040`）。
-- 和 `mpc-car-run` `9a5d342`（v050 包，policy_node `bd5ce140…`）相比只多一项：`shadow.fusion_use_prior`，这些包里都是 `false`。原因和数据见 [MPC_PROGRESS_LOG.md](../../docs/MPC_PROGRESS_LOG.md) 10-28。
+- 和 `mpc-car-run` `9a5d342`（v050 包，policy_node `bd5ce140…`）相比只多一项：`shadow.fusion_use_prior`，这些包里都是 `false`。原因和数据见 [MPC_PROGRESS_LOG.md](../../docs/MPC_PROGRESS_LOG.md) 10-28，给其他组的说明见 [FUSION_PRIOR_GUIDE_NOTE_CN.md](../../docs/FUSION_PRIOR_GUIDE_NOTE_CN.md)。
 - **还没合进 `mpc-car-run`**。
 
 ## 文件

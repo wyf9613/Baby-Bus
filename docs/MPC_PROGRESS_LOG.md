@@ -33,7 +33,7 @@
 
 （时间从 Enable 起算。）MPC 只是照着 lattice 的路径走；lattice 规划耗时 0.13–0.34 s，没有超时。0.2 和 0.5 一样，所以不是车速、路径过旧或转弯半径的问题（0.5 那次左满舵 2.3 s，实测半径约 0.88 m，那是另一个问题）。U 弯里只检测到外圈蓝锥（`visibility right_only`），内圈黄锥只在入弯前出现过。
 
-### 3. 根因：融合的骨架只会缩短、不会延伸
+### 3. 根因：融合的骨架只会缩短、不会延伸（给其他组的说明：[FUSION_PRIOR_GUIDE_NOTE_CN.md](FUSION_PRIOR_GUIDE_NOTE_CN.md)）
 
 `_shadow_fuse_road`（[policy_node.py](../scripts/policy_node.py) 6753 行起）每次以**上一次的参考**为骨架（`previous_reference`，3 s 内都用），变换到当前位姿，再用各帧观测沿骨架法线修正偏移。向前延伸只有一条路：当前观测的中心线点投影在骨架末端之后（`s > end + 0.10`）且横向 `|d| < search_half_width_m`（0.45）才接上去。拟合窗口的上限是 `min(base.end, s0 + 1.5 × length)`，也就是不超过骨架末端。
 
