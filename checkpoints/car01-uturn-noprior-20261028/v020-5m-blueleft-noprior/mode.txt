@@ -1,0 +1,1 @@
+mpc-exec-lattice21 5.0 run_time_s=60.0 cones=blue-left longitudinal=joint speed_profile=None road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml

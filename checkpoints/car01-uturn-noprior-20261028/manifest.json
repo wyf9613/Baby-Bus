@@ -1,0 +1,54 @@
+{
+  "policy_node.py (= scripts/policy_node.py at a21f8cb)": "25f9e3dd372db0826c44445f9ca68e9316a6837642106962f0c2e8a4a1ab2f79",
+  "config/traxxas_vehicle_interface.yaml": "6e0253156fdcacb0e97874513d879b2e94521e19b7aa79dc020c3d0ea9f51ea4",
+  "packages": {
+    "v020-5m-blueleft-noprior": {
+      "ai4r_policy.yaml": "4226898834f57fd1f3ec9d76cf75e2f667c2d520fdb14e6bec97b18761665093",
+      "mode": "mpc-exec-lattice21 5.0 run_time_s=60.0 cones=blue-left longitudinal=joint speed_profile=None road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml"
+    },
+    "v020-5m-noprior": {
+      "ai4r_policy.yaml": "79da2379cef2f67f1833fa5e8fe3495a6281dd7285252d73f0fa8dd3dd012e11",
+      "mode": "mpc-exec-lattice21 5.0 run_time_s=60.0 cones=yellow-left longitudinal=joint speed_profile=None road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml"
+    },
+    "v020-nolimit-blueleft-fb-noprior": {
+      "ai4r_policy.yaml": "f21674c351d4421dc9d6acc30d752195fcb1cdf2879bbea26a5928a800d7370c",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=blue-left longitudinal=feedback speed_profile=None road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml+ai4r_policy_mpc_car05_feedback.yaml"
+    },
+    "v020-nolimit-blueleft-noprior": {
+      "ai4r_policy.yaml": "26f95cb4507b54d29940fdb1a4d3361d4f08620e2109078b3a4c56d1cac4f9cb",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=blue-left longitudinal=joint speed_profile=None road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml"
+    },
+    "v020-nolimit-fb-noprior": {
+      "ai4r_policy.yaml": "60a7db800df9ac143c9f81d08c48e8731362ec9496c8917028e6b5dd5a89ca7b",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=yellow-left longitudinal=feedback speed_profile=None road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml+ai4r_policy_mpc_car05_feedback.yaml"
+    },
+    "v020-nolimit-noprior": {
+      "ai4r_policy.yaml": "d475398c45135c1f7ff0984332cde8587aa8503cdf9c185f20a387adbe91bd83",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=yellow-left longitudinal=joint speed_profile=None road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml"
+    },
+    "v050-5m-blueleft-noprior": {
+      "ai4r_policy.yaml": "08fbdacb0c6521c1fbf34af5bf7220c97dce641ebe12e52e6904afa53d5f788e",
+      "mode": "mpc-exec-lattice21 5.0 run_time_s=60.0 cones=blue-left longitudinal=joint speed_profile=v05 road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml"
+    },
+    "v050-5m-noprior": {
+      "ai4r_policy.yaml": "45ab0e5152b5c8743a13d19250a7ff05db0767032d132d25cbfa9b47a55d7ebb",
+      "mode": "mpc-exec-lattice21 5.0 run_time_s=60.0 cones=yellow-left longitudinal=joint speed_profile=v05 road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml"
+    },
+    "v050-nolimit-blueleft-fb-noprior": {
+      "ai4r_policy.yaml": "38834fb7ef6d3ab2ed1c52e09f6a62c5198cf5009a1d318f769e83957bb50931",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=blue-left longitudinal=feedback speed_profile=v05 road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml+ai4r_policy_mpc_car05_feedback.yaml"
+    },
+    "v050-nolimit-blueleft-noprior": {
+      "ai4r_policy.yaml": "87eb1fd463449f6f09b2ceb8061ce018f016e6da66b0cb833ce625f05013da47",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=blue-left longitudinal=joint speed_profile=v05 road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml"
+    },
+    "v050-nolimit-fb-noprior": {
+      "ai4r_policy.yaml": "d216087d380ee185a16c3be3007259ce70f224dc9eebe8ce0d87b00a3eee2fe1",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=yellow-left longitudinal=feedback speed_profile=v05 road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml+ai4r_policy_mpc_car05_feedback.yaml"
+    },
+    "v050-nolimit-noprior": {
+      "ai4r_policy.yaml": "cbc5533bfca5a041dc03bb88925da6d787500e2793e60921365c9ff0818ba585",
+      "mode": "mpc-exec-lattice21 0.0 run_time_s=0.0 cones=yellow-left longitudinal=joint speed_profile=v05 road_age_s=1.5 layers=ai4r_policy.yaml+ai4r_policy_newcar27.yaml+ai4r_policy_mpc_newcar27.yaml+ai4r_policy_mpc_centerline.yaml+ai4r_policy_mpc_lattice21.yaml+ai4r_policy_mpc_car05.yaml"
+    }
+  }
+}
