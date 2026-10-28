@@ -312,7 +312,7 @@ lattice 2.1 本身没有转角 / 曲率限制，所以加的是打分项：`shad
 2. **单侧推断方向判反**：只看到一侧时，链的方向一判反，中心线就被推到锥桶外侧、方向也反（逆时针 48.40 s；reo 第 1 次的 9.7 s）。可以用第 12 节同样的“接得上上一帧有效的路”来检查。10-22 的分支 `mpc-new-path-blend`（`a79cdc8`，`estimation.single_side_orientation: vehicle_inside`）做过这件事：用 11 个 bag 回放，修好 87 帧，没有弄坏任何一帧；但没合进来，和现在的代码合并会冲突。要做时按它的思路在本分支上重写，不合并那个分支。
 3. **路宽学习防单帧带偏**：用最近几次两侧观测的中位数；和当前值差 30% 以上的单帧，要连续几帧一致才采纳（narrow-u 第 1 次学到 0.21 和 1.67 m）。
 4. reo 先不上车；要用的话，等上面第 2 条做完、能一起验证的时候再说。
-5. **分支**：`lattice-curvature-cost` 是最终版本，已经包含 `fusion-prior-reset` 和 `mpc-car-run` 的全部内容。`mpc-new-path-blend`（10-22）和 `lattice-arc-candidates`（10-27）不合并。
+5. **分支**：`lattice-curvature-cost` 已 fast-forward 合进 `mpc-car-run`（10-28，`c71301b`），之后以 `mpc-car-run` 为准。kcost 和 reo 默认都关（`shadow.weight_curvature: 0.0`，5 号车层 `reorient_reversed_pairing: false`），默认包的行为不变。`mpc-new-path-blend`（10-22）和 `lattice-arc-candidates`（10-27）不合并。
 
 ## 2026-10-27：圆弧候选、预测步数 N、0.5 m/s 的 Gym 对比 🟡
 
