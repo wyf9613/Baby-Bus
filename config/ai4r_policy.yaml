@@ -132,7 +132,7 @@
       body_width_m: 0.25
       front_from_cg_m: 0.297
       side_margin_m: 0.02
-      roi_half_width_m: 0.4
+      roi_half_width_m: 0.6
       range_min_m: 0.2
       stop_distance_m: 1.4
       allow_no_return_clear: true

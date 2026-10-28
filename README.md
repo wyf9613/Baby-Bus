@@ -1,9 +1,15 @@
 # Baby Bus · ai4r_policy
 
 LiDAR integration on `fusion-prior-reset` d1b4b83: detection ROI extends
-1.4m ahead of the bumper and +/-0.4m laterally. Detection and Foxglove points/ROI
-are active; LiDAR stopping is OFF. Upstream MPC/planning remain unchanged;
-this branch does not contain the former RNN or active obstacle avoidance.
+1.4m ahead of the bumper and +/-0.6m laterally. The deployment profile enables
+obstacle ranking plus full-path road/body-obstacle feasibility for left/right bypass.
+Nominal straight passage width is0.30m with no extra margin; turning uses the full
+oriented footprint. No feasible candidate requests a latched stop. Known obstacles
+never fall back to an unchecked centerline. MPC, sampling, rate and horizon are unchanged.
+The detector's immediate-stop mode remains off; missing LiDAR adds no new stop.
+Short road-geometry gaps reuse the checked path for up to the existing0.5s MPC
+dropout window, with transported road support; confirmed blocked paths still stop.
+Current vehicle feedback: the car can still leave the road; road containment remains unresolved.
 See [deployment, topics and checks](docs/FUSION_MPC_LIDAR_CN.md).
 Use `scripts/policy_node.py` with the full deployment YAML in
 `checkpoints/fusion-mpc-lidar-car14-20261028/`; the root YAML remains a base layer.

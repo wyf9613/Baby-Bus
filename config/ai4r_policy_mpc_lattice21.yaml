@@ -70,3 +70,8 @@
       weight_heading: 1.5
       weight_progress: 2.0
       weight_smoothness: 0.04
+      # Optional soft LiDAR ranking, enabled only in the dedicated deployment.
+      obstacle_avoidance_enabled: false
+      obstacle_check_enabled: false
+      weight_obstacle: 30.0
+      obstacle_margin_m: 0.02

@@ -322,7 +322,7 @@
       path_spacing_m: 0.025
       handoff_allowance_s: 0.1
       check_length_mode: travel
-      collision_coverage: prefix
+      collision_coverage: generated
       score_coverage: prefix
       score_min_length_m: 0.2
       search_half_width_m: 0.45
@@ -336,13 +336,18 @@
       weight_heading: 1.5
       weight_progress: 2.0
       weight_smoothness: 0.04
+      # Full-path road/body-obstacle feasibility; nominal straight gap 0.30 m.
+      obstacle_avoidance_enabled: true
+      obstacle_check_enabled: true
+      weight_obstacle: 30.0
+      obstacle_margin_m: 0.0
     lidar_obstacle:
       enabled: true
       stop_enabled: false
       body_width_m: 0.25
       front_from_cg_m: 0.297
       side_margin_m: 0.02
-      roi_half_width_m: 0.4
+      roi_half_width_m: 0.6
       range_min_m: 0.2
       stop_distance_m: 1.4
       allow_no_return_clear: true

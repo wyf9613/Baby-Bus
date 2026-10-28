@@ -243,7 +243,7 @@
           "enabled": true,
           "color": "#64748b",
           "showLine": true,
-          "label": "Detection ROI (not a stop boundary)",
+          "label": "Detection ROI: 1.4 m ahead, +/-0.6 m",
           "lineSize": 2
         }
       ],

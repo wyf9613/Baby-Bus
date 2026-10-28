@@ -1,14 +1,14 @@
 {
   "base_commit": "d1b4b837f7e74ff4e3110c1056ec4e7f96a3012a",
-  "revision": "fusion-mpc-lidar-detect-only-20261028",
+  "revision": "fusion-mpc-lidar-road-hold-20261028",
   "config_seed": "checkpoints\\car01-uturn-noprior-20261028\\v050-5m-noprior\\ai4r_policy.yaml",
-  "profiles": "upstream v050-5m-noprior plus latest geometry/width flags, detect-only LiDAR; operator-selected unlimited distance/time",
+  "profiles": "upstream v050-5m-noprior plus latest geometry/width flags, whole-path road/LiDAR passability; unlimited distance/time",
   "files": {
-    "scripts/policy_node.py": "78ac270112e608c3d1ceb7465334cda2c9efc1bbc146f962f98acfaea56cff3f",
-    "checkpoints/fusion-mpc-lidar-car14-20261028/ai4r_policy.yaml": "6e312d701f89dedd661a5667291fe566bc767c5bc2ac7481ddda58fa8f43dc21",
-    "tools/foxglove_road_visualization/layout_v2.0.json": "5a5acadb94ff421e55c733d3f798df6fbf1b9f6b11ef70f479cb396c15b80326"
+    "scripts/policy_node.py": "608964e5d028716ec0a7a90c4b3768b4f6a59b73abd7b012657db2d8dd8cc6af",
+    "checkpoints/fusion-mpc-lidar-car14-20261028/ai4r_policy.yaml": "802100effb5c6c06f266a15cd5f478b45ed3fd278bec8485d610f1e2691f98c8",
+    "tools/foxglove_road_visualization/layout_v2.0.json": "dd6e2f449c35de252a0f1dc7c986b74c557a9da36643136a0310b25fdfe284d5"
   },
-  "physical_test": "not_run",
+  "physical_test": "operator_reported_road_departure_unresolved_20261028",
   "budget_overrides": {
     "max_distance_m": 0.0,
     "max_run_time_s": 0.0
@@ -19,10 +19,34 @@
       1.697
     ],
     [
-      -0.4,
-      0.4
+      -0.6,
+      0.6
     ]
   ],
-  "checks": "255 portable integration checks passed; three existing unlimited-budget checks passed; 11 LiDAR checks rerun after ROI update",
-  "ros_gate": "unavailable on this Windows host (no Bash/ROS Jazzy)"
+  "checks": "299 portable checks passed, including 17 avoidance/passability and 5 road-dropout checks",
+  "ros_gate": "attempted; unavailable on Windows host (no Bash/ROS Jazzy)",
+  "obstacle_avoidance": {
+    "enabled": true,
+    "weight": 30.0,
+    "margin_m": 0.0,
+    "coverage": "generated",
+    "hard_rejection": true,
+    "minimum_straight_gap_m": 0.3,
+    "road_collision_coverage": "generated",
+    "blocked_result": "latched_state2_explicit_resume",
+    "known_obstacle_fallback": "zero_while_waiting_for_checked_path"
+  },
+  "road_dropout_hold": {
+    "limit_s": 0.5,
+    "settings": [
+      "mpc.geometry_glitch_tolerable",
+      "mpc.reference_dropout_tolerance_s"
+    ],
+    "requires_checked_path": true,
+    "no_road_renews_deadline": false,
+    "cached_road": "motion_transported_original_measurement_provenance",
+    "blocked_result": "latched_state2_explicit_resume",
+    "timeout_result": "zero_waiting_without_extra_mpc_hold"
+  },
+  "physical_test_notes": "Operator reports the current version can still leave the road; no passed physical avoidance/road-containment acceptance."
 }

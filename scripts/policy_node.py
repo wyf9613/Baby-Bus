@@ -6625,8 +6625,9 @@ class ShadowSettings:
     """New shadow-only design. No settings or code from the archived lattice.
 
     Dimensions below are explicitly provisional; replace with measurements for
-    the tested car. No actuator/vehicle model or clearance padding is used.
-    This module never produces actuator messages or changes baseline admission.
+    the tested car. No actuator/vehicle model is used. Optional LiDAR ranking
+    and swept-body feasibility share the configured rectangle and margin.
+    This planner returns geometry; the policy adapter owns waiting/stopping.
     """
     enabled: bool = False
     rate_hz: float = 1.0
@@ -6655,6 +6656,11 @@ class ShadowSettings:
     weight_heading: float = 1.5
     weight_progress: float = 2.0
     weight_smoothness: float = 0.04
+    # Loss alone never stops; optional body overlap rejection is independent of cost.
+    obstacle_avoidance_enabled: bool = False
+    obstacle_check_enabled: bool = False
+    weight_obstacle: float = 30.0
+    obstacle_margin_m: float = 0.02
     fusion_enabled: bool = True
     fusion_window_s: float = 1.0
     fusion_max_samples: int = 21
@@ -6672,6 +6678,10 @@ class ShadowSettings:
             raise ValueError("shadow.fusion_enabled must be boolean")
         if not isinstance(self.fusion_use_prior, bool):
             raise ValueError("shadow.fusion_use_prior must be boolean")
+        if not isinstance(self.obstacle_avoidance_enabled, bool):
+            raise ValueError("shadow.obstacle_avoidance_enabled must be boolean")
+        if not isinstance(self.obstacle_check_enabled, bool):
+            raise ValueError("shadow.obstacle_check_enabled must be boolean")
         if type(self.fusion_max_samples) is not int or not 1 <= self.fusion_max_samples <= 128:
             raise ValueError("shadow.fusion_max_samples must be an integer in [1,128]")
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
@@ -6684,6 +6694,7 @@ class ShadowSettings:
                 raise ValueError("shadow."+name+" must be prefix or generated")
         for name, value in vars(self).items():
             if name in ("enabled", "sample_count", "fusion_enabled", "fusion_use_prior", "fusion_max_samples",
+                        "obstacle_avoidance_enabled", "obstacle_check_enabled",
                         "check_length_mode", "collision_coverage", "score_coverage"):
                 continue
             if not finite_number(value) or value < 0:
@@ -7139,12 +7150,127 @@ def _shadow_fuse_road(job, cfg):
         "hard_boundaries": "unchanged_current_input", "reference_is_observed_boundary": False}
 
 
+def _shadow_obstacle_input(estimates, lidar_cfg, frame_id):
+    """One ROI extraction for planning and for avoiding an unchecked baseline."""
+    if lidar_cfg is None or not lidar_cfg.enabled:
+        return {}
+    source = estimates.get("obstacles") or {}
+    bounds = lidar_roi_bounds(lidar_cfg)
+    result = {key: source.get(key) for key in
+              ("available", "time_aligned", "timestamp_s", "measurement_timestamp_s", "source_age_s")}
+    result.update(roi_xy_m=bounds, points_xyz_m=[list(p) for p in source.get("points_xyz_m", [])
+        if bounds[0][0] <= p[0] <= bounds[0][1] and bounds[1][0] <= p[1] <= bounds[1][1]])
+    if source.get("frame_id") != frame_id:
+        result["available"] = False
+    return result
+
+
+def _shadow_soft_road_failure(reason):
+    """Geometry gaps only; motion faults and explicit conflicts are not bridged."""
+    return reason in {"invalid_road_invalid_ordered_geometry", "invalid_road_invalid_boundary_pairing",
+        "invalid_road_motion_transformed_geometry_invalid", "invalid_road_insufficient_geometry",
+        "invalid_road_unavailable"}
+
+
+def _shadow_obstacle_context(job, cfg):
+    """Index the current aligned ROI once per job. Missing input adds no cost."""
+    source = job.get("obstacles") or {}
+    diag = {"status": "DISABLED", "point_count": 0, "weight": cfg.weight_obstacle,
+            "margin_m": cfg.obstacle_margin_m, "coverage": "generated",
+            "measurement_timestamp_s": source.get("measurement_timestamp_s"),
+            "source_age_s": source.get("source_age_s"), "roi_xy_m": source.get("roi_xy_m")}
+    cell = max(cfg.body_front_m, cfg.body_rear_m, cfg.body_width_m)
+    grid = {}
+    if cfg.obstacle_avoidance_enabled and (cfg.weight_obstacle > 0 or cfg.obstacle_check_enabled):
+        diag["status"] = "UNAVAILABLE"
+        stamp = source.get("timestamp_s")
+        if (source.get("available") is True and source.get("time_aligned") is True
+                and finite_number(stamp) and finite_number(job.get("stamp_s"))
+                and abs(stamp-job["stamp_s"]) <= 1e-6):
+            bounds = source.get("roi_xy_m")
+            for point in source.get("points_xyz_m") or []:
+                if len(point) < 2 or not all(finite_number(v) for v in point[:2]):
+                    continue
+                x, y = point[:2]
+                if bounds and not (bounds[0][0] <= x <= bounds[0][1] and bounds[1][0] <= y <= bounds[1][1]):
+                    continue
+                grid.setdefault((math.floor(x/cell), math.floor(y/cell)), []).append((x, y))
+                diag["point_count"] += 1
+            diag["status"] = "ACTIVE" if grid else "CLEAR"
+    return grid, cell, diag
+
+
+def _shadow_obstacle_distances(pose, context, cfg, padding, overlap_only=False):
+    """Nearby measured points and signed distance to this oriented footprint."""
+    grid, cell, _ = context
+    x, y, heading = pose
+    c, s = math.cos(heading), math.sin(heading)
+    half = cfg.body_width_m/2
+    along, across = max(cfg.body_front_m, cfg.body_rear_m)+padding, half+padding
+    rx, ry = abs(c)*along+abs(s)*across, abs(s)*along+abs(c)*across
+    for ix in range(math.floor((x-rx)/cell), math.floor((x+rx)/cell)+1):
+        for iy in range(math.floor((y-ry)/cell), math.floor((y+ry)/cell)+1):
+            for ox, oy in grid.get((ix, iy), ()):
+                dx, dy = ox-x, oy-y
+                local_x, local_y = c*dx+s*dy, -s*dx+c*dy
+                qx = max(local_x-cfg.body_front_m, -cfg.body_rear_m-local_x)
+                qy = abs(local_y)-half
+                if overlap_only and (qx >= padding or qy >= padding):
+                    continue
+                distance = max(qx, qy) if qx <= 0.0 or qy <= 0.0 else math.hypot(qx, qy)
+                yield distance, (ox, oy)
+
+
+def _shadow_obstacle_collision(path, context, cfg):
+    """Whole-path body sweep against measured points, using existing resolutions."""
+    if not cfg.obstacle_check_enabled or not context[0]:
+        return None
+    previous = path[0]
+    for point in path:
+        angle = wrap_angle(point[2]-previous[2])
+        count = max(1, math.ceil(math.dist(point[:2], previous[:2])/cfg.sweep_translation_step_m),
+                    math.ceil(abs(angle)/cfg.sweep_rotation_step_rad))
+        for i in range(1, count+1):
+            u = i/count
+            pose = (previous[0]+u*(point[0]-previous[0]), previous[1]+u*(point[1]-previous[1]),
+                    previous[2]+u*angle)
+            for distance, hit in _shadow_obstacle_distances(pose, context, cfg, cfg.obstacle_margin_m, True):
+                if distance < cfg.obstacle_margin_m-1e-9:
+                    return {"side": "lidar", "point_xy_m": hit, "pose": pose,
+                            "clearance_m": distance, "reason": "body_obstacle_overlap"}
+        previous = point
+    return None
+
+
+def _shadow_obstacle_score(path, context, cfg):
+    """Finite whole-path proximity cost, using sampled oriented body rectangles.
+
+    Half a body width is the soft fall-off scale, not another collision gate.
+    Peak plus mean exposure avoids dependence on the number of laser returns.
+    A reported clearance is the minimum among points in the local query boxes;
+    None means no nearby point was scored, not verified free space.
+    """
+    if not context[0]:
+        return 0.0, None
+    half = cfg.body_width_m/2
+    padding = cfg.obstacle_margin_m+half
+    peak, exposure, clearance = 0.0, 0.0, None
+    for pose in path:
+        penalty = 0.0
+        for distance, _ in _shadow_obstacle_distances(pose, context, cfg, padding):
+            clearance = distance if clearance is None else min(clearance, distance)
+            penalty = max(penalty, max(0.0, (padding-distance)/half)**2)
+        peak = max(peak, penalty)
+        exposure += penalty
+    return peak+exposure/max(1, len(path)), clearance
+
+
 class ShadowLatticePlanner:
     """Fresh bounded sampler / prefix ranker, deliberately permissive about road.
 
     Input validity flags, short coverage, absent sides, slope, curvature and
     normalized steering requests are NOT admission gates. Only absent usable
-    geometry suppresses generation. Known-prefix collisions remove candidates;
+    geometry suppresses generation. Known-road and optional LiDAR overlaps remove candidates;
     ALL_COLLIDE keeps the ranked diagnostic candidate without calling it valid.
     """
     def __init__(self, settings):
@@ -7300,6 +7426,7 @@ class ShadowLatticePlanner:
         boundaries = {side: value for side, value in (("left", left), ("right", right))
                       if value and sources.get(side) in ("observed", "observed_with_history")}
         timing["sampling"] = time.perf_counter()-phase_started
+        obstacle_context = _shadow_obstacle_context(job, cfg)
         candidates = []
         # mpc-car-run adaptation (from sim-branch 92ef303): candidates share knot
         # stations, so look each one up once per job.
@@ -7319,6 +7446,8 @@ class ShadowLatticePlanner:
             timing["generation"] += next_phase-phase_started
             phase_started = next_phase
             collision = _shadow_collision(path, check, boundaries, cfg)
+            if collision is None:
+                collision = _shadow_obstacle_collision(path, obstacle_context, cfg)
             next_phase = time.perf_counter()
             timing["collision"] += next_phase-phase_started
             phase_started = next_phase
@@ -7346,10 +7475,15 @@ class ShadowLatticePlanner:
             costs = {"lateral": lateral/total_weight, "heading": heading_cost/total_weight,
                      "progress": progress/total_weight,
                      "smoothness": smooth/max(1, len(scoring_samples))}
+            obstacle_cost, obstacle_clearance = _shadow_obstacle_score(path, obstacle_context, cfg)
+            if cfg.obstacle_avoidance_enabled:
+                costs["obstacle"] = obstacle_cost
             cost = sum(getattr(cfg, "weight_"+key)*value for key, value in costs.items())
             candidates.append({"id": candidate_id, "family": family, "offsets_m": offsets,
                 "cost": cost, "costs": costs, "collision": collision, "path": path,
                 "scoring_samples": scoring_samples})
+            if cfg.obstacle_avoidance_enabled:
+                candidates[-1]["obstacle_clearance_m"] = obstacle_clearance
             timing["scoring"] += time.perf_counter()-phase_started
         phase_started = time.perf_counter()
         feasible = [c for c in candidates if c["collision"] is None]
@@ -7378,6 +7512,17 @@ class ShadowLatticePlanner:
                 "collision_method": "adaptive_pose_sampling_no_padding",
                 "checked_only_known_supported_boundaries": True,
                 "observed_centerline_length_m": frame.end}
+        if cfg.obstacle_avoidance_enabled:
+            result["planning_input"]["obstacles"] = job.get("obstacles")
+            result["obstacle_avoidance"] = {**obstacle_context[2],
+                "selected_cost": selected["costs"].get("obstacle", 0.0),
+                "selected_weighted_cost": cfg.weight_obstacle*selected["costs"].get("obstacle", 0.0),
+                "selected_nearby_clearance_m": selected.get("obstacle_clearance_m"),
+                "hard_rejection": cfg.obstacle_check_enabled,
+                "minimum_straight_gap_m": cfg.body_width_m+2*cfg.obstacle_margin_m}
+            result["stop_required"] = bool(cfg.obstacle_check_enabled and obstacle_context[0] and not feasible)
+            if result["stop_required"]:
+                result["reason"] = "no_passable_obstacle_path"
         finished = time.perf_counter()
         timing["assembly"] = finished-phase_started
         elapsed = finished-started
@@ -7502,8 +7647,16 @@ class PlannerExecutionManager:
         self.last_result_stamp_s = None
         self.last_result_status = None
         self.diagnostics = {}
+        self.last_good_road = self.last_good_road_pose = self.last_good_road_epoch = None
+        self.road_dropout_started_s = None
 
-    def accept(self, result):
+    def accept(self, result, preserve_no_road=False):
+        # A road-data gap is not an obstacle collision. Retain only an already
+        # checked path; its identity, anchor and original timestamps stay intact.
+        if (preserve_no_road and result.get("status") == "NO_ROAD" and not result.get("stop_required")
+                and self.active is not None and self.active.get("obstacle_checked")):
+            self.active["retained_no_road_job_id"] = result.get("job_id")
+            return
         # A completed planning failure immediately selects baseline, rather
         # than silently continuing the previous successful trajectory.
         self.active = None
@@ -7530,7 +7683,9 @@ class PlannerExecutionManager:
             return
         self.active = {"path": [tuple(p) for p in path], "pose": list(pose),
             "epoch": anchor["odometry_epoch"], "stamp_s": self.last_result_stamp_s,
-            "measurement_stamp_s": result.get("measurement_stamp_s"), "progress_m": 0.0}
+            "measurement_stamp_s": result.get("measurement_stamp_s"), "progress_m": 0.0,
+            "obstacle_checked": bool((result.get("obstacle_avoidance") or {}).get("hard_rejection")
+                and (result.get("obstacle_avoidance") or {}).get("status") == "ACTIVE")}
         self.reason = "planner_ready"
 
     def select(self, road, state, pose, epoch, cfg, preview_m, target_speed_mps,
@@ -7582,6 +7737,8 @@ class PlannerExecutionManager:
             remaining_preview_time_s=max(0.0, remaining-preview_m)/speed if speed > 1e-9 else None,
             measurement_stamp_s=active["measurement_stamp_s"], odometry_epoch=epoch,
             current_pose=list(pose), execution_lifetime_s=execution_lifetime_s)
+        if "retained_no_road_job_id" in active:
+            self.diagnostics["retained_no_road_job_id"] = active["retained_no_road_job_id"]
         if remaining+1e-9 < needed:
             return fallback("preview_coverage_exhausted")
         cropped = [_path_sample(points, arc, progress)]
@@ -7681,7 +7838,7 @@ class PolicyNode(Node):
         self.sensor_timeout_s = {
             name: self.get_parameter(f"sensor_timeout_s.{name}").value for name in SENSORS}
         self._validate_parameters()
-        self.get_logger().info("Policy revision: fusion-mpc-lidar-detect-only-20261028")
+        self.get_logger().info("Policy revision: fusion-mpc-lidar-road-hold-20261028")
         lidar_values = {}
         for name, default in vars(LidarObstacleSettings()).items():
             key = f"lidar_obstacle.{name}"
@@ -8382,8 +8539,7 @@ class PolicyNode(Node):
         self._publish_actions(drive, steer, pan)
         if hasattr(self, "planner_execution_publisher"):
             self._publish_planner_execution()
-        # Offer AFTER the baseline action, never on its calculation/exception path.
-        # This is a diagnostic side channel; failures cannot change the action/FSM.
+        # Submit after publishing; transport stays off the control executor.
         if getattr(self, "shadow_worker", None) is not None:
             try:
                 self._shadow_offer()
@@ -8860,6 +9016,24 @@ class PolicyNode(Node):
             planner_control = getattr(self, "planner_control_settings", None)
             planner_requested = planner_control is not None and planner_control.enabled
             planner_traj = self._select_mpc_planner_trajectory(estimates) if planner_requested else None
+            shadow_cfg = getattr(self, "shadow_settings", None)
+            if (planner_requested and shadow_cfg is not None and shadow_cfg.obstacle_avoidance_enabled
+                    and shadow_cfg.obstacle_check_enabled):
+                obstacle_input = _shadow_obstacle_input(estimates,
+                    getattr(self, "lidar_obstacle_settings", None), self.policy_frame_id)
+                has_obstacles = (obstacle_input.get("available") is True
+                    and obstacle_input.get("time_aligned") is True
+                    and obstacle_input.get("timestamp_s") == state.get("timestamp_s")
+                    and bool(obstacle_input.get("points_xyz_m")))
+                active = self.planner_execution.active or {}
+                expired_hold = self.planner_execution.diagnostics.get("reason") == "road_dropout_timeout"
+                if expired_hold or has_obstacles and (planner_traj is None or not active.get("obstacle_checked")):
+                    # Do not drive the unchecked centerline while waiting/replanning.
+                    self.planner_execution.diagnostics.update(mode="waiting", fallback=False,
+                        reason="road_dropout_timeout" if expired_hold else "waiting_for_obstacle_checked_path")
+                    self.mpc_controller = None  # discard held inputs while output is zero
+                    self.mpc_held_reference = self._trajectory_reference = self._mpc_trajectory = None
+                    return 0.0, 0.0, None, None, None
             # Same bounded priming as the MVP: delayed camera data may predate the
             # motion history reset at start. Only BEFORE the first accepted MPC step.
             # With async planning, also wait out the worker's first result and a
@@ -9108,7 +9282,7 @@ class PolicyNode(Node):
         return max(self.planning_settings.preview_m, speed*(mpc.horizon_n*mpc.dt_pred_s+delay))
 
     def _select_planner_reference(self, estimates):
-        """Opt-in adapter faults return THIS tick's baseline, never Stop."""
+        """Return a checked reference or None for the caller's fallback/wait."""
         try:
             road = estimates.get("road") or {}
             if not any(road.get(k) for k in ("centerline_xy", "left_boundary_xy", "right_boundary_xy")):
@@ -9122,24 +9296,70 @@ class PolicyNode(Node):
                     "reason": "baseline_stop_request", "requested_source": "planner"}
                 return None
             # mpc-car-run adaptation: see PlannerControlSettings.require_valid_baseline.
+            manager = self.planner_execution
+            baseline_valid = self.planning_output.get("valid") is True
+            reused_road, dropout_age = False, 0.0
             if (self.planner_control_settings.require_valid_baseline
-                    and self.planning_output.get("valid") is not True):
-                self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
-                    "reason": "baseline_invalid: "+str(self.planning_output.get("reason")),
-                    "requested_source": "planner"}
-                return None
+                    and not baseline_valid):
+                active = manager.active or {}
+                limit = self.mpc_settings.reference_dropout_tolerance_s
+                can_bridge = (self.mpc_settings.geometry_glitch_tolerable and limit > 0
+                    and self.shadow_settings.obstacle_check_enabled and active.get("obstacle_checked")
+                    and _shadow_soft_road_failure(self.planning_output.get("reason"))
+                    and manager.last_good_road is not None
+                    and manager.last_good_road_epoch == self.shadow_odometry_epoch == active.get("epoch"))
+                if can_bridge:
+                    if manager.road_dropout_started_s is None:
+                        manager.road_dropout_started_s = self._monotonic()
+                    dropout_age = self._monotonic()-manager.road_dropout_started_s
+                    if dropout_age >= limit-1e-9:
+                        manager.diagnostics = {"mode": "waiting", "fallback": False,
+                            "reason": "road_dropout_timeout", "road_dropout_elapsed_s": dropout_age,
+                            "road_dropout_limit_s": limit, "requested_source": "planner"}
+                        return None
+                    # Transport the last trustworthy road support, never mark it
+                    # as a new measurement. select still checks motion/coverage/body.
+                    road = deepcopy(manager.last_good_road)
+                    for side in ("left", "right"):
+                        key = side+"_boundary_xy"
+                        road[key] = _shadow_pose_points(road.get(key) or [],
+                            manager.last_good_road_pose, self.shadow_pose)
+                    road.update(timestamp_s=state["timestamp_s"], time_aligned=True)
+                    reused_road = True
+                else:
+                    manager.diagnostics = {"mode": "baseline", "fallback": True,
+                        "reason": "baseline_invalid: "+str(self.planning_output.get("reason")),
+                        "requested_source": "planner"}
+                    return None
+            elif baseline_valid:
+                manager.road_dropout_started_s = None
             period = 1/self.policy_update_rate_hz
             # mpc-car-run adaptation: MPC preview distance and dt limit, not the PID's.
-            return self.planner_execution.select(road, state, self.shadow_pose, self.shadow_odometry_epoch,
+            reference = manager.select(road, state, self.shadow_pose, self.shadow_odometry_epoch,
                 self.shadow_settings, self.planner_preview_m, self.planning_settings.cruise_speed_mps,
                 period, self.mpc_settings.dt_max_s+period)
+            if reference is not None and reused_road:
+                manager.diagnostics.update(reason="planner_tracking_road_dropout",
+                    road_dropout_elapsed_s=dropout_age, road_dropout_limit_s=limit,
+                    road_support="motion_transported_cached",
+                    road_measurement_stamp_s=road.get("measurement_timestamp_s"))
+            elif reference is not None and baseline_valid:
+                keys = ("left_boundary_xy", "right_boundary_xy", "boundary_source", "frame_id",
+                        "timestamp_s", "measurement_timestamp_s", "time_aligned")
+                manager.last_good_road = {key: deepcopy(road.get(key)) for key in keys}
+                manager.last_good_road_pose = list(self.shadow_pose)
+                manager.last_good_road_epoch = self.shadow_odometry_epoch
+            elif manager.diagnostics.get("reason") == "known_boundary_collision":
+                manager.last_good_road = None  # a confirmed conflict cannot become a soft gap
+                manager.road_dropout_started_s = None
+            return reference
         except Exception as error:
             self.planner_execution.diagnostics = {"mode": "baseline", "fallback": True,
                 "requested_source": "planner", "reason": "execution_exception: "+str(error)}
             return None
 
     def _select_mpc_planner_trajectory(self, estimates):
-        """The lattice as an MPC trajectory, or None to use this tick's baseline.
+        """The lattice as an MPC trajectory, or None for the caller's fallback/wait.
 
         Checked with the pure adapter and the horizon projection BEFORE
         MPCController.step: step advances its clock, command history, bias and
@@ -9344,6 +9564,9 @@ class PolicyNode(Node):
                 shadow_odometry_epoch=getattr(self, "shadow_odometry_epoch", 0),
                 temporal_collection=getattr(self, "shadow_collection_diagnostics", None),
                 previous_reference=deepcopy(getattr(self, "shadow_previous_reference", None)))
+        if self.shadow_settings.obstacle_avoidance_enabled:
+            job["obstacles"] = _shadow_obstacle_input(estimates,
+                getattr(self, "lidar_obstacle_settings", None), self.policy_frame_id)
         self.shadow_worker.submit(job)
         self.shadow_last_submit_s = now
 
@@ -9377,8 +9600,19 @@ class PolicyNode(Node):
             if (self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION
                     or result.get("generation") != self.shadow_generation):
                 return
+            if (self.shadow_settings.obstacle_check_enabled and result.get("stop_required")
+                    and getattr(getattr(self, "planner_control_settings", None), "enabled", False)):
+                try:
+                    self.shadow_diagnostics_publisher.publish(String(data=json.dumps(result)))
+                finally:
+                    self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS,
+                        "LiDAR planning: no passable path; explicit resume required")
+                return
             if getattr(getattr(self, "planner_control_settings", None), "enabled", False):
-                self.planner_execution.accept(result)
+                self.planner_execution.accept(result, preserve_no_road=(
+                    self.shadow_settings.obstacle_check_enabled
+                    and self.mpc_settings.geometry_glitch_tolerable
+                    and self.mpc_settings.reference_dropout_tolerance_s > 0))
             guide = (result.get("fusion") or {}).get("guide")
             if (result.get("status") == "VALID" and guide
                     and guide.get("odometry_epoch") == getattr(self, "shadow_odometry_epoch", 0)):
@@ -9427,6 +9661,8 @@ class PolicyNode(Node):
                 selected_family=selected.get("family") if selected else None,
                 result_age_s=self.get_clock().now().nanoseconds/1e9-stamp,
                 **transport)
+            if result.get("obstacle_avoidance"):
+                summary["obstacle_avoidance"] = result["obstacle_avoidance"]
             if result.get("fusion"):
                 summary["fusion"] = {k: result["fusion"].get(k) for k in
                     ("status", "reason", "degraded", "raw_fallback_used", "selected_source",

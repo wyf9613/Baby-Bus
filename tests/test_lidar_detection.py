@@ -224,7 +224,7 @@ class LidarDetectionChecks(unittest.TestCase):
         p=profile[KEY]['ros__parameters']
         self.assertTrue(p['lidar_obstacle']['enabled'])
         self.assertFalse(p['lidar_obstacle']['stop_enabled'])
-        self.assertEqual(p['lidar_obstacle']['roi_half_width_m'],.4)
+        self.assertEqual(p['lidar_obstacle']['roi_half_width_m'],.6)
         self.assertEqual(p['lidar_obstacle']['stop_distance_m'],1.4)
         self.assertTrue(p['mpc']['geometry_glitch_tolerable'])
         self.assertTrue(p['estimation']['keep_width_on_geometry_glitch'])

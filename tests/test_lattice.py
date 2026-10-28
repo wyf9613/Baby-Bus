@@ -310,7 +310,15 @@ class LatticeChecks(unittest.TestCase):
         node._store("lidar_cartesian", {"points_xyz": [], "scan_indices": []},
                     node.test_clock.ros_ns, node.test_clock.monotonic, node.test_clock.ros_ns)
         control_api["start"](node)
-        node.run_policy_step()
+        # Same heap isolation as the adjacent integration case: this checks
+        # stop/resume semantics, not a pause collecting the harness AST heap.
+        # Keep the real planner clock and the original source deadline.
+        gc.collect()
+        gc.freeze()
+        try:
+            node.run_policy_step()
+        finally:
+            gc.unfreeze()
         self.assertEqual(node.fsm_state, 3, node.state_reason)
         self.assertGreater(node.action_publisher.messages[-1].steer, 0)
         node.test_clock.advance(0.05)

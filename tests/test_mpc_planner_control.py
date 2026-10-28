@@ -39,7 +39,7 @@ EXTRA = {"RoadCenterlinePlanner", "_estimation_order_boundary", "_path_points", 
          "mpc_path_projector", "VehicleModelMPC", "MPCController", "WheelHoldMonitor", "mpc_debug_json",
          "transport_control_reference", "_control_sample_points", "mpc_planning_reference",
          "ShadowSettings", "ShadowFrame", "ShadowLatticePlanner", "PlannerControlSettings",
-         "PlannerExecutionManager"}
+         "PlannerExecutionManager", "LidarObstacleSettings", "lidar_roi_bounds"}
 definitions = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))
                and (n.name in EXTRA or (n.name.startswith("_shadow_") and n.name != "_shadow_worker_entry"))]
 # The lattice planner and PlannerExecutionManager share this module constant.
