@@ -49,12 +49,20 @@ class LidarAvoidanceSettings:
     maneuver_straight_residual_m: float = .05
     maneuver_clearance_m: float = .04
     shift_length_m: float = 2.0
+    adaptive_shift_enabled: bool = False
+    shift_min_length_m: float = .8
+    shift_obstacle_buffer_m: float = .10
+    shift_curvature_utilization: float = .8
     return_length_m: float = 2.0
     pass_margin_m: float = .15
     lateral_tolerance_m: float = .06
     maneuver_heading_tolerance_rad: float = .15
 
     def __post_init__(self):
+        if not isinstance(self.adaptive_shift_enabled, bool):
+            raise ValueError('Boolean adaptive shift enable required')
+        if not finite_number(self.shift_curvature_utilization) or not 0<self.shift_curvature_utilization<=1:
+            raise ValueError('Shift curvature utilization must be in (0, 1]')
         if not isinstance(self.maneuver_enabled, bool) or type(self.maneuver_side) is not int or self.maneuver_side not in (-1, 1):
             raise ValueError('Boolean maneuver enable and side -1/+1 required')
         if self.maneuver_enabled and not self.enabled:
@@ -62,7 +70,7 @@ class LidarAvoidanceSettings:
         if not isinstance(self.enabled, bool):
             raise ValueError('avoidance.enabled must be boolean')
         for name, value in vars(self).items():
-            if name in ('enabled', 'memory_capacity', 'maneuver_enabled', 'maneuver_side'):
+            if name in ('enabled', 'memory_capacity', 'maneuver_enabled', 'maneuver_side', 'adaptive_shift_enabled'):
                 continue
             if not finite_number(value) or value <= 0:
                 raise ValueError('Positive finite avoidance '+name+' required')

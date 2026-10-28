@@ -25,6 +25,23 @@ def quintic(u):
     u=max(0.,min(1.,u));return u*u*u*(10.+u*(-15.+6.*u))
 
 
+def choose_shift_length(displacement, available, cfg):
+    """Fit a quintic before the obstacle, retaining curvature and distance room.
+
+    max |d''| <= 6*abs(delta_d)/L**2 bounds geometric curvature from above.
+    Full sampled curvature, body and road checks still run in the worker.
+    """
+    minimum=max(cfg.shift_min_length_m,math.sqrt(
+        6*abs(displacement)/(cfg.max_curvature_1pm*cfg.shift_curvature_utilization)))
+    length=min(max(cfg.shift_length_m,minimum),available)
+    return (length if length>=minimum else None),dict(
+        available_shift_length_m=available,minimum_shift_length_m=minimum,
+        preferred_shift_length_m=cfg.shift_length_m,
+        longitudinal_buffer_m=cfg.shift_obstacle_buffer_m,
+        curvature_utilization=cfg.shift_curvature_utilization,
+        selected_shift_length_m=length if length>=minimum else None)
+
+
 def boundary_at(points, station, side):
     """Intersect the measured polyline locally; never extrapolate or sort a bend."""
     values=[]
@@ -199,11 +216,19 @@ class AvoidanceManeuverManager:
                 # Prefer the smallest lane shift on the requested passing
                 # side. Using the midpoint of a wide lane needlessly brings
                 # the rotated front corner close to roadside cones.
-                slack=min(cfg.maneuver_clearance_m/2,(upper-lower)/2)
+                # Stay toward the minimum required shift within a tight gap;
+                # the rotating front corner also needs room beside the cones.
+                slack=min(cfg.maneuver_clearance_m/2,(upper-lower)/4)
                 goal=lower+slack if side==1 else upper-slack
                 self.admission['selected_goal_d_m']=goal
-                length=max(cfg.shift_length_m,math.sqrt(6.*abs(goal-sd[1])/cfg.max_curvature_1pm))
-                if sd[0]+length+cfg.front_extent_m+cfg.obstacle_margin_m>s_min:return self.fail('maneuver_too_close_to_start')
+                if cfg.adaptive_shift_enabled:
+                    available=s_min-sd[0]-cfg.front_extent_m-cfg.obstacle_margin_m-cfg.shift_obstacle_buffer_m
+                    length,details=choose_shift_length(goal-sd[1],available,cfg)
+                    self.admission['shift_geometry']=details
+                    if length is None:return self.fail('maneuver_too_close_to_start')
+                else:
+                    length=max(cfg.shift_length_m,math.sqrt(6.*abs(goal-sd[1])/cfg.max_curvature_1pm))
+                    if sd[0]+length+cfg.front_extent_m+cfg.obstacle_margin_m>s_min:return self.fail('maneuver_too_close_to_start')
                 self.next_id+=1;self.revision+=1;self.admitted=False
                 self.task=dict(id=self.next_id,anchor=list(self.anchor),side=side,entry_s=sd[0],entry_d=sd[1],
                     shift_end_s=sd[0]+length,goal_d=goal,target_s_min=s_min,

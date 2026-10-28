@@ -162,8 +162,9 @@ def test_maneuver_ros_node_uses_task_reference_and_stops_on_new_near_obstacle(ma
 def test_narrow_road_right_obstacle_is_admitted_to_actual_worker(make_node):
     node=avoidance_node(make_node,**{
         'lidar_avoidance.maneuver_enabled':True,'lidar_avoidance.max_curvature_1pm':1.,
+        'lidar_avoidance.adaptive_shift_enabled':True,
         'lidar_avoidance.obstacle_margin_m':.03,'lidar_avoidance.tracking_margin_m':.02,
-        'lidar_avoidance.target_lateral_allowance_m':.02,'lidar_avoidance.maneuver_clearance_m':.01,
+        'lidar_avoidance.target_lateral_allowance_m':.02,'lidar_avoidance.maneuver_clearance_m':.02,
         'lidar_avoidance.road_edge_exclusion_m':.10,
         'lidar_avoidance.front_extent_m':.275,'lidar_avoidance.rear_extent_m':.198,
         'lidar_avoidance.width_m':.30,'obstacle_stop.front_extent_m':.275,
@@ -171,15 +172,15 @@ def test_narrow_road_right_obstacle_is_admitted_to_actual_worker(make_node):
         'shadow.rate_hz':1.,'shadow.length_m':1.,'shadow.collision_coverage':'prefix',
         'shadow.score_coverage':'prefix','shadow.body_front_m':.275,
         'shadow.body_rear_m':.198,'shadow.body_width_m':.30})
-    feed_maneuver(node,width=.8,obstacle_y=-.13);request(node,3)
-    node.test_clock.advance(.05);feed_maneuver(node,width=.8,obstacle_y=-.13);node.run_policy_step()
+    feed_maneuver(node,2.005,width=.8,obstacle_y=-.13);request(node,3)
+    node.test_clock.advance(.05);feed_maneuver(node,2.005,width=.8,obstacle_y=-.13);node.run_policy_step()
     wait_result(node)
     assert node.fsm_state==3,node.state_reason
     assert node.planner_execution.active is not None
     task=node.lidar_avoidance_guard.maneuver.task
     assert task is not None and 0.<task['goal_d']<.2
     assert node.lidar_avoidance_guard.maneuver.admission['available_channel_m']>0.
-    node.test_clock.advance(.05);feed_maneuver(node,width=.8,obstacle_y=-.13);node.run_policy_step()
+    node.test_clock.advance(.05);feed_maneuver(node,2.005,width=.8,obstacle_y=-.13);node.run_policy_step()
     assert node._trajectory_reference['maneuver_task_id']==task['id']
     assert node.action_publisher.messages[-1].drive>0.
     node.test_clock.advance(.05);feed_maneuver(node,.14,width=.8);node.run_policy_step()

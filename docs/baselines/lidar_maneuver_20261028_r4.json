@@ -1,0 +1,195 @@
+{
+  "version": "mvp21-lidar-maneuver-20261028-r4",
+  "parent_commit": "297404d",
+  "ros": {
+    "pytest_cases": 437,
+    "ctest_groups": 14,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "reported_checks": 451,
+    "groups": [
+      {
+        "file": "centerline_follow.xunit.xml",
+        "tests": 41,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "control.xunit.xml",
+        "tests": 33,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "estimation.xunit.xml",
+        "tests": 97,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lattice.xunit.xml",
+        "tests": 42,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lidar_avoidance.xunit.xml",
+        "tests": 19,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lidar_maneuver.xunit.xml",
+        "tests": 23,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "mvp21_compatibility.xunit.xml",
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "obstacle_stop.xunit.xml",
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ordered_pairing.xunit.xml",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "planner_execution.xunit.xml",
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "planning.xunit.xml",
+        "tests": 17,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "policy_node.xunit.xml",
+        "tests": 85,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ros_lidar_avoidance.xunit.xml",
+        "tests": 12,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ros_obstacle_stop.xunit.xml",
+        "tests": 30,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "portable": {
+    "tests": 69,
+    "passed": true
+  },
+  "bundle_smoke": {
+    "startup_zero": true,
+    "normal_following_with_rear_return_over_four_seconds": true,
+    "actual_worker_and_guarded_native_control": true,
+    "dedicated_maneuver_mode": true,
+    "close_obstacle_stops": true,
+    "clear_scan_does_not_resume": true,
+    "explicit_resume": true,
+    "passed": true,
+    "hardware_used": false,
+    "vehicle_enabled": false,
+    "namespace": "/avoidance_bundle_check",
+    "profile_enabled": true,
+    "road_width_m": 0.8,
+    "obstacle_width_m": 0.25,
+    "obstacle_offset_m": -0.255,
+    "obstacle_distance_m": 2.28,
+    "roadside_returns": true
+  },
+  "closed_loop": {
+    "completed": true,
+    "steps": 743,
+    "final_progress_m": 7.534173492034318,
+    "fault": null,
+    "planner_reference_count": 739,
+    "baseline_reference_count": 4,
+    "native_only_passed": false,
+    "maximum_executed_speed_mps": 0.20013066690605347,
+    "startup_baseline_cycles": 4,
+    "fallback_after_first_native_cycles": 0,
+    "minimum_body_road_margin_m": 0.1751038735558091,
+    "maximum_lateral_excursion_m": 0.07274758596925039,
+    "final_lateral_m": -0.0018072547995113476,
+    "obstacle_contact": false,
+    "completed_task_id": 1
+  },
+  "phases": [
+    {
+      "phase": "NORMAL",
+      "timestamp_s": 1.15,
+      "task_id": null
+    },
+    {
+      "phase": "SHIFT",
+      "timestamp_s": 11.55,
+      "task_id": 1
+    },
+    {
+      "phase": "PASSING",
+      "timestamp_s": 13.55,
+      "task_id": 1
+    },
+    {
+      "phase": "RETURN",
+      "timestamp_s": 23.25,
+      "task_id": 1
+    },
+    {
+      "phase": "NORMAL",
+      "timestamp_s": 32.8,
+      "task_id": null
+    }
+  ],
+  "source_hashes_match_closed_loop": true,
+  "scenario": {
+    "lidar_maximum_range_m": 2.28125,
+    "road_width_m": 0.8,
+    "obstacle_width_m": 0.25,
+    "obstacle_length_m": 0.25,
+    "obstacle_right_boundary_gap_m": 0.02,
+    "roadside_return_model": "16cm-square footprints stand in conservatively for 8cm-radius cones",
+    "perception": "camera estimated road, 61-ray LiDAR, 10Hz scans with 50ms delay",
+    "simulation_control_overrides_are_not_deployed": true
+  },
+  "scope": "Straight static obstacle, fixed left side. No repair to normal curve-following, physical calibration or actual-car acceptance.",
+  "geometry_budgets_status": "Explicit provisional low-speed experiment settings, not measured safety clearances",
+  "evidence_directory": "/Users/xiaotonghe/Documents/Baby-Bus/.verification/worktrees/mvp21-lidar-avoidance/.verification/maneuver-r4-20261028",
+  "hardware_used": false,
+  "physical_validation": "not performed"
+}

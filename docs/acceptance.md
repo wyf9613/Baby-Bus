@@ -2186,3 +2186,30 @@ native reference; this is not native-only acceptance.
 Evidence: docs/baselines/lidar_maneuver_20261028_r3.json and
 .verification/maneuver-r3-20261028/. Earlier failed tests and r1/r2 outputs
 remain preserved. No vehicle was connected, deployed or enabled by these tools.
+
+## MVP maneuver r4 adaptive shift length, 2026-10-28
+
+The r3 field record rejected a feasible-side start at 2.283 m because 2 m was
+an unconditional minimum shift length. The r4 delivery enables an adaptive
+quintic length: keep a further 0.10 m longitudinal buffer beyond front extent
+and obstacle inflation; use a conservative 80 percent curvature budget and
+0.8 m minimum; prefer 2 m when available. The worker still checks actual
+curvature, full body collision and observed road containment. Extra lateral
+clearance increases from 0.01 to 0.02 m; the target stays toward the minimum
+necessary shift to retain room for the rotated front corner beside cones.
+Legacy adaptive=false behavior, original stop and normal planning are retained.
+No repair to field road-estimation failures or curve following is claimed.
+
+69 focused portable cases pass, including the logged start-distance geometry
+in an explicit straight fixture and genuine insufficient-distance rejection.
+The installed ROS gate reports 451 checks (437 pytest plus 14 CTest groups),
+no errors/failures/skips. Actual final-bundle DDS smoke uses a 2.28 m obstacle,
+0.80 m road, right-offset 0.25 m box and roadside returns; task reference,
+near stop, latched zero and explicit resume pass. A fresh observed closed loop
+limits LiDAR range to 2.28125 m (an exact binary no-return sentinel), with the
+same narrow geometry and square cone stand-ins. Task 1 completes and returns
+in 743 steps without obstacle contact; startup baseline use is reported.
+Simulation longitudinal overrides and provisional body dimensions remain
+explicit and do not establish real-car acceptance or physical safety margins.
+Evidence: docs/baselines/lidar_maneuver_20261028_r4.json and
+.verification/maneuver-r4-20261028/. Earlier failed probes remain preserved.

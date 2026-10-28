@@ -45,6 +45,44 @@ def tick(guard,pose=(0.,0.,0.),now=10.,points=None,missing=None,measurement=None
 
 
 class ManeuverChecks(unittest.TestCase):
+    def test_logged_two_point_two_eight_metre_start_can_generate_checked_path(self):
+        # Logged r3 admission: 16 cm shift and 2.283 m forward distance was
+        # rejected solely by the fixed 2 m minimum. Surrounding road here is
+        # an explicit straight fixture, not a replay of unrecorded field data.
+        cfg=replace(self.narrow_cfg(),adaptive_shift_enabled=True,maneuver_clearance_m=.02)
+        g=LidarAvoidanceGuard(cfg)
+        points=[[2.282685665830912,y] for y in (-.18226083517493913,-.16391498215839076)]
+        j=tick(g,pose=(0.,-.0892126728750285,0.),width=.8,points=points)
+        self.assertFalse(g.latched,g.diagnostics)
+        details=g.maneuver.admission['shift_geometry'];task=g.maneuver.task
+        self.assertLess(details['selected_shift_length_m'],2.)
+        self.assertGreater(details['selected_shift_length_m'],details['minimum_shift_length_m'])
+        distance=task['target_s_min']-task['shift_end_s']-cfg.front_extent_m-cfg.obstacle_margin_m
+        self.assertAlmostEqual(distance,.10)
+        r=filter_candidates(j)
+        self.assertEqual(r['status'],'VALID',r.get('avoidance'))
+        self.assertLessEqual(r['selected']['peak_curvature_1pm'],cfg.max_curvature_1pm*.8)
+
+    def test_adaptive_shift_still_rejects_too_little_longitudinal_room(self):
+        cfg=replace(self.narrow_cfg(),adaptive_shift_enabled=True,maneuver_clearance_m=.02)
+        g=LidarAvoidanceGuard(cfg);tick(g,width=.8,points=[[.9,-.16]])
+        self.assertEqual(g.stop_reason,'maneuver_too_close_to_start')
+        d=g.first_failure['maneuver']['admission']['shift_geometry']
+        self.assertGreater(d['minimum_shift_length_m'],d['available_shift_length_m'])
+        self.assertIsNone(d['selected_shift_length_m'])
+        for changes in (dict(adaptive_shift_enabled=1),dict(shift_curvature_utilization=1.1)):
+            with self.assertRaises(ValueError):replace(cfg,**changes)
+
+    def test_larger_clearance_keeps_the_rotating_front_corner_off_roadside_returns(self):
+        cfg=replace(self.narrow_cfg(),adaptive_shift_enabled=True,maneuver_clearance_m=.02)
+        g=LidarAvoidanceGuard(cfg)
+        j=tick(g,width=.8,points=[[2.48055,-.13],[2.0204004846960135,.32],[2.86,.32]])
+        self.assertFalse(g.latched,g.diagnostics)
+        r=filter_candidates(j)
+        self.assertEqual(r['status'],'VALID',r.get('collision'))
+        self.assertGreater(g.maneuver.task['goal_d'],.11)
+        self.assertLess(g.maneuver.task['goal_d'],.115)
+
     def narrow_cfg(self):
         return replace(CFG,front_extent_m=.275,rear_extent_m=.198,width_m=.30,
             obstacle_margin_m=.03,tracking_margin_m=.02,target_lateral_allowance_m=.02,

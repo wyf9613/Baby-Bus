@@ -23,6 +23,7 @@ def main():
     parser.add_argument('--road-width',type=float,default=2.)
     parser.add_argument('--obstacle-offset',type=float,default=0.)
     parser.add_argument('--obstacle-width',type=float,default=.20)
+    parser.add_argument('--obstacle-distance',type=float,default=2.8)
     parser.add_argument('--roadside-returns',action='store_true')
     args=parser.parse_args()
     args.output.mkdir(parents=True,exist_ok=False)
@@ -105,7 +106,7 @@ def main():
             assert any(x.get('lidar_avoidance',{}).get('protection_mode')=='baseline_forward_stop' for x in execution)
             report['normal_following_with_rear_return_over_four_seconds']=True
             index=len(actions)
-        run(3.,2.8)
+        run(3.,args.obstacle_distance)
         assert states[-1]==3,(states,(args.output/'node.log').read_text()[-2000:])
         assert any(a['drive']>0 and abs(a['steer'])>.01 for a in actions[index:])
         assert any(x.get('mode')=='planner' and x.get('lidar_avoidance') is not None for x in execution)
@@ -128,7 +129,8 @@ def main():
         report.update(passed=True,hardware_used=False,vehicle_enabled=False,
                       namespace=namespace,profile_enabled=params['lidar_avoidance']['enabled'],
                       road_width_m=args.road_width,obstacle_width_m=args.obstacle_width,
-                      obstacle_offset_m=args.obstacle_offset,roadside_returns=args.roadside_returns)
+                      obstacle_offset_m=args.obstacle_offset,obstacle_distance_m=args.obstacle_distance,
+                      roadside_returns=args.roadside_returns)
     finally:
         pubs['request'].publish(UInt16(data=2))
         process.terminate()
