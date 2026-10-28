@@ -1,0 +1,242 @@
+{
+  "date": "2026-10-28",
+  "base_commit": "36dcad6affbe32d0c14fb70ad2adc065e8e3220e",
+  "source": {
+    "format": "mvp21_modules_sha256_v1",
+    "sha256": "48a68ba0c762c9cd3a155f4b6aa9eca862ce884b09bfcdc94755aadd6d6f2899",
+    "files": {
+      "__init__.py": "caa980464c44a9bc69e8667df083f5d76cd4140098388f2a363171ef52ddd53e",
+      "__main__.py": "3051d19225dc0a7054f63da7c726b15cc9259cbcc980eafcd27a0780863d65d1",
+      "api.py": "3a1c726f32ed5fe6fca00c1dbbf72c99e418db78e6581fdf805a5452fb7bae08",
+      "avoidance.py": "aeb805bfd97d6cd1ce41b19249ff493f53af3f8e20c4f33d46f0cf560e9fd386",
+      "candidates.py": "aebb4559814462921224610a8327c7bf0ff052533a813e4911237ca0c1307cb0",
+      "contracts.py": "aaeafadda8bcd6d1e283045bfebc12fccccd11d565d28afe42b3323a3d577e33",
+      "control.py": "99f3a9079a4abc797b5d0db878dffe4ac6de7d690ce2e1010010dff99b62f0f9",
+      "estimation.py": "227ed4da8c678bc9db9e9b7f13d2107eaa256be39883a3abb627d2f273c07f2a",
+      "execution.py": "026039d6c122203a6749ef362e3c23435147e24a39681ca45f4b68fe0584082c",
+      "frenet.py": "363bd2eee26075f57cb70cd30987af643cd2086cd24729a9d465fdd74ffee89c",
+      "geometry.py": "6a3fb3d04b0e4211deca5199621f665e98fa3918f09d278ab69381cddc1cd8c6",
+      "lattice.py": "9c597aba6f960597885266bed3d888955ecc090c0357ee1afb01502a3ec90cf1",
+      "maneuver.py": "60abed63ba8c5eb0d869f50245b11e41dd54b52bd8c87b83800fd5caf1c47035",
+      "motion.py": "daca37206a81ec0e4d10680b1ebd7d28c9c63a30a90c6561a97463800a56b889",
+      "node.py": "ff1c196eba81d84a93ef3057504d205c7d8929a43fb34de4937c84fac3c9998c",
+      "obstacle_stop.py": "c79edcab6100dbbcb0ff3794f33220e90cf9cfa54f6a9a282ec1568e1c9d53a5",
+      "planning.py": "f6dbcd6e2f52df08046df1bfe20deaaf87f1be183067b001a1299e11f701d68a",
+      "provenance.py": "3ca8499a79ab11799bda43f17a90d878fb8bbcf7742e51a08bde114eceffb265",
+      "transport.py": "186928901f89813089ec0c10a92b1d832aa04012c21333e6fdaca8fa58e07884",
+      "worker.py": "2bd04e775dad9860f85b29e16904cd4783807ef5c156e4916543f8606f95d135"
+    }
+  },
+  "portable_checks": 115,
+  "portable_result": "pass",
+  "final_reference_checks": 38,
+  "ros": {
+    "pytest_cases": 425,
+    "ctest_groups": 14,
+    "reported_checks": 439,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "groups": [
+      {
+        "file": "lidar_maneuver.xunit.xml",
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ros_lidar_avoidance.xunit.xml",
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lidar_avoidance.xunit.xml",
+        "tests": 19,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "policy_node.xunit.xml",
+        "tests": 85,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ros_obstacle_stop.xunit.xml",
+        "tests": 30,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "mvp21_compatibility.xunit.xml",
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "obstacle_stop.xunit.xml",
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ordered_pairing.xunit.xml",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "centerline_follow.xunit.xml",
+        "tests": 41,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "estimation.xunit.xml",
+        "tests": 97,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lattice.xunit.xml",
+        "tests": 42,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "planning.xunit.xml",
+        "tests": 17,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "control.xunit.xml",
+        "tests": 33,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "file": "planner_execution.xunit.xml",
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "bundle_dds": {
+    "startup_zero": true,
+    "actual_worker_and_guarded_native_control": true,
+    "dedicated_maneuver_mode": true,
+    "close_obstacle_stops": true,
+    "clear_scan_does_not_resume": true,
+    "explicit_resume": true,
+    "passed": true,
+    "hardware_used": false,
+    "vehicle_enabled": false,
+    "namespace": "/avoidance_bundle_check",
+    "profile_enabled": true
+  },
+  "closed_loop": {
+    "completed": true,
+    "fault": null,
+    "no_contact": true,
+    "phases": {
+      "NORMAL": 187,
+      "SHIFT": 170,
+      "PASSING": 201,
+      "RETURN": 197
+    },
+    "transitions": [
+      {
+        "phase": "NORMAL",
+        "time_s": 1.15,
+        "x_m": 0.23830832277457795,
+        "y_m": 0.0,
+        "target_id": null
+      },
+      {
+        "phase": "SHIFT",
+        "time_s": 5.15,
+        "x_m": 0.9179689664548548,
+        "y_m": 3.814110336009681e-17,
+        "target_id": 1
+      },
+      {
+        "phase": "PASSING",
+        "time_s": 13.65,
+        "x_m": 2.5574169993973612,
+        "y_m": 0.4225161367294735,
+        "target_id": 1
+      },
+      {
+        "phase": "RETURN",
+        "time_s": 23.700000000000003,
+        "x_m": 4.566742168138304,
+        "y_m": 0.45022862577518435,
+        "target_id": 1
+      },
+      {
+        "phase": "NORMAL",
+        "time_s": 33.550000000000004,
+        "x_m": 6.474519748377139,
+        "y_m": 0.008321971226757938,
+        "target_id": null
+      }
+    ],
+    "peak_speed_mps": 0.2011536472881586,
+    "final_progress_m": 7.534448322311193,
+    "maximum_lateral_m": 0.45408836975584366,
+    "minimum_road_margin_m": 0.288264974729998,
+    "final_y_m": 0.004983390373917765,
+    "final_maneuver": {
+      "phase": "NORMAL",
+      "task_id": null,
+      "revision": 3,
+      "goal_d_m": null,
+      "vehicle_sd_m": [
+        -0.7181372992360407,
+        -0.012027314747599684
+      ],
+      "heading_error_rad": -0.011180734761184133,
+      "last_completed_task_id": 1,
+      "target": null,
+      "error": null
+    },
+    "hardware_used": false,
+    "measured_cpu_plus_delay": "measured_cpu_plus_delay",
+    "simulation_geometry": {
+      "enabled": true,
+      "trigger_distance_m": 0.15,
+      "front_extent_m": 0.275,
+      "rear_extent_m": 0.198,
+      "width_m": 0.3,
+      "lateral_margin_m": 0.0,
+      "max_source_age_s": 0.3,
+      "max_receipt_age_s": 0.15,
+      "frame_id": "base_link"
+    }
+  },
+  "tested_payload_sha256": {
+    "policy_node.py": "49a4f7b325d9be6e9cf6b41fcb3677959b4989c109e6d0ae694b64da0235ebf8",
+    "ai4r_policy.yaml": "a21db86f66a4c0cf6001d645330cc847b9e5336d5a7a950d066d2074789ce9e7"
+  },
+  "physical_validation": false,
+  "vehicle_enabled": false,
+  "old_failed_runs_preserved": true,
+  "evidence_directory": "/Users/xiaotonghe/Documents/Baby-Bus/.verification/worktrees/mvp21-lidar-avoidance/.verification/maneuver-20261028"
+}

@@ -52,7 +52,7 @@ def main():
                 motion=now+.05
             if now>=scan:
                 batch=ConeDetections();batch.header.stamp=stamp;batch.header.frame_id='base_link'
-                for color,side in ((params['estimation']['left_colour'],.7),(params['estimation']['right_colour'],-.7)):
+                for color,side in ((params['estimation']['left_colour'],1.),(params['estimation']['right_colour'],-1.)):
                     for i in range(11):
                         cone=ConeDetection();cone.position.x=.3+.28*i;cone.position.y=side
                         cone.color=color;cone.classification_confidence=.99;batch.detections.append(cone)
@@ -67,16 +67,22 @@ def main():
 
     report={}
     try:
-        run(2.,1.7)
+        for _ in range(20):
+            run(.5,2.8)
+            if states and actions:break
         assert states and states[-1]==2 and actions and all(a['drive']==a['steer']==0. for a in actions)
         report['startup_zero']=True
         pubs['request'].publish(UInt16(data=3));index=len(actions)
-        run(3.,1.7)
+        run(3.,2.8)
         assert states[-1]==3,(states,(args.output/'node.log').read_text()[-2000:])
         assert any(a['drive']>0 and abs(a['steer'])>.01 for a in actions[index:])
         assert any(x.get('mode')=='planner' and x.get('lidar_avoidance') is not None for x in execution)
         assert any(x.get('source_sha256_format')=='mvp21_worker_lidar_avoidance_v1' for x in worker)
         report['actual_worker_and_guarded_native_control']=True
+        if params['lidar_avoidance'].get('maneuver_enabled'):
+            assert any((x.get('lidar_avoidance',{}).get('maneuver') or {}).get('phase')=='SHIFT' for x in execution)
+            assert any((x.get('selected') or {}).get('family')=='maneuver_shift' for x in worker)
+            report['dedicated_maneuver_mode']=True
         run(.6,.35)
         assert states[-1]==2 and actions[-1]['drive']==actions[-1]['steer']==0.
         report['close_obstacle_stops']=True
@@ -96,6 +102,7 @@ def main():
         except subprocess.TimeoutExpired:process.kill();process.wait()
         log.close();node.destroy_node();rclpy.shutdown()
         (args.output/'RESULTS.json').write_text(json.dumps(report,indent=2)+'\n')
+        (args.output/'states.json').write_text(json.dumps(states)+'\n')
         (args.output/'actions.json').write_text(json.dumps(actions)+'\n')
         (args.output/'execution.json').write_text(json.dumps(execution)+'\n')
     print(json.dumps(report),flush=True)

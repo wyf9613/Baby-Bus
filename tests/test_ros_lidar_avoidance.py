@@ -90,3 +90,37 @@ def test_worker_transport_fault_stops_without_automatic_resume(make_node):
 def test_incompatible_enable_is_refused(make_node,extra):
     with pytest.raises(ValueError):
         avoidance_node(make_node,**extra)
+
+
+def feed_maneuver(node,gap=2.5):
+    from dream_interfaces.msg import ConeDetection,ConeDetections
+    import math
+    from test_policy_node import stamp,imu,scan
+    from std_msgs.msg import Float32
+    node.wheel_speed_callback(Float32(data=0.))
+    gyro=imu(node,orientation=False);gyro.angular_velocity_covariance[0]=0.;node.imu_callback(gyro)
+    message=scan(node,frame='base_link');message.angle_min=0.;message.angle_max=.1
+    message.ranges=[.297+gap,math.inf];node.lidar_callback(message)
+    batch=stamp(node,ConeDetections())
+    for colour,side in ((ConeDetection.COLOR_BLUE,.9),(ConeDetection.COLOR_YELLOW,-.9)):
+        for index in range(19):
+            cone=ConeDetection();cone.position.x=-.4+.3*index;cone.position.y=side
+            cone.color=colour;cone.classification_confidence=.95;batch.detections.append(cone)
+    node.cone_detection_callback(batch)
+
+
+def test_maneuver_ros_node_uses_task_reference_and_stops_on_new_near_obstacle(make_node):
+    node=avoidance_node(make_node,**{'lidar_avoidance.maneuver_enabled':True,
+        'lidar_avoidance.max_curvature_1pm':1.,'shadow.rate_hz':2.})
+    feed_maneuver(node);request(node,3)
+    node.test_clock.advance(.05);feed_maneuver(node);node.run_policy_step()
+    wait_result(node)
+    assert node.fsm_state==3,node.state_reason
+    assert node.planner_execution.active is not None
+    assert node.lidar_avoidance_guard.maneuver.task['id']==1
+    node.test_clock.advance(.05);feed_maneuver(node);node.run_policy_step()
+    assert node.fsm_state==3,node.state_reason
+    assert node._trajectory_reference['maneuver_task_id']==1
+    assert node.action_publisher.messages[-1].drive>0
+    node.test_clock.advance(.05);feed_maneuver(node,.14);node.run_policy_step()
+    assert node.fsm_state==2 and node.action_publisher.messages[-1].drive==0

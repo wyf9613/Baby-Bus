@@ -75,6 +75,8 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
     if requested and not shadow_enabled:
         raise ValueError('Native execution requires the planner to be enabled')
     settings = ShadowSettings(**config['shadow'])
+    if (lidar_avoidance_config or {}).get('maneuver_enabled'):
+        settings.fusion_use_prior = False
     for name, value in (('collision_coverage', collision_coverage), ('score_coverage', score_coverage),
                         ('length_m', lattice_length_m), ('rate_hz', planner_rate_hz)):
         if value is not None:
@@ -208,7 +210,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                     if not any(road_snapshot.get(k) for k in ('centerline_xy', 'left_boundary_xy', 'right_boundary_xy')):
                         road_snapshot = road_snapshot.get('forward_geometry') or {}
                     offer._shadow_collect_road(road_snapshot, now)
-                    avoidance.update(estimates.get('obstacles'), offer.shadow_pose, offer.shadow_odometry_epoch, now)
+                    avoidance.update(estimates.get('obstacles'), offer.shadow_pose, offer.shadow_odometry_epoch, now, road=road_snapshot)
                 ages = observation['sensor_age_s']
                 fresh = {name: observation['sensor_available'].get(name, False)
                     and finite_number(ages.get(name)) and ages[name] < config['sensor_timeout_s'][name]
@@ -468,6 +470,8 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
             summary['lidar_avoidance'] = dict(settings=vars(avoidance.settings),
                 stop_reason=avoidance.stop_reason, committed_side=avoidance.side,
                 memory_point_count=len(avoidance.memory), stopped_hold_s=held_still_s,
+                maneuver=None if avoidance.maneuver is None else avoidance.maneuver.diagnostics,
+                first_failure=avoidance.first_failure,
                 static_obstacle_assumption=True, ros_enabled=False,
                 scope='observed_static_straight_road_offline_experiment')
         write_json(output/'summary.json', summary)

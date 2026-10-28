@@ -34,12 +34,33 @@ class LidarAvoidanceSettings:
     # Two 2-Hz planning cycles plus a bounded worker handoff. Sensor source
     # and receipt deadlines remain independently much shorter.
     max_plan_age_s: float = 1.5
+    # Legacy A2 stays available for immutable replays; new deliveries opt in.
+    maneuver_enabled: bool = False
+    maneuver_side: int = 1
+    trigger_lookahead_m: float = 3.0
+    target_cluster_gap_m: float = .15
+    target_match_distance_m: float = .15
+    target_depth_allowance_m: float = .30
+    target_lateral_allowance_m: float = .10
+    road_edge_exclusion_m: float = .12
+    road_support_max_age_s: float = .65
+    maneuver_straight_residual_m: float = .05
+    maneuver_clearance_m: float = .04
+    shift_length_m: float = 2.0
+    return_length_m: float = 2.0
+    pass_margin_m: float = .15
+    lateral_tolerance_m: float = .06
+    maneuver_heading_tolerance_rad: float = .15
 
     def __post_init__(self):
+        if not isinstance(self.maneuver_enabled, bool) or type(self.maneuver_side) is not int or self.maneuver_side not in (-1, 1):
+            raise ValueError('Boolean maneuver enable and side -1/+1 required')
+        if self.maneuver_enabled and not self.enabled:
+            raise ValueError('Maneuver requires enabled LiDAR avoidance')
         if not isinstance(self.enabled, bool):
             raise ValueError('avoidance.enabled must be boolean')
         for name, value in vars(self).items():
-            if name in ('enabled', 'memory_capacity'):
+            if name in ('enabled', 'memory_capacity', 'maneuver_enabled', 'maneuver_side'):
                 continue
             if not finite_number(value) or value <= 0:
                 raise ValueError('Positive finite avoidance '+name+' required')
@@ -226,6 +247,9 @@ def filter_candidates(job):
     """Native generation + full-path hard filters, then native deterministic cost."""
     context = job['lidar_avoidance']
     cfg = LidarAvoidanceSettings(**context['settings'])
+    if cfg.maneuver_enabled:
+        from .maneuver import plan_maneuver
+        return plan_maneuver(job, cfg)
     if not cfg.enabled:
         raise ValueError('Avoidance planner requires explicit enable')
     result = ShadowLatticePlanner(ShadowSettings(**job['settings'])).plan(job)
@@ -307,18 +331,27 @@ class LidarAvoidanceGuard:
         self.diagnostics = {}
         self.obstacles = None
         self.points = []
+        self.first_failure = None
+        self.maneuver = None
+        if settings.maneuver_enabled:
+            from .maneuver import AvoidanceManeuverManager
+            self.maneuver = AvoidanceManeuverManager(settings)
 
     @property
     def latched(self):
         return self.stop_reason is not None
 
     def stop(self, reason):
+        if self.first_failure is None:
+            self.first_failure = dict(reason=reason, timestamp_s=self.stamp,
+                maneuver=None if self.maneuver is None else deepcopy(self.maneuver.diagnostics))
         self.stop_reason = self.stop_reason or reason
         self.diagnostics = dict(enabled=True, stop_required=True, latched=True,
-            reason=self.stop_reason, committed_side=self.side, memory_point_count=len(self.memory))
+            reason=self.stop_reason, committed_side=self.side, memory_point_count=len(self.memory),
+            first_failure=self.first_failure)
         return self.diagnostics
 
-    def update(self, obstacles, pose, epoch, now):
+    def update(self, obstacles, pose, epoch, now, road=None):
         cfg = self.settings
         self.obstacles = deepcopy(obstacles)
         fault = obstacle_fault(obstacles, now, cfg)
@@ -331,6 +364,16 @@ class LidarAvoidanceGuard:
         if self.epoch is not None and epoch != self.epoch and self.memory:
             return self.stop('avoidance_motion_epoch_changed')
         self.epoch, self.stamp, self.pose = epoch, now, list(pose)
+        if self.maneuver is not None:
+            problem = self.maneuver.update(obstacles, road, pose, epoch, now)
+            self.points = self.maneuver.collision_points(obstacles['points_xyz_m'])
+            self.side = self.maneuver.task['side'] if self.maneuver.active else 0
+            self.memory = {}  # Target task, not environmental map, owns progress.
+            if problem or self.maneuver.error:
+                return self.stop(problem or self.maneuver.error)
+            if len(self.points) > self.settings.memory_capacity:
+                return self.stop('maneuver_point_capacity')
+            return self.evaluate(None, now, check_reference=False)
         x, y, yaw = pose
         c, s = math.cos(yaw), math.sin(yaw)
         for px, py, _ in obstacles['points_xyz_m']:
@@ -356,11 +399,20 @@ class LidarAvoidanceGuard:
         return self.evaluate(None, now, check_reference=False)
 
     def context(self):
-        return dict(settings=vars(self.settings), obstacles=deepcopy(self.obstacles),
+        result = dict(settings=vars(self.settings), obstacles=deepcopy(self.obstacles),
                     points_xy_m=deepcopy(self.points), side=self.side)
+        if self.maneuver is not None:
+            result['maneuver'] = self.maneuver.context()
+        return result
 
     def accept(self, result):
         info = result.get('avoidance') or {}
+        if self.maneuver is not None:
+            if result.get('status') == 'VALID' and self.maneuver.active:
+                self.maneuver.admitted = True
+            elif self.maneuver.active:
+                self.stop(info.get('reason') or 'maneuver_no_path')
+            return
         if result.get('status') == 'VALID' and info.get('selected_side'):
             self.side = self.side or info['selected_side']
         elif info.get('blocking_obstacle'):
@@ -373,6 +425,8 @@ class LidarAvoidanceGuard:
             return self.stop('avoidance_snapshot_not_current')
         result = dict(enabled=True, stop_required=False, latched=False, reason='clear',
             committed_side=self.side, memory_point_count=len(self.memory))
+        if self.maneuver is not None:
+            result['maneuver'] = deepcopy(self.maneuver.diagnostics)
         if check_reference:
             try:
                 if not reference or reference.get('valid') is not True:
@@ -381,6 +435,9 @@ class LidarAvoidanceGuard:
                         or not finite_number(reference.get('timestamp_s'))
                         or abs(reference['timestamp_s']-now) > 1e-6):
                     return self.stop('avoidance_reference_frame_or_time')
+                if (self.maneuver is not None and self.maneuver.active and self.maneuver.admitted
+                        and reference.get('maneuver_task_id') != self.maneuver.task['id']):
+                    return self.stop('maneuver_blocked_fallback')
                 poses = path_poses(reference['path']['samples_xy'])
                 if reference.get('planner_version') == 'lattice_execution':
                     source = reference.get('original_input_stamp_s')
@@ -393,7 +450,10 @@ class LidarAvoidanceGuard:
                 # the cropped reference. Checking only the centerline is unsafe.
                 if math.hypot(*poses[0][:2]) > 1e-9:
                     poses.insert(0, (0., 0., 0.))
-                hit = collision(poses, self.points, self.settings, self.settings.rolling_check_m)
+                boundaries = (self.maneuver.context()['boundaries']
+                    if self.maneuver is not None and self.maneuver.active else None)
+                hit = collision(poses, self.points, self.settings, self.settings.rolling_check_m,
+                                boundaries=boundaries)
                 result['collision'] = hit
                 if hit:
                     result = self.stop('avoidance_execution_collision')
@@ -412,6 +472,13 @@ def accept_avoidance_result(execution, guard, result):
     still applies current road/LiDAR checks and the original plan-age deadline.
     A newly blocked corridor or worker fault never takes this path.
     """
+    if guard.maneuver is not None:
+        info = result.get('avoidance') or {}
+        if not info.get('enabled') or 'maneuver_revision' not in info:
+            guard.stop('avoidance_worker_result_invalid')
+            return True
+        if not guard.maneuver.result_current(info):
+            return False  # Late normal/old task/old return geometry cannot replace a task.
     previous = execution.active
     if not execution.accept(result):
         return False
@@ -423,7 +490,7 @@ def accept_avoidance_result(execution, guard, result):
         guard.stop('avoidance_worker_payload_invalid')
         return True
     guard.accept(result)
-    if (previous is not None and not guard.latched and guard.side
+    if (guard.maneuver is None and previous is not None and not guard.latched and guard.side
             and result.get('status') == 'NO_AVOIDANCE_PATH'
             and not info.get('blocking_obstacle') and info.get('reason') is None
             and previous['epoch'] == guard.epoch):

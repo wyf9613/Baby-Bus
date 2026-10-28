@@ -2091,3 +2091,41 @@ not physical bypass motion. No vehicle driver or Enable service is used.
 Evidence: `.verification/lidar-avoidance-ros-20261026-final/` and
 `.verification/ros-avoidance-20261026/`. Delivery is a source/config candidate;
 vehicle dimensions, physical stopping and hardware acceptance remain unverified.
+
+## Task-owned MVP static bypass, 2026-10-28
+
+Branch `ying/mvp21-lidar-maneuver`, based on preserved A2 `36dcad6`.
+`lidar_avoidance.maneuver_enabled` selects a new control-owned target/task rather
+than adding more competing A2 candidates. Normal operation retains native
+selection. A fixed observed-road chart, target envelope, stable lateral goal,
+SHIFT/PASSING/RETURN phases and rotated whole-body rear clearance own progress.
+Other returns remain collision inputs but cannot keep a task alive indefinitely.
+Worker results carry task/revision markers; obsolete jobs cannot replace a new
+phase. The executed path and baseline fallback are checked with current LiDAR
+and bounded original-age road support. Hard stops still require explicit resume.
+Bare/default configuration retains legacy A2 behavior for existing replays;
+new deployment packages opt in, fixed left, left blue/right yellow, 0.20 m/s.
+
+Validation: 115 portable checks pass, including the original MVP compatibility
+and bundle tests; 38 focused final-reference checks pass after the final gate
+addition. Full installed Jazzy gate: 425 pytest cases + 14 CTest groups = 439
+reported checks, zero failures/errors/skips. An actual standalone bundled node
+and complete YAML pass synthetic DDS startup zero, dedicated maneuver worker
+selection, near-obstacle stop, retained zero on clear scan and explicit resume.
+DDS smoke uses stationary wheel messages; it is not moving-car acceptance.
+
+An observed-perception closed loop on an 8 m, 1.8 m wide straight with a 0.2 m
+static obstacle at 4 m completes NORMAL/SHIFT/PASSING/RETURN/NORMAL, with measured
+planner CPU plus 100 ms transport delay. Simulation body dimensions explicitly
+match the provisional delivery rectangle (0.275/0.198/0.30 m). No obstacle
+contact; peak speed 0.2012 m/s; maximum lateral excursion 0.4541 m; minimum body
+road margin 0.2883 m. Seven initial baseline frames are retained and reported;
+this is not native-only execution. Simulation longitudinal settings are explicit
+and differ from the real-car drive profile. Negative simulated braking is not
+packaged. Target unseen-depth/lateral allowances are assumptions, not measured
+object dimensions. Earlier too-late-start attempts remain in their own folders.
+
+Evidence: `docs/baselines/lidar_maneuver_20261028.json` and
+`.verification/maneuver-20261028/`. No hardware, Enable service or vehicle deploy
+was used. First scope remains fixed-side static bypass with observed near-straight
+road support; dynamic obstacles and physical stopping/timing are unqualified.

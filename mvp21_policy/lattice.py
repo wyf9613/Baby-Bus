@@ -40,6 +40,7 @@ class ShadowSettings:
     weight_progress: float = 2.0
     weight_smoothness: float = 0.04
     fusion_enabled: bool = True
+    fusion_use_prior: bool = True
     fusion_window_s: float = 1.0
     fusion_max_samples: int = 21
     fusion_spacing_m: float = 0.10
@@ -55,6 +56,8 @@ class ShadowSettings:
                 raise ValueError('shadow.'+name+' must be prefix or generated')
         if not isinstance(self.enabled, bool):
             raise ValueError("shadow.enabled must be boolean")
+        if not isinstance(self.fusion_use_prior, bool):
+            raise ValueError("shadow.fusion_use_prior must be boolean")
         if not isinstance(self.fusion_enabled, bool):
             raise ValueError("shadow.fusion_enabled must be boolean")
         if type(self.fusion_max_samples) is not int or not 1 <= self.fusion_max_samples <= 128:
@@ -62,7 +65,7 @@ class ShadowSettings:
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
             raise ValueError("shadow.sample_count must be an integer >=8")
         for name, value in vars(self).items():
-            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "collision_coverage", "score_coverage"):
+            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_use_prior", "fusion_max_samples", "collision_coverage", "score_coverage"):
                 continue
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
@@ -332,7 +335,7 @@ def _shadow_fuse_road(job, cfg):
     prior = job.get("previous_reference") or {}
     prior_age = now-prior.get("stamp_s", now)
     prior_points = []
-    if (prior.get("odometry_epoch") == epoch and prior.get("pose")
+    if (cfg.fusion_use_prior and prior.get("odometry_epoch") == epoch and prior.get("pose")
             and 0 <= prior_age <= cfg.fusion_window_s+2/cfg.rate_hz):
         prior_points = _shadow_pose_points(prior.get("points"), prior["pose"], target_pose)
     guide = prior_points

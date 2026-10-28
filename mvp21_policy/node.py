@@ -182,6 +182,8 @@ class PolicyNode(ShadowJobSource, Node):
             self.declare_parameter(parameter_name, default, ParameterDescriptor(read_only=True))
             avoidance_values[name] = self.get_parameter(parameter_name).value
         self.lidar_avoidance_settings = LidarAvoidanceSettings(**avoidance_values)
+        if self.lidar_avoidance_settings.maneuver_enabled:
+            self.get_logger().info("Policy revision: mvp21-lidar-maneuver-20261028-r1")
         self.lidar_avoidance_guard = None
         if self.lidar_avoidance_settings.enabled:
             if (not self.obstacle_stop_monitor.settings.enabled
@@ -1311,7 +1313,7 @@ class PolicyNode(ShadowJobSource, Node):
         now = estimates['state']['timestamp_s']
         self._shadow_collect_road(road, now)
         guard = self.lidar_avoidance_guard
-        guard.update(estimates.get('obstacles'), self.shadow_pose, self.shadow_odometry_epoch, now)
+        guard.update(estimates.get('obstacles'), self.shadow_pose, self.shadow_odometry_epoch, now, road=road)
         if guard.latched:
             raise PolicyStopRequest(guard.stop_reason)
 

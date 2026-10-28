@@ -18,7 +18,7 @@ def worker_source_sha256(avoidance=False):
     digest = hashlib.sha256()
     names = ('geometry.py', 'frenet.py', 'lattice.py', 'worker.py')
     if avoidance:
-        names += ('avoidance.py', 'obstacle_stop.py')
+        names += ('avoidance.py', 'maneuver.py', 'obstacle_stop.py')
     for name in names:
         digest.update(name.encode()+b'\0')
         digest.update(Path(__file__).with_name(name).read_bytes().replace(b'\r\n', b'\n'))

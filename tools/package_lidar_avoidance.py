@@ -31,12 +31,14 @@ def profile():
     p['control'].update(enabled=True, robustness_enabled=False, end_straight_distance_m=0.)
     p['planner_control']['enabled'] = True
     p['planning']['cruise_speed_mps'] = .20
+    p['estimation'].update(colour_assignment='fixed', left_colour=2, right_colour=1)
     stop = p['obstacle_stop']
     p['lidar_avoidance'] = asdict(LidarAvoidanceSettings(enabled=True,
+        maneuver_enabled=True, max_curvature_1pm=1.0,
         front_extent_m=stop['front_extent_m'], rear_extent_m=stop['rear_extent_m'],
         width_m=stop['width_m'], max_source_age_s=stop['max_source_age_s']))
     p['shadow'].update(enabled=True, length_m=2.5, rate_hz=2.,
-        collision_coverage='generated', score_coverage='generated',
+        collision_coverage='generated', score_coverage='generated', fusion_use_prior=False,
         body_front_m=stop['front_extent_m'], body_rear_m=stop['rear_extent_m'], body_width_m=stop['width_m'])
     return data
 

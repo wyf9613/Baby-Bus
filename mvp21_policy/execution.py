@@ -94,7 +94,7 @@ class PlannerExecutionManager:
             self.reason = "planner_invalid_execution_payload"
             return True
         self.active = {"path": [tuple(p) for p in path], "pose": list(pose),
-            "job_id": identifier,
+            "job_id": identifier, "maneuver": dict(result.get("avoidance") or {}),
             "epoch": anchor["odometry_epoch"], "stamp_s": self.last_result_stamp_s,
             "measurement_stamp_s": result.get("measurement_stamp_s"), "progress_m": 0.0}
         self.reason = "planner_ready"
@@ -219,12 +219,17 @@ class PlannerExecutionManager:
             return fallback("known_boundary_collision")
         self.diagnostics.update(mode="planner", fallback=False, reason="planner_tracking",
             elapsed_s=time.perf_counter()-started)
-        return {"schema_version": "planning_reference_v1", "planner_version": "lattice_execution",
+        reference = {"schema_version": "planning_reference_v1", "planner_version": "lattice_execution",
             "trajectory_id": active.get('job_id', self.last_job_id), "timestamp_s": now, "valid_for_s": execution_lifetime_s,
             "frame_id": self.frame_id, "vehicle_reference_point": "cg_ground_projection",
             "valid": True, "status": "VALID", "reason": "planner_tracking", "path": path,
             "target_speed_mps": target_speed_mps, "stop_requested": False, "stop_reason": None,
             "simulation_only": False, "original_input_stamp_s": active["stamp_s"]}
+        marker = active.get("maneuver", {})
+        if marker.get("maneuver_task_id") is not None:
+            reference.update(maneuver_task_id=marker['maneuver_task_id'],
+                             maneuver_revision=marker['maneuver_revision'])
+        return reference
 
 
 def priming_motion_history(baseline, estimates, has_control, elapsed_s, control):

@@ -114,3 +114,10 @@ ROS fast gate已尝试，构建前因缺少固定dream_interfaces checkout而停
 `search_half_width_m` 保持 0.45 m，已知宽度仍采用既有半宽规则，不新增对侧边界、
 车身 guard 或 policy 输入特征。固定验证道路及运行入口见
 [固定掉头验证说明](../offline/lattice_training/validation_roads/README.md)。
+
+## 2026-10-28 任务式静态绕行
+
+`maneuver.py` 由主节点维护单个目标和固定道路坐标，worker只读任务快照。
+部署包显式设置 `lidar_avoidance.maneuver_enabled=true`，正常巡线仍使用原native
+选择；绕行使用专用轨迹，不与普通候选竞争。旧A2保持为默认关闭该开关的历史
+回放路径。发布候选见 `docs/LIDAR_AVOIDANCE_DEPLOYMENT_CN.md`。
