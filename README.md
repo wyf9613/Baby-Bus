@@ -5,10 +5,21 @@ LiDAR integration on `fusion-prior-reset` d1b4b83: detection ROI extends
 obstacle ranking plus full-path road/body-obstacle feasibility for left/right bypass.
 Nominal straight passage width is0.30m with no extra margin; turning uses the full
 oriented footprint. No feasible candidate requests a latched stop. Known obstacles
-never fall back to an unchecked centerline. MPC, sampling, rate and horizon are unchanged.
+never fall back to an unchecked centerline. MPC algorithms, sampling, rate and horizon are unchanged.
 The detector's immediate-stop mode remains off; missing LiDAR adds no new stop.
 Short road-geometry gaps reuse the checked path for up to the existing0.5s MPC
 dropout window, with transported road support; confirmed blocked paths still stop.
+The local continuity patch covers transient common-range/single-side-width failures.
+Paths generated on an empty scan are checked against current aligned returns before
+tracking, so harmless new ROI points do not force zero-drive/recentering or clear MPC.
+An overlapping return still selects waiting; confirmed no-passable-path results stop.
+The current deployment also sets `shadow.min_turn_radius_m=0.9`: candidates are
+spatially smoothed before road/LiDAR checks and scoring. Set0 to retain native
+curves. Candidate length stays1.4m; MPC horizon and target speed are unchanged.
+Current tuning adds a soft comparison to the motion-transported executing path
+over0.6m (weight4), plus a0.05 score margin before changing shape. It ranks only
+freshly feasible candidates; it never locks in an old blocked path or revives the
+disabled fusion prior. `mpc.r_ddelta` is4 instead of2; other MPC settings stay as before.
 Current vehicle feedback: the car can still leave the road; road containment remains unresolved.
 See [deployment, topics and checks](docs/FUSION_MPC_LIDAR_CN.md).
 Use `scripts/policy_node.py` with the full deployment YAML in

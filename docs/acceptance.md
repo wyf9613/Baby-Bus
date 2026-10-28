@@ -1,5 +1,169 @@
 # AI4R policy acceptance
 
+## Selected feature-branch snapshot — 2026-10-28
+
+Operator selected this version for the existing feature/fusion-mpc-lidar-detection
+branch. Final full deployment YAML: blue-left2/yellow-right1, planning width0.30m,
+minimum radius0.9m, consistency weight4/window0.6m/switch margin0.05 and r_ddelta4.
+Source revision remains fusion-mpc-lidar-path-continuity-20261028. The318 portable
+source checks and subsequent targeted configuration replays/profile checks above
+are the recorded evidence; full ROS gate remains unavailable locally. This is a
+saved development snapshot, not full physical acceptance or a merge into main.
+
+## Planning width rollback — 2026-10-28
+
+Operator requested rollback of the planning passage width to0.30m. Change only
+shadow.body_width_m0.38→0.30 in the complete deployment YAML; retain radius0.9m,
+zero extra margin, blue-left/yellow-right, temporal preference and r_ddelta4.
+Parsed before/after configuration equality confirms no other setting changed.
+Updated deployment-profile check passes. Runtime source is unchanged; no repeated
+full suite for this config-only rollback. Current configuration has not been
+uploaded, physically verified or pushed by the assistant.
+
+## U-turn radius tuning — 2026-10-28
+
+Operator explicitly selected larger allowed curvature: change only the current
+checkpoint minimum turn radius1.0→0.9m (maximum candidate curvature1.1111/m).
+Retain planning width0.38m, continuity preference, r_ddelta4 and other settings.
+The last car14 readback was width0.30m; this complete YAML also applies the earlier
+approved0.38m width when uploaded. Runtime code/revision are unchanged.
+
+In the synthetic road of width1.2m and center radius0.65m, current width0.38m with
+radius1.0 gives ALL_COLLIDE/0 feasible; radius0.9 gives VALID/19 feasible. All
+candidate circular-step curvature bounds pass and the selected path passes the
+existing road/obstacle checks. Radius0.9 requires0.3514rad in the configured0.33m
+bicycle model, below its0.37rad steering limit; this is not a car14 calibration.
+Updated deployment-profile check passes; no repeated full run for this config-only
+change. Earlier318 checks remain source evidence. Physical test, upload and push
+of the new radius configuration are not_run.
+
+## Planning footprint width adjustment — 2026-10-28
+
+Operator reports improved continuity but remaining obstacle contacts. Final
+requested planning width is0.38m (the interim0.44m request was superseded before
+deployment). Change only shadow.body_width_m from0.30 to0.38; extra margin stays0.
+Vehicle calibration width, LiDAR ROI, blue-left/yellow-right layout and MPC tuning
+are unchanged. With the actual deployment profile, a0.36m observed corridor that
+passed the0.30m footprint now returns ALL_COLLIDE/stop_required; a0.40m corridor
+and a clear0.60m road remain VALID. Updated deployment-profile check passes. The
+preceding318-test source regression is unchanged; this config-only update received
+these targeted checks rather than a repeated full run. No physical verification,
+upload or push of this width configuration was performed.
+
+## Candidate continuity and steering change weight — 2026-10-28
+
+Local revision fusion-mpc-lidar-path-continuity-20261028. Operator reports the1m
+radius trial is similar and approved temporal preference plus increased r_ddelta.
+Keep the existing48 radius-limited candidates and fresh road/LiDAR feasibility.
+Motion-transport the executing path into this job's frame, respecting passed arc,
+odometry epoch, age and remaining support. Compare the first0.6m at matching arc
+stations: mean position error squared plus0.1*heading error squared. Add weight4.
+Among freshly feasible candidates, the closest-shape candidate wins unless another
+improves total score by more than0.05. This is candidate preference, not a lock on
+the old curve, a coordinate blend, or restoration of fusion_use_prior. Missing or
+unusable comparison geometry adds no preference. Defaults weight/margin0 preserve
+legacy behavior. Full car14 checkpoint changes r_ddelta2→4; MPC algorithms and all
+other MPC settings, target0.5m/s, length1.4m and1Hz remain unchanged.
+
+Seven new portable cases cover disabled/missing-history equivalence, small road
+jitter with reduced shape change and hysteresis, significant-road-change switching,
+a newly blocked old route and full-wall stop, pose/epoch/age/remaining support,
+actual worker transport, and actual-node selection with the same MPC instance.
+318 portable checks pass in total. Source AST comparison confirms unchanged MPC,
+vehicle model, native curve generator and road/LiDAR collision functions. Diagnostics
+path_continuity are published through the existing shadow JSON and summary log.
+
+Required ROS gate attempted but unavailable (no Bash/ROS Jazzy). Current-revision
+physical/GUI test is not_run. Video showed repeated steering corrections but cannot
+establish their cause or exact speed under a moving camera. No upload, vehicle
+action, commit or push was performed; physical smoothness improvement is unverified.
+
+## Candidate minimum turn radius trial — 2026-10-28
+
+Local revision fusion-mpc-lidar-radius1m-20261028. Operator clarified that the
+requested turning threshold means a larger minimum turning radius. Add optional
+shadow.min_turn_radius_m (default0, disabled); the full car14 checkpoint sets1.0m.
+Forward-track each native candidate with0.25m spatial preview and bounded curvature
+using exact circular steps. All original road/body-obstacle checks and scoring run
+on the resulting geometry, before selection. No post-check path deformation is
+enabled. Sampling count48, length1.4m, planning1Hz, MPC0.6s horizon, solver, vehicle
+limits and0.5m/s target stay unchanged. Length was not shortened, to retain room
+for lateral transitions. This limits candidate geometry, not actual vehicle radius
+or longitudinal acceleration; sharp narrow roads may have fewer passing paths.
+
+Six new checks cover disabled/straight behavior and parameter validity, candidate
+curvature/mirror symmetry, road/LiDAR collision checks on modified paths, a blocking
+wall stop, real subprocess transport and actual-node handoff to the same MPC.
+311 portable checks pass, including26 avoidance/passability and8 dropout cases.
+A central-obstacle replay retained a VALID path and reduced selected peak geometric
+curvature from4.59646/m to1.00000/m. Four desktop planning runs averaged109.72ms
+disabled and87.03ms enabled for this one input; these are local sample timings,
+not a general speedup or a Jetson load measurement.
+
+Required ROS fast gate was attempted but unavailable without Bash/ROS Jazzy.
+No current-revision physical/GUI test, vehicle operation, upload, commit or push.
+Earlier smooth-hold vehicle improvement is operator feedback for that earlier
+revision, not evidence that this radius trial improves physical driving.
+
+## Empty-scan path continuity correction — 2026-10-28
+
+Local revision fusion-mpc-lidar-scan-continuity-20261028. Vehicle logs from the
+preceding smooth-hold build showed the same job136 alternating planner/waiting
+while baseline_valid stayed true, preview coverage remained sufficient and road
+collision was null. Fresh MPC reference errors were present before the guard
+discarded the controller. A path generated with a CLEAR obstacle context has no
+worker obstacle_checked flag; a later harmless ROI return therefore forced zero.
+
+For such unmarked paths only, reuse the existing oriented-body collision function
+with the current motion-aligned scan and the accepted remaining path. Clear paths
+continue through the same MPC instance; overlaps wait for replanning. Keep the
+worker flag false so subsequent scans are rechecked. Execution-validated paths can
+use the existing bounded road-gap hold; NO_ROAD does not renew its deadline.
+Confirmed no-passable-path results still latch stop. Diagnostics add execution
+scan provenance, overlap/clear status and waiting_cause; log changes include that
+cause instead of hiding all waits under one generic label.
+
+An actual-node before/after replay with identical harmless returns reproduced
+drive=0, steer=0 and controller clearing with the pushed guard; the patched guard
+kept the same controller with drive=0.2626, steer=-0.2012. Three additional tests
+cover alternating empty/harmless scans, a newly blocking obstacle followed by a
+latched no-passable result, and short road-gap continuity/expiry for an execution-
+validated path. 305 portable checks pass, including20 avoidance and8 dropout cases.
+AST comparison to6efe99d confirms only the soft-gap classifier, manager accept and
+node integration/diagnostics changed. MPC, estimator, candidate generation, road
+collision, every tracked YAML and Foxglove layout are unchanged.
+
+The required ROS gate was attempted but cannot run on this Windows host without
+Bash/ROS Jazzy. Physical/GUI verification of this revision is not_run. Previous
+road departure and other possible stop causes remain unresolved. Changes remain
+local; no commit, push, SSH, upload or vehicle action was performed.
+
+## Minimal smooth-hold correction on pushed baseline — 2026-10-28
+
+Local revision fusion-mpc-lidar-smooth-hold-20261028, based on pushed6efe99d.
+The separate simple-mode experiments remain stashed and are not part of this
+correction. Replayed actual-node cases showed common-range/single-side-width
+failures immediately selecting waiting, zero drive/steer and controller clearing,
+while invalid_ordered_geometry already retained the checked path successfully.
+Add only invalid_road_insufficient_common_range and invalid_road_single_side_width_unknown
+to the existing bounded road-gap classifier. No last-command lock or new smoothing
+filter is added: actual MPC continues tracking the transported checked path.
+
+The existing0.5s expiry, motion/epoch/remaining-preview/boundary checks and blocked
+result latch remain. Repeated NO_ROAD results cannot renew the deadline. Diagnostics
+add road_dropout_trigger, retaining the original source reason. Source AST comparison
+to6efe99d confirms only the classifier and node revision/diagnostic fields changed;
+MPC, estimator, native/obstacle planning, collision/execution manager and YAML are
+unchanged. No simple-mode corridor, cone filtering or configured1.2m width is included.
+
+Three new actual-node regressions cover nonzero steering/drive continuity and
+same controller/path through both newly handled gaps and recovery, exact expiry
+despite repeated NO_ROAD and blocked stop override, and exclusion of explicit
+observed-history conflict. See the current deployment manifest for the full count.
+Required ROS gate was attempted but unavailable (no Bash/ROS Jazzy). Current revision
+physical/GUI verification is not_run; earlier road-departure and jerk reports remain
+unresolved until retested. Changes are local, without commit/push/SSH/vehicle actions.
+
 ## Operator vehicle feedback — 2026-10-28
 
 Operator reports the current road-hold version can still leave the road.

@@ -341,7 +341,10 @@ class DeployProfileChecks(unittest.TestCase):
         self.assertEqual(p["planning"]["algorithm"], "road_centerline")
         self.assertEqual(p["planner_control"], vars(PlannerControl(enabled=True)))
         # Car 05's overlay names the planning-time check length: travel since 2026-10-22.
-        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
+        # Legacy packages omit the optional radius trial, which defaults to off.
+        self.assertEqual({"min_turn_radius_m": 0.0, "weight_consistency": 0.0,
+                          "continuity_window_m": 0.6, "switch_cost_margin": 0.0, **p["shadow"]},
+                         {**vars(ShadowSettings()), "enabled": True})
         ShadowSettings(**p["shadow"])
 
     def test_exec_lattice21_profile_executes_with_the_relaxed_car05_guards(self):
@@ -351,7 +354,9 @@ class DeployProfileChecks(unittest.TestCase):
         self.assertTrue(p["vehicle"]["valid"])
         self.assertEqual(p["planning"]["algorithm"], "road_centerline")
         self.assertTrue(p["planner_control"]["enabled"] and p["planner_control"]["require_valid_baseline"])
-        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
+        self.assertEqual({"min_turn_radius_m": 0.0, "weight_consistency": 0.0,
+                          "continuity_window_m": 0.6, "switch_cost_margin": 0.0, **p["shadow"]},
+                         {**vars(ShadowSettings()), "enabled": True})
         for key, value in (("v_exec_max_mps", 0.12), ("overspeed_soft_margin_mps", 0.05),
                            ("overspeed_hard_mps", 0.40), ("max_forward_extension_m", 0.3),
                            ("reference_dropout_tolerance_s", 0.5), ("solver_fail_tolerable", True)):
@@ -373,7 +378,9 @@ class DeployProfileChecks(unittest.TestCase):
         p = deploy["build"]("mpc-shadow-lattice21", 1.0, cones="yellow-left", car="27")[0]
         p = p["/**/ai4r_policy"]["ros__parameters"]
         self.assertEqual(p["shadow"]["check_length_mode"], "travel")
-        self.assertEqual(p["shadow"], {**vars(ShadowSettings()), "enabled": True})
+        self.assertEqual({"min_turn_radius_m": 0.0, "weight_consistency": 0.0,
+                          "continuity_window_m": 0.6, "switch_cost_margin": 0.0, **p["shadow"]},
+                         {**vars(ShadowSettings()), "enabled": True})
 
     def test_car05_profiles_turn_on_the_wheel_hold_and_jump_guard(self):
         for car, on in (("05", True), ("27", False)):

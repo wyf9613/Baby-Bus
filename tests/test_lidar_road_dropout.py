@@ -43,6 +43,65 @@ def road_glitch(node, status="invalid_ordered_geometry"):
 
 
 class RoadDropoutChecks(unittest.TestCase):
+    def test_single_side_and_common_range_gaps_do_not_pulse_drive_or_center_steering(self):
+        for status in ("insufficient_common_range", "single_side_width_unknown"):
+            with self.subTest(status=status):
+                m, node = checked_node()
+                # Start with an accepted, offset checked path so recentering
+                # cannot pass unnoticed as it would on a straight zero-steer run.
+                reference = m["offset_result"](node, .08, length=1.4)
+                reference["obstacle_avoidance"] = {"hard_rejection": True, "status": "ACTIVE"}
+                node.planner_execution.accept(reference)
+                m["run"](node, 2, center=.08)
+                controller = node.mpc_controller
+                active = node.planner_execution.active
+                source_stamp = active["stamp_s"]
+                before = node.action_publisher.messages[-1]
+                self.assertGreater(abs(before.steer), .01)
+                original = road_glitch(node, status)
+                offset = len(node.action_publisher.messages)
+                result = m["run"](node, 3, center=.08)[-1]
+                self.assertEqual(result["reference_selection_reason"], "planner_tracking_road_dropout")
+                self.assertTrue(all(msg.drive > 0 for msg in node.action_publisher.messages[offset:]))
+                self.assertTrue(all(abs(msg.steer) > .01 for msg in node.action_publisher.messages[offset:]))
+                self.assertIs(node.mpc_controller, controller)
+                self.assertIs(node.planner_execution.active, active)
+                self.assertEqual(active["stamp_s"], source_stamp)
+                node.estimator.update = original
+                m["run"](node, 2, center=.08)
+                self.assertIs(node.mpc_controller, controller)
+                self.assertIsNone(node.planner_execution.road_dropout_started_s)
+                self.assertGreater(node.action_publisher.messages[-1].drive, 0.)
+
+    def test_new_gap_reasons_still_timeout_and_blocked_results_override_continuity(self):
+        for status in ("insufficient_common_range", "single_side_width_unknown"):
+            with self.subTest(status=status):
+                m, node = checked_node()
+                node.shadow_settings = replace(node.shadow_settings, fusion_enabled=False)
+                road_glitch(node, status)
+                controller = node.mpc_controller
+                for _ in range(10):
+                    node.shadow_last_submit_s = -float("inf")
+                    m["run"](node, 1)
+                    self.assertGreater(node.action_publisher.messages[-1].drive, 0.)
+                    self.assertIs(node.mpc_controller, controller)
+                m["run"](node, 1)
+                self.assertEqual(node.action_publisher.messages[-1].drive, 0.)
+                self.assertEqual(node.planner_execution.diagnostics["reason"], "road_dropout_timeout")
+                node.shadow_worker.results.append(dict(status="ALL_COLLIDE", stop_required=True,
+                    generation=node.shadow_generation, job_id=999))
+                node._shadow_poll()
+                self.assertEqual(node.fsm_state, 2)
+                self.assertEqual(node.action_publisher.messages[-1].drive, 0.)
+                self.assertIsNone(node.planner_execution.active)
+
+    def test_explicit_observation_conflict_does_not_gain_gap_hold_permission(self):
+        m, node = checked_node()
+        road_glitch(node, "observed_history_conflict")
+        m["run"](node, 1)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0.)
+        self.assertEqual(node.planner_execution.diagnostics["mode"], "waiting")
+
     def test_observed_glitches_keep_checked_path_and_mpc_without_zero_pulses(self):
         for status in ("invalid_ordered_geometry", "motion_transformed_geometry_invalid", "insufficient_geometry"):
             with self.subTest(status=status):

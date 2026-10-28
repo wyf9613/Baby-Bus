@@ -1,14 +1,14 @@
 {
   "base_commit": "d1b4b837f7e74ff4e3110c1056ec4e7f96a3012a",
-  "revision": "fusion-mpc-lidar-road-hold-20261028",
+  "revision": "fusion-mpc-lidar-path-continuity-20261028",
   "config_seed": "checkpoints\\car01-uturn-noprior-20261028\\v050-5m-noprior\\ai4r_policy.yaml",
-  "profiles": "upstream v050-5m-noprior plus latest geometry/width flags, whole-path road/LiDAR passability; unlimited distance/time",
+  "profiles": "upstream v050-5m-noprior plus geometry/width flags, whole-path road/LiDAR passability, 0.9m radius, temporal candidate preference and r_ddelta4; unlimited distance/time",
   "files": {
-    "scripts/policy_node.py": "608964e5d028716ec0a7a90c4b3768b4f6a59b73abd7b012657db2d8dd8cc6af",
-    "checkpoints/fusion-mpc-lidar-car14-20261028/ai4r_policy.yaml": "802100effb5c6c06f266a15cd5f478b45ed3fd278bec8485d610f1e2691f98c8",
+    "scripts/policy_node.py": "64d984ae7786b00a85fb18085fc6fcc6b8b2b60b562f1f462531d0d9df03b76b",
+    "checkpoints/fusion-mpc-lidar-car14-20261028/ai4r_policy.yaml": "72631d41c259c4097de004af56ecc78f39046b546237fb1f4e898c9718778446",
     "tools/foxglove_road_visualization/layout_v2.0.json": "dd6e2f449c35de252a0f1dc7c986b74c557a9da36643136a0310b25fdfe284d5"
   },
-  "physical_test": "operator_reported_road_departure_unresolved_20261028",
+  "physical_test": "not_run_current_revision",
   "budget_overrides": {
     "max_distance_m": 0.0,
     "max_run_time_s": 0.0
@@ -23,7 +23,7 @@
       0.6
     ]
   ],
-  "checks": "299 portable checks passed, including 17 avoidance/passability and 5 road-dropout checks",
+  "checks": "318 portable source checks passed before config-only tuning; final radius0.9/width0.30 parsed configuration and updated deployment-profile check passed; earlier synthetic U-turn/corridor replays retain their recorded inputs",
   "ros_gate": "attempted; unavailable on Windows host (no Bash/ROS Jazzy)",
   "obstacle_avoidance": {
     "enabled": true,
@@ -34,7 +34,8 @@
     "minimum_straight_gap_m": 0.3,
     "road_collision_coverage": "generated",
     "blocked_result": "latched_state2_explicit_resume",
-    "known_obstacle_fallback": "zero_while_waiting_for_checked_path"
+    "known_obstacle_fallback": "zero_while_waiting_for_checked_path",
+    "planning_body_width_m": 0.3
   },
   "road_dropout_hold": {
     "limit_s": 0.5,
@@ -46,7 +47,78 @@
     "no_road_renews_deadline": false,
     "cached_road": "motion_transported_original_measurement_provenance",
     "blocked_result": "latched_state2_explicit_resume",
-    "timeout_result": "zero_waiting_without_extra_mpc_hold"
+    "timeout_result": "zero_waiting_without_extra_mpc_hold",
+    "additional_soft_reasons": [
+      "invalid_road_insufficient_common_range",
+      "invalid_road_single_side_width_unknown"
+    ],
+    "yaml_changed": false
   },
-  "physical_test_notes": "Operator reports the current version can still leave the road; no passed physical avoidance/road-containment acceptance."
+  "physical_test_notes": "Operator requested planning width rollback to0.30m, retaining radius0.9m. Car14 previously reported U-turn boundary/no-passable-path stops. Current complete configuration awaits physical retest; assistant has not uploaded it.",
+  "execution_scan_check": {
+    "applies_to": "accepted_paths_without_worker_obstacle_checked_flag",
+    "geometry": "existing_oriented_body_sweep_over_remaining_path_and_actual_body",
+    "worker_flag_promoted": false,
+    "repeat_on_current_aligned_scan": true,
+    "blocked_result": "wait_then_latched_stop_if_no_passable_candidate",
+    "diagnostics": [
+      "obstacle_check_source",
+      "current_scan_path_clear",
+      "current_scan_point_count",
+      "current_obstacle_collision",
+      "waiting_cause"
+    ]
+  },
+  "turn_radius_trial": {
+    "min_turn_radius_m": 0.9,
+    "disabled_value": 0.0,
+    "method": "curvature_bounded_forward_tracking_before_road_lidar_checks_and_scoring",
+    "spatial_preview_m": 0.25,
+    "candidate_length_m": 1.4,
+    "candidate_count": 48,
+    "planner_rate_hz": 1.0,
+    "mpc_horizon_s": 0.6,
+    "target_speed_mps": 0.5,
+    "does_not_bound_actual_vehicle_radius": true,
+    "maximum_candidate_curvature_1pm": 1.1111111111111112,
+    "initial_1m_replay_peak_curvature_1pm": [
+      4.59646,
+      1.0
+    ],
+    "synthetic_tight_uturn": {
+      "road_width_m": 1.2,
+      "road_center_radius_m": 0.65,
+      "planning_body_width_m": 0.38,
+      "at_radius1m": {
+        "status": "ALL_COLLIDE",
+        "feasible_count": 0
+      },
+      "at_radius0_9m": {
+        "status": "VALID",
+        "feasible_count": 19
+      }
+    }
+  },
+  "path_continuity": {
+    "weight_consistency": 4.0,
+    "continuity_window_m": 0.6,
+    "switch_cost_margin": 0.05,
+    "comparison": "motion_transported_executing_path_position_squared_plus_0.1_heading_squared",
+    "selection": "closest_shape_feasible_candidate_unless_best_total_score_improves_more_than_margin",
+    "fresh_feasibility_required": true,
+    "locks_old_path": false,
+    "changes_fusion_use_prior": false,
+    "defaults_disabled": true,
+    "mpc_r_ddelta": [
+      2.0,
+      4.0
+    ]
+  },
+  "cone_layout": {
+    "mode": "fixed",
+    "left": "blue",
+    "left_colour": 2,
+    "right": "yellow",
+    "right_colour": 1
+  }
 }
