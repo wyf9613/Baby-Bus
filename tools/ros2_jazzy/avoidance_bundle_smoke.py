@@ -20,6 +20,10 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--package',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--road-width',type=float,default=2.)
+    parser.add_argument('--obstacle-offset',type=float,default=0.)
+    parser.add_argument('--obstacle-width',type=float,default=.20)
+    parser.add_argument('--roadside-returns',action='store_true')
     args=parser.parse_args()
     args.output.mkdir(parents=True,exist_ok=False)
     params=yaml.safe_load((args.package/'ai4r_policy.yaml').read_text())['/**/ai4r_policy']['ros__parameters']
@@ -52,7 +56,8 @@ def main():
                 motion=now+.05
             if now>=scan:
                 batch=ConeDetections();batch.header.stamp=stamp;batch.header.frame_id='base_link'
-                for color,side in ((params['estimation']['left_colour'],1.),(params['estimation']['right_colour'],-1.)):
+                for color,side in ((params['estimation']['left_colour'],args.road_width/2),
+                                   (params['estimation']['right_colour'],-args.road_width/2)):
                     for i in range(11):
                         cone=ConeDetection();cone.position.x=.3+.28*i;cone.position.y=side
                         cone.color=color;cone.classification_confidence=.99;batch.detections.append(cone)
@@ -66,7 +71,22 @@ def main():
                     index=round((math.atan2(.1946268196016643,-.22286008138405408)-msg.angle_min)/msg.angle_increment)
                     msg.ranges[index]=math.hypot(.1946268196016643,.22286008138405408)
                 if distance is not None:
-                    for i in (center-1,center,center+1):msg.ranges[i]=distance/math.cos(msg.angle_min+i*msg.angle_increment)
+                    boxes=[(distance,distance+.25,args.obstacle_offset-args.obstacle_width/2,
+                        args.obstacle_offset+args.obstacle_width/2)]
+                else:boxes=[]
+                if args.roadside_returns:
+                    boxes.extend((.3+.28*k-.08,.3+.28*k+.08,y-.08,y+.08)
+                        for k in range(11) for y in (-args.road_width/2,args.road_width/2))
+                for i in range(len(msg.ranges)):
+                    angle=msg.angle_min+i*msg.angle_increment
+                    for x0,x1,y0,y1 in boxes:
+                        lo,hi=0.,12.
+                        for direction,a,b in ((math.cos(angle),x0,x1),(math.sin(angle),y0,y1)):
+                            if abs(direction)<1e-10:
+                                if not a<=0.<=b:hi=-1.
+                            else:
+                                u,v=sorted((a/direction,b/direction));lo=max(lo,u);hi=min(hi,v)
+                        if lo<=hi and lo>=msg.range_min:msg.ranges[i]=min(msg.ranges[i],lo)
                 pubs['scan'].publish(msg);scan=now+.1
             rclpy.spin_once(node,timeout_sec=.005)
 
@@ -106,7 +126,9 @@ def main():
         report['explicit_resume']=True
         pubs['request'].publish(UInt16(data=2));run(.2)
         report.update(passed=True,hardware_used=False,vehicle_enabled=False,
-                      namespace=namespace,profile_enabled=params['lidar_avoidance']['enabled'])
+                      namespace=namespace,profile_enabled=params['lidar_avoidance']['enabled'],
+                      road_width_m=args.road_width,obstacle_width_m=args.obstacle_width,
+                      obstacle_offset_m=args.obstacle_offset,roadside_returns=args.roadside_returns)
     finally:
         pubs['request'].publish(UInt16(data=2))
         process.terminate()

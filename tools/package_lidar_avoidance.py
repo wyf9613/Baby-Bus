@@ -35,6 +35,9 @@ def profile():
     stop = p['obstacle_stop']
     p['lidar_avoidance'] = asdict(LidarAvoidanceSettings(enabled=True,
         maneuver_enabled=True, max_curvature_1pm=1.0,
+        obstacle_margin_m=.03, tracking_margin_m=.02,
+        target_lateral_allowance_m=.02, maneuver_clearance_m=.01,
+        road_edge_exclusion_m=.10,
         front_extent_m=stop['front_extent_m'], rear_extent_m=stop['rear_extent_m'],
         width_m=stop['width_m'], max_source_age_s=stop['max_source_age_s']))
     # Ordinary following uses the successful stop baseline workload. Only an

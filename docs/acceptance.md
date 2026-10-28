@@ -2152,3 +2152,37 @@ This is synthetic software evidence, not physical-car acceptance.
 
 Evidence: `docs/baselines/lidar_maneuver_20261028_r2.json` and
 `.verification/maneuver-r2-20261028/`. Original r1 artifacts remain unchanged.
+
+## MVP maneuver r3 local narrow-road passage, 2026-10-28
+
+The user reported an 0.80 m straight with a roughly 0.25 m obstacle on the
+right. r2 rejected this geometry before creating a task. r3 computes passing
+room over the observed obstacle interval using local measured boundary
+intersections and any measured roadside surface on the chosen passing side.
+The chosen centre is inside the feasible interval and avoids unnecessary
+lateral travel. Newly visible road is rechecked by the worker; no unobserved
+width is extrapolated. Full swept-body and local road-containment checks
+remain active. Admission/rejection diagnostics retain target bounds, support,
+required/available width, centre interval and the provisional margin budgets.
+
+The delivery profile uses 0.03 m obstacle, 0.02 m tracking, 0.02 m boundary,
+0.01 m extra-clearance and 0.02 m unseen-lateral allowances. These are explicit
+experimental settings, not physically measured error bounds. Original stop,
+normal 1 Hz / 1 m execution, controller and partial-road inference are unchanged.
+The field curve-following problem is not claimed fixed.
+
+66 focused portable cases pass. The final installed ROS gate reports 448
+checks (434 pytest cases plus 14 CTest groups), no failures/errors/skips.
+Actual bundle DDS smoke uses an 0.80 m road, 0.25 m right-offset obstacle and
+roadside returns; ordinary following, task execution, front stop, no automatic
+resume and explicit resume pass. The fresh observed-perception closed loop
+uses the delivery profile except explicit simulation longitudinal overrides,
+provisional matching body dimensions, and square roadside cone stand-ins in
+the ordinary ray caster/contact checker. It completes task 1 and returns to
+NORMAL in 743 steps with no obstacle/roadside contact. 730 native frames and
+13 startup-baseline frames are reported, with no fallback after the first
+native reference; this is not native-only acceptance.
+
+Evidence: docs/baselines/lidar_maneuver_20261028_r3.json and
+.verification/maneuver-r3-20261028/. Earlier failed tests and r1/r2 outputs
+remain preserved. No vehicle was connected, deployed or enabled by these tools.

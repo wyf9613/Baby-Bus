@@ -183,7 +183,7 @@ class PolicyNode(ShadowJobSource, Node):
             avoidance_values[name] = self.get_parameter(parameter_name).value
         self.lidar_avoidance_settings = LidarAvoidanceSettings(**avoidance_values)
         if self.lidar_avoidance_settings.maneuver_enabled:
-            self.get_logger().info("Policy revision: mvp21-lidar-maneuver-20261028-r2")
+            self.get_logger().info("Policy revision: mvp21-lidar-maneuver-20261028-r3")
         self.lidar_avoidance_guard = None
         if self.lidar_avoidance_settings.enabled:
             if (not self.obstacle_stop_monitor.settings.enabled

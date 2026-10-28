@@ -25,12 +25,14 @@ CFG=LidarAvoidanceSettings(enabled=True,maneuver_enabled=True,max_curvature_1pm=
 TARGET=[[2.8,y] for y in (-.1,-.05,0.,.05,.1)]
 ROADSIDE=[[x,y] for x in (1.,2.,3.,4.,5.,6.,7.) for y in (-.9,.9)]
 
-def tick(guard,pose=(0.,0.,0.),now=10.,points=None,missing=None,measurement=None,width=1.8):
+def tick(guard,pose=(0.,0.,0.),now=10.,points=None,missing=None,measurement=None,width=1.8,
+         left_boundary=None):
     road=dict(frame_id='base_link',time_aligned=True,timestamp_s=now,
         measurement_timestamp_s=now if measurement is None else measurement,lane_width_m=width,
         centerline_xy=body([[-1.,0.],[0.,0.],[4.,0.],[8.,0.]],pose),
         left_boundary_xy=body([[-1.,width/2],[8.,width/2]],pose),right_boundary_xy=body([[-1.,-width/2],[8.,-width/2]],pose),
         boundary_source=dict(left='observed',right='observed'))
+    if left_boundary is not None:road['left_boundary_xy']=body(left_boundary,pose)
     if missing:road[missing+'_boundary_xy']=[];road['boundary_source'][missing]='absent'
     xy=body(TARGET+ROADSIDE if points is None else points,pose)
     obs=dict(available=True,frame_id='base_link',time_aligned=True,timestamp_s=now,
@@ -43,6 +45,55 @@ def tick(guard,pose=(0.,0.,0.),now=10.,points=None,missing=None,measurement=None
 
 
 class ManeuverChecks(unittest.TestCase):
+    def narrow_cfg(self):
+        return replace(CFG,front_extent_m=.275,rear_extent_m=.198,width_m=.30,
+            obstacle_margin_m=.03,tracking_margin_m=.02,target_lateral_allowance_m=.02,
+            maneuver_clearance_m=.01,road_edge_exclusion_m=.10)
+
+    def narrow_points(self):
+        return [[2.8,y] for y in (-.38,-.33,-.28,-.23,-.18,-.13)]+[
+            [x,y] for x in (1.,2.,3.,4.,5.,6.,7.) for y in (-.32,.32)]
+
+    def test_eighty_cm_road_right_obstacle_and_cone_surfaces_produce_left_path(self):
+        g=LidarAvoidanceGuard(self.narrow_cfg());j=tick(g,width=.8,points=self.narrow_points())
+        self.assertFalse(g.latched,g.diagnostics)
+        self.assertEqual(g.maneuver.phase,'SHIFT')
+        self.assertGreater(g.maneuver.task['goal_d'],0.)
+        self.assertLess(g.maneuver.task['goal_d'],.15)
+        self.assertLessEqual(g.maneuver.admission['measured_passing_edge_d_m'],.32)
+        r=filter_candidates(j);self.assertEqual(r['status'],'VALID',r.get('avoidance'))
+        # The path and target use the same body/uncertainty margins.
+        self.assertEqual(r['selected']['family'],'maneuver_shift')
+
+    def test_real_narrow_gap_stops_and_keeps_rejection_measurements(self):
+        g=LidarAvoidanceGuard(self.narrow_cfg())
+        tick(g,width=.8,points=[[2.8,y] for y in (-.125,-.05,0.,.05,.125)])
+        self.assertEqual(g.stop_reason,'maneuver_no_side_clearance')
+        a=g.first_failure['maneuver']['admission']
+        self.assertLess(a['available_channel_m'],a['required_channel_m'])
+        self.assertGreaterEqual(a['center_interval_d_m'][0],a['center_interval_d_m'][1])
+        self.assertEqual(a['observed_target_sd_m']['d_max'],.125)
+
+    def test_remote_bend_does_not_shrink_the_obstacle_passage(self):
+        g=LidarAvoidanceGuard(self.narrow_cfg())
+        j=tick(g,width=.8,points=self.narrow_points(),
+            left_boundary=[[-1.,.4],[4.,.4],[7.,.2],[8.,.2]])
+        self.assertFalse(g.latched,g.diagnostics)
+        self.assertAlmostEqual(g.maneuver.admission['road_bounds_sd_m']['high'],.4)
+        self.assertEqual(filter_candidates(j)['status'],'VALID')
+
+    def test_local_constriction_and_new_wall_are_not_ignored(self):
+        g=LidarAvoidanceGuard(self.narrow_cfg())
+        tick(g,width=.8,points=self.narrow_points(),
+            left_boundary=[[-1.,.4],[2.3,.4],[2.8,.18],[3.5,.18],[8.,.4]])
+        self.assertEqual(g.stop_reason,'maneuver_no_side_clearance')
+        g=LidarAvoidanceGuard(self.narrow_cfg());tick(g,width=.8,points=self.narrow_points())
+        j=tick(g,now=10.1,width=.8,points=self.narrow_points(),
+            left_boundary=[[-1.,.4],[.5,.05],[2.,.05],[4.,.4],[8.,.4]])
+        r=filter_candidates(j)
+        self.assertEqual(r['status'],'NO_AVOIDANCE_PATH')
+        self.assertIn(r['avoidance']['reason'],('maneuver_road_containment','maneuver_road_boundary'))
+
     def test_normal_reference_survives_slow_replanning_and_rear_left_return(self):
         # The actual field point stopped r1 immediately; the original forward
         # monitor admits it. Keep fresh scans/state while holding a usable path

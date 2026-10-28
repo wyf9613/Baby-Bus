@@ -7,6 +7,7 @@ from copy import deepcopy
 import math
 import time
 import numpy as np
+from dataclasses import replace
 from .geometry import finite_number, wrap_angle
 
 
@@ -22,6 +23,29 @@ def body(points, pose):
 
 def quintic(u):
     u=max(0.,min(1.,u));return u*u*u*(10.+u*(-15.+6.*u))
+
+
+def boundary_at(points, station, side):
+    """Intersect the measured polyline locally; never extrapolate or sort a bend."""
+    values=[]
+    for a,b in zip(points,points[1:]):
+        if min(a[0],b[0])-1e-8<=station<=max(a[0],b[0])+1e-8:
+            if abs(b[0]-a[0])<1e-9:values.extend((a[1],b[1]))
+            else:values.append(a[1]+(b[1]-a[1])*(station-a[0])/(b[0]-a[0]))
+    return (min(values) if side=='left' else max(values)) if values else None
+
+
+def corridor_limits(profiles, start, end):
+    """Constant-offset room over this interval, not over every visible cone."""
+    if start>end:return None
+    stations={start,end}
+    stations.update(p[0] for pts in profiles.values() for p in pts if start<p[0]<end)
+    low=[];high=[]
+    for s in stations:
+        a=boundary_at(profiles['right'],s,'right');b=boundary_at(profiles['left'],s,'left')
+        if a is None or b is None or a>=b:return None
+        low.append(a);high.append(b)
+    return dict(low=max(low),high=min(high),start=start,end=end)
 
 
 def task_offset(task, s):
@@ -54,6 +78,7 @@ class AvoidanceManeuverManager:
         self.epoch=None;self.anchor=None;self.support={};self.pose=None;self.stamp=None
         self.last_measurement=None;self.admitted=False;self.error=None;self.last_completed_id=None
         self.diagnostics={}
+        self.admission=None;self.vehicle_sd=None;self.heading_error=None
 
     @property
     def active(self):return self.task is not None
@@ -85,16 +110,23 @@ class AvoidanceManeuverManager:
             if road.get('boundary_source',{}).get(side) in ('observed','observed_with_history') and len(pts)>=2:
                 self.support[side]=dict(points=world(pts,pose),measurement_s=measured)
 
-    def bounds(self, now):
+    def bounds(self, now, start=None, end=None):
         if self.anchor is None:return None
         curves={}
         for side in ('left','right'):
             item=self.support.get(side)
             if item is None or not 0<=now-item['measurement_s']<self.cfg.road_support_max_age_s:return None
             curves[side]=body(item['points'],self.anchor)
-        low=max(p[1] for p in curves['right']);high=min(p[1] for p in curves['left'])
-        start=max(min(p[0] for p in v) for v in curves.values());end=min(max(p[0] for p in v) for v in curves.values())
-        return dict(low=low,high=high,start=start,end=end) if low<high and start<end else None
+        support_start=max(min(p[0] for p in v) for v in curves.values())
+        support_end=min(max(p[0] for p in v) for v in curves.values())
+        if support_start>=support_end:return None
+        if start is None:
+            s=body([self.pose[:2]],self.anchor)[0][0]
+            start=end=max(support_start,min(s,support_end))
+        if start<support_start-1e-8 or end>support_end+1e-8:return None
+        local=corridor_limits(curves,start,end)
+        if local is None:return None
+        return dict(**local,start_support=support_start,end_support=support_end,profiles=curves)
 
     def update(self, obstacles, road, pose, epoch, now):
         cfg=self.cfg;self.pose=list(pose);self.stamp=now
@@ -107,23 +139,69 @@ class AvoidanceManeuverManager:
         if self.active and bounds is None:return self.fail('maneuver_road_support_expired')
         if bounds is None:self.describe();return None
         sd=body([pose[:2]],self.anchor)[0];yaw=wrap_angle(pose[2]-self.anchor[2])
+        self.vehicle_sd=sd;self.heading_error=yaw
         points=body(world(obstacles['points_xyz_m'],pose),self.anchor);measured=obstacles['measurement_timestamp_s']
-        relevant=[p for p in points if bounds['low']+cfg.road_edge_exclusion_m<p[1]<bounds['high']-cfg.road_edge_exclusion_m
-                  and sd[0]-cfg.rear_extent_m-.5<p[0]<sd[0]+cfg.trigger_lookahead_m]
+        relevant=[]
+        for p in points:
+            if not sd[0]-cfg.rear_extent_m-.5<p[0]<sd[0]+cfg.trigger_lookahead_m:continue
+            local=corridor_limits(bounds['profiles'],p[0],p[0])
+            if local and local['low']+cfg.road_edge_exclusion_m<p[1]<local['high']-cfg.road_edge_exclusion_m:
+                relevant.append(p)
         if not self.active:
             blocking=[g for g in clusters(relevant,cfg.target_cluster_gap_m)
                 if min(p[0] for p in g)>sd[0]+cfg.front_extent_m
-                and min(p[1] for p in g)<=cfg.width_m/2+cfg.obstacle_margin_m
-                and max(p[1] for p in g)>=-cfg.width_m/2-cfg.obstacle_margin_m]
+                and min(p[1] for p in g)<=max(0.,sd[1])+cfg.width_m/2+cfg.obstacle_margin_m
+                and max(p[1] for p in g)>=min(0.,sd[1])-cfg.width_m/2-cfg.obstacle_margin_m]
             if blocking:
                 group=min(blocking,key=lambda g:min(p[0] for p in g))
                 s_min,s_max=min(p[0] for p in group),max(p[0] for p in group)
                 d_min,d_max=min(p[1] for p in group)-cfg.target_lateral_allowance_m,max(p[1] for p in group)+cfg.target_lateral_allowance_m
                 side=cfg.maneuver_side
+                requested_start=s_min-cfg.front_extent_m-cfg.obstacle_margin_m
+                requested_end=s_max+cfg.target_depth_allowance_m+cfg.rear_extent_m+cfg.pass_margin_m
+                # Receding-horizon support: admit only the observed part of the
+                # passage; the worker never executes beyond its measured end.
+                # Subsequent plans must recheck newly visible road, rather than
+                # assuming the unseen remainder has the same width.
+                local_start=max(requested_start,bounds['start_support'])
+                local_end=min(requested_end,bounds['end_support'])
+                local=self.bounds(now,local_start,local_end)
+                self.admission=dict(timestamp_s=now,measurement_timestamp_s=measured,
+                    side=side,body_width_m=cfg.width_m,observed_target_sd_m=dict(s_min=s_min,s_max=s_max,
+                    d_min=min(p[1] for p in group),d_max=max(p[1] for p in group)),
+                    target_envelope_sd_m=dict(d_min=d_min,d_max=d_max),
+                    passage_s_m=[local_start,local_end],requested_passage_s_m=[requested_start,requested_end],
+                    road_bounds_sd_m=local,
+                    margins_m=dict(obstacle=cfg.obstacle_margin_m,boundary=cfg.boundary_margin_m,
+                        tracking=cfg.tracking_margin_m,extra_clearance=cfg.maneuver_clearance_m,
+                        unseen_lateral=cfg.target_lateral_allowance_m))
+                if local is None:return self.fail('maneuver_target_road_support_insufficient')
                 clearance=cfg.width_m/2+cfg.obstacle_margin_m+cfg.maneuver_clearance_m+cfg.tracking_margin_m
-                goal=d_max+clearance if side==1 else d_min-clearance
-                margin=cfg.width_m/2+cfg.boundary_margin_m+cfg.tracking_margin_m
-                if not bounds['low']+margin<goal<bounds['high']-margin:return self.fail('maneuver_no_side_clearance')
+                # Road curves describe cone centres. Measured cone surfaces or
+                # another object on the passing side can reduce the real gap.
+                # Retain every such return for the later swept-body check too.
+                edge=local['high'] if side==1 else local['low']
+                edge_points=[p[1] for p in points if local_start<=p[0]<=local_end
+                    and (d_max<p[1]<=edge if side==1 else edge<=p[1]<d_min)]
+                edge_margin=cfg.boundary_margin_m
+                if edge_points:
+                    edge=min(edge_points) if side==1 else max(edge_points)
+                    edge_margin=max(edge_margin,cfg.obstacle_margin_m)
+                margin=cfg.width_m/2+edge_margin+cfg.tracking_margin_m
+                lower=local['low']+margin;upper=local['high']-margin
+                if side==1:lower=max(lower,d_max+clearance);upper=min(upper,edge-margin)
+                else:upper=min(upper,d_min-clearance);lower=max(lower,edge+margin)
+                self.admission.update(center_interval_d_m=[lower,upper],
+                    measured_passing_edge_d_m=edge,passing_edge_point_count=len(edge_points),
+                    available_channel_m=edge-d_max if side==1 else d_min-edge,
+                    required_channel_m=clearance+margin)
+                if lower>=upper:return self.fail('maneuver_no_side_clearance')
+                # Prefer the smallest lane shift on the requested passing
+                # side. Using the midpoint of a wide lane needlessly brings
+                # the rotated front corner close to roadside cones.
+                slack=min(cfg.maneuver_clearance_m/2,(upper-lower)/2)
+                goal=lower+slack if side==1 else upper-slack
+                self.admission['selected_goal_d_m']=goal
                 length=max(cfg.shift_length_m,math.sqrt(6.*abs(goal-sd[1])/cfg.max_curvature_1pm))
                 if sd[0]+length+cfg.front_extent_m+cfg.obstacle_margin_m>s_min:return self.fail('maneuver_too_close_to_start')
                 self.next_id+=1;self.revision+=1;self.admitted=False
@@ -155,8 +233,10 @@ class AvoidanceManeuverManager:
 
     def describe(self, sd=None, yaw=None):
         self.diagnostics=dict(phase=self.phase,task_id=None if not self.task else self.task['id'],revision=self.revision,
-            goal_d_m=None if not self.task else self.task['goal_d'],vehicle_sd_m=sd,heading_error_rad=yaw,
-            last_completed_task_id=self.last_completed_id,target=deepcopy(self.task),error=self.error)
+            goal_d_m=None if not self.task else self.task['goal_d'],
+            vehicle_sd_m=self.vehicle_sd if sd is None else sd,heading_error_rad=self.heading_error if yaw is None else yaw,
+            last_completed_task_id=self.last_completed_id,target=deepcopy(self.task),error=self.error,
+            admission=deepcopy(self.admission))
 
     def collision_points(self, live):
         points=[list(p[:2]) for p in live if math.hypot(*p[:2])<=self.cfg.sensing_radius_m]
@@ -196,13 +276,30 @@ def plan_maneuver(job, cfg):
         if limits is None:raise ValueError('maneuver_road_support_expired')
         pose=job['shadow_pose'];current_s=body([pose[:2]],t['anchor'])[0][0]
         start=max(t['entry_s'],current_s-.10)
-        end=min(current_s+job['settings']['length_m'],limits['end']-cfg.front_extent_m-cfg.boundary_margin_m)
+        end=min(current_s+job['settings']['length_m'],limits['end_support']-cfg.front_extent_m-cfg.boundary_margin_m-cfg.tracking_margin_m)
         if end-start<job['preview_m']+.2:raise ValueError('maneuver_insufficient_forward_support')
         n=max(2,math.ceil((end-start)/job['settings']['path_spacing_m']))
         sd=[[start+(end-start)*k/n,task_offset(t,start+(end-start)*k/n)] for k in range(n+1)]
         path=path_poses(body(world(sd,t['anchor']),pose));peak=curvature_peak(path)
         if peak>cfg.max_curvature_1pm:raise ValueError('maneuver_curvature_limit')
-        hit=collision(path,context['points_xy_m'],cfg,boundaries=state['boundaries'],plan_tracking=True)
+        # Check the complete body against the measured road at each station,
+        # including tracking room. A path outside a boundary cannot pass just
+        # because it never crosses one of the visible polyline segments.
+        for s,d in sd:
+            eps=.001
+            heading=math.atan2(task_offset(t,s+eps)-task_offset(t,s-eps),2*eps)
+            c,q=math.cos(heading),math.sin(heading)
+            for x in (-cfg.rear_extent_m,cfg.front_extent_m):
+                for y in (-cfg.width_m/2,cfg.width_m/2):
+                    cs,cd=s+c*x-q*y,d+q*x+c*y
+                    if cs<limits['start_support']:continue  # Existing near-field entry bridge.
+                    room=corridor_limits(limits['profiles'],cs,cs)
+                    margin=cfg.boundary_margin_m+cfg.tracking_margin_m
+                    if room is None or not room['low']+margin<cd<room['high']-margin:
+                        raise ValueError('maneuver_road_containment')
+        hit=collision(path,context['points_xy_m'],replace(cfg,
+            boundary_margin_m=cfg.boundary_margin_m+cfg.tracking_margin_m),
+            boundaries=state['boundaries'],plan_tracking=True)
         if hit:result['collision']=hit;raise ValueError('maneuver_'+hit['kind'])
         candidate=dict(id=0,family='maneuver_'+state['phase'].lower(),path=path,cost=0.,collision=None,peak_curvature_1pm=peak)
         result.update(status='VALID',selected=candidate,candidates=[candidate],candidate_count=1,feasible_count=1,generated_length_m=end-start)
