@@ -311,8 +311,8 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 
 - **立即 Disable**：车速持续超过 0.65；车蛇行；接近边界；转向往弯外越打越大。超速锁停（`overspeed`）出现两次就停止 0.5，回到 v020 包。
 - **10-29 的 A/B**：同一条赛道，`-nolimit` 和 `-nolimit-fb` 交替（A、B、A、B…），每种 3–5 次，用 `tools/car_run_metrics.py` 统计。不要一天只跑一种。
-- **10-28 实车结果（1 号车）**：`v050-3m` 通过，滑行约 0.35–0.45 m，峰值 0.54。**急 U 弯先别跑 lattice 包**：0.5 和 0.2 下三次都在 U 弯中段往右拐、出界，原因是 lattice 的时间融合在急弯里越用越短的旧骨架（只看得到外圈锥桶时更明显），不是车速。直接关融合 Gym 更差（46 → 42/60），要改代码。详见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 10-28。赛道要选不含急 U 弯的路线；10-29 的 A/B 也一样。
-- **`-noprior` 包**（分支 `fusion-prior-reset`，**WSL 门禁 `a21f8cb` 通过**：offline PASS、ros gate PASS，`~/ai4r-evidence/ros-20261028-112040`；**还没上车**）：只多 `shadow.fusion_use_prior: false`，融合不再用上一次的参考当骨架。policy_node 都是 `25f9e3dd…`：
+- **10-28 实车结果（1 号车）**：`v050-3m` 通过，滑行约 0.35–0.45 m，峰值 0.54。**急 U 弯只用 `-noprior` 包**：原来的包在 0.5 和 0.2 下三次都在 U 弯中段往右拐、出界，原因是 lattice 的时间融合在急弯里越用越短的旧骨架（只看得到外圈锥桶时更明显），不是车速。直接关融合 Gym 更差（46 → 42/60），改成只去掉旧骨架（`-noprior`）后 U 弯能过，见下面的汇总表。详见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 10-28。
+- **`-noprior` 包**（分支 `fusion-prior-reset`，**WSL 门禁 `a21f8cb` 通过**：offline PASS、ros gate PASS，`~/ai4r-evidence/ros-20261028-112040`；10-28 已上车，结果见下面汇总表）：只多 `shadow.fusion_use_prior: false`，融合不再用上一次的参考当骨架。policy_node 都是 `25f9e3dd…`：
 
   ```text
   .verification\car05-lattice21-exec-v020-5m-noprior                yaml 79da2379…   0.20，5 m / 60 s
@@ -329,7 +329,18 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
   .verification\car05-lattice21-exec-v050-nolimit-blueleft-fb-noprior  yaml 38834fb7…   0.5，feedback，蓝左，不限
   ```
 
-  10-28 实车：`v020-5m-noprior` 3 次、`v020-nolimit-noprior` 1 次都没有再在 U 弯中段往右拐，不限包转完了整个 U 弯（+155°）；但车速一走一停（联合 MPC 冲速切油门 + 误判卡住重起步），下一步试 `-fb-noprior`。
+  **10-28 U 弯汇总**（1 号车，同一个左 U 弯，黄左，起点都在入弯前约 1–1.5 m；包在 `E:\26b\AI4R\car-evidence\car01-v050-20261028-102636\`）：
+
+  | 时间 | 包 | 车速 | 次数 | 结果 |
+  | --- | --- | --- | --- | --- |
+  | 10:46 | `v050-5m` | 0.5 | 1 | +91° 后往右 -66°，出界 |
+  | 10:56 | `v020-5m` | 0.2 | 2 | +84° 后往右 -42° 越界；+73° 后往右，跑满 5 m |
+  | 11:25 | `v020-5m-noprior` | 0.2 | 3 | 两次跑满 5 m（+85°、+83°，没往右翻）；一次切内侧撞黄锥（之后手转轮子触发 overspeed，不算） |
+  | 11:35 | `v020-nolimit-noprior` | 0.2 | 2 | 一次起步 0.69 m 估计失败；**一次转完整个 U 弯（+155°，10.4 m，无越界）**，但一走一停 |
+  | 12:06 | **`v050-5m-noprior`** | 0.5 | 2 | **两次都跑满 5 m，+142°、+137°，无越界、无碰锥、无重启**，峰值 0.585 / 0.616 |
+
+  - **目前最好：0.5 用 `v050-5m-noprior`**，车速稳（没有 0.2 下的一走一停），5 m 内接近转完。完整出弯还没在 0.5 下看过，下一步 `v050-nolimit-noprior`（12:06 之后那两次如果停在 5 m，先核对部署的是不是不限包：yaml `cbc5533b…`、`control.max_distance_m` 0.0）。
+  - 0.2 下的一走一停是 joint 纵向的问题（轮速读数冻住 + 切油门循环），见日志第 6 节；`-fb-noprior` 包备着没跑。
 
   参数核对加一项：`ros2 param get "$N" shadow.fusion_use_prior`，预期 `False`。看包时 `/car/shadow_planning` 的 `fusion.prior_used` 应全为 false。
 - **workspace 被清空时**（10-28 1 号车遇到）：从本机 `mpc-car-run` 上传 `package.xml`、`CMakeLists.txt`、`dream_interfaces.required.json`、`launch/`、`config/`、`tests/`，再 `Deploy-StartFix`，然后 `chmod +x .../scripts/policy_node.py`（新建文件没有执行位，launch 会报 `not found`）。
