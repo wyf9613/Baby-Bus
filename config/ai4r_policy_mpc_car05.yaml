@@ -97,6 +97,9 @@
       # 2026-10-28: with the glitch held, 5 of 6 Gym right-angle stops moved to "width unknown"
       # because the glitch frame's history clear also dropped the learned width.
       keep_width_on_geometry_glitch: true
+      # 2026-10-28 (car 01 oval): reverse both chains when every pairing conflict is an in-range
+      # negative width and the result continues the last valid road. Off here; car 01 packages only.
+      reorient_reversed_pairing: false
     shadow:
       # 2026-10-22: back to "travel" (lattice21.yaml's value). travel_plus_window (10-20,
       # docs/LATTICE_CHECK_LENGTH_PLAN_CN.md) made the lattice plan "straight ~0.6 m, then

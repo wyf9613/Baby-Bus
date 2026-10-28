@@ -109,6 +109,56 @@ class ColourAssignmentChecks(unittest.TestCase):
         with self.assertRaises(ValueError):
             settings(keep_width_on_geometry_glitch=1)
 
+    def test_reversed_chain_order_is_reoriented_only_when_it_continues_the_last_road(self):
+        # 2026-10-28 car 01 oval: with the road running across the view in a bend, the chains'
+        # travel order came out reversed (it is grown along +x), so every normal met the opposite
+        # chain at -width and the frame was invalid_boundary_pairing. Reverse the order here.
+        # Single-frame reversal alone also "rescued" frames into backward or self-crossing roads,
+        # so the reoriented road must continue the last valid centreline.
+        order = ns["_estimation_order_boundary"]
+
+        def reversed_order(points, cfg):
+            fit = order(points, cfg)
+            if fit:
+                chain = list(reversed(fit["support_points"]))
+                fit = dict(fit, support_points=chain, lengths=ns["_path_lengths"](chain))
+            return fit
+        plain = EstimationPipeline(settings(colour_assignment="fixed")).road(batch(2), 10_000_000_000, 0.0)
+        self.assertTrue(plain["valid"])
+        forward, backward = plain["centerline_xy"], list(reversed(plain["centerline_xy"]))
+
+        def run(enabled, guide):
+            pipeline = EstimationPipeline(settings(colour_assignment="fixed", reorient_reversed_pairing=enabled))
+            pipeline._learned_lane_width_m = 0.8     # reach the pairing check, as on the car
+            if guide is not None:
+                pipeline._orientation_guide = {"xy": guide, "stamp_s": 10.0, "seen_s": 10.0,
+                                               "reset_id": pipeline.motion.reset_id}
+            with patch.dict(ns, _estimation_order_boundary=reversed_order):
+                return pipeline.road(batch(2), 10_000_000_000, 0.0)
+        off = run(False, forward)
+        self.assertEqual(off["status"], "invalid_boundary_pairing")
+        self.assertNotIn("reorient", off)
+        accepted = run(True, forward)
+        self.assertTrue(accepted["valid"])
+        self.assertEqual(accepted["reorient"], "accepted")
+        self.assertTrue(accepted["chain_order_reversed"])
+        self.assertAlmostEqual(accepted["lane_width_m"], plain["lane_width_m"], places=6)
+        for a, b in zip(accepted["centerline_xy"], forward):
+            self.assertAlmostEqual(a[0], b[0], places=6)
+            self.assertAlmostEqual(a[1], b[1], places=6)
+        for guide, outcome in ((backward, "rejected"), (None, "no_guide")):
+            road = run(True, guide)
+            self.assertEqual(road["status"], "invalid_boundary_pairing", outcome)
+            self.assertEqual(road["reorient"], outcome)
+        # A frame that already pairs never takes the reversed path.
+        pipeline = EstimationPipeline(settings(colour_assignment="fixed", reorient_reversed_pairing=True))
+        pipeline._orientation_guide = {"xy": forward, "stamp_s": 10.0, "seen_s": 10.0,
+                                       "reset_id": pipeline.motion.reset_id}
+        self.assertNotIn("reorient", pipeline.road(batch(2), 10_000_000_000, 0.0))
+        for bad in (dict(reorient_reversed_pairing=1), dict(reorient_guide_max_age_s=0.0)):
+            with self.assertRaises(ValueError):
+                settings(**bad)
+
     def test_width_gate_is_not_relaxed_to_force_assignment(self):
         road = EstimationPipeline(settings()).road(batch(width=0.1), 10_000_000_000, 0.0)
         self.assertFalse(road["valid"])

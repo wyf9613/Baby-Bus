@@ -298,6 +298,12 @@ def replay(api, params, path, imu_mount, full_path=False, runs=False, lattice=No
                        planning=(node.planning_output or {}).get("reason"),
                        planning_valid=(node.planning_output or {}).get("valid"),
                        centerline_rejection=(node.planning_diagnostics or {}).get("centerline_rejection"))
+            # estimation.reorient_reversed_pairing (2026-10-28): the raw frame's reorientation outcome.
+            observed = getattr(getattr(node, "estimator", None), "_observation_road", None) or {}
+            if observed.get("reorient"):
+                row.update(reorient=observed["reorient"], observed_status=observed.get("status"))
+            if full_path and observed.get("valid"):     # the raw frame's own centreline
+                row["observed_xy"] = [[round(v, 3) for v in p[:2]] for p in observed.get("centerline_xy") or []]
             assignment = road.get("colour_assignment") or {}
             if assignment.get("mode") == "auto":    # 2026-10-21: estimation.colour_assignment auto
                 row.update(colour_status=assignment.get("status"),

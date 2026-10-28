@@ -291,6 +291,14 @@ class EstimationSettings:
     # invalid_boundary_pairing still clears the cone history, but true keeps the learned
     # width, so the next single-sided frames are not "width unknown" stops.
     keep_width_on_geometry_glitch: bool = False
+    # 2026-10-28 (car 01 oval): with the road running across the view in a sharp bend, the
+    # chains' travel order (grown along +x) can come out reversed, so every normal meets the
+    # opposite chain at -width and the frame is invalid_boundary_pairing. true: when every
+    # conflict is such a negative in-range width, reverse both chains once and pair again,
+    # and keep the result only if it continues the last valid centreline (moved with the car
+    # every step, at most reorient_guide_max_age_s old); otherwise the frame stays invalid.
+    reorient_reversed_pairing: bool = False
+    reorient_guide_max_age_s: float = 1.5
     # Fraction of the FULL learned/known lane width to offset inward from a
     # single observed boundary. 0.5 is geometric centre; smaller hugs that side.
     # This does not change width learning or the two-boundary centreline.
@@ -347,12 +355,16 @@ class EstimationSettings:
             raise ValueError("estimation.single_side_from_learned_width must be bool")
         if not isinstance(self.keep_width_on_geometry_glitch, bool):
             raise ValueError("estimation.keep_width_on_geometry_glitch must be bool")
+        if not isinstance(self.reorient_reversed_pairing, bool):
+            raise ValueError("estimation.reorient_reversed_pairing must be bool")
+        if not 0.0 < self.reorient_guide_max_age_s <= 5.0:
+            raise ValueError("estimation.reorient_guide_max_age_s must be in (0, 5] s")
         if self.continuous_road_output and self.history_propagation != "continuous":
             raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
             if name in ("colour_assignment", "history_propagation", "road_history_mode", "road_geometry",
                         "history_merge_single_side", "continuous_road_output", "single_side_from_learned_width",
-                        "keep_width_on_geometry_glitch"):
+                        "keep_width_on_geometry_glitch", "reorient_reversed_pairing"):
                 continue
             if not finite_number(value):
                 raise ValueError(f"estimation.{name} must be finite")
@@ -813,6 +825,57 @@ class EstimationPipeline:
         self._colour_assignment_evidence = []
         self.motion = motion_history or EstimationMotionHistory(settings)
         self._clear_road_history()
+        # estimation.reorient_reversed_pairing: the last valid centreline, kept through road
+        # failures (unlike the cone history) and moved with the car every step.
+        self._orientation_guide = None   # {"xy", "stamp_s", "seen_s", "reset_id"}
+
+    def _remember_orientation_guide(self, road, source_s):
+        if self.settings.reorient_reversed_pairing and road.get("valid") and len(road.get("centerline_xy") or []) >= 2:
+            self._orientation_guide = {"xy": [tuple(p[:2]) for p in road["centerline_xy"]], "stamp_s": source_s,
+                                       "seen_s": source_s, "reset_id": self.motion.reset_id}
+
+    def _advance_orientation_guide(self, now_s):
+        guide = self._orientation_guide
+        if guide is None or now_s <= guide["stamp_s"]:
+            return
+        pose, problem = self.motion.pose_between(guide["stamp_s"], now_s)
+        if (problem is not None or guide["reset_id"] != self.motion.reset_id
+                or now_s-guide["seen_s"] > self.settings.reorient_guide_max_age_s):
+            self._orientation_guide = None
+            return
+        guide.update(xy=[self.motion.transform_xy(p, pose) for p in guide["xy"]], stamp_s=now_s)
+
+    def _orientation_guide_at(self, source_s):
+        """The guide centreline in the camera frame at source_s, or None."""
+        guide = self._orientation_guide
+        if (guide is None or source_s is None or guide["reset_id"] != self.motion.reset_id
+                or source_s-guide["seen_s"] > self.settings.reorient_guide_max_age_s):
+            return None
+        if source_s == guide["stamp_s"]:
+            return guide["xy"]
+        if source_s > guide["stamp_s"]:
+            pose, problem = self.motion.pose_between(guide["stamp_s"], source_s)
+            move = self.motion.transform_xy
+        else:
+            pose, problem = self.motion.pose_between(source_s, guide["stamp_s"])
+            move = self.motion.inverse_transform_xy
+        return None if problem is not None else [move(p, pose) for p in guide["xy"]]
+
+    @staticmethod
+    def _continues_guide(center, guide, width):
+        """Reoriented centreline overlaps the guide (>= 3 samples within half a width) and heads its way."""
+        lengths = _path_lengths(guide)
+        tolerance, near, headings = max(0.5*width, 0.3), 0, []
+        for a, b in zip(center, center[1:]):
+            projection = _path_project(guide, lengths, a, forward=False)
+            distance, _, _, i, u = projection
+            if (i == 0 and u == 0) or (i == len(guide)-2 and u == 1) or math.sqrt(distance) > tolerance:
+                continue
+            near += 1
+            g = (guide[i+1][0]-guide[i][0], guide[i+1][1]-guide[i][1])
+            turn = math.atan2(b[1]-a[1], b[0]-a[0])-math.atan2(g[1], g[0])
+            headings.append(abs(math.atan2(math.sin(turn), math.cos(turn))))
+        return near >= 3 and _estimation_median(headings) <= math.radians(45)
 
     def _clear_history_after_failure(self, status):
         """An unrecoverable road failure clears the history; a geometry flicker may keep the width."""
@@ -965,12 +1028,15 @@ class EstimationPipeline:
         if source_s != self._observation_stamp or self._observation_road is None:
             self._observation_stamp = source_s
             self._observation_road = self.road(batch, stamp_ns, age)
+            self._remember_orientation_guide(self._observation_road, source_s)
             # Learn ONLY from a fresh raw frame that independently fits BOTH
             # sides. Merged history and inferred/predicted roads never teach
             # a width or refresh its acquisition timestamp.
+            # A reoriented frame (reorient_reversed_pairing) is an inference, not a fresh fit.
             if (self.settings.single_side_from_learned_width
                     and self._observation_road["valid"]
-                    and self._observation_road["visibility"] == "both"):
+                    and self._observation_road["visibility"] == "both"
+                    and not self._observation_road.get("chain_order_reversed")):
                 self._learned_lane_width_m = self._observation_road["lane_width_m"]
                 self._learned_lane_width_stamp_s = source_s
         current = deepcopy(self._observation_road)
@@ -1376,16 +1442,24 @@ class EstimationPipeline:
         # centreline's curvature. None is honest until that derivation is added.
         return output
 
-    def _ordered_road(self, output, sides, reference_side=None):
+    def _ordered_road(self, output, sides, reference_side=None, reversed_order=False):
         """Normal-paired, ordered local boundary chains and single-side offsets.
 
         Pairing follows the opposite chain's travel order and requires agreeing
         tangents. It never pairs a U-turn entry to its rear-facing exit. Samples
         are restricted to measured support; no endpoint tangent extension.
+        reversed_order (estimation.reorient_reversed_pairing): both chains reversed.
         """
         cfg = self.settings
         fits = {name: _estimation_order_boundary(sides[colour], cfg)
                 for name, colour in (("left", self.left_colour), ("right", self.right_colour))}
+        if reversed_order:
+            for name, fit in fits.items():
+                if fit:
+                    chain = list(reversed(fit["support_points"]))
+                    lengths = _path_lengths(chain)
+                    fits[name] = dict(fit, support_points=chain, lengths=lengths, range=(0.0, lengths[-1]))
+            output["chain_order_reversed"] = True
         output["geometry_encoding"] = "ordered_xy"
         output["_boundary_fits"] = {}
         for name, colour in (("left", self.left_colour), ("right", self.right_colour)):
@@ -1407,7 +1481,7 @@ class EstimationPipeline:
         total = min(fit["lengths"][-1], cfg.road_forward_max_m+cfg.road_rear_support_m)
         count = min(200, math.ceil(total/cfg.road_sample_spacing_m))
         candidates, runs, current, previous_other_s = [], [], [], -1.0
-        pairing_conflict = False
+        pairing_conflict, conflict_widths = False, []
         for i in range(count+1):
             distance = total*i/count
             p = _path_sample(boundary, fit["lengths"], distance)
@@ -1428,6 +1502,7 @@ class EstimationPipeline:
                     u = (ax*ny-ay*nx)/denominator
                     if -1e-6 <= u <= 1+1e-6 and not cfg.road_width_min_m <= width <= cfg.road_width_max_m:
                         pairing_conflict = True
+                        conflict_widths.append(width)
                     other_s = other["lengths"][j]+min(1.0, max(0.0, u))*length
                     if (cfg.road_width_min_m <= width <= cfg.road_width_max_m
                             and -1e-6 <= u <= 1+1e-6
@@ -1455,7 +1530,8 @@ class EstimationPipeline:
             # be only a short noisy fragment. Prefer the longer actually
             # observed chain for remembered-width inference, once per frame.
             return self._ordered_road(output, sides,
-                                      reference_side="right" if side == "left" else "left")
+                                      reference_side="right" if side == "left" else "left",
+                                      reversed_order=reversed_order)
         if not inferred:
             # Prefer the nearest usable contiguous corridor over a longer far
             # branch; discarded gaps never become implicit connecting lines.
@@ -1463,6 +1539,22 @@ class EstimationPipeline:
             center = [p for p, _ in run]
             width = _estimation_median([w for _, w in run])
         else:
+            # Every conflict an in-range NEGATIVE width: the chains' travel order may be reversed
+            # (estimation.reorient_reversed_pairing). Kept only if it continues the last valid road.
+            if (cfg.reorient_reversed_pairing and not reversed_order and other is not None and pairing_conflict
+                    and all(cfg.road_width_min_m <= -w <= cfg.road_width_max_m for w in conflict_widths)):
+                guide = self._orientation_guide_at(output.get("timestamp_s"))
+                output["reorient"] = "no_guide" if guide is None else "rejected"
+                if guide is not None:
+                    trial = self._ordered_road(deepcopy(output), sides, reference_side=reference_side,
+                                               reversed_order=True)
+                    # It must also keep a forward-facing branch, or alignment would turn this
+                    # tolerable pairing failure into a hard ordered_branch_unavailable stop.
+                    if (trial["valid"] and _path_project(trial["centerline_xy"],
+                                                         _path_lengths(trial["centerline_xy"])) is not None
+                            and self._continues_guide(trial["centerline_xy"], guide, trial["lane_width_m"])):
+                        trial["reorient"] = "accepted"
+                        return trial
             width = (self._learned_lane_width_m if cfg.single_side_from_learned_width
                      else None) or cfg.known_lane_width_m
             output["visibility"] = side+"_only"
@@ -1705,6 +1797,7 @@ class EstimationPipeline:
                 if self.settings.continuous_road_output:
                     self._advance_prediction_distance(now_s)
                 self._advance_history(now_s)
+            self._advance_orientation_guide(now_s)
             road = self._history_road(observations.get("cone_detections"), stamps.get("cone_detections"),
                                       ages.get("cone_detections"), now_s)
         observed = (self._observation_road if road["status"] != "unavailable"
