@@ -339,7 +339,7 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
   | 11:35 | `v020-nolimit-noprior` | 0.2 | 2 | 一次起步 0.69 m 估计失败；**一次转完整个 U 弯（+155°，10.4 m，无越界）**，但一走一停 |
   | 12:06 | **`v050-5m-noprior`** | 0.5 | 2 | **两次都跑满 5 m，+142°、+137°，无越界、无碰锥、无重启**，峰值 0.585 / 0.616 |
 
-  - **目前最好：0.5 用 `v050-5m-noprior`**，车速稳（没有 0.2 下的一走一停），5 m 内接近转完。完整出弯还没在 0.5 下看过，下一步 `v050-nolimit-noprior`（12:06 之后那两次如果停在 5 m，先核对部署的是不是不限包：yaml `cbc5533b…`、`control.max_distance_m` 0.0）。
+  - **目前最好：0.5 用 `v050-5m-noprior`**，车速稳（没有 0.2 下的一走一停），5 m 内接近转完。完整出弯还没在 0.5 下看过（`v050-nolimit-noprior` 还没跑），下一步就是它；部署后核对 yaml `cbc5533b…`、`control.max_distance_m` 0.0。
   - 0.2 下的一走一停是 joint 纵向的问题（轮速读数冻住 + 切油门循环），见日志第 6 节；`-fb-noprior` 包备着没跑。
 
   参数核对加一项：`ros2 param get "$N" shadow.fusion_use_prior`，预期 `False`。看包时 `/car/shadow_planning` 的 `fusion.prior_used` 应全为 false。
