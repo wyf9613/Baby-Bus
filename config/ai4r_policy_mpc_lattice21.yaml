@@ -31,6 +31,9 @@
       fusion_spacing_m: 0.10
       fusion_memory_weight: 1.0
       fusion_rear_support_m: 0.30
+      # fusion-prior-reset experiment (2026-10-28): false = never guide fusion with the
+      # previous reference. Default true is the shipped behaviour.
+      fusion_use_prior: true
       length_m: 1.0
       sample_count: 48
       path_spacing_m: 0.025

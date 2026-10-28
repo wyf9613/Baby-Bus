@@ -2,6 +2,93 @@
 
 对应计划：[MPC_PLAN_OVERVIEW.md](MPC_PLAN_OVERVIEW.md)（v3）。新条目加在最上面。状态标记：✅ 完成，🟡 部分完成，⏳ 待做，❌ 阻塞。
 
+## 2026-10-28：1 号车 0.5 m/s 首次上车；U 弯往右拐的根因是时间融合 🟡
+
+**车和场地**：1 号车（`10.43.254.14`），当作 5 号车，直接用 car05 的 v050 / v020 包（policy_node `bd5ce140…` / `14ac8b1e…`），场地黄左。包、分析脚本和图在 `E:\26b\AI4R\car-evidence\car01-v050-20261028-102636\`（`analysis\` 子目录）。
+
+**上车前：workspace 是空的**。`~/ai4r_student_workspace/src/ai4r_policy/` 是 10-28 01:29 新建的空目录，`build/`、`install/` 也空，所以 `dream runtime start` 全部报 `expected src/ai4r_policy/package.xml`；同一时刻有一份 `~/ai4r_policy_backup_20261028-013201`（别组的包，带 centerline / delaunay / lidar 节点，没动它）。恢复：从本机 `mpc-car-run` 上传 `package.xml`、`CMakeLists.txt`、`dream_interfaces.required.json`、`launch/`、`config/`、`tests/`，再 `Deploy-StartFix`。踩到三处：
+- 缺 `tests/`：CMakeLists 的 `ament_add_pytest_test` 要求文件存在，configure 失败；
+- 缺 `dream_interfaces.required.json`：colcon 通过后 dream 的接口清单检查失败；
+- `policy_node.py` 是新建文件，scp 后没有执行位，launch 报 `executable 'policy_node.py' not found`；`chmod +x` 后正常（之后覆盖同一文件会保留权限）。
+
+`config/traxxas_vehicle_interface.yaml` 用的是本分支的（±1.0、trim 0），参数核对通过。日志里每条 ros2 命令都有 `RTPS_TRANSPORT_SHM Error ... open_and_lock_file failed`，是重启前留下的共享内存锁，FastDDS 改走 UDP，无影响。
+
+### 1. 0.5 m/s 直道（`v050-3m`）：通过
+
+| | 距离 | 峰值 | 结束 | 备注 |
+| --- | --- | --- | --- | --- |
+| 第 1 次 | 0.61 m | 0.525 | `invalid_road_invalid_boundary_pairing` | 起步 28/48 拍 `planner_no_road`，lattice 还没出结果 |
+| 第 2 次 | 3.02 m | 0.537 | `Distance limit reached` | 超速全程 `ok`，无重启，lattice 85%，横向 p95 0.12 m |
+
+- **滑行距离约 0.35–0.45 m**（模型 0.4–0.6）。包里轮速直接积分是 1.0–1.15 m，偏大：停车后轮速驱动保持最后读数（0.30 / 0.23）约 3 s 才归零。按真实减速段（0.38–0.42 m/s²）外推到 0：第 1 次 0.34 m、第 2 次 0.40 m；IMU 显示约 1 s 后车已不转。
+- **油门余量小**：0.5 m/s 时 `applied_drive` 约 0.32，高速档上限 0.35。
+
+### 2. U 弯（左转）：三次都在中段往右拐
+
+| 包 | 结果 | 往右翻转 | 紧挨着的 lattice 新规划 |
+| --- | --- | --- | --- |
+| `v050-5m`（0.5） | 4.37 m，+91° 后 -66°，往右出界，`invalid_road_insufficient_geometry` | 7.76 s，航向 88° | 7.71 s |
+| `v020-5m` 第 1 次（0.2） | +84° 后 -42°，越过右边界（39.7–40.3 s），`invalid_road_insufficient_geometry` | 17.79 s，航向 92° | 17.68 s |
+| `v020-5m` 第 2 次（0.2） | 跑满 5.006 m 停，未越界；停前航向 73° → 65°，最后 1 s 车速 0.01 | 19.05 s，航向 71° | 18.71 s |
+
+（时间从 Enable 起算。）MPC 只是照着 lattice 的路径走；lattice 规划耗时 0.13–0.34 s，没有超时。0.2 和 0.5 一样，所以不是车速、路径过旧或转弯半径的问题（0.5 那次左满舵 2.3 s，实测半径约 0.88 m，那是另一个问题）。U 弯里只检测到外圈蓝锥（`visibility right_only`），内圈黄锥只在入弯前出现过。
+
+### 3. 根因：融合的骨架只会缩短、不会延伸
+
+`_shadow_fuse_road`（[policy_node.py](../scripts/policy_node.py) 6753 行起）每次以**上一次的参考**为骨架（`previous_reference`，3 s 内都用），变换到当前位姿，再用各帧观测沿骨架法线修正偏移。向前延伸只有一条路：当前观测的中心线点投影在骨架末端之后（`s > end + 0.10`）且横向 `|d| < search_half_width_m`（0.45）才接上去。拟合窗口的上限是 `min(base.end, s0 + 1.5 × length)`，也就是不超过骨架末端。
+
+急弯里，当前观测的中心线落在骨架侧面（投影不在末端之后），一个点都接不上；车每走一段，后部被裁掉（`trimmed_rear_m` 0.29 → 0.53 → 0.69），前面不补。骨架越来越短，方向停在旧方向；车已经左转了，这截旧骨架在车头坐标里就指向右边。lattice 按它规划，选出往右的路径。
+
+**离线复现**：用车上 `/car/shadow_planning` 里录下的 `temporal_input` + `raw_planning_input` 直接调用 `_shadow_fuse_road`（`analysis\fuse_repro.py`），结果和车上记录逐项一致：
+
+| 规划（包内秒数） | 当前观测中心线 | 融合（车上实际） | 去掉 `previous_reference` 重算 |
+| --- | --- | --- | --- |
+| v050 21.58 | 左 50° | **右 22°**，1.24 m | 左 46°，1.56 m |
+| v050 22.59 | 左 38° | **右 32°**，0.55 m | 左 55°，2.22 m |
+| v020 36.44 | 左 10° | **右 64°**，0.60 m | 左 32°，1.52 m |
+| v020 37.48 | 右 12° | **右 101°**，0.39 m | 左 9°，0.93 m |
+
+骨架长度：v050 2.00 → 1.68 → 1.24 → 0.55 m，v020 0.69 → 0.60 → 0.39 m。每次"接上的点"都是 0。图：`analysis\plan_v050.png`、`plan_v020.png`（绿实线 = 融合参考，绿虚线 = 当前观测中心线，紫 = 选中路径）。
+
+**整条规划也复现了**（`analysis\plan_repro.py`：同样的输入喂 `ShadowLatticePlanner.plan`，再加 `preview_m`、`handoff_estimate_s`）。车上选中的路径逐条重现；只把 `previous_reference` 置空，其余不动：
+
+| 规划 | 车上选中路径 | 去掉旧骨架 |
+| --- | --- | --- |
+| v050 21.58 | **右 43°**（`fast_center`） | 左 17° |
+| v050 22.59 | **右 53°**，可行候选只剩 22 | 左 43°，可行 45 |
+| v020 36.44 | **右 157°** | 左 31° |
+| v020 37.48 | **右 54°**（`hold`） | 左 55° |
+| v050 20.48、v020 158.24 / 159.33（本来就往左） | 左 64° / 71° / 99° | 左 36° / 30° / 65° |
+
+坏的四次全部翻成往左，好的三次仍往左（角度变小）。这是单帧、开环的结果：车按新路径走之后下一帧会不同，闭环要靠 Gym 和上车验证。
+
+`replay_policy_bag.py --lattice` 开环回放**复现不出来**：回放的出图时刻（21.05 / 22.10 s）和车上（20.48 / 21.58 / 22.59 s）不同，骨架链也就不同，回放里两次都是往左。所以复现要用录下的融合输入，不能靠回放。
+
+### 4. Gym：直接关融合不行
+
+0.5 m/s 设置（`--speed 0.5 --set mpc.horizon_n=6 --set shadow.length_m=1.4 --set mpc.overspeed_hard_mps=0.7`，其余同 10-27），60 次：
+
+| 组 | 完成 | 直道 / 缓弯 / U 弯 / R1.5 / R1 | 直道、缓弯最大横向 | 直道、缓弯切换 | U 弯切换 |
+| --- | ---: | --- | --- | --- | ---: |
+| 融合开（现状） | **46** | 12 / 11 / 11 / 6 / 6 | 0.13 / 0.15 m | 24 / 25 | 118 |
+| `shadow.fusion_enabled=false` | 42 | 12 / 11 / 9 / 5 / 5 | 0.22 / 0.25 m | 36 / 41 | 82 |
+
+| `shadow.fusion_use_prior=false`（分支 `fusion-prior-reset`） | **48** | 12 / **12** / 10 / **9** / 5 | **0.10** / 0.16 m | 22 / 24 | 85 |
+
+融合开和 10-27 的 N = 6 组逐项相同（46/60），可复现。关掉后完成 -4、横向误差和切换都变大，所以不出"关融合"的包。
+
+**只去掉旧骨架**（新开关 `shadow.fusion_use_prior`，默认 true = 原行为；false 时 `_shadow_fuse_road` 不用 `previous_reference`，历史帧照常融合）：48/60，直道、缓弯的横向和切换和现状相当（直道 0.13 → 0.10 m），没有关融合那样的退化。U 弯 -1、R1.5 +3、R1 -1、超速锁停 1 → 2，都在重跑波动（约 ±2）里。Gym 的 U 弯两侧都看得见，测不到车上的单侧问题，这一组只说明"去掉旧骨架不会把别的路段弄坏"。`test_shadow_lattice`、`test_release_contract` 47 项通过；lattice21.yaml 声明了 `fusion_use_prior: true`，以后生成的包 yaml 多一行。Gym 的 U 弯 11/12 没有暴露这个问题，可能是仿真里两侧锥桶都看得见，骨架有两侧观测撑着；还没核实。
+
+### 下一步
+
+1. **改 `_shadow_fuse_road`**（🟡）：最简单的 `fusion_use_prior: false` 已在分支 `fusion-prior-reset` 上，Gym 48/60 不退化。还可以只在骨架剩在车前方的长度不够（例如 `base.end - s0 < length_m`）或者和当前观测方向差太大时丢掉，保留直道上旧骨架的平滑作用；先看简单版上车效果再决定。上表四个时刻做成单元测试（输入取自车上的 `temporal_input`）。
+   - **单元测试**（`FusionPriorGuideChecks`，fixture `tests/fixtures/car01_20261028_uturn_prior_guide.json`，上表四个规划的录制输入）：默认设置重现车上选中的路径（同一 id、往右 > 0.5 rad）；`fusion_use_prior=False` 时同样输入 `FUSED`、不用旧骨架、往左 > 0.2 rad；非布尔值报错。`unittest discover` 466 个，唯一错误仍是需要 ROS 的 `test_policy_node`。
+   - **开环回放测不出来**：`replay_policy_bag.py --lattice --set shadow.fusion_use_prior=true` 在两个包上也几乎全是往左（出图时刻不同，骨架链不同），改前改后分不开。验证只能靠录制输入的单元测试和上车。
+   - **包**（`-noprior`，从本分支生成后手工把 `fusion_use_prior: true` 改成 `false`，和 `-rd5`/`-hooks` 一样；yaml 和对应的现有包只差这一行，policy_node `25f9e3dd…` 和 `bd5ce140…` 只差上面 3 处）：见 [CAR05_LATTICE21_EXEC_RUN_CN.md](CAR05_LATTICE21_EXEC_RUN_CN.md) 10-28。
+2. **Gym 加单侧可见的 U 弯**，先确认能复现，再比较改前改后；直道和缓弯不能退化（46/60 基线）。
+3. WSL 门禁通过后 `-noprior` 包才能上车：先 `v020-5m-noprior` 跑同一个 U 弯（和今天 `v020-5m` 对比），再 0.5。
+4. 0.5 m/s 的直道和缓弯（`v050-5m`、不含 U 弯的 `-nolimit`）、`-fb` 不受影响，照计划继续。
+
 ## 2026-10-27：圆弧候选、预测步数 N、0.5 m/s 的 Gym 对比 🟡
 
 BLAS 线程数、Gym 的 `reject_reasons` 和这份记录在 `mpc-car-run`；圆弧候选只在实验分支 `lattice-arc-candidates`（在前者之上多一个提交，未合并）。起因是 10-26 两个新分支：Zhenyu 的 `checkpoint/rnn-mpc-car13-20261026`（`45d492f`，RNN 选路 + 他的 PI-MPC，13 号车，0.5 m/s，N = 6，lattice 路径 1.4 m）和 Zhengxi 的 `feature/rnn-mpc-lidar-stop`（`0908837`，前方激光雷达停车）。两者的效果都是操作员口头反馈"更稳定"，没有完成率统计，ROS 门禁没跑。这里把其中可以单独验证的几项放到我们的配置上测。

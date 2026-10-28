@@ -311,6 +311,22 @@ python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --cones yell
 
 - **立即 Disable**：车速持续超过 0.65；车蛇行；接近边界；转向往弯外越打越大。超速锁停（`overspeed`）出现两次就停止 0.5，回到 v020 包。
 - **10-29 的 A/B**：同一条赛道，`-nolimit` 和 `-nolimit-fb` 交替（A、B、A、B…），每种 3–5 次，用 `tools/car_run_metrics.py` 统计。不要一天只跑一种。
+- **10-28 实车结果（1 号车）**：`v050-3m` 通过，滑行约 0.35–0.45 m，峰值 0.54。**急 U 弯先别跑 lattice 包**：0.5 和 0.2 下三次都在 U 弯中段往右拐、出界，原因是 lattice 的时间融合在急弯里越用越短的旧骨架（只看得到外圈锥桶时更明显），不是车速。直接关融合 Gym 更差（46 → 42/60），要改代码。详见 [MPC_PROGRESS_LOG.md](MPC_PROGRESS_LOG.md) 10-28。赛道要选不含急 U 弯的路线；10-29 的 A/B 也一样。
+- **`-noprior` 包**（分支 `fusion-prior-reset`，**WSL 门禁未跑，还不能上车**）：只多 `shadow.fusion_use_prior: false`，融合不再用上一次的参考当骨架。policy_node 都是 `25f9e3dd…`：
+
+  ```text
+  .verification\car05-lattice21-exec-v020-5m-noprior                yaml 79da2379…   0.20，5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-noprior           yaml d475398c…   0.20，不限
+  .verification\car05-lattice21-exec-v020-5m-blueleft-noprior       yaml 42268988…   0.20，蓝左，5 m / 60 s
+  .verification\car05-lattice21-exec-v020-nolimit-blueleft-noprior  yaml 26f95cb4…   0.20，蓝左，不限
+  .verification\car05-lattice21-exec-v050-5m-noprior                yaml 45ab0e51…   0.5，5 m / 60 s
+  .verification\car05-lattice21-exec-v050-nolimit-noprior           yaml cbc5533b…   0.5，不限
+  .verification\car05-lattice21-exec-v050-5m-blueleft-noprior       yaml 08fbdacb…   0.5，蓝左，5 m / 60 s
+  .verification\car05-lattice21-exec-v050-nolimit-blueleft-noprior  yaml 87eb1fd4…   0.5，蓝左，不限
+  ```
+
+  参数核对加一项：`ros2 param get "$N" shadow.fusion_use_prior`，预期 `False`。看包时 `/car/shadow_planning` 的 `fusion.prior_used` 应全为 false。
+- **workspace 被清空时**（10-28 1 号车遇到）：从本机 `mpc-car-run` 上传 `package.xml`、`CMakeLists.txt`、`dream_interfaces.required.json`、`launch/`、`config/`、`tests/`，再 `Deploy-StartFix`，然后 `chmod +x .../scripts/policy_node.py`（新建文件没有执行位，launch 会报 `not found`）。
 
 ## 1. SSH、Foxglove、停车、备份
 

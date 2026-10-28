@@ -6443,12 +6443,17 @@ class ShadowSettings:
     fusion_spacing_m: float = 0.10
     fusion_memory_weight: float = 1.0
     fusion_rear_support_m: float = 0.30
+    # fusion-prior-reset experiment (2026-10-28): false never uses the previous reference
+    # as the fusion guide (car 01 U-turn: the prior guide shrank and pointed right).
+    fusion_use_prior: bool = True
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
             raise ValueError("shadow.enabled must be boolean")
         if not isinstance(self.fusion_enabled, bool):
             raise ValueError("shadow.fusion_enabled must be boolean")
+        if not isinstance(self.fusion_use_prior, bool):
+            raise ValueError("shadow.fusion_use_prior must be boolean")
         if type(self.fusion_max_samples) is not int or not 1 <= self.fusion_max_samples <= 128:
             raise ValueError("shadow.fusion_max_samples must be an integer in [1,128]")
         if not isinstance(self.sample_count, int) or isinstance(self.sample_count, bool) or self.sample_count < 8:
@@ -6460,8 +6465,8 @@ class ShadowSettings:
             if not isinstance(getattr(self, name), str) or getattr(self, name) not in ("prefix", "generated"):
                 raise ValueError("shadow."+name+" must be prefix or generated")
         for name, value in vars(self).items():
-            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_max_samples", "check_length_mode",
-                        "collision_coverage", "score_coverage"):
+            if name in ("enabled", "sample_count", "fusion_enabled", "fusion_use_prior", "fusion_max_samples",
+                        "check_length_mode", "collision_coverage", "score_coverage"):
                 continue
             if not finite_number(value) or value < 0:
                 raise ValueError("shadow."+name+" must be finite and nonnegative")
@@ -6786,7 +6791,7 @@ def _shadow_fuse_road(job, cfg):
     prior = job.get("previous_reference") or {}
     prior_age = now-prior.get("stamp_s", now)
     prior_points = []
-    if (prior.get("odometry_epoch") == epoch and prior.get("pose")
+    if (cfg.fusion_use_prior and prior.get("odometry_epoch") == epoch and prior.get("pose")
             and 0 <= prior_age <= cfg.fusion_window_s+2/cfg.rate_hz):
         prior_points = _shadow_pose_points(prior.get("points"), prior["pose"], target_pose)
     guide = prior_points

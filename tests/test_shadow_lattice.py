@@ -686,5 +686,48 @@ class LookupOptimisationChecks(unittest.TestCase):
         self.assertEqual(response["selected"]["id"], expected["selected"]["id"])
 
 
+def path_turn(path):
+    """Heading change from the first to the last segment, rad (left positive)."""
+    a = math.atan2(path[1][1]-path[0][1], path[1][0]-path[0][0])
+    b = math.atan2(path[-1][1]-path[-2][1], path[-1][0]-path[-2][0])
+    return math.atan2(math.sin(b-a), math.cos(b-a))
+
+
+class FusionPriorGuideChecks(unittest.TestCase):
+    """fusion-prior-reset (2026-10-28): car 01 left U-turns seen right-only.
+
+    Each cycle's fusion guide was the previous reference; no new point joined it ahead,
+    so it shrank (2.0 -> 0.55 m) and kept its old direction, which pointed right once the
+    car had turned. These four recorded plans turned the car right; without the prior
+    guide the same inputs plan left.
+    """
+    fixture = json.loads((Path(__file__).parent/"fixtures/car01_20261028_uturn_prior_guide.json").read_text())
+
+    def run_frame(self, frame, **overrides):
+        settings = {k: v for k, v in frame["job"]["settings"].items() if k in vars(Settings())}
+        return Planner(Settings(**{**settings, **overrides})).plan(frame["job"])
+
+    def test_default_reproduces_the_recorded_right_turns(self):
+        for frame in self.fixture["frames"]:
+            with self.subTest(source=frame["source"]):
+                result = self.run_frame(frame)
+                self.assertEqual(result["status"], "VALID")
+                self.assertEqual(result["selected"]["id"], frame["recorded_selected"]["id"])
+                self.assertLess(path_turn(result["selected"]["path"]), -0.5)
+
+    def test_without_prior_guide_the_same_inputs_plan_left(self):
+        for frame in self.fixture["frames"]:
+            with self.subTest(source=frame["source"]):
+                result = self.run_frame(frame, fusion_use_prior=False)
+                self.assertEqual(result["status"], "VALID")
+                self.assertEqual(result["fusion"]["status"], "FUSED")
+                self.assertFalse(result["fusion"]["prior_used"])
+                self.assertGreater(path_turn(result["selected"]["path"]), 0.2)
+
+    def test_fusion_use_prior_must_be_boolean(self):
+        with self.assertRaises(ValueError):
+            Settings(fusion_use_prior=0)
+
+
 if __name__ == "__main__":
     unittest.main()
