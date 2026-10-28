@@ -144,7 +144,31 @@
 4. 单侧偏移 0.6 → 0.5：撞内侧锥的因果未定（从单侧切回双侧路径应向外移，0.6 解释不了向内切），用车包回放查，不用 Gym。
 5. 轮速有效性 / 偏置护栏：0.5 下没触发，起步和急弯减速仍会经过低速段，排后面。
 
-0.2 专用项（目标改 0.3、卡住 0.3 s、PI ki）、N = 10、`q_v`、2 Hz、大规模因子筛选和贝叶斯优化暂不做。下次上车顺带测三项数据：每脉冲行程和真实边沿时间、直轮 / 满舵的起动与维持油门、松油门后的减速度。
+0.2 专用项（目标改 0.3、卡住 0.3 s、PI ki）、N = 10、`q_v`、2 Hz、大规模因子筛选和贝叶斯优化暂不做。
+
+### 估计层失败：为什么已有的保持没兜住（10-28 晚，只读数据）
+
+**数据**（导出在 `car-evidence\car01-v050-20261028-102636\analysis\estimator_failures\`：`car_start_failures.json` 是两次实车起步失败前后 1.6 s 的锥桶和逐帧状态，`gym_invalid_road_stops.json` 是 7 组扫描里全部判路无效的停车）：
+
+- **实车两次都是起步后 0.6–0.7 m、只持续 1–2 帧的几何失败**：
+  - `v020-nolimit-noprior` 第 1 次：14.20、14.25 s 两帧 `invalid_ordered_geometry`（`visibility none`），14.30 s 就回到正常；锥桶检测前后几帧几乎一样（黄锥左 +0.75、蓝锥右 -0.58，外圈蓝锥在前方 2–3.5 m 绕到左边，起点正对 U 弯入口）。
+  - `v050-3m` 第 1 次：54.55 s 一帧 `invalid_boundary_pairing`，之后 `insufficient_common_range`（左边黄锥一路向右压过车前方，右边远处和左边远处都有别的车道的蓝锥）。
+  - 回放逐帧重现；整包里这类失败分别只有 2 帧、1 帧。`v020-5m-uturn` 回放里 125 次单帧 `invalid_boundary_pairing` 全在两次运行之间（车被搬回起点时），和控制无关。
+- **Gym：80 次判路无效停车里 52 次是 `invalid_ordered_geometry`，全部在直角弯（R1 32、R1.5 17）和 U 弯（3），停在 3.4–4.5 m，即正在过弯**，不是起步。同几个（路、宽、种子）在不同参数组里反复出现，这就是上面配对表里直角弯随机翻转的主要来源。
+
+**为什么保持没起作用——四个环节，任何一个都会让一帧失败变成停车：**
+
+1. **估计层不为这两种状态做保持，反而清历史**：`_predict_road`（`road_hold_s 0.8`、`road_prediction_max_distance_m 0.5`）只在 `QUALITY_FAILURES`（`insufficient_geometry`、`single_side_width_unknown`、`single_side_inferred`、`insufficient_common_range`）时触发；`invalid_ordered_geometry`、`invalid_boundary_pairing` 落到最后的 `else: self._clear_road_history()`。
+2. **起步阶段根本没有可保持的路**：前 0.6 m 左右估计一直是 `near_field_unobserved`（近处没观测到，只能用前方几何 `forward_only` 开），这种状态按设计从不设为可信路（"never use an incomplete startup corridor as a driving fallback"）。所以即使把上面两种状态加进保持列表，起步时也没有东西可保持。
+3. **中心线无效 → lattice 也不用**：`planner_control.require_valid_baseline: true`。
+4. **MPC 把判路无效当停车，不当可容忍的短暂丢失**：`reference_dropout_tolerance_s 0.5`（沿用上一次求解出的输入序列）只给"参考不可用 / 更新晚了 / 超时"这类拒绝；`invalid_road_*` 当拍就 `stop`，整次运行结束，要人工重新请求。
+
+**改法候选（还没实现）**：
+
+- **A（首选，最小）**：在 MPC 侧把 `invalid_road_invalid_ordered_geometry` / `invalid_road_invalid_boundary_pairing` 当作可容忍丢失，沿用上一次求解的输入序列，最多 `reference_dropout_tolerance_s`（0.5 s，0.5 m/s 下约 0.25 m）。不依赖估计层有没有可信路，起步阶段也能兜住；两次实车失败都在 2 帧（0.1 s）内恢复。风险：真的出界时多走约 0.25 m。
+- **B**：估计层把这两种状态也走 `_predict_road`，并且不清历史。对过弯时（已有可信路）有用，对起步无用。
+- 两者都要：用 `car_start_failures.json` 做回放回归（两次都不停）；Gym 里看直角弯的 52 次能减少多少（这次要导出逐帧，确认 Gym 里是不是也是单帧失败，还是连续失败）。
+下次上车顺带测三项数据：每脉冲行程和真实边沿时间、直轮 / 满舵的起动与维持油门、松油门后的减速度。
 
 ### 5. 实车：`v020-5m-noprior` 同一个 U 弯（11:25，3 次）
 
