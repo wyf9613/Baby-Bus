@@ -89,6 +89,26 @@ class ColourAssignmentChecks(unittest.TestCase):
             self.assertTrue(new_run.road(batch(3-left), 11_000_000_000, 0.0)["valid"])
             self.assertEqual(new_run.left_colour, 3-left)
 
+    def test_geometry_flicker_keeps_the_learned_width_only_when_enabled(self):
+        # 2026-10-28: a 1-2 frame invalid_ordered_geometry cleared the learned width with the
+        # history, so the next single-sided right-angle frames stopped as "width unknown".
+        one = batch(1)
+        one["detections"] = [p for p in one["detections"] if p[3] == 1]
+        for enabled in (False, True):
+            for status, kept in (("invalid_ordered_geometry", enabled), ("invalid_boundary_pairing", enabled),
+                                 ("insufficient_geometry", False)):
+                with self.subTest(enabled=enabled, status=status):
+                    pipeline = EstimationPipeline(settings(keep_width_on_geometry_glitch=enabled))
+                    self.assertTrue(pipeline._history_road(batch(1), 10_000_000_000, 0.0, 10.0)["valid"])
+                    learned = pipeline._learned_lane_width_m
+                    pipeline._clear_history_after_failure(status)
+                    self.assertEqual(pipeline._road_cones, [])
+                    self.assertEqual(pipeline._learned_lane_width_m, learned if kept else None)
+                    road = pipeline.road(one, 10_100_000_000, 0.0)
+                    self.assertEqual(bool(road.get("single_side_inferred_from_learned_width")), kept)
+        with self.assertRaises(ValueError):
+            settings(keep_width_on_geometry_glitch=1)
+
     def test_width_gate_is_not_relaxed_to_force_assignment(self):
         road = EstimationPipeline(settings()).road(batch(width=0.1), 10_000_000_000, 0.0)
         self.assertFalse(road["valid"])

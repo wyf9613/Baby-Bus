@@ -60,6 +60,8 @@ def centerline_params(car05_mpc=False, lattice21=False, speed=None):
         car05 = layered("ai4r_policy_mpc_car05.yaml")
         params["mpc"].update(car05["mpc"])
         params["control"].update(car05["control"])
+        # 2026-10-28: car 05's estimation switches (keep_width_on_geometry_glitch), as deployed.
+        params["estimation"].update(car05.get("estimation", {}))
     if speed is not None:
         # 2026-10-19 speed sweep: the MPC cap and the reference speed together (the
         # lattice only supplies a path; its speed is planning.cruise_speed_mps).

@@ -174,6 +174,12 @@
 - **车包回放**：`v020-nolimit-noprior` 14.20 s 那帧由 `stop` 变 `plan_hold`，14.30 s 恢复求解，不再停；`v050-3m` 那帧也变 `plan_hold`，但下一帧起 `insufficient_common_range` 持续 3 s 以上（起步时路宽未学到），仍停。
 - **Gym**（0.5 m/s，`fusion_use_prior=false`，结果在 `analysis\gym_sweep_0p5\glitch_off|on`）：关的一组和基准逐项相同；开：49/60，`invalid_ordered_geometry` 停车 6 → 0，但其中 5 次换成 `insufficient_common_range` / `single_side_width_unknown` 照样停，只有 1 次（R1.5 / 1.0 / 种子 5）变成完成；配对 1 好 0 坏。
 - **剩下那层**：几何失败那一帧走到 `_clear_road_history()`，默认 `keep_learned_width=False`，把**学到的路宽**和锥桶历史一起清掉。直角弯里多是单侧可见，靠学到的路宽推另一侧；路宽没了，下几帧就是"路宽未知 / 两侧重叠不够"，沿用 0.5 s 到期照样停。下一步（B'）：这两种几何失败不清历史，或至少 `keep_learned_width=True`。
+
+**B'-1 已实现：`estimation.keep_width_on_geometry_glitch`**（默认 false；只在 `ai4r_policy_mpc_car05.yaml` 设 true，基础 yaml 的 estimation 段按测试约定只放数值，不声明它）。两种几何失败照样清锥桶历史，但保留学到的路宽；其他失败不变。清历史的两处都改成 `_clear_history_after_failure()`：`_history_road` 里观测本身无效时那一处（**路宽实际在这里被清**），和 `update()` 末尾那一处。第一版只改了后一处，Gym 开 / 关逐场景相同，才发现前一处。测试 `test_geometry_flicker_keeps_the_learned_width_only_when_enabled`；`unittest discover` 468 个，唯一错误仍是需要 ROS 的 `test_policy_node`。
+
+- **Gym 工具**：`car_readiness_centerline.py` 原来只取 car05 层的 `mpc` / `control`，现在也取 `estimation`（和部署包一致；该段目前只有这一项）。
+- **Gym 结果**（0.5 m/s，`fusion_use_prior=false`，A 开）：B'-1 关 49/60（和 A 那组逐项相同）；**开 54/60**（R1.5 10 → 11，R1 5 → 9），上面那 5 次"路宽未知"全部变成完成，配对 5 好 0 坏（p = 0.062）；和当天基准（只去掉旧骨架，48）比 **6 好 0 坏，p = 0.031，当天第一个显著的改善**。直道 / 缓弯 / U 弯的横向、切换、猛打、超速锁停都不变（变的只是原来半路停下的那几次）。剩下 6 次失败：`motion_interval_too_long` 3、`overspeed` 2、`insufficient_geometry` 1。
+- 车上：`v050-3m` 那次起步时路宽还没学到，B'-1 帮不上；过弯时的效果要上车看。
 下次上车顺带测三项数据：每脉冲行程和真实边沿时间、直轮 / 满舵的起动与维持油门、松油门后的减速度。
 
 ### 5. 实车：`v020-5m-noprior` 同一个 U 弯（11:25，3 次）

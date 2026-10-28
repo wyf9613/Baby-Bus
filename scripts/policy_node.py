@@ -287,6 +287,10 @@ class EstimationSettings:
     # A fresh single boundary then defines an inward normal-offset centreline.
     # This is a constant-track-width assumption, not a hold of an old path.
     single_side_from_learned_width: bool = False
+    # 2026-10-28 (car 01, Gym right angles): a 1-2 frame invalid_ordered_geometry /
+    # invalid_boundary_pairing still clears the cone history, but true keeps the learned
+    # width, so the next single-sided frames are not "width unknown" stops.
+    keep_width_on_geometry_glitch: bool = False
     # Fraction of the FULL learned/known lane width to offset inward from a
     # single observed boundary. 0.5 is geometric centre; smaller hugs that side.
     # This does not change width learning or the two-boundary centreline.
@@ -341,11 +345,14 @@ class EstimationSettings:
             raise ValueError("estimation.continuous_road_output must be bool")
         if not isinstance(self.single_side_from_learned_width, bool):
             raise ValueError("estimation.single_side_from_learned_width must be bool")
+        if not isinstance(self.keep_width_on_geometry_glitch, bool):
+            raise ValueError("estimation.keep_width_on_geometry_glitch must be bool")
         if self.continuous_road_output and self.history_propagation != "continuous":
             raise ValueError("continuous road output requires continuous history propagation")
         for name, value in vars(self).items():
             if name in ("colour_assignment", "history_propagation", "road_history_mode", "road_geometry",
-                        "history_merge_single_side", "continuous_road_output", "single_side_from_learned_width"):
+                        "history_merge_single_side", "continuous_road_output", "single_side_from_learned_width",
+                        "keep_width_on_geometry_glitch"):
                 continue
             if not finite_number(value):
                 raise ValueError(f"estimation.{name} must be finite")
@@ -793,6 +800,8 @@ class EstimationPipeline:
     # A stale or missing camera frame while wheel/gyro stay continuous. With
     # history_propagation=continuous these end the output, not the history.
     CAMERA_GAP_FAILURES = ("unavailable", "motion_interval_too_long")
+    # Ordering / pairing flickers: estimation.keep_width_on_geometry_glitch keeps the width.
+    GEOMETRY_GLITCH_FAILURES = ("invalid_ordered_geometry", "invalid_boundary_pairing")
 
     def __init__(self, settings, frame_id="base_link", left_colour=None, right_colour=None,
                  motion_history=None):
@@ -804,6 +813,11 @@ class EstimationPipeline:
         self._colour_assignment_evidence = []
         self.motion = motion_history or EstimationMotionHistory(settings)
         self._clear_road_history()
+
+    def _clear_history_after_failure(self, status):
+        """An unrecoverable road failure clears the history; a geometry flicker may keep the width."""
+        self._clear_road_history(keep_learned_width=self.settings.keep_width_on_geometry_glitch
+                                 and status in self.GEOMETRY_GLITCH_FAILURES)
 
     def _clear_road_history(self, *, keep_learned_width=False):
         if not keep_learned_width:
@@ -980,7 +994,7 @@ class EstimationPipeline:
             return current
         if not current["valid"] or current["visibility"] != "both":
             if current["status"] not in self.QUALITY_FAILURES:
-                self._clear_road_history()
+                self._clear_history_after_failure(current["status"])
                 return current
             # Even a one-sided fit can contradict an old corridor. Never hide
             # an observed change behind a prediction from the other boundary.
@@ -1783,7 +1797,7 @@ class EstimationPipeline:
             self._trusted_road = None
             self._failure_since_s = None
         else:
-            self._clear_road_history()
+            self._clear_history_after_failure(road["status"])
         lidar = observations.get("lidar_cartesian")
         lidar_stamp = stamps.get("lidar_cartesian")
         available = self._fresh(lidar, ages.get("lidar_cartesian")) and lidar_stamp is not None
