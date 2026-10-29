@@ -91,7 +91,7 @@ def main():
                 pubs['scan'].publish(msg);scan=now+.1
             rclpy.spin_once(node,timeout_sec=.005)
 
-    report={}
+    report={'front_proximity_stop_enabled':params['obstacle_stop'].get('proximity_stop_enabled',True)}
     try:
         for _ in range(20):
             run(.5,2.8)
@@ -110,6 +110,8 @@ def main():
         assert states[-1]==3,(states,(args.output/'node.log').read_text()[-2000:])
         assert any(a['drive']>0 and abs(a['steer'])>.01 for a in actions[index:])
         assert any(x.get('mode')=='planner' and x.get('lidar_avoidance') is not None for x in execution)
+        assert any((x.get('obstacle_stop') or {}).get('proximity_stop_enabled') ==
+                   report['front_proximity_stop_enabled'] for x in execution)
         assert any(x.get('source_sha256_format')=='mvp21_worker_lidar_avoidance_v1' for x in worker)
         report['actual_worker_and_guarded_native_control']=True
         if params['lidar_avoidance'].get('maneuver_enabled'):

@@ -1,6 +1,6 @@
 # Baby Bus · ai4r_policy
 
-本地任务式绕行开发入口：`ying/mvp21-lidar-maneuver`。保留已保存的 MVP2.1
+本地任务式绕行r5开发入口：`ying/mvp21-lidar-maneuver-r5`。保留已保存的 MVP2.1
 巡线／雷达停车，新增独立目标障碍、SHIFT/PASSING/RETURN 阶段与专用参考。
 旧 A2 分支 `ying/mvp21-lidar-avoidance` 与原部署包保留。
 部署候选通过 `tools/package_lidar_avoidance.py` 生成完整单文件与配置，见

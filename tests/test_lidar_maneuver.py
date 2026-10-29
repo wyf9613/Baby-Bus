@@ -45,6 +45,21 @@ def tick(guard,pose=(0.,0.,0.),now=10.,points=None,missing=None,measurement=None
 
 
 class ManeuverChecks(unittest.TestCase):
+    def test_relaxed_profile_accepts_a_tight_but_checked_passing_channel(self):
+        cfg=replace(self.narrow_cfg(),obstacle_margin_m=.02,tracking_margin_m=.01,
+            boundary_margin_m=.01,maneuver_clearance_m=.02,adaptive_shift_enabled=True)
+        # 42cm raw gap on the left: r4's stacked allowance rejects it.
+        points=[[2.8,y] for y in (-.38,-.25,-.13,-.10)]+[
+            [x,y] for x in (1.,2.,3.,4.,5.,6.,7.) for y in (-.32,.32)]
+        old=replace(cfg,obstacle_margin_m=.03,tracking_margin_m=.02,boundary_margin_m=.02,
+            target_lateral_allowance_m=.02,maneuver_clearance_m=.02)
+        g=LidarAvoidanceGuard(old);tick(g,width=.8,points=points)
+        self.assertEqual(g.stop_reason,'maneuver_no_side_clearance')
+        g=LidarAvoidanceGuard(cfg);j=tick(g,width=.8,points=points)
+        self.assertFalse(g.latched,g.diagnostics)
+        self.assertAlmostEqual(g.maneuver.admission['required_raw_channel_m'],.40)
+        self.assertEqual(filter_candidates(j)['status'],'VALID')
+
     def test_logged_two_point_two_eight_metre_start_can_generate_checked_path(self):
         # Logged r3 admission: 16 cm shift and 2.283 m forward distance was
         # rejected solely by the fixed 2 m minimum. Surrounding road here is

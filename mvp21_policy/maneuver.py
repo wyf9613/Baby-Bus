@@ -211,7 +211,11 @@ class AvoidanceManeuverManager:
                 self.admission.update(center_interval_d_m=[lower,upper],
                     measured_passing_edge_d_m=edge,passing_edge_point_count=len(edge_points),
                     available_channel_m=edge-d_max if side==1 else d_min-edge,
-                    required_channel_m=clearance+margin)
+                    required_channel_m=clearance+margin,
+                    raw_measured_channel_m=(edge-d_max if side==1 else d_min-edge)+cfg.target_lateral_allowance_m,
+                    required_raw_channel_m=clearance+margin+cfg.target_lateral_allowance_m,
+                    extra_over_body_width_m=clearance+margin+cfg.target_lateral_allowance_m-cfg.width_m,
+                    channel_deficit_m=max(0.,clearance+margin-(edge-d_max if side==1 else d_min-edge)))
                 if lower>=upper:return self.fail('maneuver_no_side_clearance')
                 # Prefer the smallest lane shift on the requested passing
                 # side. Using the midpoint of a wide lane needlessly brings

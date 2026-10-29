@@ -25,6 +25,19 @@ class ObstacleStopChecks(unittest.TestCase):
     def monitor(self):
         return ObstacleStopMonitor(ObstacleStopSettings(enabled=True))
 
+    def test_proximity_opt_out_keeps_body_intrusion_latched(self):
+        m=ObstacleStopMonitor(ObstacleStopSettings(enabled=True,proximity_stop_enabled=False))
+        self.assertFalse(m.evaluate(observation([(.4,0.,0.)]),10.)['stop_required'])
+        event=m.evaluate(observation([(.29,0.,0.)]),10.)
+        self.assertTrue(event['stop_required']);self.assertEqual(event['reason'],'lidar_body_overlap')
+        self.assertTrue(m.evaluate(observation(),10.)['stop_required'])
+
+    def test_proximity_opt_out_retains_source_validity_checks(self):
+        for obs in [None,observation(age=.15),dict(observation(),frame_id='laser')]:
+            m=ObstacleStopMonitor(ObstacleStopSettings(enabled=True,proximity_stop_enabled=False))
+            self.assertTrue(m.evaluate(obs,10.)['stop_required'])
+        with self.assertRaises(ValueError):ObstacleStopSettings(proximity_stop_enabled=0)
+
     def test_threshold_is_front_bumper_gap_and_inclusive(self):
         monitor=self.monitor()
         self.assertFalse(monitor.evaluate(observation([(.448,0.,0.)]),10.)['stop_required'])

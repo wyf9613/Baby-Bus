@@ -21,10 +21,15 @@ class ObstacleStopSettings:
     # Separate from acquisition age, which includes the scanner's own latency.
     max_receipt_age_s: float = 0.15
     frame_id: str = 'base_link'
+    # Diagnostic opt-out for the forward 15cm zone only. Source validity,
+    # receipt watchdog and returns already inside the body remain enforced.
+    proximity_stop_enabled: bool = True
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):
             raise ValueError('Obstacle stop enabled must be bool')
+        if not isinstance(self.proximity_stop_enabled, bool):
+            raise ValueError('Obstacle proximity stop enabled must be bool')
         for name in ('trigger_distance_m', 'front_extent_m', 'rear_extent_m',
                      'width_m', 'max_source_age_s', 'max_receipt_age_s'):
             if not finite_number(getattr(self, name)) or getattr(self, name) <= 0:
@@ -67,6 +72,7 @@ class ObstacleStopMonitor:
     def evaluate(self, obstacles, now_s):
         cfg = self.settings
         result = dict(enabled=cfg.enabled, stop_required=False, latched=False,
+                      proximity_stop_enabled=cfg.proximity_stop_enabled,
                       reason='disabled' if not cfg.enabled else 'clear',
                       trigger_distance_m=cfg.trigger_distance_m,
                       front_extent_m=cfg.front_extent_m, width_m=cfg.width_m,
@@ -108,8 +114,11 @@ class ObstacleStopMonitor:
                     result['point_count'] = len(points)
                     result['source_age_s'] = age
                     result['nearest_front_gap_m'] = min(gaps, default=None)
-                    if reason is None and gaps and min(gaps) <= cfg.trigger_distance_m+1e-9:
-                        reason = 'lidar_obstacle'
+                    if reason is None and gaps:
+                        if cfg.proximity_stop_enabled and min(gaps) <= cfg.trigger_distance_m+1e-9:
+                            reason = 'lidar_obstacle'
+                        elif not cfg.proximity_stop_enabled and min(gaps) <= 1e-9:
+                            reason = 'lidar_body_overlap'
         if reason is not None and not self.latched:
             self.trigger = dict(reason=reason, timestamp_s=now_s,
                                 front_gap_m=result['nearest_front_gap_m'],

@@ -21,7 +21,7 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def profile():
+def profile(*, proximity_stop=True):
     data = yaml.safe_load((ROOT/'config/ai4r_policy.yaml').read_text())
     p = data['/**/ai4r_policy']['ros__parameters']
     if not p['obstacle_stop']['enabled'] or p['control']['mode'] != 'mvp':
@@ -33,9 +33,10 @@ def profile():
     p['planning']['cruise_speed_mps'] = .20
     p['estimation'].update(colour_assignment='fixed', left_colour=2, right_colour=1)
     stop = p['obstacle_stop']
+    stop['proximity_stop_enabled'] = proximity_stop
     p['lidar_avoidance'] = asdict(LidarAvoidanceSettings(enabled=True,
         maneuver_enabled=True, max_curvature_1pm=1.0,
-        obstacle_margin_m=.03, tracking_margin_m=.02,
+        obstacle_margin_m=.02, tracking_margin_m=.01, boundary_margin_m=.01,
         target_lateral_allowance_m=.02, maneuver_clearance_m=.02,
         adaptive_shift_enabled=True,
         road_edge_exclusion_m=.10,
@@ -52,12 +53,14 @@ def profile():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--no-proximity-stop', action='store_true',
+        help='Diagnostic profile: disable the forward proximity zone; retain source/body/path protection')
     args = parser.parse_args()
     output = args.output.expanduser().resolve()
     archive = output.with_name(output.name+'.tar.gz')
     if output.exists() or archive.exists():
         parser.error('Use a new output path; previous candidates are immutable')
-    data = profile()
+    data = profile(proximity_stop=not args.no_proximity_stop)
     output.mkdir(parents=True)
     subprocess.run([sys.executable, str(ROOT/'tools/bundle_python.py'), 'scripts/policy_node.py',
         '--root', str(ROOT), '--output', str(output/'policy_node.py')], cwd=ROOT, check=True)

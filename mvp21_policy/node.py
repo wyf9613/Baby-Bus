@@ -183,7 +183,9 @@ class PolicyNode(ShadowJobSource, Node):
             avoidance_values[name] = self.get_parameter(parameter_name).value
         self.lidar_avoidance_settings = LidarAvoidanceSettings(**avoidance_values)
         if self.lidar_avoidance_settings.maneuver_enabled:
-            self.get_logger().info("Policy revision: mvp21-lidar-maneuver-20261028-r4")
+            self.get_logger().info("Policy revision: mvp21-lidar-maneuver-20261030-r5")
+            self.get_logger().info('Front LiDAR proximity stop enabled: '+str(
+                self.obstacle_stop_monitor.settings.proximity_stop_enabled))
         self.lidar_avoidance_guard = None
         if self.lidar_avoidance_settings.enabled:
             if (not self.obstacle_stop_monitor.settings.enabled
@@ -1341,6 +1343,11 @@ class PolicyNode(ShadowJobSource, Node):
                 steer_after_slew=info.get("steering_action"),
                 reference_valid_for_s=ref.get("valid_for_s"))
             guard = getattr(self, 'lidar_avoidance_guard', None)
+            monitor = getattr(self, 'obstacle_stop_monitor', None)
+            if monitor is not None:
+                info['obstacle_stop'] = dict(self.obstacle_stop_diagnostics or {},
+                    proximity_stop_enabled=monitor.settings.proximity_stop_enabled,
+                    source_watchdog_enabled=monitor.settings.enabled)
             if guard is not None:
                 info['lidar_avoidance'] = dict(guard.diagnostics, stop_reason=guard.stop_reason,
                     committed_side=guard.side, memory_point_count=len(guard.memory))

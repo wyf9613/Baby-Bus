@@ -65,6 +65,24 @@ def test_current_ros_estimation_to_front_bumper_gate(make_node, gap, y, stops):
         assert node.obstacle_stop_monitor.trigger['front_gap_m']<=.15
 
 
+def test_proximity_opt_out_preserves_control_and_body_stop(make_node):
+    node=stop_node(make_node,**{'obstacle_stop.proximity_stop_enabled':False})
+    start(node,.14)
+    assert node.fsm_state==3 and not node.obstacle_stop_monitor.latched,node.state_reason
+    assert node.action_publisher.messages[-1].drive>0.
+    node.test_clock.advance(.05);feed(node,-.01);node.run_policy_step()
+    assert node.fsm_state==2 and node.obstacle_stop_monitor.trigger['reason']=='lidar_body_overlap'
+    assert node.action_publisher.messages[-1].drive==0.
+
+
+def test_proximity_opt_out_retains_independent_receipt_watchdog(make_node):
+    node=stop_node(make_node,**{'obstacle_stop.proximity_stop_enabled':False})
+    start(node)
+    node.test_clock.advance(.21);node.supervision_callback()
+    assert node.fsm_state==2 and node.obstacle_stop_monitor.latched
+    assert 'lidar_' in node.state_reason
+
+
 def test_stop_survives_clear_disable_and_requires_explicit_fresh_resume(make_node):
     node = stop_node(make_node)
     start(node, .14)

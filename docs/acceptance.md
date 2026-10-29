@@ -1,5 +1,27 @@
 # AI4R policy acceptance
 
+## Task-maneuver r5 comparison candidate, 2026-10-30
+
+The r4 task planner is retained on its own branch. The separate r5 delivery
+reduces extra obstacle/tracking/boundary margins without changing the 30cm
+body, native following, PID, public YAML, curvature or swept-body checks.
+Measured-point channel admission is approximately 40cm rather than 44cm when
+a roadside LiDAR surface constrains the passing side. The unseen lateral
+allowance and extra maneuver clearance remain 2cm each.
+
+A separate diagnostic YAML disables only the forward proximity zone. Sensor
+watchdogs, body intrusion, candidate/execution collision checks and explicit
+resume remain active. `obstacle_stop.enabled` stays true. Diagnostics expose
+the proximity switch and raw/required channel sizes.
+
+Current installed Jazzy gate: 442 pytest cases plus 14 CTest groups (456 checks),
+zero failures/errors/skips. Both actual single-file/YAML DDS checks pass.
+Observed 80cm-road/25cm-side-obstacle closed loops complete with and without
+the proximity zone, without contact; a 3cm more central placement also completes.
+The identical standard/diagnostic trace in the first fixture shows its prior
+rejection was not the 15cm gate. These are synthetic results, with no vehicle
+deployment or physical qualification. Evidence: [r5 record](baselines/lidar_maneuver_20261030_r5.json).
+
 Current policy input is limited to current state, current road/obstacles and
 candidate trajectory. Old 140/148-feature and polynomial-candidate compatibility
 code was removed at the user's request. The old migration claim is superseded.
