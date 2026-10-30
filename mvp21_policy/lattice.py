@@ -620,13 +620,16 @@ class ShadowLatticePlanner:
                       if value and sources.get(side) in ("observed", "observed_with_history")}
         timing["sampling"] = time.perf_counter()-phase_started
         candidates = []
+        knot_frames = {}  # Reuse identical station lookups within this job.
         for candidate_id, (family, offsets) in enumerate(samples[:cfg.sample_count]):
             phase_started = time.perf_counter()
             early = 0.12 if family == "fast_center" else 0.25
             distances = (early*horizon, 0.6*horizon, horizon)
             knots = [(0.0, 0.0)]
             for distance, offset in zip(distances, offsets):
-                p, _, n = frame.at(s0+distance)
+                if distance not in knot_frames:
+                    knot_frames[distance] = frame.at(s0+distance)
+                p, _, n = knot_frames[distance]
                 knots.append((p[0]+offset*n[0], p[1]+offset*n[1]))
             path = _shadow_curve(knots, horizon, cfg.path_spacing_m)
             next_phase = time.perf_counter()

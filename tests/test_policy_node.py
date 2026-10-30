@@ -1323,11 +1323,14 @@ def test_installed_configs_and_namespaced_loading(tmp_path):
         assert node.control_settings.robustness_enabled is False
         assert node.planning_settings.algorithm == "road_centerline"
         assert node.planning_settings.allow_forward_only is True
-        assert node.planning_settings.cruise_speed_mps == 0.2
+        assert node.planning_settings.cruise_speed_mps == 0.5
+        assert node.learned_policy_settings.enabled is True
+        assert node.learned_policy_memory is not None
         assert node.planning_settings.max_source_age_s == 1.5
         assert node.estimation_settings.continuous_road_output is True
-        assert node.estimation_settings.left_colour == ConeDetection.COLOR_YELLOW
-        assert node.estimation_settings.right_colour == ConeDetection.COLOR_BLUE
+        assert node.estimation_settings.colour_assignment == "auto"
+        assert node.estimation_settings.left_colour == ConeDetection.COLOR_BLUE
+        assert node.estimation_settings.right_colour == ConeDetection.COLOR_YELLOW
         assert node.estimation_settings.road_forward_max_m == 4.0
         assert node.estimation_settings.road_width_min_m == 0.15
         assert node.estimation_settings.road_max_abs_slope == 3.0

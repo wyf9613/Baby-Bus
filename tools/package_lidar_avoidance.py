@@ -30,8 +30,10 @@ def profile(*, proximity_stop=True):
     p['policy_update_rate_hz'] = 20.
     p['control'].update(enabled=True, robustness_enabled=False, end_straight_distance_m=0.)
     p['planner_control']['enabled'] = True
-    p['planning']['cruise_speed_mps'] = .20
-    p['estimation'].update(colour_assignment='fixed', left_colour=2, right_colour=1)
+    p['planning']['cruise_speed_mps'] = .50
+    p['learned_policy'] = dict(enabled=True, model_path='models/path_policy.json',
+        model_sha256='a3116bb7bc4bb46ccb6e208fa3de628eca940820810943409c3157e5b12aa66b')
+    p['estimation'].update(colour_assignment='auto', left_colour=2, right_colour=1)
     stop = p['obstacle_stop']
     stop['proximity_stop_enabled'] = proximity_stop
     p['lidar_avoidance'] = asdict(LidarAvoidanceSettings(enabled=True,
@@ -63,12 +65,19 @@ def main():
     data = profile(proximity_stop=not args.no_proximity_stop)
     output.mkdir(parents=True)
     subprocess.run([sys.executable, str(ROOT/'tools/bundle_python.py'), 'scripts/policy_node.py',
-        '--root', str(ROOT), '--output', str(output/'policy_node.py')], cwd=ROOT, check=True)
+        '--root', str(ROOT), '--resource', 'mvp21_policy/models/path_policy.json',
+        '--output', str(output/'policy_node.py')], cwd=ROOT, check=True)
     (output/'ai4r_policy.yaml').write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
     shutil.copy2(ROOT/'docs/LIDAR_AVOIDANCE_DEPLOYMENT_CN.md', output/'说明.md')
-    sources = [*sorted((ROOT/'mvp21_policy').glob('*.py')), ROOT/'scripts/policy_node.py',
+    shutil.copy2(ROOT/'docs/RNN_MANEUVER_ALIGNMENT_20261030.json', output/'算法来源.json')
+    shutil.copy2(ROOT/'docs/RNN_MANEUVER_ALIGNMENT_CN.md', output/'RNN_MANEUVER_ALIGNMENT_CN.md')
+    sources = [*sorted((ROOT/'mvp21_policy').glob('*.py')),
+        ROOT/'mvp21_policy/models/path_policy.json',
+        *[ROOT/'offline/lattice_training'/name for name in ('features.py','spatial.py','source.py')],
+        ROOT/'scripts/policy_node.py',
         ROOT/'config/ai4r_policy.yaml', ROOT/'tools/package_lidar_avoidance.py',
         ROOT/'tools/bundle_python.py', ROOT/'docs/LIDAR_AVOIDANCE_DEPLOYMENT_CN.md',
+        ROOT/'docs/RNN_MANEUVER_ALIGNMENT_20261030.json', ROOT/'docs/RNN_MANEUVER_ALIGNMENT_CN.md',
         ROOT/'package.xml', ROOT/'ci/dependencies.repos']
     manifest = dict(git_head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         branch=subprocess.check_output(['git','branch','--show-current'],cwd=ROOT,text=True).strip(),

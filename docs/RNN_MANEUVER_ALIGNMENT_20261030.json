@@ -1,0 +1,38 @@
+{
+  "version": "mvp21-rnn-maneuver-20261030-r6",
+  "b_baseline_commit": "f7ec8085b503d53193474afba2cad994014c51be",
+  "rnn_source_branch": "origin/feature/mvp21-sim-integration-20261015",
+  "rnn_source_commit": "2c41240eebd834599d1e0dc1b8715625ef4350c3",
+  "protected_r5_files": {
+    "mvp21_policy/control.py": {
+      "sha256": "99f3a9079a4abc797b5d0db878dffe4ac6de7d690ce2e1010010dff99b62f0f9",
+      "identical_to_b_r5": true
+    },
+    "mvp21_policy/maneuver.py": {
+      "sha256": "6c873085612484ce5a8328d0cd6fd3768b2456403a53088c528b3e824f16d1a5",
+      "identical_to_b_r5": true
+    },
+    "mvp21_policy/avoidance.py": {
+      "sha256": "54710962f4fa7e1ebf421504b3f401c5084d07785c07b7936bf9106eeba331cc",
+      "identical_to_b_r5": true
+    },
+    "mvp21_policy/obstacle_stop.py": {
+      "sha256": "75b6c6a9d0ab6a155581fae9c90fd5612b644c3eea1322c4585a4e57b2e38f88",
+      "identical_to_b_r5": true
+    },
+    "config/traxxas_vehicle_interface.yaml": {
+      "sha256": "e46d2271e5c8f8ff8ebd911beefd5777c4dab5a9cbc5b9d61707dddfbb3cc4ac",
+      "identical_to_b_r5": true
+    }
+  },
+  "frozen_model_sha256": "a3116bb7bc4bb46ccb6e208fa3de628eca940820810943409c3157e5b12aa66b",
+  "frozen_model_identical_to_upstream": true,
+  "controller_parameters": "r5 unchanged; feedforward 0.30, drive_max 0.35",
+  "cruise_speed_mps": 0.5,
+  "cruise_speed_authority": "explicit user reply in this chat",
+  "normal_selection": "native lattice hard admission followed by original frozen RNN ranking",
+  "maneuver_selection": "r5 task-owned path without RNN ranking",
+  "handoff": "clear recurrent memory, increment job generation, clear accepted geometry and prior guidance on task entry/exit",
+  "hardware_used": false,
+  "retrained": false
+}

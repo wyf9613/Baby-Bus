@@ -50,8 +50,9 @@ def input_matrices(record):
 
 class SpatialNetwork:
     """Each forward call scores one path; candidate batches never interact."""
-    def __init__(self, hidden=32, seed=0):
+    def __init__(self, hidden=32, seed=0, *, recurrent=False):
         self.hidden = hidden
+        self.recurrent=recurrent
         rng = np.random.default_rng(seed)
         def weight(rows, columns):
             return rng.normal(0., 1/math.sqrt(rows), (rows, columns))
@@ -60,8 +61,9 @@ class SpatialNetwork:
             empty_scene=np.zeros(hidden), mix_w=weight(2*hidden, hidden), mix_b=np.zeros(hidden),
             head_w=weight(hidden+STATE_CHANNELS, hidden), head_b=np.zeros(hidden),
             output_w=rng.normal(0., 1/math.sqrt(hidden), hidden), output_b=np.zeros(1))
+        if recurrent:self.parameters['recurrent_w']=np.eye(hidden)*.1
 
-    def forward(self, matrices):
+    def forward(self, matrices, previous_hidden=None):
         p, h = self.parameters, self.hidden
         path = np.tanh(matrices['path']@p['path_w']+p['path_b'])
         empty = not len(matrices['scene'])
@@ -73,19 +75,24 @@ class SpatialNetwork:
         paired = np.column_stack((path, weights@scene))
         mixed = np.tanh(paired@p['mix_w']+p['mix_b'])
         head_input = np.r_[mixed.mean(axis=0), matrices['state']]
-        head = np.tanh(head_input@p['head_w']+p['head_b'])
+        previous_hidden=np.zeros(h) if previous_hidden is None else np.asarray(previous_hidden,dtype=float)
+        if previous_hidden.shape!=(h,) or not np.isfinite(previous_hidden).all():raise ValueError('Invalid recurrent hidden state')
+        head = np.tanh(head_input@p['head_w']+p['head_b']+
+                       (previous_hidden@p['recurrent_w'] if self.recurrent else 0.))
         logit = float(head@p['output_w']+p['output_b'][0])
         score = 1/(1+math.exp(-logit)) if logit >= 0 else math.exp(logit)/(1+math.exp(logit))
-        return score, (matrices, path, scene, weights, paired, mixed, head_input, head, score, empty)
+        return score, (matrices, path, scene, weights, paired, mixed, head_input, head, score, empty,previous_hidden)
 
-    def backward(self, cache, score_derivative):
-        matrices, path, scene, attention, paired, mixed, head_input, head, score, empty = cache
+    def backward(self, cache, score_derivative, hidden_derivative=None, *, return_hidden_gradient=False):
+        matrices, path, scene, attention, paired, mixed, head_input, head, score, empty,previous_hidden = cache
         p, h = self.parameters, self.hidden
         gradients = {name: np.zeros_like(value) for name, value in p.items()}
         dz = score_derivative*score*(1-score)
         gradients['output_w'] = head*dz
         gradients['output_b'][0] = dz
-        dhead = p['output_w']*dz*(1-head**2)
+        dhead = (p['output_w']*dz+(0. if hidden_derivative is None else hidden_derivative))*(1-head**2)
+        if self.recurrent:gradients['recurrent_w']=np.outer(previous_hidden,dhead)
+        previous_gradient=dhead@p['recurrent_w'].T if self.recurrent else np.zeros(h)
         gradients['head_w'] = np.outer(head_input, dhead)
         gradients['head_b'] = dhead
         dpool = (dhead@p['head_w'].T)[:h]
@@ -108,4 +115,4 @@ class SpatialNetwork:
             dscene *= 1-scene**2
             gradients['scene_w'] = matrices['scene'].T@dscene
             gradients['scene_b'] = dscene.sum(axis=0)
-        return gradients
+        return (gradients,previous_gradient) if return_hidden_gradient else gradients

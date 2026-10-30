@@ -1,16 +1,14 @@
 # Baby Bus · ai4r_policy
 
-本地任务式绕行r5开发入口：`ying/mvp21-lidar-maneuver-r5`。保留已保存的 MVP2.1
-巡线／雷达停车，新增独立目标障碍、SHIFT/PASSING/RETURN 阶段与专用参考。
-旧 A2 分支 `ying/mvp21-lidar-avoidance` 与原部署包保留。
-部署候选通过 `tools/package_lidar_avoidance.py` 生成完整单文件与配置，见
-[ROS 部署说明](docs/LIDAR_AVOIDANCE_DEPLOYMENT_CN.md)。公共 YAML 仍保持原停车基线。
-运行、范围和未完成项见[离线绕行说明](offline/lidar_avoidance/README.md)。版本与恢复方式见
-[工作区说明](docs/LIDAR_AVOIDANCE_WORKSPACE_CN.md)。
+B 方案 RNN 对齐入口：`ying/mvp21-rnn-maneuver-r6`。来源 `f7ec808`（B r5）与
+`2c41240`（simulation RNN）。保留原 B 控制计算与力度参数，目标速度按用户选择为
+0.50m/s。普通 Lattice 候选由原冻结 RNN 评分；障碍任务仍由 SHIFT/PASSING/RETURN
+planner 接管。详见 [对齐说明](docs/RNN_MANEUVER_ALIGNMENT_CN.md)。
+旧 A/B 分支和部署包均保留，未自动部署车辆。
 
 当前实现位于 [mvp21_policy/](mvp21_policy/README.md)，两个 script 名称均进入同一套
 最新 MVP2.1 模块。ROS 与原虚拟车辆环境共用同一执行管理器、PID 回退函数和
-`config/ai4r_policy.yaml`。默认 native 规划 1 Hz、控制 20 Hz，暂不接入学习 policy。
+`config/ai4r_policy.yaml`。默认 native 规划与 RNN 选路 1 Hz、控制 20 Hz，绕行任务参考 2 Hz。
 保留 MVP2.1 的部分道路、边界来源、滚动检查与中线降级行为；本地补入结果顺序隔离。
 每周期记录实际参考来源，到达终点与 native-only 验收分别报告。
 合并边界和结果见[统一执行说明](offline/mvp21_sim/SHARED_EXECUTION_CN.md)。

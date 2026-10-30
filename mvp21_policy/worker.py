@@ -16,7 +16,7 @@ from mvp21_policy.lattice import ShadowLatticePlanner, ShadowSettings
 
 def worker_source_sha256(avoidance=False):
     digest = hashlib.sha256()
-    names = ('geometry.py', 'frenet.py', 'lattice.py', 'worker.py')
+    names = ('geometry.py', 'frenet.py', 'lattice.py', 'candidates.py', 'learned.py', 'worker.py')
     if avoidance:
         names += ('avoidance.py', 'maneuver.py', 'obstacle_stop.py')
     for name in names:
@@ -34,6 +34,7 @@ def run_worker():
             pass
     source_sha256 = worker_source_sha256()
     avoidance_source_sha256 = worker_source_sha256(avoidance=True)
+    policy, policy_key = None, None
     for line in sys.stdin:
         job = None
         decode_started = time.perf_counter()
@@ -45,6 +46,18 @@ def run_worker():
                 result = filter_candidates(job)
             else:
                 result = ShadowLatticePlanner(ShadowSettings(**job['settings'])).plan(job)
+            task_result = (result.get('avoidance') or {}).get('maneuver_task_id') is not None
+            if (job.get('learned_policy') or {}).get('enabled') and not task_result:
+                from mvp21_policy.learned import FrozenPathPolicy, LearnedPolicySettings
+                settings = LearnedPolicySettings(**job['learned_policy'])
+                key = (settings.model_path, settings.model_sha256, job.get('policy_cruise_speed_mps'))
+                if key != policy_key:
+                    policy = FrozenPathPolicy(settings, key[2])
+                    policy_key = key
+                result = policy.select(result, job.get('policy_observation'), job.get('policy_context') or {})
+                elapsed = result.get('elapsed_s', 0)+result['policy_selection'].get('wall_s', 0)
+                result.update(elapsed_s=elapsed, late_for_requested_period=elapsed > 1/job['settings']['rate_hz'])
+                result.setdefault('timing_s', {}).update(learned_policy=result['policy_selection'].get('wall_s', 0), total=elapsed)
         except Exception as error:
             decode_s = time.perf_counter()-decode_started
             result = dict(status='WORKER_ERROR', error=str(error), selected=None)
@@ -52,8 +65,8 @@ def run_worker():
         result['job_id'] = None if job is None else job.get('job_id')
         avoidance = bool(job and 'lidar_avoidance' in job)
         result['source_sha256'] = avoidance_source_sha256 if avoidance else source_sha256
-        result['source_sha256_format'] = ('mvp21_worker_lidar_avoidance_v1' if avoidance
-                                           else 'mvp21_worker_geometry_lattice_v2')
+        result['source_sha256_format'] = ('mvp21_worker_rnn_maneuver_v1' if avoidance
+                                           else 'mvp21_worker_policy_lattice_v3')
         result['execution_anchor'] = None if job is None else dict(
             pose=job.get('shadow_pose'), odometry_epoch=job.get('shadow_odometry_epoch'))
         result['shadow_only'] = not bool(job and job.get('planner_control_enabled'))

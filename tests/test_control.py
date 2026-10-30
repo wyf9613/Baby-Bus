@@ -24,7 +24,7 @@ method_names = {"_times", "_age", "_fresh", "health_problem", "_store", "_warn",
                 "_select_planner_reference", "_publish_planner_execution",
                 "calculate_policy_actions", "fsm_transition_request_callback", "_change_state",
                 "_control_problem", "supervision_callback", "publish_state", "publish_zero_actions", "_publish_actions"}
-method_names.update({'_update_policy_estimation', '_check_obstacle_stop',
+method_names.update({'_shadow_poll', '_sync_learned_maneuver', '_update_policy_estimation', '_check_obstacle_stop',
                      '_obstacle_stop_source_fault', '_obstacle_stop_watchdog',
                      '_record_obstacle_stop_source_fault'})
 methods = [item for item in subject.body if isinstance(item, ast.FunctionDef) and item.name in method_names]

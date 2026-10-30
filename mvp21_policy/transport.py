@@ -109,6 +109,15 @@ class ShadowJobSource:
                 previous_reference=deepcopy(getattr(self, "shadow_previous_reference", None)))
         if guard is not None:
             job['lidar_avoidance'] = guard.context()
+        policy = getattr(self, 'learned_policy_settings', None)
+        # The task planner owns its own geometry; never rank it with the RNN.
+        task = (job.get('lidar_avoidance') or {}).get('maneuver') or {}
+        if policy is not None and policy.enabled and task.get('task') is None:
+            job.update(learned_policy=vars(policy).copy(),
+                policy_cruise_speed_mps=self.planning_settings.cruise_speed_mps,
+                policy_context=self.learned_policy_memory.snapshot(),
+                policy_observation=dict(frame_id=self.policy_frame_id, timestamp_s=stamp,
+                    estimation=deepcopy({k: estimates[k] for k in ('state', 'road', 'obstacles')})))
         self.shadow_worker.submit(job)
         self.shadow_last_submit_s = now
 

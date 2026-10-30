@@ -32,6 +32,7 @@ from .geometry import (
 from .motion import (
     EstimationMotionHistory,
 )
+from .learned import LearnedPolicySettings, FrozenPathPolicy, PolicyExecutionMemory
 from .estimation import (
     EstimationPipeline,
     EstimationSettings,
@@ -149,7 +150,8 @@ class PolicyNode(ShadowJobSource, Node):
         self.planning_output = None
         self.planning_diagnostics = None
 
-        for prefix, settings_type in (("control", ControlSettings), ("vehicle", VehicleCalibrationSettings)):
+        for prefix, settings_type in (("control", ControlSettings), ("vehicle", VehicleCalibrationSettings),
+                                      ("learned_policy", LearnedPolicySettings)):
             values = {}
             for name, default in vars(settings_type()).items():
                 parameter_name = f"{prefix}.{name}"
@@ -183,7 +185,7 @@ class PolicyNode(ShadowJobSource, Node):
             avoidance_values[name] = self.get_parameter(parameter_name).value
         self.lidar_avoidance_settings = LidarAvoidanceSettings(**avoidance_values)
         if self.lidar_avoidance_settings.maneuver_enabled:
-            self.get_logger().info("Policy revision: mvp21-lidar-maneuver-20261030-r5")
+            self.get_logger().info("Policy revision: mvp21-rnn-maneuver-20261030-r6")
             self.get_logger().info('Front LiDAR proximity stop enabled: '+str(
                 self.obstacle_stop_monitor.settings.proximity_stop_enabled))
         self.lidar_avoidance_guard = None
@@ -210,6 +212,16 @@ class PolicyNode(ShadowJobSource, Node):
         self.planner_execution = PlannerExecutionManager(self.policy_frame_id)
         self.planner_execution_publisher = self.create_publisher(String, "planner_execution", 1)
         self._last_execution_mode = None
+        self.learned_policy_memory = None
+        self._learned_maneuver_active = False
+        if self.learned_policy_settings.enabled:
+            if not self.planner_control_settings.enabled:
+                raise ValueError("Learned policy requires planner_control.enabled")
+            model = FrozenPathPolicy(self.learned_policy_settings, self.planning_settings.cruise_speed_mps)
+            self.learned_policy_memory = PolicyExecutionMemory(model.network.hidden, model.sha256)
+            self.get_logger().info("Learned policy loaded: " + str({
+                "model_sha256": model.sha256, "recurrent": True,
+                "cruise_speed_mps": self.planning_settings.cruise_speed_mps}))
         if self.control_settings.enabled:
             if (self.estimation_settings.road_geometry == "ordered_xy"
                     and self.planning_settings.algorithm != "road_centerline"):
@@ -772,6 +784,11 @@ class PolicyNode(ShadowJobSource, Node):
             self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, problem)
             return
         self._publish_actions(drive, steer, pan)
+        memory = getattr(self, "learned_policy_memory", None)
+        reference = getattr(self, "_trajectory_reference", None) or {}
+        if (memory is not None and reference.get("planner_version") == "lattice_execution"
+                and reference.get("maneuver_task_id") is None):
+            memory.commit(reference.get("trajectory_id"))
         if hasattr(self, "planner_execution_publisher"):
             self._publish_planner_execution()
         # Offer AFTER the baseline action, never on its calculation/exception path.
@@ -793,12 +810,19 @@ class PolicyNode(ShadowJobSource, Node):
         if first or not hasattr(self, 'estimator'):
             self.estimator = EstimationPipeline(self.estimation_settings, self.policy_frame_id,
                                                motion_history=self.motion_history)
+            self._reported_colour_assignment = None
         receipts = {name: None if obs is None else obs.received_at
                     for name, obs in self.observations.items()}
         receipt_stamps = {name: None if obs is None else obs.received_ros_ns
                           for name, obs in self.observations.items()}
         self.estimation_output = self.estimator.update(observations, sensor_age_s, sensor_stamp_ns,
             receipts, self.get_clock().now().nanoseconds/1e9 if now_s is None else now_s, receipt_stamps)
+        assignment = self.estimation_output["road"].get("colour_assignment") or {}
+        mapping = (assignment.get("left_colour"), assignment.get("right_colour"))
+        if (assignment.get("mode") == "auto" and assignment.get("status") == "locked"
+                and mapping != self._reported_colour_assignment):
+            self._reported_colour_assignment = mapping
+            self.get_logger().info("Boundary colour assignment: " + str(assignment))
         calibration = getattr(self, 'vehicle_settings', VehicleCalibrationSettings())
         if calibration.valid:
             params, limits = calibration.records()
@@ -1203,7 +1227,8 @@ class PolicyNode(ShadowJobSource, Node):
             if planner_reference is None and priming_motion_history(
                     self.planning_output, estimates, self.control_has_run, policy_elapsed_s, control):
                 self.control_diagnostics = {"valid": False, "stop_requested": False,
-                                            "reason": "priming_motion_history"}
+                    "reason": ("priming_colour_assignment" if estimates["road"]["status"].startswith(
+                        "boundary_colour_assignment_") else "priming_motion_history")}
                 return 0.0, 0.0, None, None, None
             selected_reference = planner_reference if planner_reference is not None else self.planning_output
             if planner_reference is not None and hasattr(self, "control_reference_manager"):
@@ -1238,6 +1263,8 @@ class PolicyNode(ShadowJobSource, Node):
                     "road_status": estimates["road"].get("status"),
                     "road_valid": estimates["road"].get("valid"),
                     "road_visibility": estimates["road"].get("visibility"),
+                    "colour_assignment": estimates["road"].get("colour_assignment"),
+                    "boundary_diagnostics": estimates["road"].get("boundary_diagnostics"),
                     "road_source_age_s": estimates["road"].get("source_age_s"),
                     "state_valid": estimates["state"].get("valid"),
                     "speed_valid": estimates["state"].get("speed_valid"),
@@ -1318,6 +1345,24 @@ class PolicyNode(ShadowJobSource, Node):
         guard.update(estimates.get('obstacles'), self.shadow_pose, self.shadow_odometry_epoch, now, road=road)
         if guard.latched:
             raise PolicyStopRequest(guard.stop_reason)
+        self._sync_learned_maneuver()
+
+    def _sync_learned_maneuver(self):
+        """Fence in-flight jobs and reset RNN history at either task handoff."""
+        memory = getattr(self, 'learned_policy_memory', None)
+        if memory is None:
+            return
+        guard = getattr(self, 'lidar_avoidance_guard', None)
+        active = bool(guard and guard.maneuver and guard.maneuver.active)
+        if active == getattr(self, '_learned_maneuver_active', False):
+            return
+        self._learned_maneuver_active = active
+        memory.reset()
+        self.shadow_generation += 1
+        self.shadow_last_submit_s = -math.inf
+        self.shadow_previous_reference = None
+        self.planner_execution.clear(generation=self.shadow_generation)
+        self.get_logger().info('Planner handoff: ' + ('maneuver' if active else 'learned_policy'))
 
     def _select_planner_reference(self, estimates):
         return self.planner_execution.prepare(estimates, self.planning_output, self,
@@ -1332,6 +1377,11 @@ class PolicyNode(ShadowJobSource, Node):
                 "reason": "baseline_selected"}
             ref = getattr(self, "_trajectory_reference", None) or {}
             control = self.control_diagnostics or {}
+            memory = getattr(self, "learned_policy_memory", None)
+            info["selection_backend"] = ("maneuver" if getattr(self, '_learned_maneuver_active', False)
+                else "learned_policy" if memory is not None else "native")
+            if memory is not None:
+                info["learned_policy"] = memory.diagnostics()
             info.update(timestamp_s=ref.get("timestamp_s"), generation=self.shadow_generation,
                 reference_version=ref.get("planner_version"),
                 baseline_valid=bool(self.planning_output and self.planning_output.get("valid")),
@@ -1463,6 +1513,9 @@ class PolicyNode(ShadowJobSource, Node):
         # for an active result after a stop, source expiry, or explicit restart.
         self.estimation_output = None
         self.motion_history.clear()
+        if getattr(self, "learned_policy_memory", None) is not None:
+            self.learned_policy_memory.reset()
+        self._learned_maneuver_active = False
         self.planning_output = None
         self.planning_diagnostics = None
         self.controller.clear()
@@ -1511,6 +1564,8 @@ class PolicyNode(ShadowJobSource, Node):
 
     def _shadow_clear(self):
         """Clear shadow displays on every run boundary; old results are fenced."""
+        if getattr(self, "learned_policy_memory", None) is not None:
+            self.learned_policy_memory.pending = None
         if hasattr(self, "planner_execution"):
             self.planner_execution.clear(generation=self.shadow_generation)
         try:
@@ -1560,6 +1615,11 @@ class PolicyNode(ShadowJobSource, Node):
             if (self.fsm_state != FSM_STATE_PUBLISHING_POLICY_ACTION
                     or result.get("generation") != self.shadow_generation):
                 return
+            memory = getattr(self, 'learned_policy_memory', None)
+            task_result = (result.get('avoidance') or {}).get('maneuver_task_id') is not None
+            if memory is not None and not task_result and not memory.validate_result(result):
+                self._warn('policy_memory', 'Discarding learned result: ' + str(memory.last_rejection))
+                return
             guard = getattr(self, 'lidar_avoidance_guard', None)
             admitted = True
             if hasattr(self, 'planner_execution'):
@@ -1567,6 +1627,11 @@ class PolicyNode(ShadowJobSource, Node):
                             else self.planner_execution.accept(result))
             if not admitted:
                 return
+            if memory is not None:
+                if task_result:
+                    memory.pending = None
+                else:
+                    memory.stage(result, self.planner_execution.active is not None)
             if guard is not None:
                 if guard.latched:
                     self._change_state(FSM_STATE_PUBLISHING_ZERO_ACTIONS, guard.stop_reason)
@@ -1617,6 +1682,10 @@ class PolicyNode(ShadowJobSource, Node):
                 selected_family=selected.get("family") if selected else None,
                 result_age_s=self.get_clock().now().nanoseconds/1e9-stamp,
                 **transport)
+            if result.get("policy_selection"):
+                summary["policy_selection"] = {k: result["policy_selection"].get(k) for k in
+                    ("status", "reason", "model_sha256", "native_selected_id", "selected_id",
+                     "changed_from_native", "context_revision", "best_score", "wall_s")}
             if result.get("fusion"):
                 summary["fusion"] = {k: result["fusion"].get(k) for k in
                     ("status", "reason", "degraded", "raw_fallback_used", "selected_source",

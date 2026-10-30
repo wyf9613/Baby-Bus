@@ -1,0 +1,230 @@
+{
+  "version": "mvp21-rnn-maneuver-20261030-r6",
+  "baseline_commit": "f7ec8085b503d53193474afba2cad994014c51be",
+  "rnn_source_commit": "2c41240eebd834599d1e0dc1b8715625ef4350c3",
+  "gate": {
+    "reported_checks": 484,
+    "pytest_cases": 467,
+    "ctest_groups": 17,
+    "groups": [
+      {
+        "file": "centerline_follow.xunit.xml",
+        "tests": 41,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "colour_assignment.xunit.xml",
+        "tests": 9,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "control.xunit.xml",
+        "tests": 33,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "estimation.xunit.xml",
+        "tests": 97,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lattice.xunit.xml",
+        "tests": 42,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "learned_policy.xunit.xml",
+        "tests": 9,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lidar_avoidance.xunit.xml",
+        "tests": 19,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "lidar_maneuver.xunit.xml",
+        "tests": 24,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "mvp21_compatibility.xunit.xml",
+        "tests": 8,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "obstacle_stop.xunit.xml",
+        "tests": 11,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ordered_pairing.xunit.xml",
+        "tests": 5,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "planner_execution.xunit.xml",
+        "tests": 18,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "planning.xunit.xml",
+        "tests": 17,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "policy_node.xunit.xml",
+        "tests": 85,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "rnn_maneuver.xunit.xml",
+        "tests": 5,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ros_lidar_avoidance.xunit.xml",
+        "tests": 12,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      },
+      {
+        "file": "ros_obstacle_stop.xunit.xml",
+        "tests": 32,
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0
+      }
+    ]
+  },
+  "gate_command": "AI4R_INTERFACES_SOURCE=/opt/pinned-dream-interfaces bash tools/verify_fast.sh",
+  "interfaces_revision": "5f50902ccee44e8370d6e2be85607b3054ffbf98",
+  "dds": {
+    "dds-default": {
+      "front_proximity_stop_enabled": true,
+      "startup_zero": true,
+      "normal_following_with_rear_return_over_four_seconds": true,
+      "rnn_selected_and_execution_memory_committed": true,
+      "actual_worker_and_guarded_native_control": true,
+      "dedicated_maneuver_mode": true,
+      "task_planner_bypasses_rnn": true,
+      "close_obstacle_stops": true,
+      "clear_scan_does_not_resume": true,
+      "explicit_resume": true,
+      "sensor_expiry_stops": true,
+      "passed": true,
+      "hardware_used": false,
+      "vehicle_enabled": false,
+      "namespace": "/avoidance_bundle_check",
+      "profile_enabled": true,
+      "road_width_m": 2.0,
+      "obstacle_width_m": 0.2,
+      "obstacle_offset_m": 0.0,
+      "obstacle_distance_m": 2.8,
+      "roadside_returns": false
+    },
+    "dds-no-proximity": {
+      "front_proximity_stop_enabled": false,
+      "startup_zero": true,
+      "normal_following_with_rear_return_over_four_seconds": true,
+      "rnn_selected_and_execution_memory_committed": true,
+      "actual_worker_and_guarded_native_control": true,
+      "dedicated_maneuver_mode": true,
+      "task_planner_bypasses_rnn": true,
+      "close_obstacle_stops": true,
+      "clear_scan_does_not_resume": true,
+      "explicit_resume": true,
+      "sensor_expiry_stops": true,
+      "passed": true,
+      "hardware_used": false,
+      "vehicle_enabled": false,
+      "namespace": "/avoidance_bundle_check",
+      "profile_enabled": true,
+      "road_width_m": 2.0,
+      "obstacle_width_m": 0.2,
+      "obstacle_offset_m": 0.0,
+      "obstacle_distance_m": 2.8,
+      "roadside_returns": false
+    },
+    "dds-narrow-fine": {
+      "front_proximity_stop_enabled": true,
+      "startup_zero": true,
+      "normal_following_with_rear_return_over_four_seconds": true,
+      "rnn_selected_and_execution_memory_committed": true,
+      "actual_worker_and_guarded_native_control": true,
+      "dedicated_maneuver_mode": true,
+      "task_planner_bypasses_rnn": true,
+      "close_obstacle_stops": true,
+      "clear_scan_does_not_resume": true,
+      "explicit_resume": true,
+      "sensor_expiry_stops": true,
+      "passed": true,
+      "hardware_used": false,
+      "vehicle_enabled": false,
+      "namespace": "/avoidance_bundle_check",
+      "profile_enabled": true,
+      "road_width_m": 0.8,
+      "obstacle_width_m": 0.25,
+      "obstacle_offset_m": -0.255,
+      "obstacle_distance_m": 2.0,
+      "roadside_returns": true,
+      "scan_step_deg": 0.5
+    }
+  },
+  "tested_bundle_sha256": "93b09483c2ecfe920a10848637ad71cd639e778df16e463963ab6373a047dc9a",
+  "diagnostic_python_identical": true,
+  "prior_failed_attempts": [
+    {
+      "directory": "dds-narrow",
+      "reason": "receipt age 0.2185s exceeded preserved 0.20s deadline; latched zero before maneuver"
+    },
+    {
+      "directory": "dds-narrow-cached",
+      "reason": "3-degree rays did not observe inward obstacle edge; normal mode retained",
+      "max_sender_interval_s": 0.10678135199998451
+    }
+  ],
+  "fixture_changes": [
+    "cache static ray/box intersections without changing message timestamps or node deadlines",
+    "explicit scan-step-deg; narrow pass uses 0.5 degrees"
+  ],
+  "evidence_boundary": [
+    "DDS fixture uses zero wheel speed and stationary geometry; it does not prove a moving vehicle clears the obstacle",
+    "Original r5 closed-loop results do not qualify r6 at target speed 0.50m/s",
+    "No r6 moving closed-loop simulation or physical run performed",
+    "Sparse returns may miss the inward obstacle edge and fail to trigger the task; no protection was relaxed"
+  ],
+  "hardware_used": false,
+  "vehicle_enabled": false
+}

@@ -1,1 +1,5 @@
 * text=auto eol=lf
+
+# Preserve frozen upstream checkpoint bytes and its pinned SHA-256.
+mvp21_policy/models/path_policy.json -text whitespace=cr-at-eol
+offline/lattice_training/artifacts/2026-10-19-multistart-policy/model.json -text whitespace=cr-at-eol

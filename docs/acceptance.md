@@ -1,5 +1,30 @@
 # AI4R policy acceptance
 
+
+## B r6 RNN alignment, 2026-10-30
+
+From B r5 `f7ec808`, ported frozen RNN inference, automatic boundary association
+and lookup/cache optimizations from simulation `2c41240`. Original B control,
+maneuver, avoidance and obstacle-stop modules and vehicle-interface YAML are
+byte-identical to r5. The user explicitly selected the original model's 0.50m/s
+reference condition; the 0.30 feedforward/0.35 drive cap remain unchanged.
+Task entry/exit resets recurrent state and fences asynchronous results. The RNN
+ranks only normal lattice candidates; dedicated maneuver geometry bypasses it.
+
+The isolated ROS Jazzy fast gate passed 467 pytest cases in 17 CTest groups
+(colcon reports 484 checks), zero failures/errors/skips. Actual bundled payloads
+passed default and no-proximity DDS fixtures, plus an 80cm-road/25cm-obstacle
+fixture with 0.5-degree rays. Source expiry, body/path protection, latched stops
+and explicit resume remain. First narrow attempts are retained: one expired
+LiDAR receipt, another missed the obstacle edge with 3-degree rays. Static-ray
+caching improved sender cadence without changing node deadlines; higher scan
+resolution provided the missing edge observations.
+
+These are software and stationary-DDS results, not moving closed-loop or
+physical acceptance at 0.50m/s. Sparse-return detection remains a limitation.
+See [alignment](RNN_MANEUVER_ALIGNMENT_CN.md) and
+[evidence](baselines/rnn_maneuver_20261030_r6.json).
+
 ## Task-maneuver r5 comparison candidate, 2026-10-30
 
 The r4 task planner is retained on its own branch. The separate r5 delivery

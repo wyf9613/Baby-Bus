@@ -147,10 +147,11 @@
       # Internal records are self.estimation_output; the integrated controller
       # below consumes the planner reference only after all validity checks.
     estimation:
-      # Track boundaries: yellow left / blue right (ROS colour IDs 1 / 2).
-      # These must be distinct; changing them requires a policy restart.
-      left_colour: 1
-      right_colour: 2
+      # Acquire either blue/yellow convention from measured two-sided geometry.
+      # Fixed IDs below apply only in fixed mode; mapping locks for this Run.
+      colour_assignment: auto
+      left_colour: 2
+      right_colour: 1
       # One-pole filter time constants, seconds. Larger is smoother but slower.
       # New accepted samples update once; repeated cached samples do not.
       speed_tau_s: 0.15
@@ -251,6 +252,13 @@
     planner_control:
       enabled: true
 
+    # Original frozen RNN; trained execution condition requires 0.50 m/s.
+    # Task maneuvers bypass ranking; the MVP/PID gains and effort limits stay r5.
+    learned_policy:
+      enabled: true
+      model_path: models/path_policy.json
+      model_sha256: a3116bb7bc4bb46ccb6e208fa3de628eca940820810943409c3157e5b12aa66b
+
     # Independent planner process; control selection is configured above.
     # All fields are startup-only. Edit rate_hz and restart POLICY for 1/2/5/10 Hz.
     # Snapshot submission cannot exceed policy_update_rate_hz. No legacy lattice
@@ -299,7 +307,7 @@
 
     planning:
       algorithm: road_centerline
-      cruise_speed_mps: 0.2
+      cruise_speed_mps: 0.5
       preview_m: 0.35
       allow_forward_only: true
       # Match the estimator camera age budget. Wheel/gyro retain their separate
