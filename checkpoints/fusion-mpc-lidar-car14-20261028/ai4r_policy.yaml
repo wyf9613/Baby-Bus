@@ -52,8 +52,8 @@
       road_history_max_s: 30.0
       single_side_from_learned_width: true
       single_side_offset_fraction: 0.6
-      left_colour: 1
-      right_colour: 2
+      left_colour: 2
+      right_colour: 1
       keep_width_on_geometry_glitch: true
     planning:
       algorithm: road_centerline
@@ -225,7 +225,7 @@
       q_epsi: 5.0
       q_v: 10.0
       r_delta: 1.0
-      r_ddelta: 2.0
+      r_ddelta: 4.0
       r_drive: 1.0
       r_ddrive: 2.0
       terminal_scale: 5.0
@@ -318,6 +318,7 @@
       fusion_rear_support_m: 0.3
       fusion_use_prior: false
       length_m: 1.4
+      min_turn_radius_m: 0.9  # Smooth candidates before road/LiDAR checks; 0 disables.
       sample_count: 48
       path_spacing_m: 0.025
       handoff_allowance_s: 0.1
@@ -336,6 +337,9 @@
       weight_heading: 1.5
       weight_progress: 2.0
       weight_smoothness: 0.04
+      weight_consistency: 4.0
+      continuity_window_m: 0.6
+      switch_cost_margin: 0.05
       # Full-path road/body-obstacle feasibility; nominal straight gap 0.30 m.
       obstacle_avoidance_enabled: true
       obstacle_check_enabled: true

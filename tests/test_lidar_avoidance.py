@@ -114,16 +114,23 @@ class SoftAvoidanceChecks(unittest.TestCase):
         seed = yaml.safe_load((ROOT/"checkpoints/car01-uturn-noprior-20261028/v050-5m-noprior/ai4r_policy.yaml").read_text())
         current, seed = (p["/**/ai4r_policy"]["ros__parameters"] for p in (current, seed))
         section = current["shadow"]
+        self.assertEqual(section.pop("min_turn_radius_m"), 0.9)
+        self.assertEqual(section.pop("weight_consistency"), 4.0)
+        self.assertEqual(section.pop("continuity_window_m"), .6)
+        self.assertEqual(section.pop("switch_cost_margin"), .05)
         self.assertTrue(section.pop("obstacle_avoidance_enabled"))
         self.assertTrue(section.pop("obstacle_check_enabled"))
         self.assertEqual(section.pop("weight_obstacle"), 30.)
         self.assertEqual(section.pop("obstacle_margin_m"), 0.)
-        self.assertEqual(section["body_width_m"], .3)
+        self.assertEqual(section.pop("body_width_m"), .3)
+        self.assertEqual(seed["shadow"].pop("body_width_m"), .3)
         self.assertEqual(section.pop("collision_coverage"), "generated")
         seed["shadow"].pop("collision_coverage")
         self.assertEqual(section, seed["shadow"])
         self.assertTrue(current["mpc"].pop("geometry_glitch_tolerable"))
         seed["mpc"].pop("geometry_glitch_tolerable", None)
+        self.assertEqual(current["mpc"].pop("r_ddelta"), 4.0)
+        self.assertEqual(seed["mpc"].pop("r_ddelta"), 2.0)
         self.assertEqual(current["mpc"], seed["mpc"])
         self.assertEqual(current["planning"]["cruise_speed_mps"], .5)
         self.assertFalse(current["lidar_obstacle"]["stop_enabled"])
@@ -329,6 +336,196 @@ class PassabilityChecks(unittest.TestCase):
                                                generation=node.shadow_generation-1))
         node._shadow_poll()
         self.assertEqual(node.fsm_state, 3)
+
+
+def empty_scan_path_node():
+    """A valid path produced before any ROI return, as in the vehicle trace."""
+    m = runpy.run_path(str(Path(__file__).with_name("test_mpc_planner_control.py")))
+    node = m["make_node"](shadow_enabled=True, planner=True, mode="mpc-exec-lattice21")
+    m["run"](node, 6)
+    node.shadow_settings = replace(node.shadow_settings, obstacle_avoidance_enabled=True,
+        obstacle_check_enabled=True, obstacle_margin_m=0., collision_coverage="generated", length_m=1.4)
+    node.lidar_obstacle_settings = m["cns"]["LidarObstacleSettings"](
+        enabled=True, stop_enabled=False, stop_distance_m=1.4, roi_half_width_m=.6)
+    node._lidar_obstacle_publication_key = (None, "UNKNOWN", "missing_stale_or_unmatched_lidar")
+    node.shadow_worker = m["SyncWorker"](deliver=False)
+    result = m["offset_result"](node, .08, length=1.4)
+    result["obstacle_avoidance"] = {"hard_rejection": True, "status": "CLEAR"}
+    node.planner_execution.accept(result)
+    points = []
+    base_feed = m["feed"]
+    def feed(node, **kwargs):
+        base_feed(node, **kwargs)
+        stamp, mono = node.test_clock.ros_ns, node.test_clock.monotonic
+        node._store("lidar_scan", dict(ranges=[], intensities=[]), stamp, mono, stamp)
+        node._store("lidar_cartesian", dict(frame_id="base_link", points_xyz=list(points),
+            scan_indices=list(range(len(points)))), stamp, mono, stamp)
+        node._lidar_obstacle_stamp_ns = stamp
+        node.lidar_obstacle_output = dict(measurement_timestamp_s=stamp/1e9, status="OBSTACLE", reason="fixture")
+        node._lidar_obstacle_publication_key = (stamp/1e9, "OBSTACLE", "fixture")
+    m["run"].__globals__["feed"] = feed
+    return m, node, points
+
+
+class ScanContinuityChecks(unittest.TestCase):
+    def test_harmless_returns_on_an_empty_scan_path_do_not_zero_or_recenter(self):
+        m, node, points = empty_scan_path_node()
+        m["run"](node, 2)
+        controller, active = node.mpc_controller, node.planner_execution.active
+        self.assertFalse(active["obstacle_checked"])
+        self.assertGreater(abs(node.action_publisher.messages[-1].steer), .01)
+        offset = len(node.action_publisher.messages)
+        for returns in ([(.9,.55,0.)], [], [(.9,-.55,0.)], [], [(1.1,.5,0.)]):
+            points[:] = returns
+            m["run"](node, 1)
+            self.assertIs(node.mpc_controller, controller)
+            self.assertEqual(node.planner_execution.diagnostics["mode"], "planner")
+            self.assertTrue(node.planner_execution.diagnostics["current_scan_path_clear"])
+        self.assertTrue(all(x.drive > 0 and abs(x.steer) > .01
+                            for x in node.action_publisher.messages[offset:]))
+        self.assertFalse(active["obstacle_checked"])  # fresh returns must keep being checked
+
+    def test_a_new_blocker_is_checked_again_and_the_blocked_result_still_latches(self):
+        m, node, points = empty_scan_path_node()
+        m["run"](node, 2)
+        self.assertTrue(node.planner_execution.active["execution_obstacle_checked"])
+        points[:] = [(.9, -.2+.02*i, 0.) for i in range(21)]
+        node.shadow_last_submit_s = -math.inf
+        m["run"](node, 1)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0.)
+        self.assertEqual(node.planner_execution.diagnostics["waiting_cause"], "current_path_obstacle_overlap")
+        self.assertIsNotNone(node.planner_execution.diagnostics["current_obstacle_collision"])
+        self.assertFalse(node.planner_execution.active["execution_obstacle_checked"])
+        job = node.shadow_worker.jobs[-1]
+        result = m["Planner"](m["ShadowSettings"](**job["settings"])).plan(job)
+        self.assertTrue(result["stop_required"])
+        result.update(generation=node.shadow_generation, job_id=job["job_id"])
+        node.shadow_worker.results.append(result)
+        node._shadow_poll()
+        self.assertEqual(node.fsm_state, 2)
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0.)
+
+    def test_execution_checked_path_can_bridge_a_gap_without_no_road_renewal(self):
+        m, node, points = empty_scan_path_node()
+        m["run"](node, 2)
+        controller, active = node.mpc_controller, node.planner_execution.active
+        original = node.estimator.update
+        def gap(*a, **kw):
+            result = original(*a, **kw)
+            result["road"].update(valid=False, geometry_valid=False, status="insufficient_common_range",
+                centerline_xy=[], left_boundary_xy=[], right_boundary_xy=[], forward_geometry={})
+            return result
+        node.estimator.update = gap
+        points[:] = [(1.1,.55,0.)]
+        m["run"](node, 3)
+        self.assertIs(node.mpc_controller, controller)
+        self.assertGreater(node.action_publisher.messages[-1].drive, 0.)
+        self.assertEqual(node.planner_execution.diagnostics["reason"], "planner_tracking_road_dropout")
+        node.shadow_worker.results.append(dict(status="NO_ROAD", generation=node.shadow_generation, job_id=999))
+        node._shadow_poll()
+        self.assertIs(node.planner_execution.active, active)
+        m["run"](node, 8)
+        self.assertEqual(node.planner_execution.diagnostics["reason"], "road_dropout_timeout")
+        self.assertEqual(node.action_publisher.messages[-1].drive, 0.)
+
+
+class TurnRadiusChecks(unittest.TestCase):
+    def assert_radius(self, path, radius):
+        for a, b in zip(path, path[1:]):
+            chord = math.dist(a[:2], b[:2])
+            if chord > 1e-9:
+                turn = shadow["ns"]["wrap_angle"](b[2]-a[2])
+                self.assertLessEqual(2*abs(math.sin(turn/2))/chord, 1/radius+1e-8)
+
+    def test_disabled_keeps_native_geometry_and_straight_stays_straight(self):
+        limit = shadow["ns"]["_shadow_radius_limited"]
+        native = shadow["ns"]["_shadow_curve"]([(0.,0.),(.3,.2),(.8,.4),(1.4,.2)],1.4,.025)
+        self.assertIs(limit(native,0.),native)
+        straight = [(i*.025,0.,0.) for i in range(57)]
+        self.assertEqual(limit(straight,1.),straight)
+        for bad in (-1., math.inf, math.nan):
+            with self.assertRaises(ValueError):
+                shadow["Settings"](min_turn_radius_m=bad)
+
+    def test_each_generated_candidate_has_bounded_radius_and_mirrors(self):
+        job = record(())
+        job["road"].update(left_boundary_xy=None,right_boundary_xy=None)
+        original = shadow["plan"](job)
+        result = shadow["plan"](job,min_turn_radius_m=1.)
+        self.assertEqual(len(result["candidates"]),len(original["candidates"]))
+        changed = 0
+        for row,old in zip(result["candidates"],original["candidates"]):
+            self.assert_radius(row["path"],1.)
+            self.assertEqual(row["offsets_m"],old["offsets_m"])
+            changed += row["path"] != old["path"]
+        self.assertGreater(changed,0)
+        limit = shadow["ns"]["_shadow_radius_limited"]
+        path = original["candidates"][-1]["path"]
+        mirrored = [(x,-y,-h) for x,y,h in path]
+        for a,b in zip(limit(path,1.),limit(mirrored,1.)):
+            self.assertAlmostEqual(a[0],b[0])
+            self.assertAlmostEqual(a[1],-b[1])
+            self.assertAlmostEqual(a[2],-b[2])
+
+    def test_smoothed_paths_are_checked_against_road_and_lidar(self):
+        job = record(((.9,0.,0.),))
+        cfg = shadow["Settings"](**{**job["settings"],"min_turn_radius_m":1.,
+            "collision_coverage":"generated","obstacle_check_enabled":True})
+        result = shadow["Planner"](cfg).plan(job)
+        context = shadow["ns"]["_shadow_obstacle_context"](job,cfg)
+        boundaries = {s:job["road"][s+"_boundary_xy"] for s in ("left","right")}
+        collisions = []
+        for row in result["candidates"]:
+            expected = (shadow["ns"]["_shadow_collision"](row["path"],result["check_length_m"],boundaries,cfg)
+                or shadow["ns"]["_shadow_obstacle_collision"](row["path"],context,cfg))
+            self.assertEqual(row["collision"],expected)
+            collisions.append(expected)
+        self.assertTrue(any(c is not None for c in collisions))
+        self.assertIsNone(result["selected"]["collision"])
+        self.assertEqual(result["status"],"VALID")
+
+    def test_blocking_wall_still_requests_stop(self):
+        job = record(tuple((.75,-.6+i*.02,0.) for i in range(61)))
+        result = shadow["plan"](job,min_turn_radius_m=1.,obstacle_check_enabled=True,
+            collision_coverage="generated")
+        self.assertEqual(result["status"],"ALL_COLLIDE")
+        self.assertTrue(result["stop_required"])
+
+    def test_real_worker_uses_radius_limited_candidates(self):
+        job = record(())
+        job["settings"].update(min_turn_radius_m=1.,obstacle_check_enabled=True)
+        expected = shadow["plan"](job)
+        process = subprocess.run([sys.executable,str(shadow["source"]),"--shadow-worker"],
+            input=json.dumps(job)+"\n",capture_output=True,text=True,timeout=15)
+        self.assertEqual(process.returncode,0,process.stderr)
+        result = json.loads(process.stdout)
+        self.assertEqual(result["status"],expected["status"])
+        self.assertEqual(result["min_turn_radius_m"],1.)
+        self.assertEqual(result["selected"]["id"],expected["selected"]["id"])
+        self.assert_radius(result["selected"]["path"],1.)
+
+    def test_radius_limited_worker_path_reaches_the_unchanged_mpc(self):
+        m = runpy.run_path(str(Path(__file__).with_name("test_mpc_planner_control.py")))
+        node = m["make_node"](shadow_enabled=True,planner=True,mode="mpc-exec-lattice21")
+        m["run"](node,6)
+        controller = node.mpc_controller
+        node.shadow_settings = replace(node.shadow_settings,min_turn_radius_m=1.,length_m=1.4,
+            sample_count=48,obstacle_avoidance_enabled=True,obstacle_check_enabled=True,
+            collision_coverage="generated")
+        node.shadow_last_submit_s = -math.inf
+        node._shadow_offer()
+        submitted = node.shadow_worker.jobs[-1]
+        result = node.shadow_worker.results[-1]
+        self.assertEqual(result["status"],"VALID")
+        self.assertEqual(result["min_turn_radius_m"],1.)
+        self.assert_radius(result["selected"]["path"],1.)
+        node._shadow_poll()
+        after = m["run"](node,2)[-1]
+        self.assertEqual(after["reference_selection"],"planner")
+        self.assertEqual(after["path_id"],submitted["job_id"])
+        self.assertEqual(after["branch"],"solved")
+        self.assertGreater(node.action_publisher.messages[-1].drive,0.)
+        self.assertIs(node.mpc_controller,controller)
 
 
 if __name__ == "__main__":
