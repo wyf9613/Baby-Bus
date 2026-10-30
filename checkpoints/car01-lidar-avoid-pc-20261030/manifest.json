@@ -1,0 +1,18 @@
+{
+  "description": "Car 01 LiDAR avoidance, 2026-10-30: code eadf40b (Zhengxi 2c4fbff merged: execution-scan path check), yaml unchanged from the 10-28 lidar-avoid packages; radius limit and path continuity off (code defaults 0)",
+  "code_commit": "eadf40b (Merge feature/fusion-mpc-lidar-detection 2c4fbff)",
+  "ros_gate": "PASS, ~/ai4r-evidence/ros-20261030-140457 (source eadf40b)",
+  "policy_node.py (copy of scripts/policy_node.py at eadf40b)": "036b4051cca6de94d35c2eda214231789b4a3c2de59e7bcb92d1df179afa0516",
+  "config/traxxas_vehicle_interface.yaml (repo, unchanged)": "6e0253156fdcacb0e97874513d879b2e94521e19b7aa79dc020c3d0ea9f51ea4",
+  "regenerate": "yaml: copy of .verification/car05-lattice21-exec-v050-nolimit(-blueleft)-kcost-lidar-avoid/ai4r_policy.yaml (10-28). Equivalent: at eadf40b, python tools/make_deploy_yaml.py --mode mpc-exec-lattice21 --car 05 --speed-profile v05 --distance 0 --run-time-s 0 --cones <yellow-left|blue-left>, then lidar_obstacle.enabled true, shadow.fusion_use_prior false, weight_curvature 10.0, collision_coverage generated, obstacle_avoidance_enabled true, obstacle_check_enabled true, obstacle_margin_m 0.0",
+  "packages": {
+    "v050-nolimit-kcost-lidar-avoid-pc": {
+      "ai4r_policy.yaml": "ff8fa1584454029b35a9ac845bae5512fa5ecf13b7247c2457fafb7a8ad9be34",
+      "mode": "yellow-left; same yaml as 10-28 v050-nolimit-kcost-lidar-avoid"
+    },
+    "v050-nolimit-blueleft-kcost-lidar-avoid-pc": {
+      "ai4r_policy.yaml": "5ce4cb5a66431b197e307cfbf30a9766628f0179843e11f606e51fb84b3474ea",
+      "mode": "blue-left; same yaml as 10-28 v050-nolimit-blueleft-kcost-lidar-avoid"
+    }
+  }
+}
