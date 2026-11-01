@@ -166,7 +166,7 @@ def run(workspace,*,selected=(),all_roads=False,profile_path=None,max_steps=None
             diagnose_case(container/'raw')
             entry=dict(name='raw',start='road_start',summary=summary,timing_audit=audit)
             payload=compact_case(container,entry);payload['name']=case_id
-            labels=dict(observed='感知模块',perfect='完美感知',no_centerline='删除中线',native='native',model='模型',mvp='MVP',cstar='C*',mvp1_straight='单直线')
+            labels=dict(observed='感知模块',perfect='完美感知',no_centerline='删除中线',native='native',model='模型',mvp='MVP',cstar='C*',ideal='理想跟踪',mvp1_straight='单直线')
             profile_label='/'.join(labels[v] for v in profile['modules'].values())+' · '+profile_id[:6]
             payload['title']+=' · '+profile_label;payload['validation_profile']=profile_label
             write(container/'case.json',payload)

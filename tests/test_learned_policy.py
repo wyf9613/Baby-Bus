@@ -23,7 +23,7 @@ from offline.lattice_training.features import encode_candidate
 from offline.lattice_training.model import SpatialPathPolicy
 from tools.bundle_python import bundle
 
-CHECKPOINT = ROOT/'offline/lattice_training/artifacts/2026-10-19-multistart-policy/model.json'
+CHECKPOINT = ROOT/'offline/lattice_training/artifacts/2026-11-01-boundary-policy/model.json'
 RESOURCE = 'mvp21_policy/models/path_policy.json'
 
 

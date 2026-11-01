@@ -18,7 +18,7 @@
 | `execution.py` | 唯一执行管理器：锚点对齐、弧长裁剪、滚动检查、任务隔离、共同 PID 计算与回退 |
 | `lattice.py` | ShadowSettings、道路时序融合、候选生成、边界碰撞和评分选择 |
 | `learned.py` | 冻结 RNN 加载、候选评分和实际执行状态提交 |
-| `models/path_policy.json` | 不改写的最新多起点 RNN 权重，嵌入单文件 |
+| `models/path_policy.json` | 当前冻结的带噪边界数据微调 RNN，嵌入单文件 |
 | `transport.py` | 20 Hz 道路历史采集、纯规划任务提交、最新任务队列和后台子进程 |
 | `worker.py` | 无ROS的逐行JSON规划协议 |
 | `node.py` | ROS输入输出、状态机、主循环与学生插入代码 |
@@ -59,6 +59,13 @@ flowchart LR
 模型失败明确标为 `POLICY_ERROR`，通过共同执行管理器处理回退，不冒充学习选路成功。
 当前原生候选数为 48，训练时为 8；匹配 0.5 m/s 目标不代表实车执行等同 C*，
 既有感知、分支和掉头限制仍见[限制记录](../docs/SIMULATION_LIMITATIONS_CN.md)。
+
+2026-11-01 按用户选择，将本地模型更新为 `2026-11-01-boundary-policy` 第 200 轮
+微调检查点，SHA-256 `a5f35426205735d86c2c20297e771cd134f50f6b1d8aec2dcbdf6c4dad1bc87c`。
+原已部署权重保留在 `2026-10-19-multistart-policy/model.json`；Scratch 未接入。
+架构、特征、0.5 m/s 目标、实际 PID/回退和 RNN 提交规则不变。当前频率闭环仍未
+通过 Test 道路，此选择不代表已解决掉头或噪声鲁棒性问题。本次仅更新本地仓库及
+其生成的交付文件，没有上传车辆或管理服务。
 
 ## 仿真与打包
 

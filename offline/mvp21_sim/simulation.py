@@ -70,6 +70,11 @@ def fixed_road_environment(case, *, seed=713, progress=None, speed=0., latency_s
     Warm up only at rest. No oracle geometry or scenario width enters estimation;
     the colour mapping is the generated-cone sensor adapter convention.
     """
+    if case.get('boundary_geometry') and case.get('frozen_physical_cones'):
+        from .boundary_environment import boundary_runtime_environment
+        return boundary_runtime_environment(case,seed=seed,progress=progress,speed=speed,
+            latency_steps=latency_steps,max_steps=max_steps,terminal_support_m=terminal_support_m,
+            physics_hz=physics_hz,perception_hz=perception_hz)
     from offline.lattice_training.pipeline import with_terminal_support
     config = load_notebook(with_obstacles=True)
     config.integration_config['environment_step_duration_s']=1/physics_hz

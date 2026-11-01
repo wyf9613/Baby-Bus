@@ -73,6 +73,10 @@ class NativePrediction:
         self.output_indices = tuple(range(1, self.integration["substep_count"]+1))
         self.polygons = self.backend._obstacle_polygons_m[self.backend._obstacle_active_mask].copy()
         self.road = self.backend.road
+        self.physical_road = getattr(environment,'collection_physical_geometry',None)
+        physical_cones=getattr(environment,'collection_physical_cones',())
+        self.cone_points=np.asarray([[c['x_m'],c['y_m']] for c in physical_cones],dtype=float).reshape((-1,2))
+        self.cone_radii=np.asarray([c['radius_m'] for c in physical_cones],dtype=float)
         self.road_length_m = road_length(environment.config.road_spec)
         self.progress_limit_m=getattr(environment,'collection_route_length_m',self.road_length_m)
 
@@ -109,11 +113,25 @@ class NativePrediction:
                         else min(progress,self.road_length_m-progress))
             longitudinal = min(longitudinal,distance)
         contact = bool(closed_rectangle_intersection_mask(polygon, self.polygons).any())
+        cone_clearance=float('inf')
+        if self.physical_road is not None:
+            model=dict(front_m=car._body_front_extent_from_center_of_mass_m+cfg.safety_margin_m,
+                rear_m=car._body_rear_extent_from_center_of_mass_m+cfg.safety_margin_m,
+                width_m=car._body_width_m+2*cfg.safety_margin_m)
+            clearance=min(self.physical_road.footprint_margins(model,np.array([x,y]),heading))
+            if len(self.cone_points):
+                delta=self.cone_points-[x,y];co,si=math.cos(heading),math.sin(heading)
+                bx=delta[:,0]*co+delta[:,1]*si;by=-delta[:,0]*si+delta[:,1]*co
+                dx=np.maximum(np.maximum(-model['rear_m']-bx,bx-model['front_m']),0.)
+                dy=np.maximum(abs(by)-model['width_m']/2,0.)
+                cone_clearance=float(np.min(np.hypot(dx,dy)-self.cone_radii))
+                contact|=cone_clearance<0.
         margins = {"road_clearance_m": float(clearance), "obstacle_contact_margin": -1.0 if contact else 1.0,
                    "road_longitudinal_clearance_m": float(longitudinal),
                    "speed_margin_mps": cfg.speed_max_mps-math.hypot(vx, vy),
                    "forward_velocity_margin_mps": vx+1e-7,
                    "steering_margin_rad": car._requested_front_wheel_angle_magnitude_limit_rad-abs(steering)}
+        if self.physical_road is not None:margins['physical_cone_clearance_m']=cone_clearance
         if previous is not None:
             dt_s = dt_s or self.dt_s
             long_acceleration = (vx-previous[3])/dt_s-yaw_rate*vy

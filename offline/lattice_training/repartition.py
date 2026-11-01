@@ -11,6 +11,7 @@ from .scenarios import SUITE_KINDS
 
 def split_unit(record):
     episode = record.get('episode') or {}
+    if episode.get('split_group_id'):return 'boundary',episode['split_group_id']
     # Reflections share construction parameters; all families/views for a seed
     # stay together. Old roads keep their existing physical geometry identity.
     if episode.get('kind') in SUITE_KINDS:

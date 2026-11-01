@@ -27,3 +27,9 @@ offline/lattice_training/artifacts/2026-10-19-recurrent-policy/*
 /offline/lattice_training/artifacts/2026-10-19-multistart-policy/*
 !/offline/lattice_training/artifacts/2026-10-19-multistart-policy/model.json
 !/offline/lattice_training/artifacts/2026-10-19-multistart-policy/.gitattributes
+# New boundary collection, training and runtime evidence remains local.
+/offline/lattice_training/artifacts/2026-10-31-boundary-rnn/
+/offline/lattice_training/artifacts/2026-11-01-boundary-policy-scratch/
+/offline/lattice_training/artifacts/2026-11-01-boundary-policy/*
+!/offline/lattice_training/artifacts/2026-11-01-boundary-policy/model.json
+!/offline/lattice_training/artifacts/2026-11-01-boundary-policy/.gitattributes

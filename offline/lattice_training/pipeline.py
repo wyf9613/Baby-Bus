@@ -51,7 +51,7 @@ class PipelineSettings:
     single_side_dropout_probability: float = 0.0
 
     def __post_init__(self):
-        known = {"randomized", "straight", "left_curve", "right_curve", "obstacle", "blocked", *SUITE_KINDS, *VALIDATION_KINDS}
+        known = {"boundary_fixture", "randomized", "straight", "left_curve", "right_curve", "obstacle", "blocked", *SUITE_KINDS, *VALIDATION_KINDS}
         if not self.kinds or len(set(self.kinds)) != len(self.kinds) or not set(self.kinds) <= known:
             raise ValueError("Unknown or duplicate training scene kinds")
         if (not self.planner_profiles or len(set(self.planner_profiles)) != len(self.planner_profiles)
@@ -479,7 +479,16 @@ def _plant_source(configuration):
             "integration_config": configuration["integration_config"]}
 
 
-def collect_records(output, settings, objective, solver_settings, progress=None, *, road_settings=None):
+def collection_episode_id(kind, seed, initial_index, profile, settings):
+    identity = f"{kind}:{seed}:initial:{initial_index}:lattice:{profile}"
+    if settings.road_input_mode != 'perception': identity += ':'+settings.road_input_mode
+    if settings.initial_start_mode != 'default': identity += ':'+settings.initial_start_mode
+    if settings.use_scenario_width_prior: identity += ':scenario_width_prior'
+    if settings.obstacle_layout: identity += ':'+settings.obstacle_layout
+    return identity
+
+
+def collect_records(output, settings, objective, solver_settings, progress=None, *, road_settings=None, environment_factory=None, recovery=None):
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
     road_settings = road_settings or RoadRandomizationSettings()
@@ -489,34 +498,31 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
     sampling = label_source['sampling']
     scenes, total_decisions, total_candidates, base_splits = [], 0, 0, {}
     timing_totals = dict.fromkeys(("planning_s", "solve_s", "trials_s", "successor_s", "serialization_s"), 0.0)
-    total_trials = successful_trials = 0
+    total_trials = successful_trials = replayed_decisions = 0
     started = time.perf_counter()
     def collection_report(complete):
         return {"decisions": total_decisions, "candidates": total_candidates, "trials": total_trials,
             "successful_trials": successful_trials, "scenes": scenes, "base_roads": len(base_splits),
+            "replayed_prefix_decisions": replayed_decisions,
             "base_road_splits": base_splits, "sampling": sampling, "collection_complete": complete,
             "wall_s": time.perf_counter()-started, "timing_totals": dict(timing_totals),
             "pipeline_settings": asdict(settings), "solver_settings": asdict(solver_settings),
-            "objective": specification, "road_randomization": randomization_provenance(road_settings)}
+            "objective": specification, "road_randomization": label_source.get('road_randomization',randomization_provenance(road_settings))}
     with path.open("w", encoding="utf-8") as stream:
         for split, seeds in (("train", settings.train_seeds), ("validation", settings.validation_seeds), ("test", settings.test_seeds)):
             for seed in seeds:
                 for kind in settings.kinds:
                     for initial_index in range(settings.starts_per_road):
                         for profile in settings.planner_profiles:
-                            environment, observation, initialization = initialize_episode(
+                            episode_id = collection_episode_id(kind,seed,initial_index,profile,settings)
+                            if recovery is not None and episode_id in recovery.completed:
+                                continue
+                            initializer=environment_factory or initialize_episode
+                            environment, observation, initialization = initializer(
                                 kind, seed, initial_index, settings, objective, road_settings, solver_settings)
-                            episode_id = f"{kind}:{seed}:initial:{initial_index}:lattice:{profile}"
-                            if settings.road_input_mode != 'perception':
-                                episode_id += ':'+settings.road_input_mode
-                            if settings.initial_start_mode != 'default':
-                                episode_id += ':'+settings.initial_start_mode
-                            if settings.use_scenario_width_prior:
-                                episode_id += ':scenario_width_prior'
-                            if settings.obstacle_layout:
-                                episode_id += ':'+settings.obstacle_layout
+                            prefix = recovery.prefixes.get(episode_id,[]) if recovery is not None else []
                             scene_config = environment.configuration()
-                            base_id = road_identity(scene_config["road_spec"])
+                            base_id = getattr(environment,'collection_scene_id',None) or road_identity(scene_config["road_spec"])
                             if base_splits.setdefault(base_id, split) != split:
                                 environment.close()
                                 raise ValueError("Same generated road would leak across data splits")
@@ -526,7 +532,7 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                                        rate_hz=settings.planner_rate_hz,cruise_speed=settings.cruise_speed_mps)
                                 nominal_length, nominal_preview = planner.cfg.length_m, planner.settings.preview_m
                                 chooser = np.random.default_rng(initialization["episode_seed"])
-                                decisions, faults, previous_action, terminal_behavior = 0, [], (0.0, 0.0), None
+                                decisions, faults, previous_action, terminal_behavior = 0, [], tuple(initialization.get('initial_control',(0.0,0.0))), None
                                 initial_progress = environment._info["evaluation"]["ground_truth"]["reference_line_progress_m"]
                                 initial_pose = list(environment._backend.car._state_values()[:3])
                                 goal = road_goal_progress(environment)
@@ -536,6 +542,7 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                         "completed_episodes": len(scenes), "total_candidates": total_candidates})
                                 segments, planner_fault, scene_candidates = [], None, 0
                                 label_source["plant"] = _plant_source(scene_config)
+                                label_source.update(getattr(environment,'collection_label_contract',{}))
                                 segment_limit = settings.max_segments if settings.until_road_end else settings.decisions
                                 for segment in range(segment_limit):
                                     if (not initialization['initial_region']['legal'] or initialization['warmup_terminated']
@@ -565,6 +572,24 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                             'diagnostics':diagnostics,'progress_m':current}
                                         break
                                     decision_seed = (initialization["episode_seed"]+segment*100+17) % (2**32)
+                                    if segment < len(prefix):
+                                        saved=prefix[segment]
+                                        observation,previous_action=recovery.replay(
+                                            environment,observation,choices,chooser,saved,previous_action,
+                                            settings.random_selection_probability)
+                                        decisions+=1;replayed_decisions+=1;scene_candidates+=len(saved['candidates'])
+                                        successor=saved['successor'];segments.append(successor)
+                                        if progress:progress(dict(stage='replay_saved_decision',episode=episode_id,segment=segment))
+                                        if not successor['accepted']:
+                                            faults.append(successor['reason']);terminal_behavior='successor_failure';break
+                                        current=float(environment._info['evaluation']['ground_truth']['reference_line_progress_m'])
+                                        if settings.until_road_end and goal-current<=objective.completion_tolerance_m:
+                                            terminal_behavior='road_goal_reached';break
+                                        chosen=next(c['candidate'] for c in saved['candidates']
+                                            if c['candidate']['candidate_id']==saved['episode']['selected_candidate_id'])
+                                        if chosen['reference']['planned_stop']:
+                                            terminal_behavior='planned_stop_reference_complete';break
+                                        continue
                                     entries, solved = [], {}
                                     for candidate_index, candidate in enumerate(choices):
                                         solve_started = time.perf_counter()
@@ -608,6 +633,7 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                             "initial_control": list(previous_action)}, "successor": successor,
                                         "timings": timings}
                                     serialization_started = time.perf_counter()
+                                    record['episode'].update(getattr(environment,'collection_episode_metadata',{}))
                                     stream.write(json.dumps(json_safe(record), ensure_ascii=False, allow_nan=False)+"\n")
                                     stream.flush()
                                     timings["serialization_s"] = time.perf_counter()-serialization_started
@@ -647,9 +673,12 @@ def collect_records(output, settings, objective, solver_settings, progress=None,
                                     terminal_behavior = "maximum_segments_reached" if settings.until_road_end else "decision_budget_reached"
                                     if settings.until_road_end:
                                         faults.append("maximum_segments_reached")
+                                if decisions < len(prefix):
+                                    raise RuntimeError('Saved decision prefix could not be fully restored: '+episode_id)
                                 final_progress = float(environment._info["evaluation"]["ground_truth"]["reference_line_progress_m"])
                                 scenes.append({"episode_id": episode_id, "scene_id": base_id, "split": split,
                                     "decisions": decisions, "faults": faults, "terminal_behavior": terminal_behavior,
+                                    "replayed_prefix_decisions": min(decisions,len(prefix)),
                                     "candidates":scene_candidates,
                                     "road_completed": terminal_behavior == "road_goal_reached",
                                     "final_progress_m": final_progress, "goal_progress_m": goal,

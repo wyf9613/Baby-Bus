@@ -103,6 +103,93 @@ preferences. Ordinary implementation requests authorize in-scope edits/checks.
   commit recurrent memory only after the selected path's action is published.
   Vehicle Enable and policy Run remain the operator's actions.
 
+- On 2026-10-30 the user requested short-fragment S/U/compound roads with clear
+  cone-inner-edge widths 0.3–1.5 m, nonuniform/gapped/overlapping cone observations
+  and radial measurement drift, retaining camera FOV and no near-distance cutoff.
+  Use the loaded vehicle model for steering/footprint/rate feasibility. First
+  screen prescribed centerline motion through the unchanged perception and
+  native planner; separate geometry, exported-road and candidate-generation
+  outcomes. Preserve rejected cases and grouped seeded holdouts. This prescribed
+  sensing screen is not autonomous control or policy training; radar is dummy.
+  The user then raised the minimum clear width to 0.5 m, requested a full-body
+  balanced prescribed reference, denser cones with a 0.5 m maximum remaining
+  gap, fixed per-cone outward displacement independent of measurement noise,
+  and larger per-frame Gaussian radial noise. Keep old evidence immutable and
+  screen a separate revised batch; the reference remains environment-only.
+  Cone spacing is measured on each boundary's own arc length; check both the
+  post-omission gap cap and noninterpenetrating physical cone placement.
+  On 2026-10-31 the user removed boundary-output coverage as an acceptance
+  requirement: every actual planner job must still produce valid candidates;
+  NO_ROAD, no feasible candidate and runtime exceptions reject a road. Generate
+  a larger boundary-first pool, independently vary both physical boundaries
+  before fitting a middle reference, increase compound bend diversity and
+  counterbalance U-turn entry/apex/exit width timing. The user explicitly
+  authorized curating suitable runtime-passing roads from this pool. Preserve
+  the full pool, rejected cases and seeded split groups; report qualification
+  separately from full-pool results, without training or changing main modules.
+
+- On 2026-10-31 the user then authorized fresh collection and RNN training on
+  all 39 qualified boundary-first roads, superseding the screening-only limit.
+  Preserve their frozen physical cones, per-road Gaussian radial noise settings,
+  multi-start/repeated sampling, 0.5 m/s C* and fixed executed-sequence replay.
+  Freeze a new construction-group partition before labels are observed; keep
+  all mirrors, starts and repetitions together. Physical boundary/cone truth
+  belongs only to C* constraints and evaluation, never policy features. Preserve
+  prior datasets/checkpoints and current main/default policy. The user explicitly
+  requires staged work: start each stage, end the turn without ongoing checks,
+  and wait for user feedback before starting the next stage. Do not auto-chain
+  consolidation/training or create progress-monitoring automations.
+  After the first collection was interrupted, the user authorized diagnosing
+  the interruption and resuming the remaining 241 episodes. Keep all original
+  data immutable; skip 71 finished episodes, deterministically replay executed
+  prefixes without re-solving or duplicating labels, and append only new rows
+  in a separate continuation directory. Start the independent hidden workers,
+  then end the turn; no continuous polling or automatic next stage.
+  On 2026-11-01 the user authorized completing consolidation and starting
+  training in the same turn. Join all original and resumed decisions by the
+  recorded episode/segment IDs, preserve the frozen grouped split and recompute
+  labels from saved executions before import. Start a separate RNN fine-tune
+  from the current checkpoint with unchanged inputs/target/architecture;
+  select on Validation only. End the turn after starting the independent
+  hidden training process and wait for feedback; no main-model replacement.
+
+- On 2026-11-01 the user authorized a noisy closed-loop comparison of the old
+  and newly trained RNN policies against native selection on the seven frozen
+  Test roads. Reuse original cones/noise, current MVP control and shared
+  execution/fallback at 20 Hz perception/control and 1 Hz generation/ranking.
+  Preserve models, training data and main configuration; evaluation is not
+  retraining or vehicle deployment. Physical truth belongs only to the plant,
+  passive stop checks and labelled visualization. Keep actual speed, failure
+  positions, fallback use and paired-noise/clock audits in local evidence.
+  The user subsequently authorized an explicit ideal-control diagnostic:
+  constant 0.5 m/s arc tracking and exact execution-pose transforms replace PID,
+  actuator dynamics and execution dead reckoning only. Keep perception/fusion
+  motion histories measured, shared admission/fallback active, and expose all
+  connector/heading discontinuities without smoothing or lateral teleportation.
+  The finite ideal join is holonomic: retain reference-tangent heading while
+  approaching the curve and report actual longitudinal/lateral velocities.
+  Oracle poses remain in the offline control port, never policy features or
+  training labels. This does not change the physical/main control path.
+
+- On 2026-11-01 the user authorized training the same RNN from scratch on the
+  frozen noisy boundary dataset. Initialize from seed 42 without checkpoint
+  weights or normalization; fit normalization on new Train inputs only. Preserve
+  the 16-hidden/1841-parameter architecture, features, C* target, fixed executed
+  sequences and grouped split. A separate scratch budget is lr 0.001, up to
+  1000 epochs with 150-epoch Validation rank patience. Validation alone selects
+  the checkpoint; Test is evaluated afterwards. Keep all existing models and
+  main configuration unchanged. Start the independent hidden training stage,
+  confirm startup only, then end the turn and wait for feedback. Do not chain
+  runtime evaluation, replace the model or monitor epochs automatically.
+
+- At the close of this round on 2026-11-01, the user authorized installing the
+  epoch-200 fine-tuned noisy-boundary model in the local repository and pushing
+  the current feature branch. This supersedes the no-main-model-replacement
+  restriction for that selected checkpoint only. Pin its exact SHA-256 in the
+  inference settings/YAML, regenerate the single-file delivery and preserve the
+  old archived checkpoint. Keep scratch, raw datasets and verification evidence
+  local. No vehicle upload, service action, merge or release is authorized.
+
 - The policy never enables the vehicle. DREAM owns hardware services,
   calibrated facts and admitted component overrides. Its camera TF is fixed at
   zero pan; physical panning needs a measured dynamic TF before use.

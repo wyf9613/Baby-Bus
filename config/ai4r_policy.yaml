@@ -244,12 +244,12 @@
     planner_control:
       enabled: true
 
-    # Frozen latest multi-start RNN ranks only collision-admitted native paths.
+    # Frozen noisy-boundary fine-tune (epoch 200) ranks admitted native paths.
     # Weights are embedded in policy_node.py; no model file is copied separately.
     learned_policy:
       enabled: true
       model_path: models/path_policy.json
-      model_sha256: a3116bb7bc4bb46ccb6e208fa3de628eca940820810943409c3157e5b12aa66b
+      model_sha256: a5f35426205735d86c2c20297e771cd134f50f6b1d8aec2dcbdf6c4dad1bc87c
 
     # Independent planner process; control selection is configured above.
     # All fields are startup-only. Edit rate_hz and restart POLICY for 1/2/5/10 Hz.

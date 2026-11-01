@@ -131,3 +131,22 @@ ROS 主线 policy，不改模型、输入编码、生成/控制参数，也不�
 不读取场景宽度先验；删除中线不是相机自然缺失。入口门控可能在首次规划/评分
 前停止，必须和模型选路失败分开。原感知输出及实际送入模块的观测分别保留。
 原固定掉头回放继续存在；新增道路集和道路输入筛选，分母按当前道路集计算。
+
+## 理想跟踪诊断
+
+模块配置的 `modules.control="ideal"` 是显式离线端口，沿用同一个 runtime。
+它以目标速度沿选中的空间折线走弧长，执行坐标转换使用真实车辆相对位姿，
+不经过 PID/执行器，也不限制转向或修平折角。换路时实际经过到新参考的连接段，
+不瞬移位置；连接期间朝向保持参考切向，允许理想横向平移，遥测按实际位移分解
+纵向/横向速度。真实道路仍只用于被动几何检查；感知与 planner 历史融合保留原逻辑，
+模型输入和权重不变，shared execution 的滚动检查及 baseline 回退继续生效。
+因此这是路径形状与连续选路的诊断，不是实车可通过性验收。
+
+冻结新 Test 道路的三组对照：
+
+```powershell
+../Baby-Bus/.verification/planner-sim-venv/Scripts/python.exe -m offline.mvp21_sim.boundary_evaluation --batch offline/lattice_training/artifacts/2026-10-31-boundary-rnn --output <new-directory> --control ideal
+```
+
+输出沿用索引数据和 comparison.html / viewer.html，额外记录路径航向变化、
+参考切换、连接段和交付候选与执行参考的重合误差。默认 control 仍为 MVP。

@@ -113,6 +113,11 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
         if modular and validation_config['modules']['control']=='cstar':
             from .validation_ports import CStarController
             controller=CStarController(env,controller.settings,validation_config)
+        ideal=modular and validation_config['modules']['control']=='ideal'
+        if ideal:
+            from .ideal_control import IdealPathController,IdealExecutionManager
+            controller=IdealPathController(env,controller.settings,validation_config)
+            manager=IdealExecutionManager(env,generation=1)
         budget = handoff_budget_s if handoff_budget_s is not None else math.ceil(delivery_delay_s/env.dt_s-1e-9)*env.dt_s
         offer.shadow_handoff_estimate_s = max(settings.handoff_allowance_s, budget)
         offer.motion_history = env.estimator.motion
@@ -140,6 +145,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                     from offline.lattice_training.scenarios import road_input as mask_road_input
                     observation = mask_road_input(env._frame, 'no_centerline')
                 estimates, now = observation['estimation'], observation['timestamp_s']
+                if ideal:manager.record_pose(now)
                 ages = observation['sensor_age_s']
                 fresh = {name: observation['sensor_available'].get(name, False)
                     and finite_number(ages.get(name)) and ages[name] < config['sensor_timeout_s'][name]
@@ -229,7 +235,8 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                 action = plant_action(drive, steer, actuator_steering_sign=steering_sign)
                 control_wall = time.perf_counter()-cycle_started
                 raw_before = env._backend.car._state_values()
-                _, _, terminated, truncated, info = env.step(action)
+                _, _, terminated, truncated, info = controller.advance() if ideal else env.step(action)
+                if ideal:control.update(controller.last_diagnostics)
                 raw = env._backend.car._state_values()
                 margins = checker.margins(raw, raw_before)
                 row = dict(step=step, timestamp_s=now, progress_m=float(info['evaluation']['ground_truth']['reference_line_progress_m']),
@@ -243,6 +250,8 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                     road_visibility=estimates['road'].get('visibility'), road_boundary_source=estimates['road'].get('boundary_source'),
                     planner_controller_wall_s=control_wall,
                     plant_corner_road_margin_m=margins['road_clearance_m'])
+                if 'physical_cone_clearance_m' in margins:
+                    row['plant_physical_cone_margin_m']=margins['physical_cone_clearance_m']
                 if detailed_trace:
                     row.update(raw_state=list(raw), raw_state_before=list(raw_before),
                         observation=observation, baseline=baseline,
@@ -254,7 +263,12 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                 rows.append(row)
                 trace_stream.write(json.dumps(json_safe(row), allow_nan=False)+'\n')
                 if margins['road_clearance_m'] < -1e-7:
-                    fault, failure = 'execution:plant_body_corner_outside_road', dict(step=step, pose=list(raw), margins=margins)
+                    fault = ('execution:outside_original_boundary' if checker.physical_road is not None
+                             else 'execution:plant_body_corner_outside_road')
+                    failure = dict(step=step, pose=list(raw), margins=margins)
+                    break
+                if margins.get('physical_cone_clearance_m',0.) < -1e-7:
+                    fault, failure = 'execution:physical_cone_contact', dict(step=step,pose=list(raw),margins=margins)
                     break
                 if terminated or truncated:
                     fault = 'environment_finished'
@@ -280,7 +294,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
                     before = list(env._backend.car._state_values())
                     obs = env._frame
                     if perfect is not None:obs=perfect.apply(env,obs,step+index)
-                    _, _, terminated, truncated, info = env.step((0., 0.))
+                    _, _, terminated, truncated, info = controller.advance() if ideal else env.step((0., 0.))
                     raw = list(env._backend.car._state_values())
                     row = dict(step=len(rows)+index, timestamp_s=obs['timestamp_s'], phase='zero_hold',
                         progress_m=float(info['evaluation']['ground_truth']['reference_line_progress_m']),
@@ -337,6 +351,8 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
             wall_s=time.perf_counter()-started, learned_scorer_enabled=selector is not None,
             learned_scorer_used=selector is not None and selector.candidate_calls>0,
             cstar_controls_used=modular and validation_config['modules']['control']=='cstar',
+            ideal_controls_used=ideal,
+            execution_pose_source='explicit_simulation_truth' if ideal else 'measured_motion_history',
             selection_backend='policy' if selector is not None else 'native',
             policy=selector.provenance() if selector is not None else None,
             policy_reference_count=modes['planner'] if selector is not None else 0,
@@ -350,6 +366,7 @@ def run_runtime(road, output, *, road_input='perception', max_steps=1200, seed=0
         if modular:
             write_json(output/'module-events.json',dict(policy_ticks=worker.selection_events))
             write_json(output/'generation-records.json',worker.generated)
+        if hasattr(env,'export_sensor_audit'):env.export_sensor_audit(output)
     verify_preserved_files()
     print(json.dumps({key: summary[key] for key in ('completed', 'steps', 'final_progress_m', 'fault',
         'planner_reference_count', 'baseline_reference_count', 'native_only_passed')}), flush=True)

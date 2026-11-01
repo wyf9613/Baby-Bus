@@ -24,7 +24,7 @@ from offline.lattice_training.spatial import (
 class LearnedPolicySettings:
     enabled: bool = False
     model_path: str = "models/path_policy.json"
-    model_sha256: str = "a3116bb7bc4bb46ccb6e208fa3de628eca940820810943409c3157e5b12aa66b"
+    model_sha256: str = "a5f35426205735d86c2c20297e771cd134f50f6b1d8aec2dcbdf6c4dad1bc87c"
 
     def __post_init__(self):
         if not isinstance(self.enabled, bool):

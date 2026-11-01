@@ -22,7 +22,7 @@ def configuration(value=None):
         else:result[key]=deepcopy(item)
     if result['schema']!=DEFAULT['schema']:raise ValueError('Unsupported validation schema')
     for key,allowed in dict(perception=('observed','perfect','no_centerline'),planner=('native','mvp1_straight'),
-                            policy=('native','model'),control=('mvp','cstar')).items():
+                            policy=('native','model'),control=('mvp','cstar','ideal')).items():
         if result['modules'][key] not in allowed:raise ValueError('Unknown '+key+' module')
     rates=result['frequencies_hz'];base=rates['physics']
     for key,value in rates.items():
