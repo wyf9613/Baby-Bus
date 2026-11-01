@@ -14,4 +14,5 @@ exec ros2 bag record -o "$out" --topics \
   /car/shadow_trajectory /car/shadow_checked_prefix /car/shadow_reference /car/shadow_planning \
   /car/policy_fsm_state_string /car/traxxas_state \
   /car/drive_and_steer_set_point_normalized /car/drive_and_steer_applied_normalized \
-  /car/wheel_speed_m_per_sec /car/cone_detections /car/imu/data /car/diagnostics /tf /tf_static
+  /car/wheel_speed_m_per_sec /car/cone_detections /car/imu/data /car/diagnostics /tf /tf_static \
+  /car/scan /car/lidar_obstacles /car/lidar_roi_points /car/lidar_roi
