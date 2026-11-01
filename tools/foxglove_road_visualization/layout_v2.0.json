@@ -699,10 +699,20 @@
         {
           "title": "2D Lidar",
           "layout": {
-            "first": "Markdown!z5tmov",
-            "second": "3D!3k2givz",
+            "first": {
+              "first": "Markdown!z5tmov",
+              "second": "3D!3k2givz",
+              "direction": "row",
+              "splitPercentage": 25.787641620291335
+            },
+            "second": {
+              "first": "RawMessages!lidarobstacles",
+              "second": "RawMessages!plannerexecution",
+              "direction": "column",
+              "splitPercentage": 50
+            },
             "direction": "row",
-            "splitPercentage": 25.787641620291335
+            "splitPercentage": 62
           }
         },
         {
@@ -710,6 +720,16 @@
           "layout": "Parameters!29wn3a0"
         }
       ]
+    },
+    "RawMessages!lidarobstacles": {
+      "topicPath": "/car/lidar_obstacles.data",
+      "fontSize": 12,
+      "foxglovePanelTitle": "LiDAR obstacles (status, nearest_bumper_distance_m, clusters)"
+    },
+    "RawMessages!plannerexecution": {
+      "topicPath": "/car/planner_execution.data",
+      "fontSize": 12,
+      "foxglovePanelTitle": "Planner execution (mode, waiting_cause, obstacle_check_source)"
     }
   },
   "globalVariables": {

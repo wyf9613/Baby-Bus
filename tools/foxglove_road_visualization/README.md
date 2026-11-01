@@ -7,6 +7,10 @@
 [最新MPC+雷达](../../docs/FUSION_MPC_LIDAR_CN.md)。此增量尚未进行GUI或实车验证；
 下方ROS/实车验收记录均为上游历史，不是本次雷达增量的验收。
 
+2026-11-02：`2D Lidar` 标签页右侧加了两个 Raw Messages 面板，`/car/lidar_obstacles`
+（status、nearest_bumper_distance_m、clusters）和 `/car/planner_execution`（mode、
+waiting_cause、obstacle_check_source、current_scan_path_clear）。其余面板不变。
+
 当前导入同目录 `layout_v2.0.json`，在原来的 `Cone locations` 图里显示绿色轨迹及雷达信息。
 下方早期记录中的 `layout.json` 是改名前的文件名。
 话题为 `/car/policy_trajectory`，类型是标准 `nav_msgs/msg/Path`。
